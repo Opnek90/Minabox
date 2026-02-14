@@ -624,7 +624,7 @@ Wichtige Punkte (kurz):
 
 ### 12.1 Zwei Ebenen
 
-1. **Zentrale `.env`** im Root (gemeinsame Settings: MQTT-Broker, Ports, Logging)  
+1. **Zentrale `.env`** im Root (gemeinsame Settings: MQTT-Broker, Ports, Logging, Device-ID für MQTT Events (z. B. minabox/<device-id>/rfid/tag-scanned))  
 2. **Service-spezifische JSON-Configs** unter `config/*.json` pro Service  
 
 ### 12.2 Schema-basierte Config
