@@ -1,6 +1,6 @@
 # Minabox - Framework Guidelines
 
-**Version:** 1.3  
+**Version:** 1.4  
 **Letzte Änderung:** 2026-02-14
 
 Dieses Dokument definiert die technischen Standards und Best Practices für das gesamte Minabox-Projekt. Alle Services müssen diesen Richtlinien folgen, um Konsistenz, Wartbarkeit und Qualität sicherzustellen.
@@ -33,12 +33,15 @@ docs/
   Framework.md           # Dieses Dokument
   services/              # Fachliche Doku & Checklisten pro Bereich
     rfid/
+      Architecture.md
     audio/
     webui/
     api/
     database/
     led/
+      Architecture.md
     button/
+      Architecture.md
 
 services/                # Technische Services (Implementierungen)
   rfid-service/
@@ -53,7 +56,8 @@ infrastructure/          # Infrastruktur (docker-compose, MQTT-Broker, Monitorin
 install/                 # Installations-/Setup-Skripte und Anleitungen
 ```
 
-Jeder Service-Ordner unter `services/` verwendet die Standardstruktur aus Kapitel **4. Projekt-Struktur pro Service**.
+Jeder Service-Ordner unter `services/` verwendet die Standardstruktur aus Kapitel **4. Projekt-Struktur pro Service**.  
+Für jeden fachlichen Bereich (z.B. RFID, Button, LED, Audio, Backend, WebUI) existiert eine `Architecture.md` unter `docs/services/<bereich>/`, die die Service-Aufgaben, Schnittstellen und Konfigurationsmodelle beschreibt.
 
 ---
 
@@ -215,8 +219,8 @@ minabox/<device-id>/<domain>/<action>
 ```
 
 - `<device-id>`: Eindeutige ID der Box (z.B. `box1`, `livingroom`, `kidsroom`)
-- `<domain>`: Fachbereich, z.B. `rfid`, `button`, `audio`, `system`
-- `<action>`: Konkretes Event oder Kommando, z.B. `tag-scanned`, `play`, `status`
+- `<domain>`: Fachbereich, z.B. `rfid`, `button`, `audio`, `system`, `led`.
+- `<action>`: Konkretes Event oder Kommando, z.B. `tag-scanned`, `play`, `status`.
 
 Beispiele:
 
@@ -226,10 +230,10 @@ minabox/box1/rfid/tag-scanned
 minabox/box1/rfid/tag-removed
 
 # Buttons
-minabox/box1/button/play
+minabox/box1/button/play-pause
 minabox/box1/button/next
 minabox/box1/button/prev
-minabox/box1/button/volume
+minabox/box1/button/volume-up
 
 # Audio
 minabox/box1/audio/play
@@ -241,6 +245,9 @@ minabox/box1/audio/status
 minabox/box1/system/service-started
 minabox/box1/system/service-error
 minabox/box1/system/online
+
+# LED
+minabox/box1/led/config/update
 ```
 
 **Namenskonvention:**
@@ -328,9 +335,79 @@ JSON mit Timestamps:
 
 ---
 
-## 6. Logging & Monitoring
+## 6. Generisches Config-Update-Pattern über MQTT
 
-### 6.1 Logging-Framework
+Mehrere Services (z.B. Button-, LED-, RFID-Service) verwenden ein einheitliches Muster für Konfigurationsupdates über MQTT.
+
+### 6.1 Prinzip
+
+- Service-spezifische Konfiguration wird in einer JSON-Datei im Service-Ordner gehalten (z.B. `config/buttons.json`, `config/leds.json`, `config/service.json`).
+- Das Backend/WebUI verwaltet diese Konfigurationen zentral (CRUD-UI) und sendet Änderungen via MQTT an den jeweiligen Service.
+- Der Service validiert die neue Config, schreibt sie in die lokale JSON-Datei und wendet sie per Hot-Reload an.
+
+### 6.2 Standard-Topics für Config-API
+
+Für jeden Service, der konfigurierbar ist, gelten folgende Muster (Domain = Service-Name):
+
+- `minabox/<device-id>/<domain>/config/get`  
+  - Anfrage vom Backend, um die aktuelle Config zu erhalten.
+
+- `minabox/<device-id>/<domain>/config/update`  
+  - Backend sendet eine **vollständige** neue Konfiguration.
+
+- `minabox/<device-id>/<domain>/config/reload`  
+  - Service liest die lokale JSON-Datei neu ein (z.B. nach manueller Änderung).
+
+- `minabox/<device-id>/<domain>/config/response`  
+  - Service bestätigt das Ergebnis einer Config-Operation.
+
+**Beispiele:**
+
+- Button-Service: `domain = button` → `minabox/box1/button/config/update`  
+- LED-Service: `domain = led` → `minabox/box1/led/config/update`  
+- RFID-Service (optional): `domain = rfid` → `minabox/box1/rfid/config/update`
+
+### 6.3 Payload-Konventionen
+
+**Update-Request (`config/update`):**
+
+- Enthält die vollständige, service-spezifische Konfiguration als JSON.
+- Beispiel: siehe `buttons.json` bzw. `leds.json` in den jeweiligen Architecture-Dokumenten.
+
+**Response (`config/response`):**
+
+```json
+{
+  "success": true,
+  "error": null,
+  "timestamp": "2026-02-14T13:30:05Z"
+}
+```
+
+Im Fehlerfall:
+
+```json
+{
+  "success": false,
+  "error": "invalid_config",
+  "timestamp": "2026-02-14T13:30:05Z"
+}
+```
+
+### 6.4 Verhalten bei Config-Fehlern
+
+- Services validieren eingehende Konfigurationen **vor** dem Schreiben:
+  - Bei ungültiger Config: keine Änderungen an der lokalen Datei, `success=false` + Fehlercode in `config/response`.
+  - Bei gültiger Config: Datei wird überschrieben, Hot-Reload wird durchgeführt, `success=true`.
+- Startet ein Service mit ungültiger Konfigurationsdatei, geht er in einen Fehlerzustand (z.B. `state = "error"`) und wartet auf eine gültige Config vom Backend.
+
+Dieses Muster soll für alle konfigurierbaren Services konsistent umgesetzt werden (Button, LED, ggf. RFID, Audio, Backend).
+
+---
+
+## 7. Logging & Monitoring
+
+### 7.1 Logging-Framework
 
 - **Library:** `structlog` (strukturiertes JSON-Logging)
 
@@ -343,7 +420,7 @@ logger = structlog.get_logger("rfid_service")
 logger.info("tag_scanned", tag_id="ABC123", reader_id="pn532_01")
 ```
 
-### 6.2 Log-Levels
+### 7.2 Log-Levels
 
 | Level    | Verwendung                | Beispiel                           |
 |----------|---------------------------|------------------------------------|
@@ -356,7 +433,7 @@ logger.info("tag_scanned", tag_id="ABC123", reader_id="pn532_01")
 - **Production:** `INFO`  
 - **Development:** `DEBUG`  
 
-### 6.3 Log-Output
+### 7.3 Log-Output
 
 Standard: `stdout` (durch Docker aufgenommen)
 
@@ -378,7 +455,7 @@ services:
         max-file: "3"
 ```
 
-### 6.4 Health-Checks
+### 7.4 Health-Checks
 
 Jeder Service exponiert `/health`:
 
@@ -406,9 +483,9 @@ HEALTHCHECK --interval=30s --timeout=3s \
 
 ---
 
-## 7. Error Handling & Retry-Strategien
+## 8. Error Handling & Retry-Strategien
 
-### 7.1 Exception-Hierarchie
+### 8.1 Exception-Hierarchie
 
 Template (pro Service kopieren und anpassen):
 
@@ -444,7 +521,7 @@ class TagNotFoundError(DataError):
     pass
 ```
 
-### 7.2 Retry-Strategien
+### 8.2 Retry-Strategien
 
 **Library:** `tenacity`
 
@@ -475,7 +552,7 @@ def connect_mqtt():
     ...
 ```
 
-### 7.3 Graceful Degradation
+### 8.3 Graceful Degradation
 
 Services sollen bei Teil-Ausfällen weiterlaufen:
 
@@ -487,7 +564,7 @@ except MQTTConnectionError:
     local_cache.append(payload)
 ```
 
-### 7.4 Einheitliches REST Error-Format
+### 8.4 Einheitliches REST Error-Format
 
 ```json
 {
@@ -501,16 +578,16 @@ except MQTTConnectionError:
 
 ---
 
-## 8. Testing
+## 9. Testing
 
-### 8.1 Philosophie
+### 9.1 Philosophie
 
 - Fokus auf Business-Logic und API-Tests  
 - Hardware-Tests primär manuell auf dem Gerät  
 - Logs als primäres Debugging-Tool  
 - Kein harter Coverage-Zwang; lieber sinnvolle Tests als Zahlenoptimierung  
 
-### 8.2 Test-Framework
+### 9.2 Test-Framework
 
 - **pytest** für Unit- und Integrationstests
 
@@ -519,7 +596,7 @@ pip install pytest pytest-asyncio
 pytest tests/
 ```
 
-### 8.3 Manuelle Test-Checklisten
+### 9.3 Manuelle Test-Checklisten
 
 Pro Service Checkliste in `docs/TESTING.md`:
 
@@ -540,9 +617,9 @@ Pro Service Checkliste in `docs/TESTING.md`:
 
 ---
 
-## 9. Docker & Deployment
+## 10. Docker & Deployment
 
-### 9.1 Dockerfile-Standards
+### 10.1 Dockerfile-Standards
 
 - **Base-Image:** `python:3.11-slim`  
 - **Multi-Stage-Build** empfohlen:
@@ -579,7 +656,7 @@ USER minabox
 CMD ["python", "-m", "service_name.main"]
 ```
 
-### 9.2 Zentrales `docker-compose.yml`
+### 10.2 Zentrales `docker-compose.yml`
 
 - `mosquitto`  
 - `backend`  
@@ -592,7 +669,7 @@ CMD ["python", "-m", "service_name.main"]
 
 ---
 
-## 10. Graceful Shutdown
+## 11. Graceful Shutdown
 
 Wichtige Punkte (kurz):
 
@@ -610,7 +687,7 @@ Wichtige Punkte (kurz):
 
 ---
 
-## 11. Datenbank & Persistence
+## 12. Datenbank & Persistence
 
 - **Backend** als einziger direkter DB-Nutzer (z.B. SQLite + SQLAlchemy + Alembic)  
 - Andere Services greifen nur via REST-API auf Daten zu  
@@ -620,14 +697,14 @@ Wichtige Punkte (kurz):
 
 ---
 
-## 12. Configuration Management
+## 13. Configuration Management
 
-### 12.1 Zwei Ebenen
+### 13.1 Zwei Ebenen
 
 1. **Zentrale `.env`** im Root (gemeinsame Settings: MQTT-Broker, Ports, Logging, Device-ID für MQTT Events (z. B. minabox/<device-id>/rfid/tag-scanned))  
 2. **Service-spezifische JSON-Configs** unter `config/*.json` pro Service  
 
-### 12.2 Schema-basierte Config
+### 13.2 Schema-basierte Config
 
 Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `ConfigManager`, der:
 
@@ -637,7 +714,7 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 
 ---
 
-## 13. Best Practices
+## 14. Best Practices
 
 - **DRY (Don't Repeat Yourself)** – Gemeinsam genutzte Funktionalität nach `shared/`  
 - **SOLID-Prinzipien** – insbesondere Single Responsibility & Dependency Inversion  
@@ -647,7 +724,7 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 
 ---
 
-## 14. Referenzen
+## 15. Referenzen
 
 - Phoniebox (RPi-Jukebox-RFID) – Feature-Inspiration  
 - TonUINO – Arduino-basierte Alternative  
@@ -660,4 +737,4 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 ---
 
 **Letzte Aktualisierung:** 2026-02-14  
-**Version:** 1.3
+**Version:** 1.4
