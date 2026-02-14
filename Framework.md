@@ -31,39 +31,45 @@ Das Root-Repository ist wie folgt strukturiert:
 ```text
 docs/
   Framework.md           # Dieses Dokument
-  Architecture.md        # Gesamtarchitektur & Service-Kommunikation
   services/              # Fachliche Doku & Checklisten pro Bereich
-    rfid/RFID.md
-    audio/Audio.md
-    webui/WebUI.md
-    api/API.md
-    database/Database.md
-    hardware/Hardware.md
+    rfid/
+    audio/
+    webui/
+    api/
+    database/
+    led/
+    button/
 
 services/                # Technische Services (Implementierungen)
   rfid-service/
   audio-service/
   backend-service/
   webui-service/
-  ...                    # weitere Services nach Bedarf
+  led-service/
+  button-service/
 
 shared/                  # Gemeinsame Libraries/Module (DRY)
 infrastructure/          # Infrastruktur (docker-compose, MQTT-Broker, Monitoring, CI/CD)
-Jeder Service-Ordner unter services/ verwendet die Standardstruktur aus Kapitel 3. Projekt-Struktur pro Service.
+install/                 # Installations-/Setup-Skripte und Anleitungen
+```
 
-3. Code-Qualität Standards
-3.1 Tools
-Linting & Formatting:
+Jeder Service-Ordner unter `services/` verwendet die Standardstruktur aus Kapitel **4. Projekt-Struktur pro Service**.
 
-Ruff – Linting, Import-Sortierung, Code-Modernisierung
+---
 
-Black – Code-Formatting (88 Zeichen, einheitlicher Stil)
+## 3. Code-Qualität Standards
 
-mypy – Type-Checking (moderate Strenge)
+### 3.1 Tools
 
-Konfiguration in pyproject.toml:
+**Linting & Formatting:**
 
-text
+- **Ruff** – Linting, Import-Sortierung, Code-Modernisierung  
+- **Black** – Code-Formatting (88 Zeichen, einheitlicher Stil)  
+- **mypy** – Type-Checking (moderate Strenge)
+
+**Konfiguration in `pyproject.toml`:**
+
+```toml
 [tool.black]
 line-length = 88
 target-version = ['py311']
@@ -80,10 +86,13 @@ python_version = "3.11"
 warn_unused_configs = true
 disallow_untyped_defs = true
 warn_return_any = true
-3.2 Pre-commit Hooks
-.pre-commit-config.yaml:
+```
 
-text
+### 3.2 Pre-commit Hooks
+
+`.pre-commit-config.yaml`:
+
+```yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.4
@@ -106,23 +115,34 @@ repos:
           - types-requests
           - types-PyYAML
           - pydantic
+```
+
 Setup:
 
-bash
+```bash
 pip install pre-commit
 pre-commit install
-3.3 Type-Hints
+```
+
+### 3.3 Type-Hints
+
 Alle Funktionen müssen Type-Hints haben:
 
-python
+```python
 from typing import Optional
 
 def process_tag(tag_id: str, timeout: int = 5) -> Optional[str]:
     """Process RFID tag."""
     ...
-4. Projekt-Struktur pro Service
-4.1 Standard-Struktur
-text
+```
+
+---
+
+## 4. Projekt-Struktur pro Service
+
+### 4.1 Standard-Struktur
+
+```text
 service-name/                   # z.B. rfid-service/, audio-service/
 ├── src/
 │   └── service_name/          # z.B. rfid_service/
@@ -152,66 +172,55 @@ service-name/                   # z.B. rfid-service/, audio-service/
 ├── pyproject.toml
 ├── requirements.txt           # Für Docker-Build
 └── README.md
-4.2 Namenskonventionen
-Services (Ordner): lower-kebab-case
+```
 
-z.B. rfid-service, audio-service
+### 4.2 Namenskonventionen
 
-Python-Packages: lower_snake_case
+- **Services (Ordner):** `lower-kebab-case` – z.B. `rfid-service`, `audio-service`  
+- **Python-Packages:** `lower_snake_case` – z.B. `rfid_service`, `audio_service`  
+- **Funktionen:** `snake_case` – z.B. `read_tag()`, `play_audio()`  
+- **Klassen:** `PascalCase` – z.B. `RFIDReader`, `AudioPlayer`  
+- **Konstanten:** `UPPER_CASE` – z.B. `MAX_VOLUME`, `DEFAULT_TIMEOUT`  
 
-z.B. rfid_service, audio_service
+---
 
-Funktionen: snake_case
+## 5. Service-Kommunikation
 
-z.B. read_tag(), play_audio()
+### 5.1 Architektur: Hybrid MQTT + REST
 
-Klassen: PascalCase
+**MQTT (asynchron, Event-Driven):**
 
-z.B. RFIDReader, AudioPlayer
+- Hardware-Events (Buttons, RFID-Scan)  
+- Status-Änderungen (Playback, Volume)  
+- System-Events (Service-Start, Fehler, Health-Status)  
 
-Konstanten: UPPER_CASE
+**REST (synchron):**
 
-z.B. MAX_VOLUME, DEFAULT_TIMEOUT
+- Status-Abfragen: `GET /api/v1/audio/status`  
+- Commands: `POST /api/v1/audio/play`  
+- Konfiguration & Admin: z.B. `GET /api/v1/rfid/tags`  
 
-5. Service-Kommunikation
-5.1 Architektur: Hybrid MQTT + REST
-MQTT (asynchron, Event-Driven):
+### 5.2 MQTT Broker
 
-Hardware-Events (Buttons, RFID-Scan)
+- **Technologie:** Eclipse Mosquitto  
+- **Port:** 1883 (Standard)  
+- Broker läuft als Container unter `infrastructure/` und wird über das zentrale `docker-compose.yml` gestartet.
 
-Status-Änderungen (Playback, Volume)
+### 5.3 MQTT Topic-Schema
 
-System-Events (Service-Start, Fehler, Health-Status)
-
-REST (synchron):
-
-Status-Abfragen: GET /api/v1/audio/status
-
-Commands: POST /api/v1/audio/play
-
-Konfiguration & Admin: z.B. GET /api/v1/rfid/tags
-
-5.2 MQTT Broker
-Technologie: Eclipse Mosquitto
-
-Port: 1883 (Standard)
-
-Broker läuft als Container unter infrastructure/ und wird über das zentrale docker-compose.yml gestartet.
-
-5.3 MQTT Topic-Schema
 Globales Schema:
 
-text
+```text
 minabox/<device-id>/<domain>/<action>
-<device-id>: Eindeutige ID der Box (z.B. box1, livingroom, kidsroom)
+```
 
-<domain>: Fachbereich, z.B. rfid, button, audio, system
-
-<action>: Konkretes Event oder Kommando, z.B. tag-scanned, play, status
+- `<device-id>`: Eindeutige ID der Box (z.B. `box1`, `livingroom`, `kidsroom`)
+- `<domain>`: Fachbereich, z.B. `rfid`, `button`, `audio`, `system`
+- `<action>`: Konkretes Event oder Kommando, z.B. `tag-scanned`, `play`, `status`
 
 Beispiele:
 
-text
+```text
 # RFID
 minabox/box1/rfid/tag-scanned
 minabox/box1/rfid/tag-removed
@@ -232,78 +241,81 @@ minabox/box1/audio/status
 minabox/box1/system/service-started
 minabox/box1/system/service-error
 minabox/box1/system/online
-Namenskonvention:
+```
 
-Nur Kleinbuchstaben, Ziffern, Bindestrich oder Unterstrich
+**Namenskonvention:**
 
-Keine Leerzeichen, keine doppelten /
+- Nur Kleinbuchstaben, Ziffern, Bindestrich oder Unterstrich  
+- Keine Leerzeichen, keine doppelten `/`  
+- `<device-id>` ist Pflicht, damit mehrere Boxen parallel betrieben werden können  
 
-<device-id> ist Pflicht, damit mehrere Boxen parallel betrieben werden können [web:20][web:32].
+### 5.4 MQTT QoS, Wildcards & Retain
 
-5.4 MQTT QoS, Wildcards & Retain
-QoS:
+**QoS:**
 
-Standard: QoS 1 (at least once) für Steuer- und Event-Topics (RFID, Button, Audio-Kommandos) [web:16].
+- Standard: **QoS 1** (`at least once`) für Steuer- und Event-Topics (RFID, Button, Audio-Kommandos)  
+- Optional: **QoS 0** für häufige, nicht-kritische Telemetrie (z.B. Fortschritt/Debug)  
 
-Optional: QoS 0 für häufige, nicht-kritische Telemetrie (z.B. Fortschritt/Debug) [web:16].
+**Wildcards:**
 
-Wildcards:
+- `+` für genau eine Ebene, z.B.:
 
-+ für genau eine Ebene, z.B.:
+  ```text
+  minabox/+/rfid/tag-scanned        # Alle Geräte
+  ```
 
-text
-minabox/+/rfid/tag-scanned        # Alle Geräte
-# nur in Debug-/Analyse-Tools, nicht im produktiven Service-Code, z.B.:
+- `#` nur in Debug-/Analyse-Tools, **nicht** im produktiven Service-Code, z.B.:
 
-text
-minabox/box1/#                    # Debug-Client für eine Box
-Wildcards nur als komplette Topic-Ebene verwenden, nicht innerhalb eines Wortes [web:17][web:27][web:40].
+  ```text
+  minabox/box1/#                    # Debug-Client für eine Box
+  ```
 
-Retained Messages:
+- Wildcards nur als komplette Topic-Ebene verwenden, nicht innerhalb eines Wortes.  
 
-Retain AN für Zustände:
+**Retained Messages:**
 
-text
-minabox/<device-id>/audio/status
-minabox/<device-id>/system/online
-Retain AUS für einmalige Events:
+- Retain **AN** für Zustände:
 
-text
-minabox/<device-id>/rfid/tag-scanned
-minabox/<device-id>/button/pressed
+  ```text
+  minabox/<device-id>/audio/status
+  minabox/<device-id>/system/online
+  ```
+
+- Retain **AUS** für einmalige Events:
+
+  ```text
+  minabox/<device-id>/rfid/tag-scanned
+  minabox/<device-id>/button/pressed
+  ```
+
 Ziel: Neue Subscriber bekommen den aktuellen Status, aber keine alten Events.
 
-5.5 Backend als MQTT–WebSocket-Bridge
-Backend-Service:
+### 5.5 Backend als MQTT–WebSocket-Bridge
 
-Subscribed auf relevante MQTT-Topics (RFID, Buttons, Audio-Status, System)
+**Backend-Service:**
 
-Aggregiert Events und Status
+- Subscribed auf relevante MQTT-Topics (RFID, Buttons, Audio-Status, System)  
+- Aggregiert Events und Status  
+- Schiebt Events/Status via WebSocket an die WebUI  
+- Exponiert REST-API für Queries/Commands  
 
-Schiebt Events/Status via WebSocket an die WebUI
+**WebUI:**
 
-Exponiert REST-API für Queries/Commands
+- Verbindung zum Backend via WebSocket (Real-Time Updates)  
+- REST-Calls für Commands (Play, Pause, Config)  
+- Kein direkter MQTT-Zugriff (Security & Vereinfachung)  
 
-WebUI:
+**Warum kein direktes MQTT im WebUI:**
 
-Verbindung zum Backend via WebSocket (Real-Time Updates)
+- Einfachere Frontend-Implementierung (nur HTTP/WebSocket)  
+- Backend kann filtern, aggregieren, validieren  
+- Services bleiben im internen Netz, nicht direkt exponiert  
 
-REST-Calls für Commands (Play, Pause, Config)
+### 5.6 MQTT Message Format
 
-Kein direkter MQTT-Zugriff (Security & Vereinfachung)
-
-Warum kein direktes MQTT im WebUI:
-
-Einfachere Frontend-Implementierung (nur HTTP/WebSocket)
-
-Backend kann filtern, aggregieren, validieren
-
-Services bleiben im internen Netz, nicht direkt exponiert
-
-5.6 MQTT Message Format
 JSON mit Timestamps:
 
-json
+```json
 {
   "event": "tag_scanned",
   "data": {
@@ -312,38 +324,51 @@ json
   },
   "timestamp": "2026-02-14T13:30:00Z"
 }
-6. Logging & Monitoring
-6.1 Logging-Framework
-Library: structlog (strukturiertes JSON-Logging)
+```
+
+---
+
+## 6. Logging & Monitoring
+
+### 6.1 Logging-Framework
+
+- **Library:** `structlog` (strukturiertes JSON-Logging)
 
 Beispiel:
 
-python
+```python
 import structlog
 
 logger = structlog.get_logger("rfid_service")
 logger.info("tag_scanned", tag_id="ABC123", reader_id="pn532_01")
-6.2 Log-Levels
-Level	Verwendung	Beispiel
-DEBUG	Entwickler-Details	"GPIO pin initialized"
-INFO	Normale Operation	"Tag scanned", "Playback started"
-WARNING	Wiederholbare Fehler	"RFID timeout, retrying"
-ERROR	Aktion fehlgeschlagen	"Tag not found", "File missing"
-CRITICAL	Service-/System-Ausfall	"MQTT unreachable", "HW failure"
-Production: INFO
+```
 
-Development: DEBUG
+### 6.2 Log-Levels
 
-6.3 Log-Output
-Standard: stdout (durch Docker aufgenommen)
+| Level    | Verwendung                | Beispiel                           |
+|----------|---------------------------|------------------------------------|
+| DEBUG    | Entwickler-Details        | "GPIO pin initialized"             |
+| INFO     | Normale Operation         | "Tag scanned", "Playback started"  |
+| WARNING  | Wiederholbare Fehler      | "RFID timeout, retrying"           |
+| ERROR    | Aktion fehlgeschlagen     | "Tag not found", "File missing"    |
+| CRITICAL | Service-/System-Ausfall   | "MQTT unreachable", "HW failure"   |
 
-bash
+- **Production:** `INFO`  
+- **Development:** `DEBUG`  
+
+### 6.3 Log-Output
+
+Standard: `stdout` (durch Docker aufgenommen)
+
+```bash
 docker compose logs -f                # Alle Services
 docker compose logs -f rfid           # Nur RFID-Service
 docker compose logs --tail=100 rfid   # Letzte 100 Zeilen
+```
+
 Optionale Log-Rotation über Docker-Logging-Driver:
 
-text
+```yaml
 services:
   rfid:
     logging:
@@ -351,10 +376,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-6.4 Health-Checks
-Jeder Service exponiert /health:
+```
 
-python
+### 6.4 Health-Checks
+
+Jeder Service exponiert `/health`:
+
+```python
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -367,16 +395,24 @@ async def health_check():
         "uptime": get_uptime(),
         "mqtt_connected": mqtt_client.is_connected()
     }
+```
+
 Docker Health-Check:
 
-text
+```dockerfile
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD curl -f http://localhost:8000/health || exit 1
-7. Error Handling & Retry-Strategien
-7.1 Exception-Hierarchie
+```
+
+---
+
+## 7. Error Handling & Retry-Strategien
+
+### 7.1 Exception-Hierarchie
+
 Template (pro Service kopieren und anpassen):
 
-python
+```python
 # service_name/exceptions.py
 
 class MinaboxError(Exception):
@@ -406,12 +442,15 @@ class DataError(MinaboxError):
 class TagNotFoundError(DataError):
     """RFID-Tag nicht in Datenbank."""
     pass
-7.2 Retry-Strategien
-Library: tenacity
+```
+
+### 7.2 Retry-Strategien
+
+**Library:** `tenacity`
 
 Hardware-Retries (schnell):
 
-python
+```python
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(0.5))
@@ -421,9 +460,11 @@ def read_rfid_tag() -> str:
     except Exception as e:
         logger.warning("rfid_read_failed", error=str(e))
         raise RFIDReadError(f"Read failed: {e}")
+```
+
 Netzwerk-Retries (exponentielles Backoff):
 
-python
+```python
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 @retry(
@@ -432,17 +473,23 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 )
 def connect_mqtt():
     ...
-7.3 Graceful Degradation
+```
+
+### 7.3 Graceful Degradation
+
 Services sollen bei Teil-Ausfällen weiterlaufen:
 
-python
+```python
 try:
     await mqtt_client.publish("minabox/box1/rfid/tag-scanned", payload)
 except MQTTConnectionError:
     logger.warning("mqtt_unavailable_caching")
     local_cache.append(payload)
-7.4 Einheitliches REST Error-Format
-json
+```
+
+### 7.4 Einheitliches REST Error-Format
+
+```json
 {
   "error": {
     "code": "TAG_NOT_FOUND",
@@ -450,26 +497,33 @@ json
     "details": {"tag_id": "ABC123"}
   }
 }
-8. Testing
-8.1 Philosophie
-Fokus auf Business-Logic und API-Tests
+```
 
-Hardware-Tests primär manuell auf dem Gerät
+---
 
-Logs als primäres Debugging-Tool
+## 8. Testing
 
-Kein harter Coverage-Zwang; lieber sinnvolle Tests als Zahlenoptimierung
+### 8.1 Philosophie
 
-8.2 Test-Framework
-pytest für Unit- und Integrationstests
+- Fokus auf Business-Logic und API-Tests  
+- Hardware-Tests primär manuell auf dem Gerät  
+- Logs als primäres Debugging-Tool  
+- Kein harter Coverage-Zwang; lieber sinnvolle Tests als Zahlenoptimierung  
 
-bash
+### 8.2 Test-Framework
+
+- **pytest** für Unit- und Integrationstests
+
+```bash
 pip install pytest pytest-asyncio
 pytest tests/
-8.3 Manuelle Test-Checklisten
-Pro Service Checkliste in docs/TESTING.md:
+```
 
-text
+### 8.3 Manuelle Test-Checklisten
+
+Pro Service Checkliste in `docs/TESTING.md`:
+
+```text
 # RFID-Service - Manuelle Tests
 
 ## Hardware-Tests
@@ -482,13 +536,18 @@ text
 - [ ] Tag-Scan → MQTT-Event published
 - [ ] Audio-Service empfängt Event
 - [ ] LED zeigt Status
-9. Docker & Deployment
-9.1 Dockerfile-Standards
-Base-Image: python:3.11-slim
+```
 
-Multi-Stage-Build empfohlen:
+---
 
-text
+## 9. Docker & Deployment
+
+### 9.1 Dockerfile-Standards
+
+- **Base-Image:** `python:3.11-slim`  
+- **Multi-Stage-Build** empfohlen:
+
+```dockerfile
 # Stage 1: Build
 FROM python:3.11-slim as builder
 
@@ -518,95 +577,87 @@ RUN useradd -m -u 1000 minabox && chown -R minabox:minabox /app
 USER minabox
 
 CMD ["python", "-m", "service_name.main"]
-9.2 Zentrales docker-compose.yml
-(verkürzt, siehe detaillierten Stand in deinem bisherigen Dokument):
+```
 
-mosquitto
+### 9.2 Zentrales `docker-compose.yml`
 
-backend
+- `mosquitto`  
+- `backend`  
+- `rfid`  
+- `audio`  
+- `hardware/button/led` (abhängig vom finalen Schnitt)  
+- Gemeinsames Netzwerk `minabox-network`  
 
-rfid
+(Das konkrete Compose-File liegt unter `infrastructure/`.)
 
-audio
+---
 
-hardware
+## 10. Graceful Shutdown
 
-Gemeinsames Netzwerk minabox-network
-
-10. Graceful Shutdown
 Wichtige Punkte (kurz):
 
-Services müssen SIGTERM und SIGINT abfangen
+- Services müssen `SIGTERM` und `SIGINT` abfangen  
+- Shutdown-Reihenfolge:
+  1. Neue Requests stoppen  
+  2. Laufende Operationen (mit Timeout) beenden  
+  3. MQTT sauber disconnecten  
+  4. DB-Verbindungen schließen  
+  5. Hardware freigeben  
+- Jeder Schritt wird geloggt  
+- Timeouts sind Pflicht, keine unendlichen Waits  
 
-Shutdown-Reihenfolge:
+(Detaillierte Templates für Signal-Handling und Shutdown-Sequenz können pro Service übernommen werden.)
 
-Neue Requests stoppen
+---
 
-Laufende Operationen (mit Timeout) beenden
+## 11. Datenbank & Persistence
 
-MQTT sauber disconnecten
+- **Backend** als einziger direkter DB-Nutzer (z.B. SQLite + SQLAlchemy + Alembic)  
+- Andere Services greifen nur via REST-API auf Daten zu  
+- Typische Tabellen:
+  - `tags` (Tag → Content-Mapping)  
+  - `content` (Audio-Inhalte, Metadaten)  
 
-DB-Verbindungen schließen
+---
 
-Hardware freigeben
+## 12. Configuration Management
 
-Jeder Schritt wird geloggt
+### 12.1 Zwei Ebenen
 
-Timeouts sind Pflicht, keine unendlichen Waits
+1. **Zentrale `.env`** im Root (gemeinsame Settings: MQTT-Broker, Ports, Logging)  
+2. **Service-spezifische JSON-Configs** unter `config/*.json` pro Service  
 
-(Detaillierter Code siehe bisherige Templates in deinem Dokument.)
+### 12.2 Schema-basierte Config
 
-11. Datenbank & Persistence
-Backend als einziger direkter DB-Nutzer (z.B. SQLite + SQLAlchemy + Alembic)
+Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `ConfigManager`, der:
 
-Andere Services greifen nur via REST-API auf Daten zu
+- `.env` + JSON lädt  
+- Werte validiert  
+- Hot-Reload ermöglicht (z.B. via MQTT-Config-Update)  
 
-Typische Tabellen:
+---
 
-tags (Tag → Content-Mapping)
+## 13. Best Practices
 
-content (Audio-Inhalte, Metadaten)
+- **DRY (Don't Repeat Yourself)** – Gemeinsam genutzte Funktionalität nach `shared/`  
+- **SOLID-Prinzipien** – insbesondere Single Responsibility & Dependency Inversion  
+- **12-Factor-App** – für Konfiguration, Logs, Disposability, etc.  
+- **Semantic Versioning** – für APIs und Service-Releases  
+- **KISS (Keep It Simple)** – einfache Lösung > überkomplexe „perfekte“ Lösung  
 
-12. Configuration Management
-12.1 Zwei Ebenen
-Zentrale .env im Root (gemeinsame Settings: MQTT-Broker, Ports, Logging)
+---
 
-Service-spezifische JSON-Configs unter config/*.json pro Service
+## 14. Referenzen
 
-12.2 Schema-basierte Config
-Jeder Service definiert ein eigenes Schema (config_schema.py) und einen ConfigManager, der:
+- Phoniebox (RPi-Jukebox-RFID) – Feature-Inspiration  
+- TonUINO – Arduino-basierte Alternative  
+- 12-Factor-App: https://12factor.net/  
+- Python Best Practices: https://docs.python-guide.org/  
+- MQTT Topics & Best Practices:  
+  - https://www.hivemq.com/blog/mqtt-essentials-part-5-mqtt-topics-best-practices/  
+  - https://www.emqx.com/en/blog/advanced-features-of-mqtt-topics  
 
-.env + JSON lädt
+---
 
-Werte validiert
-
-Hot-Reload ermöglicht (z.B. via MQTT-Config-Update)
-
-13. Best Practices
-DRY (Don't Repeat Yourself) – Gemeinsam genutzte Funktionalität nach shared/
-
-SOLID-Prinzipien – insbesondere Single Responsibility & Dependency Inversion
-
-12-Factor-App – für Konfiguration, Logs, Disposability, etc.
-
-Semantic Versioning – für APIs und Service-Releases
-
-KISS (Keep It Simple) – einfache Lösung > überkomplexe „perfekte“ Lösung
-
-14. Referenzen
-Phoniebox (RPi-Jukebox-RFID) – Feature-Inspiration
-
-TonUINO – Arduino-basierte Alternative
-
-12-Factor-App: https://12factor.net/
-
-Python Best Practices: https://docs.python-guide.org/
-
-MQTT Topics & Best Practices:
-
-https://www.hivemq.com/blog/mqtt-essentials-part-5-mqtt-topics-best-practices/ [web:17]
-
-https://www.emqx.com/en/blog/advanced-features-of-mqtt-topics [web:18]
-
-Letzte Aktualisierung: 2026-02-14
-Version: 1.3
+**Letzte Aktualisierung:** 2026-02-14  
+**Version:** 1.3
