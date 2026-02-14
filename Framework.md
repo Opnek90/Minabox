@@ -1,6 +1,6 @@
 # Minabox - Framework Guidelines
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Letzte Änderung:** 2026-02-14
 
 Dieses Dokument definiert die technischen Standards und Best Practices für das gesamte Minabox-Projekt. Alle Services müssen diesen Richtlinien folgen, um Konsistenz, Wartbarkeit und Qualität sicherzustellen.
@@ -56,25 +56,29 @@ warn_return_any = true
 
 `.pre-commit-config.yaml`:
 
-```text
+```yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.0
+    rev: v0.8.4
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/psf/black
-    rev: 24.2.0
+    rev: 24.10.0
     hooks:
       - id: black
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
+    rev: v1.13.0
     hooks:
       - id: mypy
         args: [--config-file=pyproject.toml]
+        additional_dependencies:
+          - types-requests
+          - types-PyYAML
+          - pydantic
 ```
 
 Setup:
@@ -481,7 +485,7 @@ CMD ["python", "-m", "service_name.main"]
 
 Zentrale Orchestrierung:
 
-```text
+```yaml
 version: '3.8'
 
 services:
@@ -571,29 +575,86 @@ networks:
 
 `/etc/systemd/system/minabox.service`:
 
-```text
+```ini
 [Unit]
 Description=Minabox Services
+Documentation=https://github.com/Opnek90/Minabox
 Requires=docker.service
-After=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/home/pi/minabox
+User=pi
+Group=pi
+
+# Pre-flight checks
+ExecStartPre=/usr/bin/docker compose config --quiet
+ExecStartPre=-/usr/bin/docker compose down
+
+# Start services
 ExecStart=/usr/bin/docker compose up -d
-ExecStop=/usr/bin/docker compose down
-TimeoutStartSec=0
+
+# Health check after start
+ExecStartPost=/bin/sleep 10
+ExecStartPost=/usr/bin/docker compose ps
+
+# Stop services gracefully
+ExecStop=/usr/bin/docker compose down --timeout 30
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Timeouts
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+# Security
+PrivateTmp=yes
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+**Wichtige Verbesserungen:**
+- **Restart=on-failure:** Automatischer Neustart bei Fehlern
+- **StartLimitInterval/Burst:** Verhindert Boot-Loops (max 5 Restarts in 200s)
+- **ExecStartPre:** Validiert docker-compose.yml vor Start
+- **After=network-online.target:** Wartet auf Netzwerk
+- **User/Group:** Läuft als pi-User (nicht root)
+- **Timeouts:** Explizite Start/Stop-Timeouts
+
 Aktivieren:
 
 ```bash
+sudo systemctl daemon-reload
 sudo systemctl enable minabox
 sudo systemctl start minabox
+
+# Status überprüfen
+sudo systemctl status minabox
+
+# Logs anzeigen
+sudo journalctl -u minabox -f
+```
+
+**Troubleshooting:**
+
+```bash
+# Service-Status detailliert
+systemctl status minabox -l --no-pager
+
+# Restart-Counter zurücksetzen
+sudo systemctl reset-failed minabox
+
+# Manueller Restart
+sudo systemctl restart minabox
 ```
 
 ---
@@ -964,6 +1025,7 @@ Jeder Service definiert sein eigenes Schema:
 ```python
 # rfid_service/config_schema.py
 from enum import Enum
+from typing import List
 
 class ParamType(Enum):
     INTEGER = "integer"
@@ -986,6 +1048,13 @@ RFID_SCHEMA = {
             "range": [500, 10000],
             "storage": "json",
             "description": "Cooldown between tag scans"
+        },
+        "reset_pin": {
+            "type": ParamType.INTEGER,
+            "default": 6,
+            "range": [2, 27],
+            "storage": "json",
+            "description": "GPIO pin for hardware reset"
         }
     }
 }
@@ -1123,4 +1192,4 @@ Gesamt: ~50ms
 ---
 
 **Letzte Aktualisierung:** 2026-02-14  
-**Version:** 1.1
+**Version:** 1.2
