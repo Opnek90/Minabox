@@ -344,7 +344,7 @@ So bleibt das Verhalten bei schnellen/gleichzeitigen Eingaben deterministisch.
   - `button_event` mit `button_id`, `event_type`.
   - `action_triggered` mit `action`, `source`.
   - `config_update_received` / `config_update_applied` / `config_update_failed`.
-
+- Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen).
 ---
 
 ## 7. Nicht-Ziele / Abgrenzung

@@ -345,7 +345,7 @@ Ablauf pro LED:
   - `led_state_change` mit `led_id`, `logical_state`, `pattern_type`.
   - `config_update_received` / `config_update_applied` / `config_update_failed`.
   - `gpio_error` mit Pin-Nummer und Fehlerursache.
-
+- Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen).
 ---
 
 ## 8. Nicht-Ziele / Abgrenzung
