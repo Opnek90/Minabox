@@ -168,3 +168,50 @@ htmlcov/
 # und sollten nicht committed werden, wenn sie Secrets enthalten
 # services/*/config/*.json
 # Kommentiere die obige Zeile ein, falls Configs Secrets enthalten
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# pytest
+.pytest_cache/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
