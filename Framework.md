@@ -1,6 +1,6 @@
 # Minabox - Framework Guidelines
 
-**Version:** 1.4  
+**Version:** 1.4.1  
 **Letzte Änderung:** 2026-02-15
 
 Dieses Dokument definiert die technischen Standards und Best Practices für das gesamte Minabox-Projekt. Alle Services müssen diesen Richtlinien folgen, um Konsistenz, Wartbarkeit und Qualität sicherzustellen.
@@ -14,7 +14,7 @@ Dieses Dokument definiert die technischen Standards und Best Practices für das 
 - **Sprache:** Python 3.11+  
 - **Package Management:** Poetry oder pip-tools  
 - **Container:** Docker & Docker Compose  
-- **Orchestrierung:** zentrales `docker-compose.yml` im Root-Repo  
+- **Orchestrierung:** Zentrales `docker-compose.yml` im Root-Repository  
 
 ### Development
 
@@ -29,6 +29,8 @@ Dieses Dokument definiert die technischen Standards und Best Practices für das 
 Das Root-Repository ist wie folgt strukturiert:
 
 ```text
+docker-compose.yml       # ZENTRALES Compose-File für alle Services
+
 docs/
   Framework.md           # Dieses Dokument
   services/              # Fachliche Doku & Checklisten pro Bereich
@@ -55,12 +57,14 @@ services/                # Technische Services (Implementierungen)
   button-service/
 
 shared/                  # Gemeinsame Libraries/Module (DRY)
-infrastructure/          # Infrastruktur (docker-compose, MQTT-Broker, Monitoring, CI/CD)
+infrastructure/          # Infrastruktur-Konfigurationen (Mosquitto-Config, Monitoring, CI/CD)
 install/                 # Installations-/Setup-Skripte und Anleitungen
 ```
 
 **Hinweise:**
 
+- **`docker-compose.yml` liegt direkt im Root** und orchestriert alle Services (MQTT-Broker, Backend, Audio, RFID, LED, Button, WebUI).
+- `infrastructure/` enthält nur Konfigurationsdateien für Infrastruktur-Komponenten (z.B. `mosquitto.conf`, Prometheus-Config, Grafana-Dashboards), aber **kein** eigenes Compose-File.
 - Jeder Service-Ordner unter `services/` verwendet die Standardstruktur aus Kapitel **4. Projekt-Struktur pro Service**.
 - Für jeden fachlichen Bereich existiert eine `Architecture.md` unter `docs/services/<bereich>/`.
 - `docs/services/backend/Architecture.md` deckt sowohl die REST-API als auch die Datenbankschicht ab, da der Backend-Service beide Verantwortlichkeiten innehat.
@@ -179,11 +183,13 @@ service-name/                   # z.B. rfid-service/, audio-service/
 ├── config/
 │   └── service.json           # Service-spezifische Config
 ├── Dockerfile
-├── docker-compose.yml         # Optional: lokales Compose für Einzelservice
+├── docker-compose.yml         # Optional: lokales Compose für Einzelservice-Tests
 ├── pyproject.toml
 ├── requirements.txt           # Für Docker-Build
 └── README.md
 ```
+
+**Hinweis:** Einzelne Services können ein lokales `docker-compose.yml` für isolierte Entwicklung/Tests haben. Für den produktiven Betrieb wird aber **nur** das zentrale `docker-compose.yml` im Root verwendet.
 
 ### 4.2 Namenskonventionen
 
@@ -215,7 +221,8 @@ service-name/                   # z.B. rfid-service/, audio-service/
 
 - **Technologie:** Eclipse Mosquitto  
 - **Port:** 1883 (Standard)  
-- Broker läuft als Container unter `infrastructure/` und wird über das zentrale `docker-compose.yml` gestartet.
+- Broker läuft als Container, konfiguriert im zentralen `docker-compose.yml` im Root.
+- Konfigurationsdateien liegen unter `infrastructure/mosquitto/` (z.B. `mosquitto.conf`).
 
 ### 5.3 MQTT Topic-Schema
 
@@ -430,7 +437,7 @@ logger.info("tag_scanned", tag_id="ABC123", reader_id="pn532_01")
 ### 7.2 Log-Levels
 
 | Level    | Verwendung                | Beispiel                           |
-|----------|---------------------------|-----------------------------------|
+|----------|---------------------------|------------------------------------|
 | DEBUG    | Entwickler-Details        | "GPIO pin initialized"             |
 | INFO     | Normale Operation         | "Tag scanned", "Playback started"  |
 | WARNING  | Wiederholbare Fehler      | "RFID timeout, retrying"           |
@@ -665,14 +672,34 @@ CMD ["python", "-m", "service_name.main"]
 
 ### 10.2 Zentrales `docker-compose.yml`
 
-- `mosquitto`  
-- `backend`  
-- `rfid`  
-- `audio`  
-- `hardware/button/led` (abhängig vom finalen Schnitt)  
+Das zentrale `docker-compose.yml` im Root orchestriert alle Services:
+
+- `mosquitto` – MQTT-Broker  
+- `backend` – Backend-Service (API, DB, Orchestrierung)  
+- `rfid` – RFID-Service  
+- `audio` – Audio-Service  
+- `button` – Button-Service  
+- `led` – LED-Service  
+- `webui` – WebUI-Service  
 - Gemeinsames Netzwerk `minabox-network`  
 
-(Das konkrete Compose-File liegt unter `infrastructure/`.)
+**Starten aller Services:**
+
+```bash
+docker compose up -d
+```
+
+**Logs anzeigen:**
+
+```bash
+docker compose logs -f
+```
+
+**Services neustarten:**
+
+```bash
+docker compose restart backend audio
+```
 
 ---
 
@@ -744,4 +771,4 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 ---
 
 **Letzte Aktualisierung:** 2026-02-15  
-**Version:** 1.4
+**Version:** 1.4.1
