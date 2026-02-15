@@ -8,6 +8,16 @@
 # - Audio-Service (GStreamer)
 # - Button-Service (Hardware)
 # - LED-Service (Hardware)
+#
+# REQUIRED environment variables (.env file):
+# - MQTT_BROKER: MQTT broker hostname (e.g., 'mqtt')
+# - MQTT_PORT: MQTT broker port (e.g., 1883)
+# - MINABOX_DEVICE_ID: Device ID for MQTT topics (e.g., 'box1')
+# - LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR)
+#
+# Optional environment variables:
+# - BACKEND_PORT: Backend API port (default: 8080)
+# - WEBUI_PORT: WebUI port (default: 80)
 
 services:
 
@@ -19,7 +29,7 @@ services:
     container_name: minabox-mqtt
     restart: unless-stopped
     ports:
-      - "${MQTT_PORT:-1883}:1883"
+      - "${MQTT_PORT:?MQTT_PORT must be set in .env}:1883"
     volumes:
       - ./infrastructure/mosquitto/config:/mosquitto/config:ro
       - mosquitto_data:/mosquitto/data
@@ -45,10 +55,10 @@ services:
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     environment:
-      # MQTT
-      - MQTT_BROKER=${MQTT_BROKER}
-      - MQTT_PORT=${MQTT_PORT:-1883}
-      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:-box1}
+      # MQTT (required)
+      - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
+      - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
+      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       
       # Database
       - DATABASE_PATH=/data/minabox.db
@@ -56,8 +66,8 @@ services:
       # Storage
       - AUDIO_STORAGE_PATH=/mnt/audio/tracks
       
-      # Logging
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Logging (required)
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
       
       # API
       - API_PORT=8080
@@ -111,13 +121,13 @@ services:
     container_name: minabox-rfid
     restart: unless-stopped
     environment:
-      # MQTT
-      - MQTT_BROKER=${MQTT_BROKER}
-      - MQTT_PORT=${MQTT_PORT:-1883}
-      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:-box1}
+      # MQTT (required)
+      - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
+      - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
+      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       
-      # Logging
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Logging (required)
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
     volumes:
       - ./services/rfid-service/config:/app/config
     networks:
@@ -148,13 +158,13 @@ services:
     container_name: minabox-audio
     restart: unless-stopped
     environment:
-      # MQTT
-      - MQTT_BROKER=${MQTT_BROKER}
-      - MQTT_PORT=${MQTT_PORT:-1883}
-      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:-box1}
+      # MQTT (required)
+      - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
+      - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
+      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       
-      # Logging
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Logging (required)
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
       
       # Audio
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
@@ -190,13 +200,13 @@ services:
     container_name: minabox-button
     restart: unless-stopped
     environment:
-      # MQTT
-      - MQTT_BROKER=${MQTT_BROKER}
-      - MQTT_PORT=${MQTT_PORT:-1883}
-      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:-box1}
+      # MQTT (required)
+      - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
+      - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
+      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       
-      # Logging
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Logging (required)
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
     volumes:
       - ./services/button-service/config:/app/config
     networks:
@@ -226,13 +236,13 @@ services:
     container_name: minabox-led
     restart: unless-stopped
     environment:
-      # MQTT
-      - MQTT_BROKER=${MQTT_BROKER}
-      - MQTT_PORT=${MQTT_PORT:-1883}
-      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:-box1}
+      # MQTT (required)
+      - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
+      - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
+      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       
-      # Logging
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Logging (required)
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
     volumes:
       - ./services/led-service/config:/app/config
     networks:
