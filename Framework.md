@@ -1,6 +1,6 @@
 # Minabox - Framework Guidelines
 
-**Version:** 1.4.1  
+**Version:** 1.5.0  
 **Letzte Änderung:** 2026-02-15
 
 Dieses Dokument definiert die technischen Standards und Best Practices für das gesamte Minabox-Projekt. Alle Services müssen diesen Richtlinien folgen, um Konsistenz, Wartbarkeit und Qualität sicherzustellen.
@@ -11,7 +11,7 @@ Dieses Dokument definiert die technischen Standards und Best Practices für das 
 
 ### Core
 
-- **Sprache:** Python 3.11+  
+- **Sprache:** Python 3.13+  
 - **Package Management:** Poetry oder pip-tools  
 - **Container:** Docker & Docker Compose  
 - **Orchestrierung:** Zentrales `docker-compose.yml` im Root-Repository  
@@ -78,26 +78,26 @@ install/                 # Installations-/Setup-Skripte und Anleitungen
 
 **Linting & Formatting:**
 
-- **Ruff** – Linting, Import-Sortierung, Code-Modernisierung  
-- **Black** – Code-Formatting (88 Zeichen, einheitlicher Stil)  
-- **mypy** – Type-Checking (moderate Strenge)
+- **Ruff v0.15.0** – Linting, Import-Sortierung, Code-Modernisierung  
+- **Black 25.11.0** – Code-Formatting (88 Zeichen, einheitlicher Stil)  
+- **mypy 1.20.0** – Type-Checking (moderate Strenge)
 
 **Konfiguration in `pyproject.toml`:**
 
 ```toml
 [tool.black]
 line-length = 88
-target-version = ['py311']
+target-version = ['py313']
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "C4", "UP"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_unused_configs = true
 disallow_untyped_defs = true
 warn_return_any = true
@@ -110,19 +110,19 @@ warn_return_any = true
 ```yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+    rev: v0.15.0
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/psf/black
-    rev: 24.10.0
+    rev: 25.11.0
     hooks:
       - id: black
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.20.0
     hooks:
       - id: mypy
         args: [--config-file=pyproject.toml]
@@ -219,7 +219,7 @@ service-name/                   # z.B. rfid-service/, audio-service/
 
 ### 5.2 MQTT Broker
 
-- **Technologie:** Eclipse Mosquitto  
+- **Technologie:** Eclipse Mosquitto 2.1+  
 - **Port:** 1883 (Standard)  
 - Broker läuft als Container, konfiguriert im zentralen `docker-compose.yml` im Root.
 - Konfigurationsdateien liegen unter `infrastructure/mosquitto/` (z.B. `mosquitto.conf`).
@@ -635,12 +635,12 @@ Pro Service Checkliste in `docs/TESTING.md`:
 
 ### 10.1 Dockerfile-Standards
 
-- **Base-Image:** `python:3.11-slim`  
+- **Base-Image:** `python:3.13-slim`  
 - **Multi-Stage-Build** empfohlen:
 
 ```dockerfile
 # Stage 1: Build
-FROM python:3.11-slim as builder
+FROM python:3.13-slim as builder
 
 WORKDIR /app
 
@@ -651,7 +651,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Stage 2: Runtime
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -674,7 +674,7 @@ CMD ["python", "-m", "service_name.main"]
 
 Das zentrale `docker-compose.yml` im Root orchestriert alle Services:
 
-- `mosquitto` – MQTT-Broker  
+- `mosquitto` – MQTT-Broker (Mosquitto 2.1+)  
 - `backend` – Backend-Service (API, DB, Orchestrierung)  
 - `rfid` – RFID-Service  
 - `audio` – Audio-Service  
@@ -771,4 +771,4 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 ---
 
 **Letzte Aktualisierung:** 2026-02-15  
-**Version:** 1.4.1
+**Version:** 1.5.0
