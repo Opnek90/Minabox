@@ -114,7 +114,7 @@ Der Backend-Service wurde vollständig implementiert und getestet:
 
 - Python 3.13+
 - Docker (für Container-Deployment)
-- MQTT-Broker (Mosquitto)
+- MQTT-Broker (Eclipse Mosquitto)
 
 ### Lokale Entwicklung
 
@@ -147,7 +147,7 @@ docker run -d \
   --name backend \
   -p 8080:8080 \
   -e MINABOX_BACKEND_DEVICE_ID=box1 \
-  -e MINABOX_BACKEND_MQTT_BROKER=mosquitto \
+  -e MINABOX_BACKEND_MQTT_BROKER=mqtt \
   -v /data/minabox:/data \
   -v /mnt/audio:/mnt/audio \
   minabox/backend:latest
@@ -161,7 +161,7 @@ docker run -d \
 
 ```bash
 MINABOX_BACKEND_DEVICE_ID=box1          # Device ID für MQTT-Topics
-MINABOX_BACKEND_MQTT_BROKER=mosquitto   # MQTT-Broker Hostname
+MINABOX_BACKEND_MQTT_BROKER=mqtt        # MQTT-Broker Hostname
 MINABOX_BACKEND_MQTT_PORT=1883          # MQTT-Broker Port
 MINABOX_BACKEND_LOG_LEVEL=INFO          # Logging Level
 ```
@@ -386,12 +386,12 @@ services:
       - "8080:8080"
     environment:
       - MINABOX_BACKEND_DEVICE_ID=box1
-      - MINABOX_BACKEND_MQTT_BROKER=mosquitto
+      - MINABOX_BACKEND_MQTT_BROKER=mqtt
     volumes:
       - ./data:/data
       - ./audio:/mnt/audio
     depends_on:
-      - mosquitto
+      - mqtt
 ```
 
 ---
@@ -410,7 +410,7 @@ curl http://localhost:8080/api/v1/health
 
 ### MQTT-Verbindung fehlgeschlagen
 
-- Prüfe, ob Mosquitto läuft: `docker ps | grep mosquitto`
+- Prüfe, ob MQTT-Broker läuft: `docker ps | grep mqtt`
 - Prüfe `MQTT_BROKER` Environment Variable
 - Network-Verbindung: `docker network inspect minabox-network`
 
