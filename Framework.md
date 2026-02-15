@@ -1,6 +1,6 @@
 # Minabox - Framework Guidelines
 
-**Version:** 1.6.0  
+**Version:** 1.7.0  
 **Letzte Änderung:** 2026-02-15
 
 Dieses Dokument definiert die technischen Standards und Best Practices für das gesamte Minabox-Projekt. Alle Services müssen diesen Richtlinien folgen, um Konsistenz, Wartbarkeit und Qualität sicherzustellen.
@@ -230,6 +230,7 @@ service-name/                   # z.B. rfid-service/, audio-service/
 
 - **Technologie:** Eclipse Mosquitto 2.1+  
 - **Port:** 1883 (Standard)  
+- **Docker Service Name:** `mqtt` (nicht `mosquitto`)  
 - Broker läuft als Container, konfiguriert im zentralen `docker-compose.yml` im Root.
 - Konfigurationsdateien liegen unter `infrastructure/mosquitto/` (z.B. `mosquitto.conf`).
 
@@ -432,29 +433,90 @@ Dieses Muster soll für alle konfigurierbaren Services konsistent umgesetzt werd
 
 ### 7.1 Logging-Framework
 
-- **Library:** `structlog` (strukturiertes JSON-Logging)
+- **Library:** `structlog` (strukturiertes Logging)
+- **Format:** Abhängig vom `LOG_LEVEL` (siehe 7.2)
 
-Beispiel:
+Konfiguration in jedem Service (`main.py`):
 
 ```python
+import os
+import logging
 import structlog
 
-logger = structlog.get_logger("rfid_service")
-logger.info("tag_scanned", tag_id="ABC123", reader_id="pn532_01")
+# Get log level from environment
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level_int = getattr(logging, LOG_LEVEL, logging.INFO)
+
+# Choose renderer based on log level
+if LOG_LEVEL == "DEBUG":
+    # Development: Human-readable console format
+    renderer = structlog.dev.ConsoleRenderer()
+else:
+    # Production: Structured JSON format
+    renderer = structlog.processors.JSONRenderer()
+
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        renderer,
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(log_level_int),
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(),
+    cache_logger_on_first_use=False,
+)
+
+logger = structlog.get_logger(__name__)
 ```
 
-### 7.2 Log-Levels
+Verwendung:
 
-| Level    | Verwendung                | Beispiel                           |
-|----------|---------------------------|---------------------------------------|
-| DEBUG    | Entwickler-Details        | "GPIO pin initialized"             |
-| INFO     | Normale Operation         | "Tag scanned", "Playback started"  |
-| WARNING  | Wiederholbare Fehler      | "RFID timeout, retrying"           |
-| ERROR    | Aktion fehlgeschlagen     | "Tag not found", "File missing"    |
-| CRITICAL | Service-/System-Ausfall   | "MQTT unreachable", "HW failure"   |
+```python
+logger.info("tag_scanned", tag_id="ABC123", reader_id="pn532_01")
+logger.error("mqtt_connection_failed", broker="mqtt", port=1883)
+```
 
-- **Production:** `INFO`  
-- **Development:** `DEBUG`  
+### 7.2 Log-Levels & Output-Format
+
+**LOG_LEVEL ist eine REQUIRED Environment-Variable ohne Default!**  
+Wenn nicht gesetzt, schlägt der Service mit klarer Fehlermeldung fehl.
+
+| Level    | Verwendung                | Format              | Use Case              |
+|----------|---------------------------|---------------------|------------------------|
+| DEBUG    | Entwickler-Details        | Console (lesbar)    | Development            |
+| INFO     | Normale Operation         | JSON (strukturiert) | Production             |
+| WARNING  | Wiederholbare Fehler      | JSON (strukturiert) | Production             |
+| ERROR    | Aktion fehlgeschlagen     | JSON (strukturiert) | Production             |
+| CRITICAL | Service-/System-Ausfall   | JSON (strukturiert) | Production             |
+
+**Formatierung:**
+
+- **DEBUG-Level:** Nutzt `ConsoleRenderer()` für schöne, lesbare Logs:
+  ```text
+  2026-02-15 19:43:19 [info     ] tag_scanned    tag_id=ABC123 reader_id=pn532_01
+  ```
+
+- **INFO+ Levels:** Nutzt `JSONRenderer()` für strukturiertes Logging:
+  ```json
+  {"event": "tag_scanned", "tag_id": "ABC123", "reader_id": "pn532_01", "level": "info", "timestamp": "2026-02-15T19:43:19.123456Z"}
+  ```
+
+**Wann welches Format?**
+
+- **Development (LOG_LEVEL=DEBUG):** Console-Format – besser lesbar für Menschen
+- **Production (LOG_LEVEL=INFO):** JSON-Format – optimal für Log-Aggregation (ELK, Grafana Loki, etc.)
+
+**In `.env` setzen:**
+
+```bash
+# Development
+LOG_LEVEL=DEBUG
+
+# Production
+LOG_LEVEL=INFO
+```
 
 ### 7.3 Log-Output
 
@@ -736,7 +798,7 @@ Wichtige Punkte (kurz):
 - Andere Services greifen nur via REST-API auf Daten zu  
 - Typische Tabellen:
   - `tags` (Tag → Content-Mapping)
-  - `content` (Audio-Inhalte, Metadaten)  
+  - `content` (Audio-Inhalte, Metadaten)
 
 ---
 
@@ -744,15 +806,42 @@ Wichtige Punkte (kurz):
 
 ### 13.1 Zwei Ebenen
 
-1. **Zentrale `.env`** im Root (gemeinsame Settings: MQTT-Broker, Ports, Logging, Device-ID für MQTT Events (z. B. minabox/<device-id>/rfid/tag-scanned))  
+1. **Zentrale `.env`** im Root (gemeinsame Settings: MQTT-Broker, Ports, Logging, Device-ID)  
 2. **Service-spezifische JSON-Configs** unter `config/*.json` pro Service  
 
-### 13.2 Schema-basierte Config
+### 13.2 Required Environment Variables
+
+**Folgende Variablen sind REQUIRED und müssen in `.env` gesetzt sein:**
+
+- `MQTT_BROKER`: MQTT broker hostname (z.B. `mqtt`)
+- `MQTT_PORT`: MQTT broker port (z.B. `1883`)
+- `MINABOX_DEVICE_ID`: Device ID for MQTT topics (z.B. `box1`)
+- `LOG_LEVEL`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`)
+
+**Keine Defaults vorhanden!** Services schlagen beim Start mit klarer Fehlermeldung fehl, wenn diese Variablen fehlen.
+
+Beispiel `.env`:
+
+```bash
+# Device Configuration
+MINABOX_DEVICE_ID=box1
+
+# MQTT Broker
+MQTT_BROKER=mqtt
+MQTT_PORT=1883
+
+# Logging (DEBUG for development, INFO for production)
+LOG_LEVEL=INFO
+```
+
+### 13.3 Schema-basierte Config
 
 Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `ConfigManager`, der:
 
 - `.env` + JSON lädt  
-- Werte validiert  
+- Werte validiert (Pydantic)
+- Globale Env-Vars (MQTT_BROKER, etc.) **ohne** Service-Prefix lädt
+- Service-spezifische Env-Vars mit Prefix lädt (z.B. `MINABOX_BACKEND_*`)
 - Hot-Reload ermöglicht (z.B. via MQTT-Config-Update)  
 
 ---
@@ -764,6 +853,7 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 - **12-Factor-App** – für Konfiguration, Logs, Disposability, etc.  
 - **Semantic Versioning** – für APIs und Service-Releases  
 - **KISS (Keep It Simple)** – einfache Lösung > überkomplexe "perfekte" Lösung  
+- **Fail-Fast** – Keine Silent-Defaults für kritische Konfiguration  
 
 ---
 
@@ -780,4 +870,4 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 ---
 
 **Letzte Aktualisierung:** 2026-02-15  
-**Version:** 1.6.0
+**Version:** 1.7.0
