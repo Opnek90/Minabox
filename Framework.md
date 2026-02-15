@@ -1,6 +1,6 @@
 # Minabox - Framework Guidelines
 
-**Version:** 1.5.0  
+**Version:** 1.6.0  
 **Letzte Änderung:** 2026-02-15
 
 Dieses Dokument definiert die technischen Standards und Best Practices für das gesamte Minabox-Projekt. Alle Services müssen diesen Richtlinien folgen, um Konsistenz, Wartbarkeit und Qualität sicherzustellen.
@@ -78,13 +78,16 @@ install/                 # Installations-/Setup-Skripte und Anleitungen
 
 **Linting & Formatting:**
 
-- **Ruff v0.15.0** – Linting, Import-Sortierung, Code-Modernisierung  
-- **Black 25.11.0** – Code-Formatting (88 Zeichen, einheitlicher Stil)  
+- **Ruff v0.15.0+** – Linting, Import-Sortierung, Code-Modernisierung **und Formatting**  
+- ~~**Black 25.11.0** – Code-Formatting (88 Zeichen, einheitlicher Stil)~~ **DEPRECATED: Use `ruff format` instead**
 - **mypy 1.20.0** – Type-Checking (moderate Strenge)
+
+> **⚠️ Important:** Black has been replaced by `ruff format` as of 2026-02-15. Ruff provides faster formatting with the same opinionated style while maintaining full compatibility. The pre-commit configuration has been updated to use `ruff-format` exclusively.
 
 **Konfiguration in `pyproject.toml`:**
 
 ```toml
+# Black-Konfiguration wird für Kompatibilität beibehalten, aber nicht mehr verwendet
 [tool.black]
 line-length = 88
 target-version = ['py313']
@@ -95,6 +98,11 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "C4", "UP"]
+
+[tool.ruff.format]
+# Ruff Format verwendet Black-kompatible Defaults
+quote-style = "double"
+indent-style = "space"
 
 [tool.mypy]
 python_version = "3.13"
@@ -110,19 +118,20 @@ warn_return_any = true
 ```yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.0
+    rev: v0.15.1
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/psf/black
-    rev: 25.11.0
-    hooks:
-      - id: black
+  # Black wurde durch ruff-format ersetzt (2026-02-15)
+  # - repo: https://github.com/psf/black
+  #   rev: 26.1.0
+  #   hooks:
+  #     - id: black
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.20.0
+    rev: v1.19.1
     hooks:
       - id: mypy
         args: [--config-file=pyproject.toml]
@@ -437,7 +446,7 @@ logger.info("tag_scanned", tag_id="ABC123", reader_id="pn532_01")
 ### 7.2 Log-Levels
 
 | Level    | Verwendung                | Beispiel                           |
-|----------|---------------------------|------------------------------------|
+|----------|---------------------------|---------------------------------------|
 | DEBUG    | Entwickler-Details        | "GPIO pin initialized"             |
 | INFO     | Normale Operation         | "Tag scanned", "Playback started"  |
 | WARNING  | Wiederholbare Fehler      | "RFID timeout, retrying"           |
@@ -726,7 +735,7 @@ Wichtige Punkte (kurz):
 - **Backend** als einziger direkter DB-Nutzer (z.B. SQLite + SQLAlchemy + Alembic)  
 - Andere Services greifen nur via REST-API auf Daten zu  
 - Typische Tabellen:
-  - `tags` (Tag → Content-Mapping)  
+  - `tags` (Tag → Content-Mapping)
   - `content` (Audio-Inhalte, Metadaten)  
 
 ---
@@ -754,7 +763,7 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 - **SOLID-Prinzipien** – insbesondere Single Responsibility & Dependency Inversion  
 - **12-Factor-App** – für Konfiguration, Logs, Disposability, etc.  
 - **Semantic Versioning** – für APIs und Service-Releases  
-- **KISS (Keep It Simple)** – einfache Lösung > überkomplexe „perfekte" Lösung  
+- **KISS (Keep It Simple)** – einfache Lösung > überkomplexe "perfekte" Lösung  
 
 ---
 
@@ -771,4 +780,4 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 ---
 
 **Letzte Aktualisierung:** 2026-02-15  
-**Version:** 1.5.0
+**Version:** 1.6.0
