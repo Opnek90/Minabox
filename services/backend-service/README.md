@@ -129,6 +129,10 @@ source venv/bin/activate
 # Dependencies installieren
 pip install -r requirements.txt
 
+# Environment Variables setzen
+cp ../../.env.example ../../.env
+# Bearbeite .env und setze REQUIRED vars!
+
 # Datenbank initialisieren
 alembic upgrade head
 
@@ -146,8 +150,10 @@ docker build -t minabox/backend:latest .
 docker run -d \
   --name backend \
   -p 8080:8080 \
-  -e MINABOX_BACKEND_DEVICE_ID=box1 \
-  -e MINABOX_BACKEND_MQTT_BROKER=mqtt \
+  -e MINABOX_DEVICE_ID=box1 \
+  -e MQTT_BROKER=mqtt \
+  -e MQTT_PORT=1883 \
+  -e LOG_LEVEL=INFO \
   -v /data/minabox:/data \
   -v /mnt/audio:/mnt/audio \
   minabox/backend:latest
@@ -157,14 +163,35 @@ docker run -d \
 
 ## Konfiguration
 
-### Environment Variables (.env)
+### Environment Variables (REQUIRED)
+
+**Globale Settings (ohne Prefix):**
 
 ```bash
-MINABOX_BACKEND_DEVICE_ID=box1          # Device ID für MQTT-Topics
-MINABOX_BACKEND_MQTT_BROKER=mqtt        # MQTT-Broker Hostname
-MINABOX_BACKEND_MQTT_PORT=1883          # MQTT-Broker Port
-MINABOX_BACKEND_LOG_LEVEL=INFO          # Logging Level
+# Device Configuration
+MINABOX_DEVICE_ID=box1          # Device ID für MQTT-Topics
+
+# MQTT Broker
+MQTT_BROKER=mqtt                # MQTT-Broker Hostname
+MQTT_PORT=1883                  # MQTT-Broker Port
+
+# Logging
+LOG_LEVEL=INFO                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 ```
+
+**Backend-spezifische Settings (mit MINABOX_BACKEND_ Prefix, optional):**
+
+```bash
+MINABOX_BACKEND_API_PORT=8080               # API Port
+MINABOX_BACKEND_WS_ENABLED=true             # WebSocket aktivieren
+MINABOX_BACKEND_DATABASE_PATH=/data/minabox.db
+MINABOX_BACKEND_AUDIO_STORAGE_PATH=/mnt/audio/tracks
+```
+
+**⚠️ Wichtig:**
+- Globale Settings (`MQTT_BROKER`, `MINABOX_DEVICE_ID`, `LOG_LEVEL`) sind **REQUIRED** ohne Defaults!
+- Service schlägt mit klarer Fehlermeldung fehl, wenn diese nicht gesetzt sind
+- Backend-spezifische Settings haben sinnvolle Defaults in `config_schema.py`
 
 ### Service Config (config/backend.json)
 
@@ -335,18 +362,31 @@ MINABOX_BACKEND_LOG_LEVEL=INFO          # Logging Level
 
 ## Logging
 
-Strukturiertes JSON-Logging mit `structlog`:
+### Format-Switching basierend auf LOG_LEVEL
 
-```json
-{
-  "event": "rfid_tag_scanned_received",
-  "tag_id": "04A224BC19",
-  "level": "info",
-  "timestamp": "2026-02-15T12:00:00Z"
-}
-```
+Der Backend-Service verwendet **dynamisches Log-Format** abhängig vom `LOG_LEVEL`:
 
-**Wichtige Events:**
+**Development (LOG_LEVEL=DEBUG):**
+- Format: Console (human-readable)
+- Beispiel:
+  ```text
+  2026-02-15 19:43:19 [info     ] rfid_tag_scanned_received    tag_id=04A224BC19
+  2026-02-15 19:43:19 [info     ] tag_found                     content_type=playlist content_id=1
+  ```
+
+**Production (LOG_LEVEL=INFO und höher):**
+- Format: JSON (structured)
+- Beispiel:
+  ```json
+  {"event": "rfid_tag_scanned_received", "tag_id": "04A224BC19", "level": "info", "timestamp": "2026-02-15T19:43:19.123456Z"}
+  {"event": "tag_found", "content_type": "playlist", "content_id": 1, "level": "info", "timestamp": "2026-02-15T19:43:19.234567Z"}
+  ```
+
+**Wann welches Format verwenden:**
+- **Development:** `LOG_LEVEL=DEBUG` → Bessere Lesbarkeit beim Debuggen
+- **Production:** `LOG_LEVEL=INFO` → Optimal für Log-Aggregation (ELK, Grafana Loki)
+
+### Wichtige Events
 
 - `backend_service_starting` / `backend_service_started_successfully`
 - `rfid_tag_scanned_received` / `tag_found` / `tag_not_found`
@@ -383,15 +423,24 @@ services:
   backend:
     build: ./services/backend-service
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT:-8080}:8080"
     environment:
-      - MINABOX_BACKEND_DEVICE_ID=box1
-      - MINABOX_BACKEND_MQTT_BROKER=mqtt
+      # Global settings (REQUIRED)
+      - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
+      - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
+      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
+      
+      # Backend-specific (optional, have defaults)
+      - DATABASE_PATH=/data/minabox.db
+      - AUDIO_STORAGE_PATH=/mnt/audio/tracks
+      - API_PORT=8080
     volumes:
       - ./data:/data
       - ./audio:/mnt/audio
     depends_on:
-      - mqtt
+      mqtt:
+        condition: service_healthy
 ```
 
 ---
@@ -404,15 +453,47 @@ services:
 # Logs prüfen
 docker logs backend
 
+# Für bessere Lesbarkeit: DEBUG-Modus aktivieren
+# In .env setzen: LOG_LEVEL=DEBUG
+docker compose restart backend
+docker compose logs -f backend
+
 # Health-Check
 curl http://localhost:8080/api/v1/health
 ```
 
+### Fehlermeldung: "Missing required environment variables"
+
+```bash
+# Prüfe .env Datei
+cat .env
+
+# Stelle sicher, dass alle REQUIRED Variablen gesetzt sind:
+# - MQTT_BROKER=mqtt
+# - MQTT_PORT=1883
+# - MINABOX_DEVICE_ID=box1
+# - LOG_LEVEL=INFO
+
+# Container neu starten
+docker compose down
+docker compose up -d backend
+```
+
 ### MQTT-Verbindung fehlgeschlagen
 
-- Prüfe, ob MQTT-Broker läuft: `docker ps | grep mqtt`
-- Prüfe `MQTT_BROKER` Environment Variable
-- Network-Verbindung: `docker network inspect minabox-network`
+```bash
+# Prüfe, ob MQTT-Broker läuft
+docker ps | grep mqtt
+
+# Prüfe MQTT_BROKER Environment Variable
+docker exec backend env | grep MQTT
+
+# Network-Verbindung prüfen
+docker network inspect minabox-network
+
+# MQTT-Broker-Logs
+docker compose logs mqtt
+```
 
 ### Datenbank-Fehler
 
@@ -426,6 +507,18 @@ rm /data/minabox.db
 alembic upgrade head
 ```
 
+### Log-Format ändern (DEBUG <-> INFO)
+
+```bash
+# Für Development: Console-Format
+echo "LOG_LEVEL=DEBUG" >> .env
+docker compose restart backend
+
+# Für Production: JSON-Format
+echo "LOG_LEVEL=INFO" >> .env
+docker compose restart backend
+```
+
 ---
 
 ## Weitere Dokumentation
@@ -433,6 +526,7 @@ alembic upgrade head
 - [Framework.md](../../Framework.md) - Technische Standards
 - [Backend Architecture.md](../../docs/services/backend/Architecture.md) - Detaillierte Architektur
 - [DEVELOPMENT_INSTRUCTIONS.md](../../docs/DEVELOPMENT_INSTRUCTIONS.md) - Entwicklungsrichtlinien
+- [.env.example](../../.env.example) - Template für Environment Variables
 
 ---
 
