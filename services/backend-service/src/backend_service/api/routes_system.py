@@ -4,6 +4,7 @@ import time
 
 import structlog
 from fastapi import APIRouter, Depends
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
@@ -41,7 +42,7 @@ async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
 
     # Check database connection
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         database_connected = True
     except Exception as e:
         logger.error("health_check_db_failed", error=str(e))

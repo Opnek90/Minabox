@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Minabox - Complete Service Stack
 # =================================
 # Dieses docker-compose.yml startet alle Minabox-Services:

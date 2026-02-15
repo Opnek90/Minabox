@@ -57,7 +57,7 @@ class MQTTClient:
             self.client = Client(
                 hostname=self.config.mqtt_broker,
                 port=self.config.mqtt_port,
-                client_id=f"backend-{self.config.device_id}",
+                identifier=f"backend-{self.config.device_id}",
             )
             await self.client.__aenter__()
             self._connected = True
@@ -208,9 +208,7 @@ class MQTTClient:
             async for message in self.client.messages:
                 if not self._running:
                     break
-                await self._handle_message(
-                    message.topic.value, message.payload.decode()
-                )
+                await self._handle_message(message.topic.value, message.payload.decode())
 
         except Exception as e:
             logger.error("mqtt_listening_error", error=str(e))
