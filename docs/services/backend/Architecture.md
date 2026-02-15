@@ -50,8 +50,11 @@ Nicht-Ziele:
 - `GET /api/v1/tracks` – Liste aller Tracks
 - `GET /api/v1/tracks/{track_id}` – Track-Details
 - `POST /api/v1/tracks/upload` – Track hochladen (multipart/form-data)
+- `POST /api/v1/tracks` – Stream oder Track anlegen (JSON)
+  - Für Streams: `{ "title": "...", "artist": "...", "album": "...", "source_type": "stream", "source_uri": "https://..." }`
+  - Für manuelle File-Einträge: `{ "title": "...", "source_type": "file", "source_uri": "/mnt/audio/..." }`
 - `PUT /api/v1/tracks/{track_id}` – Track-Metadaten bearbeiten
-- `DELETE /api/v1/tracks/{track_id}` – Track löschen (inkl. Datei)
+- `DELETE /api/v1/tracks/{track_id}` – Track löschen (inkl. Datei bei source_type="file")
 
 **Audio-Control:**
 
@@ -100,7 +103,10 @@ Audio-Status:
   "data": {
     "state": "playing",
     "track_id": "track_123",
+    "source_type": "file",
+    "source_uri": "/mnt/audio/tracks/123/original.mp3",
     "position_ms": 12345,
+    "duration_ms": 240000,
     "volume": 55,
     "timestamp": "2026-02-14T21:20:00Z"
   }
@@ -594,6 +600,58 @@ db.commit()
 ```
 
 **Vorteil:** Track-ID eindeutig, Dateien isoliert, einfach zu löschen (Track löschen → Verzeichnis löschen).
+
+### 4.7 Stream-Hinzufügen
+
+**Endpoint:** `POST /api/v1/tracks`
+
+**Request:**
+
+```http
+POST /api/v1/tracks HTTP/1.1
+Content-Type: application/json
+
+{
+  "title": "Radio Beispiel",
+  "artist": "Radio Station",
+  "album": null,
+  "source_type": "stream",
+  "source_uri": "https://stream.example.com/radio.mp3"
+}
+```
+
+**Backend-Logik:**
+
+1. Validiere Request-Body (Pydantic-Schema).
+2. Erstelle neuen Track-Eintrag in DB:
+
+```python
+track = Track(
+    title=request.title,
+    artist=request.artist,
+    album=request.album,
+    source_type="stream",
+    source_uri=request.source_uri,
+    duration_ms=None  # Streams haben keine feste Dauer
+)
+db.add(track)
+db.commit()
+```
+
+3. Return Track-Objekt als JSON:
+
+```json
+{
+  "id": 124,
+  "title": "Radio Beispiel",
+  "artist": "Radio Station",
+  "album": null,
+  "duration_ms": null,
+  "source_type": "stream",
+  "source_uri": "https://stream.example.com/radio.mp3",
+  "created_at": "2026-02-14T22:35:00Z"
+}
+```
 
 ---
 
