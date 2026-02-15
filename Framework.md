@@ -1,7 +1,7 @@
 # Minabox - Framework Guidelines
 
 **Version:** 1.4  
-**Letzte Änderung:** 2026-02-14
+**Letzte Änderung:** 2026-02-15
 
 Dieses Dokument definiert die technischen Standards und Best Practices für das gesamte Minabox-Projekt. Alle Services müssen diesen Richtlinien folgen, um Konsistenz, Wartbarkeit und Qualität sicherzustellen.
 
@@ -33,15 +33,18 @@ docs/
   Framework.md           # Dieses Dokument
   services/              # Fachliche Doku & Checklisten pro Bereich
     rfid/
-      Architecture.md
+      Architecture.md    # RFID-Service Architektur (vorhanden)
     audio/
+      Architecture.md    # Audio-Service Architektur (vorhanden)
+    backend/
+      Architecture.md    # Backend-Service Architektur (vorhanden, deckt API & DB ab)
     webui/
-    api/
-    database/
+      Architecture.md    # WebUI-Service Architektur (vorhanden)
     led/
-      Architecture.md
+      Architecture.md    # LED-Service Architektur (vorhanden)
     button/
-      Architecture.md
+      Architecture.md    # Button-Service Architektur (vorhanden)
+    api/                 # Optionale zusätzliche API-Dokumentation (geplant)
 
 services/                # Technische Services (Implementierungen)
   rfid-service/
@@ -56,8 +59,12 @@ infrastructure/          # Infrastruktur (docker-compose, MQTT-Broker, Monitorin
 install/                 # Installations-/Setup-Skripte und Anleitungen
 ```
 
-Jeder Service-Ordner unter `services/` verwendet die Standardstruktur aus Kapitel **4. Projekt-Struktur pro Service**.  
-Für jeden fachlichen Bereich (z.B. RFID, Button, LED, Audio, Backend, WebUI) existiert eine `Architecture.md` unter `docs/services/<bereich>/`, die die Service-Aufgaben, Schnittstellen und Konfigurationsmodelle beschreibt.
+**Hinweise:**
+
+- Jeder Service-Ordner unter `services/` verwendet die Standardstruktur aus Kapitel **4. Projekt-Struktur pro Service**.
+- Für jeden fachlichen Bereich existiert eine `Architecture.md` unter `docs/services/<bereich>/`.
+- `docs/services/backend/Architecture.md` deckt sowohl die REST-API als auch die Datenbankschicht ab, da der Backend-Service beide Verantwortlichkeiten innehat.
+- Alle Architecture.md-Dateien für die Hauptservices (RFID, Audio, Backend, WebUI, LED, Button) sind bereits vorhanden und beschreiben Aufgaben, Schnittstellen und Konfigurationsmodelle.
 
 ---
 
@@ -423,7 +430,7 @@ logger.info("tag_scanned", tag_id="ABC123", reader_id="pn532_01")
 ### 7.2 Log-Levels
 
 | Level    | Verwendung                | Beispiel                           |
-|----------|---------------------------|------------------------------------|
+|----------|---------------------------|-----------------------------------|
 | DEBUG    | Entwickler-Details        | "GPIO pin initialized"             |
 | INFO     | Normale Operation         | "Tag scanned", "Playback started"  |
 | WARNING  | Wiederholbare Fehler      | "RFID timeout, retrying"           |
@@ -720,7 +727,7 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 - **SOLID-Prinzipien** – insbesondere Single Responsibility & Dependency Inversion  
 - **12-Factor-App** – für Konfiguration, Logs, Disposability, etc.  
 - **Semantic Versioning** – für APIs und Service-Releases  
-- **KISS (Keep It Simple)** – einfache Lösung > überkomplexe „perfekte“ Lösung  
+- **KISS (Keep It Simple)** – einfache Lösung > überkomplexe „perfekte" Lösung  
 
 ---
 
@@ -736,5 +743,5 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 
 ---
 
-**Letzte Aktualisierung:** 2026-02-14  
+**Letzte Aktualisierung:** 2026-02-15  
 **Version:** 1.4
