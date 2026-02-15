@@ -1,0 +1,9 @@
+{
+  "api_port": 8080,
+  "ws_enabled": true,
+  "session_timeout_min": 60,
+  "health_check_interval_sec": 30,
+  "max_upload_size_mb": 100,
+  "audio_storage_path": "/mnt/audio/tracks",
+  "database_path": "/data/minabox.db"
+}

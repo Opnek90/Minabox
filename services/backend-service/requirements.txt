@@ -1,0 +1,27 @@
+# Web Framework & Server
+fastapi>=0.126.0,<0.127.0
+uvicorn[standard]>=0.40.0,<0.41.0
+python-multipart>=0.0.18
+
+# Data Validation
+pydantic>=2.12.5,<3.0.0
+pydantic-settings>=2.0.0
+
+# Database
+sqlalchemy>=2.0.46,<2.1.0
+alembic>=1.15.0,<2.0.0
+
+# MQTT Client
+aiomqtt>=2.5.0,<3.0.0
+
+# Logging
+structlog>=25.4.0,<26.0.0
+
+# Retry Logic
+tenacity>=9.1.0,<10.0.0
+
+# Audio Metadata
+mutagen>=1.47.0,<2.0.0
+
+# Utilities
+python-dotenv>=1.0.0
