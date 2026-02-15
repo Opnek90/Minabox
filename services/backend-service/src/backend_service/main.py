@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import signal
 import sys
 from collections.abc import AsyncGenerator
@@ -22,15 +23,26 @@ from backend_service.core.db_manager import init_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
 
-# Configure structlog
+# Get log level from environment
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level_int = getattr(logging, LOG_LEVEL, logging.INFO)
+
+# Configure structlog based on log level
+# DEBUG mode: Console renderer (human-readable, for development)
+# INFO and above: JSON renderer (structured, for production)
+if LOG_LEVEL == "DEBUG":
+    renderer = structlog.dev.ConsoleRenderer()
+else:
+    renderer = structlog.processors.JSONRenderer()
+
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer(),
+        renderer,
     ],
-    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    wrapper_class=structlog.make_filtering_bound_logger(log_level_int),
     context_class=dict,
     logger_factory=structlog.PrintLoggerFactory(),
     cache_logger_on_first_use=False,
@@ -188,12 +200,12 @@ async def main() -> None:
     """Run the FastAPI application."""
     config = get_config()
 
-    # Configure uvicorn
+    # Configure uvicorn with matching log level
     uv_config = uvicorn.Config(
         app,
         host="0.0.0.0",
         port=config.api_port,
-        log_level="info",
+        log_level=LOG_LEVEL.lower(),
         access_log=True,
     )
     server = uvicorn.Server(uv_config)
