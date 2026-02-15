@@ -683,7 +683,7 @@ CMD ["python", "-m", "service_name.main"]
 
 Das zentrale `docker-compose.yml` im Root orchestriert alle Services:
 
-- `mosquitto` – MQTT-Broker (Mosquitto 2.1+)  
+- `mqtt` – MQTT-Broker (Eclipse Mosquitto 2.1+)  
 - `backend` – Backend-Service (API, DB, Orchestrierung)  
 - `rfid` – RFID-Service  
 - `audio` – Audio-Service  
