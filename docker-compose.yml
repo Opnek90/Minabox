@@ -103,12 +103,9 @@ services:
     container_name: minabox-rfid
     restart: unless-stopped
     environment:
-      # MQTT (required)
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
-      
-      # Logging (required)
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
     volumes:
       - ./services/rfid-service/config:/app/config
@@ -117,18 +114,10 @@ services:
     depends_on:
       mqtt:
         condition: service_healthy
-    # Hardware-Zugriff für I2C/SPI (RFID-Reader)
     devices:
       - /dev/i2c-1:/dev/i2c-1
-      - /dev/spidev0.0:/dev/spidev0.0
-    # Alternative: privileged mode (weniger sicher, aber einfacher)
-    # privileged: true
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+    # ✅ Fix: pi-User (UID 1000) + i2c-Gruppe (GID 988)
+    user: "1000:988"
 
   audio:
     build:

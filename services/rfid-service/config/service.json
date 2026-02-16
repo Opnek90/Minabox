@@ -1,0 +1,8 @@
+{
+  "reader": {
+    "reader_type": "pn532",
+    "interface": "i2c",
+    "scan_interval_ms": 200,
+    "duplicate_suppression_ms": 2000
+  }
+}
