@@ -43,9 +43,6 @@ services:
       retries: 3
       start_period: 10s
 
-  # =================================
-  # Backend Service
-  # =================================
   backend:
     build:
       context: ./services/backend-service
@@ -55,38 +52,23 @@ services:
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     environment:
-      # MQTT (required)
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
-      
-      # Database
       - DATABASE_PATH=/data/minabox.db
-      
-      # Storage
       - AUDIO_STORAGE_PATH=/mnt/audio/tracks
-      
-      # Logging (required)
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
-      
-      # API
       - API_PORT=8080
       - WS_ENABLED=true
     volumes:
       - ./data:/data
-      - ./audio:/mnt/audio
+      - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio  # ← GEÄNDERT
       - ./services/backend-service/config:/app/config:ro
     networks:
       - minabox-network
     depends_on:
       mqtt:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
 
   # =================================
   # WebUI Service
@@ -148,9 +130,6 @@ services:
       retries: 3
       start_period: 20s
 
-  # =================================
-  # Audio Service
-  # =================================
   audio:
     build:
       context: ./services/audio-service
@@ -158,33 +137,33 @@ services:
     container_name: minabox-audio
     restart: unless-stopped
     environment:
-      # MQTT (required)
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
-      
-      # Logging (required)
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
-      
-      # Audio
+      - AUDIO_SERVICE_HOST=0.0.0.0
+      - AUDIO_SERVICE_PORT=8003
+      - AUDIO_CONFIG_PATH=config/audio.json
+      - AUDIO_STATE_PATH=state/audio_state.json
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
     volumes:
       - ./services/audio-service/config:/app/config
-      - ./audio:/mnt/audio:ro
-      # PulseAudio Socket (falls verwendet)
+      - ./services/audio-service/state:/app/state
+      - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio:ro  # ← GEÄNDERT
       - /run/user/1000/pulse:/run/user/1000/pulse:ro
+    ports:
+      - "8003:8003"
     networks:
       - minabox-network
     depends_on:
       mqtt:
         condition: service_healthy
-    # Audio-Device-Zugriff
     devices:
       - /dev/snd:/dev/snd
     group_add:
       - audio
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8003/api/v1/health"]
       interval: 30s
       timeout: 5s
       retries: 3

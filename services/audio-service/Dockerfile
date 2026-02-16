@@ -1,0 +1,63 @@
+# Stage 1: Build dependencies
+FROM python:3.13-slim AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python packages
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+
+# Stage 2: Runtime
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install VLC and ALSA runtime dependencies
+# Note: Debian Trixie only has 'vlc' (not vlc-nox)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    vlc \
+    libvlc-dev \
+    vlc-plugin-base \
+    vlc-plugin-access-extra \
+    libasound2 \
+    alsa-utils \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Disable VLC GUI components (we run headless)
+ENV VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
+
+# FIXED: Copy Python packages to /usr/local (globally accessible)
+COPY --from=builder /root/.local /usr/local
+ENV PATH=/usr/local/bin:$PATH
+
+# Copy application code
+COPY src/ ./src/
+COPY config/ ./config/
+
+# Create state directory
+RUN mkdir -p ./state
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8003/api/v1/health || exit 1
+
+# Create non-root user for security
+RUN useradd -m -u 1000 minabox && \
+    chown -R minabox:minabox /app
+
+# Switch to non-root user
+USER minabox
+
+# Expose FastAPI port
+EXPOSE 8003
+
+# FIXED: Correct module path
+CMD ["python", "-m", "src.audio_service.main"]

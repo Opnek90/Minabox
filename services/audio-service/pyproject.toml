@@ -1,0 +1,50 @@
+[project]
+name = "audio-service"
+version = "0.1.0"
+description = "Minabox Audio Service - VLC-based audio player with MQTT control"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.126.0,<0.127.0",
+    "uvicorn[standard]>=0.33.0,<0.34.0",
+    "pydantic>=2.12.5,<3.0.0",
+    "pydantic-settings>=2.7.0,<3.0.0",
+    "aiomqtt>=2.4.0,<3.0.0",
+    "python-vlc>=3.0.21203,<4.0.0",
+    "structlog>=25.4.0,<26.0.0",
+    "tenacity>=9.0.0,<10.0.0",
+    "httpx>=0.28.0,<0.29.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.15.0",
+    "mypy>=1.20.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "vlc.*"
+ignore_missing_imports = true
+ignore_errors = true
