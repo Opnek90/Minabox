@@ -1,5 +1,7 @@
 """Playback session manager for tracking current playback state."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 

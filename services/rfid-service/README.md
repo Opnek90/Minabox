@@ -326,7 +326,7 @@ Test connection:
 bash
 mosquitto_sub -h localhost -p 1883 -t "minabox/box1/#" -v
 References
-Framework.md – Technical standards
+[Framework.md](../../docs/Framework.md) – Technical standards
 
 RFID Architecture – Detailed architecture
 

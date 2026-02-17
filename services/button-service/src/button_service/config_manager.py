@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 import structlog
 
 from .config import BUTTONS_CONFIG_PATH, ConfigError, _load_buttons_config
 from .config_schema import ButtonServiceConfig
 
-
 logger = structlog.get_logger(__name__)
-
 
 class ConfigManager:
     """Manages button service configuration with hot-reload support.
@@ -29,7 +27,7 @@ class ConfigManager:
             config_path: Path to the buttons.json configuration file.
         """
         self._config_path = config_path
-        self._current_config: Optional[ButtonServiceConfig] = None
+        self._current_config: ButtonServiceConfig | None = None
         self._reload_callbacks: list[Callable[[ButtonServiceConfig], None]] = []
 
     def load_config(self) -> ButtonServiceConfig:
@@ -50,7 +48,7 @@ class ConfigManager:
         )
         return config
 
-    def get_current_config(self) -> Optional[ButtonServiceConfig]:
+    def get_current_config(self) -> ButtonServiceConfig | None:
         """Get the currently loaded configuration.
         
         Returns:

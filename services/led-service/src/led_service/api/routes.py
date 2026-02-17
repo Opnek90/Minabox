@@ -3,6 +3,8 @@
 This module provides a minimal REST API with health check endpoint.
 """
 
+from __future__ import annotations
+
 from typing import Dict
 
 from fastapi import FastAPI

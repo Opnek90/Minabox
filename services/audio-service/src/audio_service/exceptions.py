@@ -5,6 +5,8 @@ catching service-specific errors separately from standard Python exceptions.
 """
 
 
+from __future__ import annotations
+
 class MinaboxAudioError(Exception):
     """Base exception for all audio service errors."""
 

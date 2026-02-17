@@ -32,7 +32,7 @@ class ReaderConfig(BaseModel):
 
 
 class RFIDServiceConfig(BaseModel):
-    """Top-level RFID configuration loaded from config/service.json."""
+    """Top-level RFID configuration loaded from config/rfid.json."""
 
     reader: ReaderConfig = Field(
         description="Hardware reader configuration.",

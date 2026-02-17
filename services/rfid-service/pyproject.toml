@@ -3,25 +3,22 @@ requires = ["setuptools>=69.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "minabox-rfid-service"
+name = "rfid-service"
 version = "0.1.0"
 description = "Minabox RFID hardware integration service"
-readme = "README.md"
-requires-python = ">=3.13,<4.0"
+requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.115.0,<0.116.0",
-    "pydantic>=2.9.0,<2.10.0",
-    "structlog>=24.4.0,<24.5.0",
-    "aiomqtt>=2.4.0,<2.5.0",
-    "python-dotenv>=1.2.1,<1.3.0",
-    "tenacity>=8.4.2,<8.5.0",
+    "fastapi>=0.126.0,<0.127.0",
+    "uvicorn[standard]>=0.34.0,<0.35.0",
+    "pydantic>=2.12.0,<2.13.0",
+    "aiomqtt>=2.5.0,<2.6.0",
+    "structlog>=25.4.0,<25.5.0",
+    "tenacity>=9.0.0,<10.0.0",
+    "pn532pi>=1.7,<2.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "pytest-asyncio",
-]
+[project.scripts]
+rfid-service = "rfid_service.main:run"
 
 [tool.ruff]
 line-length = 88
@@ -39,3 +36,7 @@ python_version = "3.13"
 warn_unused_configs = true
 disallow_untyped_defs = true
 warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = "pn532pi.*"
+ignore_missing_imports = true

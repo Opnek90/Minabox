@@ -111,7 +111,7 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 ## P2 – Mittlere Priorität (Code-Qualität)
 
 ### 11. Dockerfile-Patterns uneinheitlich
-- [ ] **Problem:** Drei verschiedene pip-Install-Strategien:
+- [x] **Problem:** Drei verschiedene pip-Install-Strategien:
   - **RFID/Button/LED:** `pip install --no-cache-dir -r requirements.txt`, kopiert `site-packages` direkt
   - **Audio:** `pip install --no-cache-dir --user -r requirements.txt`, kopiert `/root/.local` → `/usr/local`
   - **Backend:** Erstellt ein venv (`/opt/venv`), kopiert Venv
@@ -136,13 +136,13 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 - **Fix:** Auf `loop.add_signal_handler()` umstellen (wie Button/LED).
 
 ### 15. Fehlende `from __future__ import annotations`
-- [ ] **Problem:** Inkonsistente Nutzung:
+- [x] **Problem:** Inkonsistente Nutzung:
   - Verwendet: RFID `main.py`, `config_manager.py`; Button `main.py`, `config_schema.py`; LED `config_schema.py`
   - Fehlt: Audio `main.py`; Backend `main.py`; LED `main.py`
 - **Fix:** Konsistent in allen Modulen verwenden oder weglassen. Empfehlung: Überall hinzufügen für zukunftssicheren Code (PEP 563).
 
 ### 16. Kein `models/schemas.py` im RFID-Service
-- [ ] **Problem:** RFID hat `models/events.py` statt `models/schemas.py`, was vom Framework-Standard abweicht (Framework Abschnitt 4.1 definiert `models/schemas.py`).
+- [x] **Problem:** RFID hat `models/events.py` statt `models/schemas.py`, was vom Framework-Standard abweicht (Framework Abschnitt 4.1 definiert `models/schemas.py`).
 - **Fix:** Entweder umbenennen oder in der Dokumentation begründen.
 
 ---
@@ -150,63 +150,64 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 ## P3 – Niedrige Priorität / Housekeeping
 
 ### 17. Config-Dateinamen nicht einheitlich
-- [ ] **Problem:**
+- [x] **Problem:**
   - RFID: `config/service.json`
   - Audio: `config/audio.json`
   - Button: `config/buttons.json`
   - LED: `config/leds.json`
   - Backend: `config/backend.json` (in Doku referenziert)
+- **Fix:** RFID `config/service.json` → `config/rfid.json` umbenannt. Alle Services nutzen jetzt `config/<domain>.json`.
 - **Empfehlung:** Entweder alle `config/service.json` oder alle `config/<domain>.json`. Die aktuelle Benennung ist funktional nicht problematisch, aber uneinheitlich.
 
 ### 18. RFID ConfigManager erstellt globale Singleton-Instanz
-- [ ] **Datei:** `services/rfid-service/src/rfid_service/config_manager.py` (Zeile 147)
+- [x] **Datei:** `services/rfid-service/src/rfid_service/config_manager.py` (Zeile 147)
 - **Problem:** `config_manager = ConfigManager()` auf Modul-Ebene. Kein anderer Service macht das.
 - **Fix:** Entfernen und stattdessen in `main.py` oder `config.py` instanziieren.
 
 ### 19. Backend ConfigManager fehlt `config_manager.py`
-- [ ] **Problem:** Backend hat eine `config_manager.py`, aber diese delegiert nur an `BackendConfig` (pydantic-settings). Die Datei `config.py` enthält die eigentliche `get_config()`-Funktion. Die Aufteilung `config.py` + `config_manager.py` + `config_schema.py` ist im Backend anders als bei anderen Services.
+- [x] **Problem:** Backend hat eine `config_manager.py`, aber diese delegiert nur an `BackendConfig` (pydantic-settings). Die Datei `config.py` enthält die eigentliche `get_config()`-Funktion. Die Aufteilung `config.py` + `config_manager.py` + `config_schema.py` ist im Backend anders als bei anderen Services.
 - **Fix:** Vereinfachen und an das Button/LED-Pattern angleichen.
 
 ### 20. `typing.Optional` statt `X | None` in einigen Services
-- [ ] **Problem:** Mischung aus `Optional[X]` (altes Pattern) und `X | None` (Python 3.10+ Pattern) in Button und LED Services.
-- **Fix:** Konsistent `X | None` verwenden (modernerer Stil, passt zu `target-version = "py313"`).
+- [x] **Problem:** Mischung aus `Optional[X]` (altes Pattern) und `X | None` (Python 3.10+ Pattern) in Button und LED Services.
+- **Fix:** `Optional[X]` → `X | None` in allen 5 Services ersetzt (22 Dateien). `Optional` aus `from typing import`-Zeilen entfernt.
 
 ### 21. Docker-Compose: Audio-Volume-Mount mit Kommentar `← GEÄNDERT`
-- [ ] **Datei:** `docker-compose.yml` (Zeile 65, 141)
+- [x] **Datei:** `docker-compose.yml` (Zeile 65, 141)
 - **Problem:** Kommentare `# ← GEÄNDERT` sollten entfernt werden – sie sind Entwickler-Notizen, keine Dokumentation.
-- **Fix:** Kommentare entfernen.
+- **Fix:** Kommentare entfernt. Zusätzlich: Startreihenfolge explizit definiert (mqtt → backend → audio → rfid/button/led → webui), Backend-Healthcheck in `docker-compose.yml` ergänzt, Services in der gewünschten Reihenfolge sortiert.
 
 ---
 
 ## Dokumentations-Findings
 
 ### D1. Framework.md Projekt-Struktur-Pfad falsch
-- [ ] **Problem:** Framework.md Abschnitt 2 listet `docs/Framework.md` als Pfad – die Datei liegt aber im Root als `Framework.md`, nicht unter `docs/`.
-- **Fix:** Entweder die Datei nach `docs/` verschieben oder den Pfad in der Dokumentation korrigieren.
+- [x] **Problem:** Framework.md Abschnitt 2 listet `docs/Framework.md` als Pfad – die Datei lag im Root als `Framework.md`.
+- **Fix:** `Framework.md` nach `docs/Framework.md` verschoben. Verweise in `services/backend-service/README.md` und `services/rfid-service/README.md` auf `docs/Framework.md` angepasst.
 
 ### D2. Audio Architecture.md – Dependency-Versionen veraltet
-- [ ] **Datei:** `docs/services/audio/Architecture.md` (Abschnitt 9.2)
+- [x] **Datei:** `docs/services/audio/Architecture.md` (Abschnitt 9.2)
 - **Problem:** Listet alte Versionen: `aiomqtt==2.3.0`, `structlog==24.4.0`, `pydantic==2.10.5`, `fastapi==0.115.6`. Die tatsächlichen Requirements sind neuer.
-- **Fix:** Versionen aktualisieren oder entfernen (besser: auf `requirements.txt` verweisen statt Versionen zu duplizieren).
+- **Fix:** Abschnitt 9.2 verweist jetzt auf `services/audio-service/requirements.txt` und enthält nur noch eine Kurzüberblick-Liste ohne feste Versionen.
 
 ### D3. Audio Architecture.md – Exception-Klassen stimmen nicht überein
-- [ ] **Datei:** `docs/services/audio/Architecture.md` (Abschnitt 2.3)
-- **Problem:** Dokumentation nennt `AudioServiceError`, `AudioBackendError`, `VLCInitializationError`, `AudioDeviceNotFoundError`. Der tatsächliche Code verwendet `MinaboxError`, `AudioError`, `VLCError`, `OutputDeviceError` etc.
-- **Fix:** Dokumentation an den Code angleichen.
+- [x] **Datei:** `docs/services/audio/Architecture.md` (Abschnitt 2.3)
+- **Problem:** Dokumentation nannte `AudioServiceError`, `AudioBackendError`, `VLCInitializationError`, `AudioDeviceNotFoundError`. Der Code verwendet `MinaboxAudioError`, `AudioError`, `VLCError`, `OutputDeviceError` etc.
+- **Fix:** Exception-Liste in der Doku an die tatsächliche Hierarchie in `exceptions.py` angeglichen.
 
 ### D4. Backend Architecture.md – MQTT-Library
-- [ ] **Datei:** `docs/services/backend/Architecture.md` (Abschnitt 5)
+- [x] **Datei:** `docs/services/backend/Architecture.md` (Abschnitt 5)
 - **Problem:** Listet `paho-mqtt oder aiomqtt`. Es wird ausschließlich `aiomqtt` verwendet.
-- **Fix:** `paho-mqtt` entfernen.
+- **Fix:** Nur noch `aiomqtt` – asynchroner MQTT-Client – dokumentiert.
 
 ### D5. WebUI Architecture.md – Docker-Compose Broker-Name
-- [ ] **Datei:** `docs/services/webui/Architecture.md` (Abschnitt 7.3)
-- **Problem:** Beispiel-Compose verwendet `mosquitto` als Service-Name. Das tatsächliche Compose verwendet `mqtt`.
-- **Fix:** An den tatsächlichen Service-Namen angleichen.
+- [x] **Datei:** `docs/services/webui/Architecture.md` (Abschnitt 7.3)
+- **Problem:** Beispiel-Compose verwendete `mosquitto` als Service-Name und `MQTT_BROKER=mosquitto`. Das tatsächliche Compose verwendet `mqtt`.
+- **Fix:** Service-Name und Umgebungsvariable im Beispiel auf `mqtt` angepasst.
 
 ### D6. RFID Architecture.md – Fehlende MQTT-Config-API-Dokumentation
-- [ ] **Problem:** Der RFID-Service hat keine dokumentierte Config-API über MQTT (wie Button und LED sie haben). Abschnitt 6 im Framework beschreibt das generische Config-Update-Pattern, aber die RFID-Architektur-Doku erwähnt nur `cmd/set-mode` und optional `cmd/reload-config`.
-- **Fix:** Klären, ob der RFID-Service das generische Config-Update-Pattern unterstützen soll, und entsprechend dokumentieren.
+- [x] **Problem:** Der RFID-Service hat keine dokumentierte Config-API über MQTT (wie Button und LED). Es war unklar, ob das generische Config-Update-Pattern unterstützt wird.
+- **Fix:** In Abschnitt 2.1 ausdrücklich dokumentiert, dass der RFID-Service **kein** generisches Config-API-Pattern (config/get, config/update, config/response) unterstützt; Konfiguration über `config/rfid.json`, Laufzeit-Steuerung nur via `cmd/set-mode` und `cmd/reload-config`. Zusätzlich alle Verweise auf `config/service.json` in `config/rfid.json` geändert (RFID Architecture + config_schema.py).
 
 ---
 

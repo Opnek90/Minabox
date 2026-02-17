@@ -3,6 +3,8 @@
 Provides health check and status endpoints.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 
 import structlog

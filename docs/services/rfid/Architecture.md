@@ -75,6 +75,8 @@ minabox/<device-id>/<domain>/<action>
 - Konfiguration neu laden (optional):
   - `minabox/<device-id>/rfid/cmd/reload-config`
 
+**Hinweis Config-API:** Der RFID-Service unterstützt **kein** generisches Config-API-Pattern (keine Topics `config/get`, `config/update`, `config/response` wie bei Button- und LED-Service). Die Konfiguration erfolgt ausschließlich über die Datei `config/rfid.json`; zur Laufzeit können nur der Modus (`cmd/set-mode`) und ein Neuladen der Config (`cmd/reload-config`) per MQTT gesteuert werden.
+
 ### 2.2 REST (optional)
 
 Optional kann der Service einen kleinen HTTP-Endpoint anbieten (z.B. FastAPI), hauptsächlich für Health-/Debug-Zwecke:
@@ -145,7 +147,7 @@ Um mehrfaches Auslösen durch leichte Bewegungen zu vermeiden:
   - Globale `.env` (Root):
     - `MINABOX_DEVICE_ID` – Box-ID für MQTT-Topics.
     - `MQTT_BROKER`, `MQTT_PORT`.
-  - Service-spezifische `config/service.json`:
+  - Service-spezifische `config/rfid.json`:
     - `reader_type`: z.B. `"pn532"`, `"mock"`.
     - `interface`: z.B. `"i2c"`, `"spi"`, `"uart"`.
     - `scan_interval_ms`: Scan-Intervall.

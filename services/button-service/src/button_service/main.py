@@ -13,7 +13,6 @@ import asyncio
 import logging
 import os
 import signal
-from typing import Optional
 
 import structlog
 import uvicorn
@@ -28,9 +27,7 @@ from .event_processor import run_event_processor
 from .exceptions import GPIOInitError
 from .mqtt_client import MQTTClient
 
-
 logger = structlog.get_logger(__name__)
-
 
 class ButtonService:
     """Main button service class."""
@@ -40,10 +37,10 @@ class ButtonService:
         self.config_manager = ConfigManager()
         self._event_queue: asyncio.Queue[RawButtonEvent] = asyncio.Queue()
         self._shutdown_event = asyncio.Event()
-        self._mqtt_task: Optional[asyncio.Task] = None
-        self._processor_task: Optional[asyncio.Task] = None
-        self._api_server: Optional[uvicorn.Server] = None
-        self._gpio_manager: Optional[GPIOInputManager] = None
+        self._mqtt_task: asyncio.Task | None = None
+        self._processor_task: asyncio.Task | None = None
+        self._api_server: uvicorn.Server | None = None
+        self._gpio_manager: GPIOInputManager | None = None
 
         self.mqtt_client = MQTTClient(
             config=config,
@@ -56,7 +53,7 @@ class ButtonService:
         cfg = self.config_manager.get_current_config()
         return len(cfg.buttons) if cfg else 0
 
-    def _get_config(self) -> Optional[ButtonServiceConfig]:
+    def _get_config(self) -> ButtonServiceConfig | None:
         """Return current button config (for event processor)."""
         return self.config_manager.get_current_config()
 
@@ -238,7 +235,6 @@ class ButtonService:
             )
             self._gpio_manager = None
 
-
 def setup_logging(log_level: str) -> None:
     """Set up structured logging (Framework.md: DEBUG = Console, INFO+ = JSON)."""
     log_level_int = getattr(logging, log_level, logging.INFO)
@@ -258,7 +254,6 @@ def setup_logging(log_level: str) -> None:
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=False,
     )
-
 
 async def main() -> None:
     """Main async entry point."""
@@ -297,7 +292,6 @@ async def main() -> None:
     finally:
         await service.stop()
 
-
 def run() -> None:
     """Entry point for python -m button_service."""
     try:
@@ -307,7 +301,6 @@ def run() -> None:
     except Exception:
         logger.exception("service_crashed")
         raise
-
 
 if __name__ == "__main__":
     run()

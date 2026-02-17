@@ -18,7 +18,7 @@ logger = structlog.get_logger(__name__)
 # -> parents[2] = rfid-service (service root)
 SERVICE_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 CONFIG_DIR: Final[Path] = SERVICE_ROOT / "config"
-RFID_CONFIG_PATH: Final[Path] = CONFIG_DIR / "service.json"
+RFID_CONFIG_PATH: Final[Path] = CONFIG_DIR / "rfid.json"
 
 
 class ConfigError(Exception):

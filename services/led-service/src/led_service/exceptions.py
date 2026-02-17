@@ -5,6 +5,8 @@ service-specific errors separately from standard Python exceptions.
 """
 
 
+from __future__ import annotations
+
 class MinaboxLEDError(Exception):
     """Base exception for all LED service errors."""
     pass

@@ -1,21 +1,19 @@
 """Configuration manager for the Audio Service."""
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
 from .config_schema import AudioConfig
 
-
 logger = structlog.get_logger(__name__)
-
 
 class ConfigLoadError(Exception):
     """Raised when configuration loading fails."""
     pass
-
 
 class ConfigManager:
     """Manages audio configuration with hot-reload support.
@@ -33,7 +31,7 @@ class ConfigManager:
             config_path: Path to the audio configuration JSON file.
         """
         self._config_path = Path(config_path)
-        self._current_config: Optional[AudioConfig] = None
+        self._current_config: AudioConfig | None = None
 
     def load_config(self) -> AudioConfig:
         """Load the audio configuration from disk.
@@ -68,7 +66,7 @@ class ConfigManager:
         except Exception as exc:
             raise ConfigLoadError(f"Failed to load {self._config_path}: {exc}") from exc
 
-    def get_current_config(self) -> Optional[AudioConfig]:
+    def get_current_config(self) -> AudioConfig | None:
         """Get the currently loaded configuration."""
         return self._current_config
 

@@ -523,7 +523,7 @@ docker compose restart backend
 
 ## Weitere Dokumentation
 
-- [Framework.md](../../Framework.md) - Technische Standards
+- [Framework.md](../../docs/Framework.md) - Technische Standards
 - [Backend Architecture.md](../../docs/services/backend/Architecture.md) - Detaillierte Architektur
 - [DEVELOPMENT_INSTRUCTIONS.md](../../docs/DEVELOPMENT_INSTRUCTIONS.md) - Entwicklungsrichtlinien
 - [.env.example](../../.env.example) - Template für Environment Variables

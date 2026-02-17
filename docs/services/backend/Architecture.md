@@ -677,7 +677,7 @@ db.commit()
 - `uvicorn` – ASGI-Server
 - `sqlalchemy` – ORM
 - `alembic` – DB-Migrations
-- `paho-mqtt` oder `aiomqtt` – MQTT-Client
+- `aiomqtt` – asynchroner MQTT-Client
 - `pydantic` – Config-Validierung & API-Schemas
 - `mutagen` – Audio-Metadaten-Extraktion
 - `structlog` – Logging

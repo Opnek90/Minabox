@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Optional
 
 import structlog
 from gpiozero import Button, Device, RotaryEncoder
@@ -12,9 +11,7 @@ from ..exceptions import GPIOInitError
 from .events import RawButtonEvent
 from .state_machine import EncoderRotationEmitter, EncoderSwitchEmitter, PressClassifier
 
-
 logger = structlog.get_logger(__name__)
-
 
 @dataclass(slots=True)
 class GPIOInputManager:
@@ -31,7 +28,7 @@ class GPIOInputManager:
     event_queue: asyncio.Queue[RawButtonEvent]
     loop: asyncio.AbstractEventLoop
     push_hold_time_s: float = 1.0
-    push_bounce_time_s: Optional[float] = 0.05
+    push_bounce_time_s: float | None = 0.05
     _devices: list[object] = field(default_factory=list, init=False)
 
     def start(self) -> None:

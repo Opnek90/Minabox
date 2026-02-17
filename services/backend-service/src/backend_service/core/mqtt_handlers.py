@@ -1,7 +1,9 @@
 """MQTT message handlers for Backend Service."""
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from sqlalchemy.orm import Session
@@ -17,14 +19,13 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-
 class MQTTHandlers:
     """Handles incoming MQTT messages and triggers appropriate actions."""
 
     def __init__(
         self,
         mqtt_client: "MQTTClient",
-        websocket_manager: Optional["WebSocketManager"] = None,
+        websocket_manager: "WebSocketManager" | None = None,
     ) -> None:
         """Initialize MQTT handlers.
 

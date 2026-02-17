@@ -59,8 +59,10 @@ RUN mkdir -p /tmp/lgpio && chown minabox:minabox /tmp/lgpio && chmod 755 /tmp/lg
 RUN chown -R minabox:minabox /app
 
 USER minabox
-WORKDIR /app/src
 
+EXPOSE 8000
+
+ENV PYTHONPATH=/app/src
 ENV GPIOZERO_PIN_FACTORY=lgpio
 
 CMD ["python", "-m", "button_service.main"]

@@ -1,5 +1,7 @@
 """REST API endpoints for RFID tags."""
 
+from __future__ import annotations
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session

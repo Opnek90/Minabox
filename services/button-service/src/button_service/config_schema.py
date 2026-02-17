@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal
 
 from pydantic import BaseModel, Field, PositiveInt, model_validator
 
-
 ButtonMode = Literal["basic", "advanced"]
 ButtonType = Literal["push", "rotary"]
-
 
 class ButtonConfig(BaseModel):
     """Configuration for a single physical button or rotary encoder.
@@ -35,34 +33,34 @@ class ButtonConfig(BaseModel):
     )
 
     # Push button specific
-    gpio: Optional[PositiveInt] = Field(
+    gpio: PositiveInt | None = Field(
         default=None,
         description="GPIO pin number for push buttons.",
     )
 
     # Rotary encoder specific
-    clk: Optional[PositiveInt] = Field(
+    clk: PositiveInt | None = Field(
         default=None,
         description="CLK pin of the rotary encoder.",
     )
-    dt: Optional[PositiveInt] = Field(
+    dt: PositiveInt | None = Field(
         default=None,
         description="DT pin of the rotary encoder.",
     )
-    sw: Optional[PositiveInt] = Field(
+    sw: PositiveInt | None = Field(
         default=None,
         description="SW (switch) pin of the rotary encoder.",
     )
 
     # Mapping definitions
-    action: Optional[str] = Field(
+    action: str | None = Field(
         default=None,
         description=(
             "Logical action name in basic mode (e.g. 'play_pause'). "
             "All event types map to this single action."
         ),
     )
-    actions: Optional[Dict[str, str]] = Field(
+    actions: Dict[str, str] | None = Field(
         default=None,
         description=(
             "Mapping from event_type (e.g. 'short_press', 'rotate_cw') to "
@@ -102,7 +100,6 @@ class ButtonConfig(BaseModel):
 
         return self
 
-
 class ButtonServiceConfig(BaseModel):
     """Top-level button configuration loaded from config/buttons.json."""
 
@@ -110,7 +107,6 @@ class ButtonServiceConfig(BaseModel):
         default_factory=list,
         description="Configured buttons and encoders for this device.",
     )
-
 
 class EnvConfig(BaseModel):
     """Environment-based configuration shared across Minabox services."""
@@ -129,7 +125,6 @@ class EnvConfig(BaseModel):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         description="Global log level for this service.",
     )
-
 
 class AppConfig(BaseModel):
     """Combined configuration for the button service.

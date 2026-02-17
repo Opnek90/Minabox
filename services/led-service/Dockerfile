@@ -35,6 +35,9 @@ RUN useradd -m -u 1000 minabox
 RUN chown -R minabox:minabox /app
 
 USER minabox
-WORKDIR /app/src
+
+EXPOSE 8000
+
+ENV PYTHONPATH=/app/src
 
 CMD ["python", "-m", "led_service.main"]

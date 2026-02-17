@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 import structlog
 
 from .config import LEDS_CONFIG_PATH, ConfigError, _load_leds_config
 from .config_schema import LEDServiceConfig
 
-
 logger = structlog.get_logger(__name__)
-
 
 class ConfigManager:
     """Manages LED service configuration with hot-reload support.
@@ -29,7 +27,7 @@ class ConfigManager:
             config_path: Path to the leds.json configuration file.
         """
         self._config_path = config_path
-        self._current_config: Optional[LEDServiceConfig] = None
+        self._current_config: LEDServiceConfig | None = None
         self._reload_callbacks: list[Callable[[LEDServiceConfig], None]] = []
 
     def load_config(self) -> LEDServiceConfig:
@@ -50,7 +48,7 @@ class ConfigManager:
         )
         return config
 
-    def get_current_config(self) -> Optional[LEDServiceConfig]:
+    def get_current_config(self) -> LEDServiceConfig | None:
         """Get the currently loaded configuration.
         
         Returns:

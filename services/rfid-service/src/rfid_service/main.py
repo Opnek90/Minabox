@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from typing import Optional
 
 import structlog
 import uvicorn
@@ -25,9 +24,7 @@ from .hardware.reader_interface import RFIDReader
 from .mqtt_client import MQTTClient
 from .rfid_manager import RFIDManager
 
-
 logger = structlog.get_logger(__name__)
-
 
 class RFIDService:
     """Main RFID service class."""
@@ -35,11 +32,11 @@ class RFIDService:
     def __init__(self, config: AppConfig) -> None:
         self.config = config
         self._shutdown_event = asyncio.Event()
-        self._mqtt_task: Optional[asyncio.Task] = None
-        self._scan_task: Optional[asyncio.Task] = None
-        self._api_server: Optional[uvicorn.Server] = None
-        self._reader: Optional[RFIDReader] = None
-        self._manager: Optional[RFIDManager] = None
+        self._mqtt_task: asyncio.Task | None = None
+        self._scan_task: asyncio.Task | None = None
+        self._api_server: uvicorn.Server | None = None
+        self._reader: RFIDReader | None = None
+        self._manager: RFIDManager | None = None
 
         self.mqtt_client = MQTTClient(
             config=config,
@@ -148,7 +145,6 @@ class RFIDService:
         if self._manager:
             asyncio.create_task(self._manager.set_mode(mode))
 
-
 def setup_logging(log_level: str) -> None:
     """Set up structured logging (Framework.md: DEBUG = Console, INFO+ = JSON)."""
     log_level_int = getattr(logging, log_level, logging.INFO)
@@ -168,7 +164,6 @@ def setup_logging(log_level: str) -> None:
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=False,
     )
-
 
 async def main() -> None:
     """Main async entry point."""
@@ -206,7 +201,6 @@ async def main() -> None:
     finally:
         await service.stop()
 
-
 def run() -> None:
     """Entry point for python -m rfid_service."""
     try:
@@ -216,7 +210,6 @@ def run() -> None:
     except Exception:
         logger.exception("service_crashed")
         raise
-
 
 if __name__ == "__main__":
     run()

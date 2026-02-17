@@ -910,7 +910,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - MQTT_BROKER=mosquitto
+      - MQTT_BROKER=mqtt
       - MQTT_PORT=1883
       - DATABASE_PATH=/data/minabox.db
     volumes:
@@ -929,7 +929,7 @@ services:
     networks:
       - minabox-network
 
-  mosquitto:
+  mqtt:
     image: eclipse-mosquitto:2
     container_name: minabox-mqtt
     ports:

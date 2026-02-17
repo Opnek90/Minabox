@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal
 
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 
-
 PatternType = Literal["solid", "blink", "pulse", "off"]
-
 
 class LEDPattern(BaseModel):
     """Pattern description for a logical state on a single LED.
@@ -21,7 +19,7 @@ class LEDPattern(BaseModel):
             "'off' simply turns the LED off immediately without any visible pulse."
         ),
     )
-    duration_ms: Optional[NonNegativeInt] = Field(
+    duration_ms: NonNegativeInt | None = Field(
         default=None,
         description=(
             "Pattern duration in milliseconds. "
@@ -29,18 +27,17 @@ class LEDPattern(BaseModel):
             "For 'pulse', how long the LED stays on per pulse."
         ),
     )
-    interval_ms: Optional[PositiveInt] = Field(
+    interval_ms: PositiveInt | None = Field(
         default=None,
         description="Blink interval in milliseconds; required for 'blink' patterns.",
     )
-    repeat: Optional[NonNegativeInt] = Field(
+    repeat: NonNegativeInt | None = Field(
         default=None,
         description=(
             "Number of repetitions. 0 or None means repeat indefinitely "
             "until another pattern overrides this one."
         ),
     )
-
 
 class LEDConfig(BaseModel):
     """Configuration for a single physical LED."""
@@ -64,7 +61,6 @@ class LEDConfig(BaseModel):
         ),
     )
 
-
 class LEDServiceConfig(BaseModel):
     """Top-level LED configuration loaded from config/leds.json."""
 
@@ -72,7 +68,6 @@ class LEDServiceConfig(BaseModel):
         default_factory=list,
         description="Configured LEDs for this device.",
     )
-
 
 class EnvConfig(BaseModel):
     """Environment-based configuration shared across Minabox services."""
@@ -91,7 +86,6 @@ class EnvConfig(BaseModel):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         description="Global log level for this service.",
     )
-
 
 class AppConfig(BaseModel):
     """Combined configuration for the LED service.

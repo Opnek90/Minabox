@@ -7,15 +7,13 @@ service understands (e.g. 'audio_playing', 'system_error', 'rfid_scanned').
 from __future__ import annotations
 
 import json
-from typing import Dict, Optional
+from typing import Dict
 
 import structlog
 
 from .exceptions import StateError
 
-
 logger = structlog.get_logger(__name__)
-
 
 class StateManager:
     """Derives logical states from MQTT messages."""
@@ -49,7 +47,7 @@ class StateManager:
             f"{prefix}/backend/unreachable": lambda _: "backend_unreachable",
         }
 
-    def derive_state(self, topic: str, payload: bytes) -> Optional[str]:
+    def derive_state(self, topic: str, payload: bytes) -> str | None:
         """Derive a logical state from an MQTT message.
         
         Args:

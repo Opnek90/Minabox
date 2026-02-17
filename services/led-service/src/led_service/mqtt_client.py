@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 import structlog
 from aiomqtt import Client, MqttError
@@ -26,13 +26,10 @@ from tenacity import (
 from .config_schema import LEDServiceConfig
 from .exceptions import MinaboxLEDError
 
-
 if TYPE_CHECKING:
     from .config import AppConfig
 
-
 logger = structlog.get_logger(__name__)
-
 
 class MQTTClient:
     """MQTT client for the LED service."""
@@ -57,7 +54,7 @@ class MQTTClient:
         self._on_config_update = on_config_update_callback
         self._on_config_reload = on_config_reload_callback
         
-        self._client: Optional[Client] = None
+        self._client: Client | None = None
         self._running = False
         self._topics = self._build_subscription_topics()
 
@@ -273,7 +270,7 @@ class MQTTClient:
     async def _send_config_response(
         self,
         success: bool,
-        error: Optional[str],
+        error: str | None,
     ) -> None:
         """Send a config/response message.
         

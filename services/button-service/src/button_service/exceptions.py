@@ -5,6 +5,8 @@ service-specific errors separately from standard Python exceptions.
 """
 
 
+from __future__ import annotations
+
 class MinaboxButtonError(Exception):
     """Base exception for all button service errors."""
     pass

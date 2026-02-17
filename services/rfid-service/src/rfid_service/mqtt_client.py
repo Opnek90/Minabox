@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 import structlog
 from aiomqtt import Client, MqttError
@@ -23,13 +23,10 @@ from tenacity import (
 
 from .exceptions import MinaboxRFIDError
 
-
 if TYPE_CHECKING:
     from .config_schema import AppConfig
 
-
 logger = structlog.get_logger(__name__)
-
 
 class MQTTClient:
     """MQTT client for the RFID service."""
@@ -37,7 +34,7 @@ class MQTTClient:
     def __init__(
         self,
         config: AppConfig,
-        on_set_mode_callback: Optional[Callable[[str], None]] = None,
+        on_set_mode_callback: Callable[[str], None] | None = None,
     ) -> None:
         """Initialize the MQTT client.
 
@@ -48,7 +45,7 @@ class MQTTClient:
         self._config = config
         self._on_set_mode = on_set_mode_callback
 
-        self._client: Optional[Client] = None
+        self._client: Client | None = None
         self._running = False
         self._device_id = config.env.minabox_device_id
         self._topic_prefix = f"minabox/{self._device_id}/rfid"

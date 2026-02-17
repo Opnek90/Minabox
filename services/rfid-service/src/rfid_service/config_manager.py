@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
 from .config import RFID_CONFIG_PATH, _load_rfid_config
 from .config_schema import RFIDServiceConfig
 
-
 logger = structlog.get_logger(__name__)
-
 
 class ConfigManager:
     """Manages RFID service configuration with hot-reload support.
@@ -27,7 +24,7 @@ class ConfigManager:
             config_path: Path to the service.json configuration file.
         """
         self._config_path = config_path
-        self._current_config: Optional[RFIDServiceConfig] = None
+        self._current_config: RFIDServiceConfig | None = None
 
     def load_config(self) -> RFIDServiceConfig:
         """Load the RFID configuration from disk.
@@ -44,7 +41,7 @@ class ConfigManager:
         )
         return config
 
-    def get_current_config(self) -> Optional[RFIDServiceConfig]:
+    def get_current_config(self) -> RFIDServiceConfig | None:
         """Get the currently loaded configuration."""
         return self._current_config
 

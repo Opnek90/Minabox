@@ -1,5 +1,7 @@
 """REST API endpoints for audio tracks."""
 
+from __future__ import annotations
+
 import shutil
 from pathlib import Path
 

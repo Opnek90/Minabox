@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
 from backend_service.config import BACKEND_CONFIG_PATH, _load_backend_config
 from backend_service.config_schema import AppConfig, BackendServiceConfig
 
-
 logger = structlog.get_logger(__name__)
-
 
 class ConfigManager:
     """Manages Backend service configuration with hot-reload support."""
@@ -25,7 +22,7 @@ class ConfigManager:
             config_path: Path to the backend.json configuration file.
         """
         self._config_path = config_path
-        self._current_config: Optional[BackendServiceConfig] = None
+        self._current_config: BackendServiceConfig | None = None
 
     def load_config(self) -> BackendServiceConfig:
         """Load the backend configuration from disk."""
@@ -34,7 +31,7 @@ class ConfigManager:
         logger.info("config_loaded", path=str(self._config_path))
         return config
 
-    def get_current_config(self) -> Optional[BackendServiceConfig]:
+    def get_current_config(self) -> BackendServiceConfig | None:
         """Get the currently loaded configuration."""
         return self._current_config
 

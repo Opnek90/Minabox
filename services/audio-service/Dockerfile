@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy requirements and install Python packages
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 
 # Stage 2: Runtime
@@ -34,9 +34,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Disable VLC GUI components (we run headless)
 ENV VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
 
-# FIXED: Copy Python packages to /usr/local (globally accessible)
-COPY --from=builder /root/.local /usr/local
-ENV PATH=/usr/local/bin:$PATH
+# Copy Python packages from builder
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY src/ ./src/

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .events import (
+from .schemas import (
     RFIDStatusEvent,
     TagRemovedEvent,
     TagScannedEvent,

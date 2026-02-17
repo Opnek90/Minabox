@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable, Optional
+from typing import Callable
 
 import structlog
 
@@ -11,11 +11,9 @@ from .config_schema import ButtonConfig, ButtonServiceConfig
 from .core.events import RawButtonEvent
 from .mqtt_client import MQTTClient
 
-
 logger = structlog.get_logger(__name__)
 
-
-def _resolve_action(button: ButtonConfig, event_type: str) -> Optional[str]:
+def _resolve_action(button: ButtonConfig, event_type: str) -> str | None:
     """Resolve logical action for a raw event type from button config.
     
     Returns:
@@ -27,13 +25,12 @@ def _resolve_action(button: ButtonConfig, event_type: str) -> Optional[str]:
         return button.actions.get(event_type)
     return None
 
-
 async def run_event_processor(
     event_queue: asyncio.Queue[RawButtonEvent],
-    get_config: Callable[[], Optional[ButtonServiceConfig]],
+    get_config: Callable[[], ButtonServiceConfig | None],
     mqtt_client: MQTTClient,
     publish_raw_events: bool = False,
-    shutdown_event: Optional[asyncio.Event] = None,
+    shutdown_event: asyncio.Event | None = None,
 ) -> None:
     """Consume raw events from queue, map to actions, publish to MQTT.
     

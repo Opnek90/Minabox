@@ -9,10 +9,11 @@ This module:
 - Provides FastAPI health check endpoint
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import signal
-from typing import Optional
 
 import structlog
 import uvicorn
@@ -25,9 +26,7 @@ from .led_controller import LEDManager
 from .mqtt_client import MQTTClient
 from .state_manager import StateManager
 
-
 logger = structlog.get_logger(__name__)
-
 
 class LEDService:
     """Main LED service class."""
@@ -51,8 +50,8 @@ class LEDService:
         )
         
         self._shutdown_event = asyncio.Event()
-        self._mqtt_task: Optional[asyncio.Task] = None
-        self._api_server: Optional[uvicorn.Server] = None
+        self._mqtt_task: asyncio.Task | None = None
+        self._api_server: uvicorn.Server | None = None
 
     async def start(self) -> None:
         """Start the LED service."""
@@ -188,7 +187,6 @@ class LEDService:
             )
             raise
 
-
 def setup_logging(log_level: str) -> None:
     """Set up structured logging with the appropriate renderer.
     
@@ -217,7 +215,6 @@ def setup_logging(log_level: str) -> None:
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=False,
     )
-
 
 async def main() -> None:
     """Main async entry point."""
@@ -263,7 +260,6 @@ async def main() -> None:
     finally:
         # Clean shutdown
         await service.stop()
-
 
 if __name__ == "__main__":
     try:

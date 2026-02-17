@@ -3,6 +3,8 @@
 Coordinates between MQTT, VLC backend, and state management.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 from datetime import UTC, datetime

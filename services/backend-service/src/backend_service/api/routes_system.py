@@ -1,5 +1,7 @@
 """REST API endpoints for system status and health."""
 
+from __future__ import annotations
+
 import time
 
 import structlog

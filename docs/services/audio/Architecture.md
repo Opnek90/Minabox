@@ -247,13 +247,11 @@ class AudioConfig(BaseModel):
 **Verantwortung**: Strukturierte Error-Hierarchie
 
 **Exception-Typen**:
-- `AudioServiceError` (Base)
-- `AudioBackendError`
-- `VLCInitializationError`
-- `AudioDeviceNotFoundError`
-- `PlaybackError`
-- `ConfigError`
-- `StateError`
+- `MinaboxAudioError` (Base für alle Audio-Service-Fehler)
+- `AudioError` (Base für Playback/Backend-Fehler)
+- `PlaybackError`, `VLCError`, `FileNotFoundError`, `StreamUnreachableError`, `OutputDeviceError`
+- `MQTTError`, `MQTTConnectionError`, `MQTTPublishError`
+- `ConfigUpdateError`, `StateError`
 
 ---
 
@@ -719,13 +717,14 @@ def set_volume(self, volume: int) -> None:
 - `vlc-plugin-base` - VLC plugins
 - `libasound2` - ALSA library
 
-**Python 3.13+**:
-- `python-vlc==3.0.21216` - libVLC bindings
-- `fastapi==0.115.6` - REST API
-- `aiomqtt==2.3.0` - Async MQTT client
-- `structlog==24.4.0` - Structured logging
-- `pydantic==2.10.5` - Config validation
-- `uvicorn==0.34.0` - ASGI server
+**Python 3.13+**: Siehe `services/audio-service/requirements.txt` für die aktuellen, versionierten Abhängigkeiten. Kurzüberblick:
+- `python-vlc` - libVLC bindings
+- `fastapi`, `uvicorn[standard]` - REST API & ASGI server
+- `aiomqtt` - Async MQTT client
+- `structlog` - Structured logging
+- `pydantic` - Config validation
+- `tenacity` - Retry & error handling
+- `httpx` - HTTP client (z.B. für Health-Checks)
 
 ### 9.3 Services
 

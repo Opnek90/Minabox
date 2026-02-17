@@ -1,5 +1,7 @@
 """REST API endpoints for audio control."""
 
+from __future__ import annotations
+
 import structlog
 from fastapi import APIRouter, HTTPException
 

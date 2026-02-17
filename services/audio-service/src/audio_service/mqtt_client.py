@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import structlog
 from aiomqtt import Client, MqttError
@@ -22,13 +22,10 @@ from tenacity import (
 
 from .exceptions import MQTTConnectionError, MQTTPublishError
 
-
 if TYPE_CHECKING:
     from .config_schema import AppConfig
 
-
 logger = structlog.get_logger(__name__)
-
 
 class MQTTClient:
     """MQTT client for the audio service."""
@@ -36,7 +33,7 @@ class MQTTClient:
     def __init__(
         self,
         config: AppConfig,
-        on_message_callback: Optional[Callable] = None,
+        on_message_callback: Callable | None = None,
     ) -> None:
         """Initialize MQTT client.
 
@@ -46,7 +43,7 @@ class MQTTClient:
         """
         self._config = config
         self._on_message = on_message_callback
-        self._client: Optional[Client] = None
+        self._client: Client | None = None
         self._running = False
 
     @retry(

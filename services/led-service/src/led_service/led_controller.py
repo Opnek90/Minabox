@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Dict, Optional
+from typing import Dict
 
 import structlog
 
@@ -23,9 +23,7 @@ from .led_patterns import (
     run_solid_pattern,
 )
 
-
 logger = structlog.get_logger(__name__)
-
 
 class LEDController:
     """Controls a single physical LED and its pattern execution."""
@@ -37,7 +35,7 @@ class LEDController:
             config: LED configuration including GPIO pin and bindings.
         """
         self.config = config
-        self._current_task: Optional[asyncio.Task[None]] = None
+        self._current_task: asyncio.Task[None] | None = None
         self._cancel_event = asyncio.Event()
         self._gpio_available = False
         self._led = None
@@ -244,7 +242,6 @@ class LEDController:
                     exc_info=True,
                 )
         logger.info("led_cleanup", led_id=self.config.id)
-
 
 class LEDManager:
     """Manages all LEDs for the service."""

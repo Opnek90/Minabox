@@ -5,6 +5,8 @@ catching service-specific errors separately from standard Python exceptions.
 """
 
 
+from __future__ import annotations
+
 class MinaboxBackendError(Exception):
     """Base exception for all backend service errors."""
 

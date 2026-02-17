@@ -10,23 +10,20 @@ according to the pattern types defined in the LED service architecture:
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import structlog
 
 from .exceptions import InvalidPatternError
 
-
 if TYPE_CHECKING:
     from gpiozero import LED
 
-
 logger = structlog.get_logger(__name__)
-
 
 async def run_solid_pattern(
     led: LED,
-    duration_ms: Optional[int],
+    duration_ms: int | None,
     led_id: str,
 ) -> None:
     """Run a solid pattern (LED permanently on).
@@ -49,7 +46,6 @@ async def run_solid_pattern(
         logger.debug("pattern_solid_finished", led_id=led_id)
     # If duration is 0 or None, LED stays on until another pattern overrides
 
-
 async def run_off_pattern(
     led: LED,
     led_id: str,
@@ -62,11 +58,10 @@ async def run_off_pattern(
     led.off()
     logger.debug("pattern_off_applied", led_id=led_id)
 
-
 async def run_blink_pattern(
     led: LED,
     interval_ms: int,
-    repeat: Optional[int],
+    repeat: int | None,
     led_id: str,
     cancel_event: asyncio.Event,
 ) -> None:
@@ -133,11 +128,10 @@ async def run_blink_pattern(
             cycles=cycles,
         )
 
-
 async def run_pulse_pattern(
     led: LED,
     duration_ms: int,
-    repeat: Optional[int],
+    repeat: int | None,
     led_id: str,
     cancel_event: asyncio.Event,
 ) -> None:
