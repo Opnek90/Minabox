@@ -49,7 +49,7 @@ async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
         database_connected = False
 
     # Check MQTT connection
-    mqtt_connected = _mqtt_client.is_connected() if _mqtt_client else False
+    mqtt_connected = _mqtt_client.is_connected if _mqtt_client else False
 
     status = "healthy" if (database_connected and mqtt_connected) else "unhealthy"
 

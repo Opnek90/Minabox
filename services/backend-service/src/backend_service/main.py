@@ -1,13 +1,18 @@
-"""Main entry point for Backend Service."""
+"""Main entry point for the Backend Service.
+
+This module:
+- Sets up structured logging
+- Loads configuration
+- Initializes database, MQTT, API
+- Handles graceful shutdown
+"""
+
+from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import signal
-import sys
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-from typing import Any
+from typing import Optional
 
 import structlog
 import uvicorn
@@ -18,210 +23,238 @@ from backend_service.api import api_router
 from backend_service.api.routes_audio import set_mqtt_client as set_audio_mqtt_client
 from backend_service.api.routes_system import set_mqtt_client as set_system_mqtt_client
 from backend_service.api.websocket import websocket_endpoint, ws_manager
-from backend_service.config import get_config
+from backend_service.config import load_app_config
+from backend_service.config_schema import AppConfig
 from backend_service.core.db_manager import init_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
 
-# Get log level from environment
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-log_level_int = getattr(logging, LOG_LEVEL, logging.INFO)
-
-# Configure structlog based on log level
-# DEBUG mode: Console renderer (human-readable, for development)
-# INFO and above: JSON renderer (structured, for production)
-if LOG_LEVEL == "DEBUG":
-    renderer = structlog.dev.ConsoleRenderer()
-else:
-    renderer = structlog.processors.JSONRenderer()
-
-structlog.configure(
-    processors=[
-        structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        renderer,
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(log_level_int),
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-    cache_logger_on_first_use=False,
-)
 
 logger = structlog.get_logger(__name__)
 
-# Global instances
-mqtt_client: MQTTClient | None = None
-mqtt_handlers: MQTTHandlers | None = None
-mqtt_task: asyncio.Task | None = None
-shutdown_event = asyncio.Event()
 
+class BackendService:
+    """Main backend service class."""
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator:
-    """Application lifespan manager.
+    def __init__(self, config: AppConfig) -> None:
+        self.config = config
+        self._shutdown_event = asyncio.Event()
+        self._mqtt_client: Optional[MQTTClient] = None
+        self._mqtt_handlers: Optional[MQTTHandlers] = None
+        self._mqtt_task: Optional[asyncio.Task] = None
+        self._api_server: Optional[uvicorn.Server] = None
+        self._db = None
 
-    Handles startup and shutdown tasks.
-    """
-    # Startup
-    logger.info("backend_service_starting", version="0.1.0")
-
-    global mqtt_client, mqtt_handlers, mqtt_task
-
-    try:
-        # Load config
-        config = get_config()
-        logger.info(
-            "config_loaded",
-            device_id=config.device_id,
-            mqtt_broker=config.mqtt_broker,
-            api_port=config.api_port,
-        )
+    async def start(self) -> None:
+        """Start the backend service."""
+        logger.info("backend_service_starting", version="0.1.0")
 
         # Initialize database
-        logger.info("initializing_database", path=config.database_path)
-        db = init_db(config.database_path)
+        logger.info("initializing_database", path=self.config.database_path)
+        self._db = init_db(self.config.database_path)
 
-        # Run migrations
         try:
-            db.run_migrations()
-        except Exception as e:
-            logger.warning("migration_failed", error=str(e))
+            self._db.run_migrations()
+        except Exception as exc:
+            logger.warning("migration_failed", error=str(exc))
 
         # Initialize MQTT client
         logger.info("initializing_mqtt_client")
-        mqtt_client = MQTTClient(config)
-        await mqtt_client.connect()
+        self._mqtt_client = MQTTClient(self.config)
+        await self._mqtt_client.connect()
 
         # Initialize MQTT handlers
-        mqtt_handlers = MQTTHandlers(mqtt_client, ws_manager)
+        self._mqtt_handlers = MQTTHandlers(self._mqtt_client, ws_manager)
 
         # Subscribe to MQTT topics
-        await mqtt_client.subscribe(
-            config.get_mqtt_topic("rfid", "tag-scanned"),
-            mqtt_handlers.handle_rfid_tag_scanned,
+        await self._mqtt_client.subscribe(
+            self.config.get_mqtt_topic("rfid", "tag-scanned"),
+            self._mqtt_handlers.handle_rfid_tag_scanned,
         )
-        await mqtt_client.subscribe(
-            config.get_mqtt_topic("rfid", "tag-scanned-learning"),
-            mqtt_handlers.handle_rfid_tag_scanned_learning,
+        await self._mqtt_client.subscribe(
+            self.config.get_mqtt_topic("rfid", "tag-scanned-learning"),
+            self._mqtt_handlers.handle_rfid_tag_scanned_learning,
         )
-        await mqtt_client.subscribe(
-            config.get_mqtt_topic("audio", "status"),
-            mqtt_handlers.handle_audio_status,
+        await self._mqtt_client.subscribe(
+            self.config.get_mqtt_topic("audio", "status"),
+            self._mqtt_handlers.handle_audio_status,
         )
-        await mqtt_client.subscribe(
-            config.get_mqtt_topic("button", "+"),
-            mqtt_handlers.handle_button_action,
+        await self._mqtt_client.subscribe(
+            self.config.get_mqtt_topic("button", "+"),
+            self._mqtt_handlers.handle_button_action,
         )
 
         # Inject MQTT client into route modules
-        set_audio_mqtt_client(mqtt_client)
-        set_system_mqtt_client(mqtt_client)
+        set_audio_mqtt_client(self._mqtt_client)
+        set_system_mqtt_client(self._mqtt_client)
 
         # Start MQTT listening task
-        mqtt_task = asyncio.create_task(mqtt_client.start_listening())
+        self._mqtt_task = asyncio.create_task(self._mqtt_client.run())
+
+        # Start FastAPI server
+        await self._start_api_server()
 
         logger.info("backend_service_started_successfully")
 
-        yield
+    async def _start_api_server(self) -> None:
+        """Start the FastAPI server."""
+        app = self._create_app()
+        uv_config = uvicorn.Config(
+            app=app,
+            host="0.0.0.0",
+            port=self.config.api_port,
+            log_config=None,
+        )
+        self._api_server = uvicorn.Server(uv_config)
+        asyncio.create_task(self._api_server.serve())
+        logger.info("api_server_started", port=self.config.api_port)
 
-    except Exception as e:
-        logger.error("startup_failed", error=str(e))
-        raise
+    def _create_app(self) -> FastAPI:
+        """Create the FastAPI application."""
+        app = FastAPI(
+            title="Minabox Backend Service",
+            description="Central orchestration and data management for Minabox",
+            version="0.1.0",
+        )
 
-    # Shutdown
-    logger.info("backend_service_shutting_down")
+        # CORS middleware for WebUI
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
-    try:
-        # Stop MQTT listening
-        if mqtt_client:
-            await mqtt_client.stop_listening()
-            if mqtt_task:
-                mqtt_task.cancel()
+        # Root-level health check (Framework standard: /health)
+        @app.get("/health")
+        async def root_health_check():
+            mqtt_connected = self._mqtt_client.is_connected if self._mqtt_client else False
+            db_ok = self._db is not None
+            status = "healthy" if (mqtt_connected and db_ok) else "unhealthy"
+            return {
+                "status": status,
+                "service": "backend",
+                "device_id": self.config.device_id,
+                "mqtt_connected": mqtt_connected,
+                "database_connected": db_ok,
+                "mqtt_broker": self.config.mqtt_broker,
+                "mqtt_port": self.config.mqtt_port,
+            }
+
+        # Include API routes
+        app.include_router(api_router)
+
+        # WebSocket endpoint
+        app.add_websocket_route("/ws", websocket_endpoint)
+
+        return app
+
+    async def run(self) -> None:
+        """Run the service until shutdown is requested."""
+        await self._shutdown_event.wait()
+        logger.info("shutdown_requested")
+
+    async def stop(self) -> None:
+        """Stop the backend service gracefully."""
+        logger.info("backend_service_stopping")
+
+        # Stop API server
+        if self._api_server:
+            self._api_server.should_exit = True
+            logger.info("api_server_stopped")
+
+        # Stop MQTT
+        if self._mqtt_client:
+            await self._mqtt_client.stop()
+            if self._mqtt_task:
+                self._mqtt_task.cancel()
                 try:
-                    await mqtt_task
+                    await self._mqtt_task
                 except asyncio.CancelledError:
                     pass
-
-            # Disconnect MQTT
-            await mqtt_client.disconnect()
+            await self._mqtt_client.disconnect()
 
         # Disconnect database
-        if db:
-            db.disconnect()
+        if self._db:
+            self._db.disconnect()
 
-        logger.info("backend_service_shutdown_complete")
+        logger.info("backend_service_stopped")
 
-    except Exception as e:
-        logger.error("shutdown_error", error=str(e))
-
-
-# Create FastAPI app
-app = FastAPI(
-    title="Minabox Backend Service",
-    description="Central orchestration and data management for Minabox",
-    version="0.1.0",
-    lifespan=lifespan,
-)
-
-# CORS middleware for WebUI
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include API routes
-app.include_router(api_router)
-
-# WebSocket endpoint
-app.add_websocket_route("/ws", websocket_endpoint)
+    def request_shutdown(self) -> None:
+        """Request a graceful shutdown."""
+        logger.info("shutdown_signal_received")
+        self._shutdown_event.set()
 
 
-def handle_shutdown(signum: int, frame: Any) -> None:
-    """Handle shutdown signals.
-
-    Args:
-        signum: Signal number
-        frame: Current stack frame
-    """
-    logger.info("shutdown_signal_received", signal=signum)
-    shutdown_event.set()
-
-
-# Register signal handlers
-signal.signal(signal.SIGTERM, handle_shutdown)
-signal.signal(signal.SIGINT, handle_shutdown)
+def setup_logging(log_level: str) -> None:
+    """Set up structured logging (Framework.md: DEBUG = Console, INFO+ = JSON)."""
+    log_level_int = getattr(logging, log_level, logging.INFO)
+    if log_level == "DEBUG":
+        renderer = structlog.dev.ConsoleRenderer()
+    else:
+        renderer = structlog.processors.JSONRenderer()
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            renderer,
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(log_level_int),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=False,
+    )
 
 
 async def main() -> None:
-    """Run the FastAPI application."""
-    config = get_config()
+    """Main async entry point."""
+    config = load_app_config()
+    setup_logging(config.env.log_level)
 
-    # Configure uvicorn with matching log level
-    uv_config = uvicorn.Config(
-        app,
-        host="0.0.0.0",
-        port=config.api_port,
-        log_level=LOG_LEVEL.lower(),
-        access_log=True,
+    logger.info(
+        "service_initializing",
+        device_id=config.env.minabox_device_id,
+        log_level=config.env.log_level,
     )
-    server = uvicorn.Server(uv_config)
 
-    # Run server with graceful shutdown
+    service = BackendService(config)
+    loop = asyncio.get_running_loop()
+
+    def signal_handler(sig: int) -> None:
+        logger.info("signal_received", signal=sig)
+        service.request_shutdown()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(
+                sig,
+                lambda s=sig: signal_handler(s),
+            )
+        except NotImplementedError:
+            break
+
     try:
-        await server.serve()
-    except KeyboardInterrupt:
-        logger.info("keyboard_interrupt_received")
+        await service.start()
+        await service.run()
+    except Exception as exc:
+        logger.error("service_error", error=str(exc), exc_info=True)
+        raise
     finally:
-        logger.info("server_stopped")
+        await service.stop()
 
 
-if __name__ == "__main__":
+def run() -> None:
+    """Entry point for python -m backend_service."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("application_terminated")
-        sys.exit(0)
+        logger.info("keyboard_interrupt")
+    except Exception:
+        logger.exception("service_crashed")
+        raise
+
+
+if __name__ == "__main__":
+    run()

@@ -8,11 +8,11 @@ __version__ = "0.1.0"
 __author__ = "Minabox Project"
 
 from .config_manager import ConfigManager
-from .config_schema import AudioConfig, GlobalConfig, ServiceConfig
+from .config_schema import AppConfig, AudioConfig, EnvConfig
 from .exceptions import (
     AudioError,
     ConfigUpdateError,
-    MinaboxError,
+    MinaboxAudioError,
     MQTTError,
     PlaybackError,
     VLCError,
@@ -20,10 +20,10 @@ from .exceptions import (
 
 __all__ = [
     "ConfigManager",
-    "ServiceConfig",
-    "GlobalConfig",
+    "AppConfig",
+    "EnvConfig",
     "AudioConfig",
-    "MinaboxError",
+    "MinaboxAudioError",
     "AudioError",
     "PlaybackError",
     "VLCError",

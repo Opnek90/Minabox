@@ -12,7 +12,7 @@ from .exceptions import HardwareError
 from .models import RFIDStatusEvent, TagRemovedEvent, TagScannedEvent, TagScannedLearningEvent
 
 if TYPE_CHECKING:
-    from .config_schema import ServiceConfig
+    from .config_schema import AppConfig
     from .hardware import RFIDReader
     from .mqtt_client import MQTTClient
 
@@ -32,35 +32,33 @@ class RFIDManager:
 
     def __init__(
         self,
-        config: ServiceConfig,
+        config: AppConfig,
         reader: RFIDReader,
         mqtt_client: MQTTClient,
     ) -> None:
         """Initialize RFID manager.
 
-        Parameters
-        ----------
-        config:
-            Service configuration.
-        reader:
-            Initialized RFID reader instance.
-        mqtt_client:
-            Connected MQTT client.
+        Args:
+            config: Application configuration.
+            reader: Initialized RFID reader instance.
+            mqtt_client: Connected MQTT client.
         """
         self._config = config
         self._reader = reader
         self._mqtt = mqtt_client
+        self._device_id = config.env.minabox_device_id
+        self._topic_prefix = f"minabox/{self._device_id}/rfid"
 
         self._mode: Literal["normal", "learning"] = "normal"
         self._current_tag: str | None = None
-        self._last_scan_time: dict[str, float] = {}  # tag_id -> timestamp
+        self._last_scan_time: dict[str, float] = {}
         self._running = False
 
         logger.info(
             "rfid_manager_initialized",
             reader_id=reader.reader_id,
-            scan_interval_ms=config.reader.scan_interval_ms,
-            duplicate_suppression_ms=config.reader.duplicate_suppression_ms,
+            scan_interval_ms=config.rfid.reader.scan_interval_ms,
+            duplicate_suppression_ms=config.rfid.reader.duplicate_suppression_ms,
         )
 
     async def start(self) -> None:
@@ -77,7 +75,7 @@ class RFIDManager:
 
     async def scan_loop(self) -> None:
         """Main scanning loop (runs continuously until stopped)."""
-        scan_interval_sec = self._config.reader.scan_interval_ms / 1000.0
+        scan_interval_sec = self._config.rfid.reader.scan_interval_ms / 1000.0
 
         while self._running:
             try:
@@ -95,18 +93,12 @@ class RFIDManager:
                     reader_id=self._reader.reader_id,
                 )
                 await self._publish_status("error", error="read_timeout")
-                await asyncio.sleep(5)  # Wait before retrying
+                await asyncio.sleep(5)
 
             await asyncio.sleep(scan_interval_sec)
 
     async def set_mode(self, mode: Literal["normal", "learning"]) -> None:
-        """Switch between normal and learning mode.
-
-        Parameters
-        ----------
-        mode:
-            Target mode ('normal' or 'learning').
-        """
+        """Switch between normal and learning mode."""
         if self._mode == mode:
             return
 
@@ -121,17 +113,10 @@ class RFIDManager:
         )
 
     async def _handle_tag_detected(self, tag_uid: str) -> None:
-        """Handle a detected tag (with duplicate suppression).
-
-        Parameters
-        ----------
-        tag_uid:
-            Tag UID as hex string.
-        """
+        """Handle a detected tag (with duplicate suppression)."""
         now = time.time()
-        suppression_window = self._config.reader.duplicate_suppression_ms / 1000.0
+        suppression_window = self._config.rfid.reader.duplicate_suppression_ms / 1000.0
 
-        # Check duplicate suppression
         if tag_uid in self._last_scan_time:
             time_since_last = now - self._last_scan_time[tag_uid]
             if time_since_last < suppression_window:
@@ -142,11 +127,9 @@ class RFIDManager:
                 )
                 return
 
-        # Update scan time and current tag
         self._last_scan_time[tag_uid] = now
         self._current_tag = tag_uid
 
-        # Publish event based on mode
         if self._mode == "learning":
             await self._publish_tag_scanned_learning(tag_uid)
         else:
@@ -166,8 +149,8 @@ class RFIDManager:
             reader_id=self._reader.reader_id,
         )
         await self._mqtt.publish(
-            "rfid/tag-scanned",
-            event.model_dump_json(),
+            f"{self._topic_prefix}/tag-scanned",
+            event.model_dump(),
             retain=False,
             qos=1,
         )
@@ -180,8 +163,8 @@ class RFIDManager:
             reader_id=self._reader.reader_id,
         )
         await self._mqtt.publish(
-            "rfid/tag-scanned-learning",
-            event.model_dump_json(),
+            f"{self._topic_prefix}/tag-scanned-learning",
+            event.model_dump(),
             retain=False,
             qos=1,
         )
@@ -194,8 +177,8 @@ class RFIDManager:
             reader_id=self._reader.reader_id,
         )
         await self._mqtt.publish(
-            "rfid/tag-removed",
-            event.model_dump_json(),
+            f"{self._topic_prefix}/tag-removed",
+            event.model_dump(),
             retain=False,
             qos=1,
         )
@@ -214,9 +197,9 @@ class RFIDManager:
             error=error,
         )
         await self._mqtt.publish(
-            "rfid/status",
-            event.model_dump_json(),
-            retain=True,  # Status should be retained
+            f"{self._topic_prefix}/status",
+            event.model_dump(),
+            retain=True,
             qos=1,
         )
         logger.info("status_published", state=state, error=error)

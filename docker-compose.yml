@@ -102,6 +102,8 @@ services:
       dockerfile: Dockerfile
     container_name: minabox-rfid
     restart: unless-stopped
+    ports:
+      - "8001:8000"
     environment:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
@@ -116,8 +118,14 @@ services:
         condition: service_healthy
     devices:
       - /dev/i2c-1:/dev/i2c-1
-    # ✅ Fix: pi-User (UID 1000) + i2c-Gruppe (GID 988)
+    # pi-User (UID 1000) + i2c-Gruppe (GID 988)
     user: "1000:988"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   audio:
     build:
@@ -152,7 +160,7 @@ services:
     group_add:
       - audio
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/api/v1/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 30s
       timeout: 5s
       retries: 3

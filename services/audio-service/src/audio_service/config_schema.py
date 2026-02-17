@@ -1,26 +1,28 @@
 """Configuration schema for the Audio Service using Pydantic v2.
 
-Defines the structure and validation rules for global and audio-specific
-configuration settings.
+Defines the structure and validation rules for environment and
+audio-specific configuration settings.
 """
 
-from enum import Enum
-from pathlib import Path
+from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from enum import Enum
+from typing import Literal
+
+from pydantic import BaseModel, Field, PositiveInt, field_validator
 
 
 class OutputDeviceType(str, Enum):
     """Audio output device types."""
 
-    AUTO = "auto"  # Auto-detect best device
+    AUTO = "auto"
     ALSA = "alsa"
     PULSEAUDIO = "pulseaudio"
     DEFAULT = "default"
 
 
 class AudioConfig(BaseModel):
-    """Audio service-specific configuration."""
+    """Audio service-specific configuration loaded from config/audio.json."""
 
     output_device_type: OutputDeviceType = Field(
         default=OutputDeviceType.AUTO,
@@ -53,61 +55,51 @@ class AudioConfig(BaseModel):
         return v
 
 
-class GlobalConfig(BaseModel):
-    """Global configuration shared across all services."""
+class EnvConfig(BaseModel):
+    """Environment-based configuration shared across Minabox services."""
 
     mqtt_broker: str = Field(
-        ...,
-        description="MQTT broker hostname",
+        min_length=1,
+        description="Hostname of the MQTT broker (e.g. 'mqtt').",
     )
-    mqtt_port: int = Field(
-        default=1883,
-        ge=1,
-        le=65535,
-        description="MQTT broker port",
+    mqtt_port: PositiveInt = Field(
+        description="Port of the MQTT broker (e.g. 1883).",
     )
     minabox_device_id: str = Field(
-        ...,
-        description="Unique device identifier for MQTT topics",
+        min_length=1,
+        description="Device ID used in MQTT topics (e.g. 'box1').",
     )
-    log_level: str = Field(
-        default="INFO",
-        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        description="Global log level for this service.",
     )
     audio_service_host: str = Field(
         default="0.0.0.0",
-        description="FastAPI host binding",
+        description="FastAPI host binding.",
     )
     audio_service_port: int = Field(
         default=8003,
         ge=1,
         le=65535,
-        description="FastAPI port",
+        description="FastAPI port.",
     )
-    audio_config_path: Path = Field(
-        default=Path("config/audio.json"),
-        description="Path to audio-specific configuration file",
+    audio_config_path: str = Field(
+        default="config/audio.json",
+        description="Path to audio-specific configuration file.",
     )
-    audio_state_path: Path = Field(
-        default=Path("state/audio_state.json"),
-        description="Path to audio state persistence file",
+    audio_state_path: str = Field(
+        default="state/audio_state.json",
+        description="Path to audio state persistence file.",
     )
 
-    @field_validator("log_level")
-    @classmethod
-    def validate_log_level(cls, v: str) -> str:
-        """Validate log level is one of the standard levels."""
-        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        if v.upper() not in valid_levels:
-            raise ValueError(f"log_level must be one of {valid_levels}")
-        return v.upper()
 
+class AppConfig(BaseModel):
+    """Combined configuration for the audio service.
 
-class ServiceConfig(BaseModel):
-    """Complete service configuration combining global and audio settings."""
+    This is what the rest of the service should depend on.
+    """
 
-    global_config: GlobalConfig
-    audio_config: AudioConfig
+    env: EnvConfig
+    audio: AudioConfig
 
     def get_mqtt_topic(self, domain: str, action: str) -> str:
         """Generate MQTT topic following Minabox topic schema.
@@ -119,4 +111,4 @@ class ServiceConfig(BaseModel):
         Returns:
             Formatted MQTT topic: minabox/{device_id}/{domain}/{action}
         """
-        return f"minabox/{self.global_config.minabox_device_id}/{domain}/{action}"
+        return f"minabox/{self.env.minabox_device_id}/{domain}/{action}"

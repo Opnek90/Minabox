@@ -10,7 +10,7 @@ from typing import Any
 import structlog
 from pydantic import BaseModel, ValidationError
 
-from .config_schema import AudioConfig, ServiceConfig
+from .config_schema import AppConfig, AudioConfig
 from .exceptions import ConfigUpdateError
 
 logger = structlog.get_logger(__name__)
@@ -45,7 +45,7 @@ class MQTTMessageHandler:
 
     def __init__(
         self,
-        config: ServiceConfig,
+        config: AppConfig,
         on_play: Callable[[PlayCommand], None] | None = None,
         on_pause: Callable[[], None] | None = None,
         on_stop: Callable[[], None] | None = None,

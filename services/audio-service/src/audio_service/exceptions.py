@@ -1,17 +1,17 @@
 """Exception hierarchy for the Audio Service.
 
-All custom exceptions inherit from MinaboxError to allow
-centralized error handling and logging.
+All custom exceptions inherit from MinaboxAudioError to allow
+catching service-specific errors separately from standard Python exceptions.
 """
 
 
-class MinaboxError(Exception):
-    """Base exception for all Minabox Audio Service errors."""
+class MinaboxAudioError(Exception):
+    """Base exception for all audio service errors."""
 
     pass
 
 
-class AudioError(MinaboxError):
+class AudioError(MinaboxAudioError):
     """Base exception for audio-related errors."""
 
     pass
@@ -47,7 +47,7 @@ class OutputDeviceError(AudioError):
     pass
 
 
-class MQTTError(MinaboxError):
+class MQTTError(MinaboxAudioError):
     """Base exception for MQTT-related errors."""
 
     pass
@@ -65,13 +65,13 @@ class MQTTPublishError(MQTTError):
     pass
 
 
-class ConfigUpdateError(MinaboxError):
+class ConfigUpdateError(MinaboxAudioError):
     """Raised when configuration update fails."""
 
     pass
 
 
-class StateError(MinaboxError):
+class StateError(MinaboxAudioError):
     """Raised when state management encounters an error."""
 
     pass

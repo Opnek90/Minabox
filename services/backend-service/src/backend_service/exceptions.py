@@ -1,13 +1,17 @@
-"""Exception hierarchy for Backend Service."""
+"""Exception hierarchy for the Backend Service.
+
+All custom exceptions inherit from MinaboxBackendError to allow
+catching service-specific errors separately from standard Python exceptions.
+"""
 
 
-class MinaboxError(Exception):
-    """Base exception for all Minabox errors."""
+class MinaboxBackendError(Exception):
+    """Base exception for all backend service errors."""
 
     pass
 
 
-class ServiceCommunicationError(MinaboxError):
+class ServiceCommunicationError(MinaboxBackendError):
     """Service communication failed."""
 
     pass
@@ -25,7 +29,7 @@ class MQTTPublishError(ServiceCommunicationError):
     pass
 
 
-class DatabaseError(MinaboxError):
+class DatabaseError(MinaboxBackendError):
     """Database-related error."""
 
     pass
@@ -55,7 +59,7 @@ class TrackNotFoundError(DatabaseError):
     pass
 
 
-class ValidationError(MinaboxError):
+class ValidationError(MinaboxBackendError):
     """Data validation error."""
 
     pass
@@ -67,19 +71,19 @@ class ConfigValidationError(ValidationError):
     pass
 
 
-class FileUploadError(MinaboxError):
+class FileUploadError(MinaboxBackendError):
     """File upload failed."""
 
     pass
 
 
-class MetadataExtractionError(MinaboxError):
+class MetadataExtractionError(MinaboxBackendError):
     """Audio metadata extraction failed (non-critical)."""
 
     pass
 
 
-class SessionError(MinaboxError):
+class SessionError(MinaboxBackendError):
     """Playback session error."""
 
     pass

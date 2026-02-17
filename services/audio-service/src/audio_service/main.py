@@ -1,42 +1,141 @@
 """Main entry point for the Audio Service.
 
-Initializes logging, configuration, and starts the service.
+This module:
+- Sets up structured logging
+- Loads configuration
+- Initializes the audio service
+- Handles graceful shutdown
 """
+
+from __future__ import annotations
 
 import asyncio
 import logging
 import signal
-import sys
+from typing import Dict, Optional
 
 import structlog
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from .api import routes
-from .config_manager import ConfigLoadError, ConfigManager
+from .config import load_app_config
+from .config_schema import AppConfig
 from .service import AudioService
 
-# Global service instance for signal handlers
-_service: AudioService | None = None
-_shutdown_event: asyncio.Event | None = None
+
+logger = structlog.get_logger(__name__)
+
+
+def create_app(service: AudioService, config: AppConfig) -> FastAPI:
+    """Create FastAPI application with health endpoint at root level.
+
+    Args:
+        service: AudioService instance.
+        config: Application configuration.
+
+    Returns:
+        FastAPI application instance.
+    """
+    app = FastAPI(
+        title="Minabox Audio Service",
+        description="VLC-based audio player with MQTT control",
+        version="0.1.0",
+    )
+
+    @app.get("/health")
+    async def health_check() -> Dict[str, object]:
+        """Health check endpoint."""
+        mqtt_connected = service.is_mqtt_connected()
+        vlc_initialized = service.is_vlc_initialized()
+        status = "healthy" if (mqtt_connected and vlc_initialized) else "degraded"
+
+        return {
+            "status": status,
+            "service": "audio",
+            "device_id": config.env.minabox_device_id,
+            "uptime_seconds": service.get_uptime(),
+            "mqtt_connected": mqtt_connected,
+            "vlc_initialized": vlc_initialized,
+            "mqtt_broker": config.env.mqtt_broker,
+            "mqtt_port": config.env.mqtt_port,
+        }
+
+    # Include additional API routes under /api/v1
+    app.include_router(routes.router, prefix="/api/v1")
+
+    return app
+
+
+class AudioServiceRunner:
+    """Top-level service runner following the standard service pattern."""
+
+    def __init__(self, config: AppConfig) -> None:
+        self.config = config
+        self._service = AudioService(config)
+        self._shutdown_event = asyncio.Event()
+        self._api_server: Optional[uvicorn.Server] = None
+
+    async def start(self) -> None:
+        """Start the audio service and API server."""
+        logger.info("audio_service_starting")
+
+        # Set service reference for legacy API routes
+        routes.set_service(self._service)
+
+        # Start the audio service (MQTT, VLC, etc.)
+        await self._service.start()
+
+        # Start FastAPI server
+        await self._start_api_server()
+
+        logger.info("audio_service_started")
+
+    async def _start_api_server(self) -> None:
+        """Start the FastAPI server."""
+        app = create_app(self._service, self.config)
+        uvicorn_config = uvicorn.Config(
+            app=app,
+            host=self.config.env.audio_service_host,
+            port=self.config.env.audio_service_port,
+            log_config=None,
+        )
+        self._api_server = uvicorn.Server(uvicorn_config)
+        asyncio.create_task(self._api_server.serve())
+        logger.info("api_server_started", port=self.config.env.audio_service_port)
+
+    async def run(self) -> None:
+        """Run the service until shutdown is requested."""
+        await self._shutdown_event.wait()
+        logger.info("shutdown_requested")
+
+    async def stop(self) -> None:
+        """Stop the audio service gracefully."""
+        logger.info("audio_service_stopping")
+
+        # Stop API server
+        if self._api_server:
+            self._api_server.should_exit = True
+            logger.info("api_server_stopped")
+
+        # Shutdown the audio service
+        await self._service.shutdown()
+
+        logger.info("audio_service_stopped")
+
+    def request_shutdown(self) -> None:
+        """Request a graceful shutdown."""
+        logger.info("shutdown_signal_received")
+        self._shutdown_event.set()
 
 
 def setup_logging(log_level: str) -> None:
-    """Configure structured logging.
-
-    Args:
-        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    """
+    """Set up structured logging (Framework.md: DEBUG = Console, INFO+ = JSON)."""
     log_level_int = getattr(logging, log_level, logging.INFO)
-
-    # Choose renderer based on log level
     if log_level == "DEBUG":
-        # Development: Human-readable console format
         renderer = structlog.dev.ConsoleRenderer()
     else:
-        # Production: Structured JSON format
         renderer = structlog.processors.JSONRenderer()
-
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -51,129 +150,53 @@ def setup_logging(log_level: str) -> None:
     )
 
 
-def create_app(config_manager: ConfigManager) -> FastAPI:
-    """Create FastAPI application.
+async def main() -> None:
+    """Main async entry point."""
+    config = load_app_config()
+    setup_logging(config.env.log_level)
 
-    Args:
-        config_manager: Configuration manager instance
-
-    Returns:
-        FastAPI application instance
-    """
-    app = FastAPI(
-        title="Minabox Audio Service",
-        description="VLC-based audio player with MQTT control",
-        version="0.1.0",
+    logger.info(
+        "service_initializing",
+        device_id=config.env.minabox_device_id,
+        log_level=config.env.log_level,
     )
 
-    # Include API routes
-    app.include_router(routes.router, prefix="/api/v1")
+    service = AudioServiceRunner(config)
+    loop = asyncio.get_running_loop()
 
-    return app
+    def signal_handler(sig: int) -> None:
+        logger.info("signal_received", signal=sig)
+        service.request_shutdown()
 
-
-async def run_service(config_manager: ConfigManager) -> None:
-    """Run the audio service.
-
-    Args:
-        config_manager: Configuration manager instance
-    """
-    global _service, _shutdown_event
-
-    logger = structlog.get_logger(__name__)
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(
+                sig,
+                lambda s=sig: signal_handler(s),
+            )
+        except NotImplementedError:
+            break
 
     try:
-        # Create service instance
-        _service = AudioService(config_manager)
+        await service.start()
+        await service.run()
+    except Exception as exc:
+        logger.error("service_error", error=str(exc), exc_info=True)
+        raise
+    finally:
+        await service.stop()
 
-        # Set service reference for API routes
-        routes.set_service(_service)
 
-        # Create shutdown event
-        _shutdown_event = asyncio.Event()
-
-        # Setup signal handlers
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, lambda: _shutdown_event.set())
-
-        # Start service (this will block listening to MQTT)
-        service_task = asyncio.create_task(_service.start())
-
-        # Wait for shutdown signal
-        await _shutdown_event.wait()
-
-        logger.info("shutdown_signal_received")
-
-        # Cancel service task
-        service_task.cancel()
-        try:
-            await service_task
-        except asyncio.CancelledError:
-            pass
-
-        # Shutdown service
-        await _service.shutdown()
-
-    except Exception as e:
-        logger.error("service_run_failed", error=str(e))
+def run() -> None:
+    """Entry point for python -m audio_service."""
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("keyboard_interrupt")
+    except Exception:
+        logger.exception("service_crashed")
         raise
 
 
-async def start_fastapi_server(config_manager: ConfigManager) -> None:
-    """Start FastAPI server in background.
-
-    Args:
-        config_manager: Configuration manager instance
-    """
-    config = config_manager.config.global_config
-    app = create_app(config_manager)
-
-    uvicorn_config = uvicorn.Config(
-        app,
-        host=config.audio_service_host,
-        port=config.audio_service_port,
-        log_config=None,  # Use our structlog configuration
-    )
-
-    server = uvicorn.Server(uvicorn_config)
-    await server.serve()
-
-
-async def main() -> None:
-    """Main entry point."""
-    logger = structlog.get_logger(__name__)
-
-    try:
-        # Load configuration
-        config_manager = ConfigManager()
-        config = config_manager.load()
-
-        # Setup logging with configured level
-        setup_logging(config.global_config.log_level)
-
-        logger.info(
-            "audio_service_initializing",
-            device_id=config.global_config.minabox_device_id,
-            mqtt_broker=config.global_config.mqtt_broker,
-            log_level=config.global_config.log_level,
-        )
-
-        # Run FastAPI and service concurrently
-        await asyncio.gather(
-            start_fastapi_server(config_manager),
-            run_service(config_manager),
-        )
-
-    except ConfigLoadError as e:
-        logger.error("configuration_error", error=str(e))
-        sys.exit(1)
-    except KeyboardInterrupt:
-        logger.info("keyboard_interrupt_received")
-    except Exception as e:
-        logger.error("fatal_error", error=str(e))
-        sys.exit(1)
-
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    run()

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 import structlog
 from aiomqtt import Client, MqttError
+from datetime import datetime, timezone
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -282,8 +283,6 @@ class MQTTClient:
         """
         device_id = self._config.env.minabox_device_id
         topic = f"minabox/{device_id}/led/config/response"
-        
-        from datetime import datetime, timezone
         
         payload = {
             "success": success,

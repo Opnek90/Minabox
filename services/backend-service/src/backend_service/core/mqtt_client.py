@@ -14,7 +14,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from backend_service.config_schema import BackendConfig
+from backend_service.config_schema import AppConfig, BackendConfig
 from backend_service.exceptions import MQTTConnectionError, MQTTPublishError
 
 logger = structlog.get_logger(__name__)
@@ -78,12 +78,9 @@ class MQTTClient:
             except Exception as e:
                 logger.error("mqtt_disconnect_error", error=str(e))
 
+    @property
     def is_connected(self) -> bool:
-        """Check if MQTT client is connected.
-
-        Returns:
-            True if connected, False otherwise
-        """
+        """Check if MQTT client is connected."""
         return self._connected
 
     async def publish(
@@ -187,8 +184,8 @@ class MQTTClient:
 
         return len(topic_parts) == len(pattern_parts)
 
-    async def start_listening(self) -> None:
-        """Start listening for MQTT messages.
+    async def run(self) -> None:
+        """Run the MQTT client message loop.
 
         This should be run as a background task.
         """
@@ -215,10 +212,19 @@ class MQTTClient:
             self._running = False
             raise
 
-    async def stop_listening(self) -> None:
-        """Stop listening for MQTT messages."""
-        logger.info("mqtt_listening_stopping")
+    async def stop(self) -> None:
+        """Stop the MQTT client message loop."""
+        logger.info("mqtt_client_stopping")
         self._running = False
+
+    # Backward-compatible aliases
+    async def start_listening(self) -> None:
+        """Alias for run()."""
+        await self.run()
+
+    async def stop_listening(self) -> None:
+        """Alias for stop()."""
+        await self.stop()
 
     # ========================================================================
     # Convenience methods for common topics

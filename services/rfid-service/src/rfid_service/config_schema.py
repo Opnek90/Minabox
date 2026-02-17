@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PositiveInt
 
 
 class ReaderConfig(BaseModel):
@@ -31,24 +31,38 @@ class ReaderConfig(BaseModel):
     )
 
 
-class ServiceConfig(BaseModel):
-    """Validated configuration for the RFID service."""
+class RFIDServiceConfig(BaseModel):
+    """Top-level RFID configuration loaded from config/service.json."""
 
-    device_id: str = Field(
-        description="Minabox device identifier used in MQTT topics.",
-    )
-    mqtt_broker: str = Field(
-        description="Hostname or IP of the MQTT broker.",
-    )
-    mqtt_port: int = Field(
-        default=1883,
-        ge=1,
-        le=65535,
-        description="TCP port of the MQTT broker.",
-    )
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        description="Log level for the service.",
-    )
     reader: ReaderConfig = Field(
         description="Hardware reader configuration.",
     )
+
+
+class EnvConfig(BaseModel):
+    """Environment-based configuration shared across Minabox services."""
+
+    mqtt_broker: str = Field(
+        min_length=1,
+        description="Hostname of the MQTT broker (e.g. 'mqtt').",
+    )
+    mqtt_port: PositiveInt = Field(
+        description="Port of the MQTT broker (e.g. 1883).",
+    )
+    minabox_device_id: str = Field(
+        min_length=1,
+        description="Device ID used in MQTT topics (e.g. 'box1').",
+    )
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        description="Global log level for this service.",
+    )
+
+
+class AppConfig(BaseModel):
+    """Combined configuration for the RFID service.
+
+    This is what the rest of the service should depend on.
+    """
+
+    env: EnvConfig
+    rfid: RFIDServiceConfig

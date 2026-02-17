@@ -46,7 +46,7 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 ## P1 – Hohe Priorität (Konsistenz & Standards)
 
 ### 4. Dependency-Versionen stark unterschiedlich
-- [ ] **Betroffene Dateien:** Alle `requirements.txt` und `pyproject.toml`
+- [x] **Betroffene Dateien:** Alle `requirements.txt` und `pyproject.toml`
 - **Problem:** Die Services verwenden sehr unterschiedliche Versionen derselben Libraries:
 
   | Library | RFID | Audio | Backend | Button | LED |
@@ -61,7 +61,7 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 - **Fix:** Alle Services auf dieselben Versionen bringen. RFID-Service hat die ältesten Versionen und sollte aktualisiert werden.
 
 ### 5. Vier verschiedene Config-Management-Patterns
-- [ ] **Problem:** Jeder Service verwendet einen anderen Ansatz:
+- [x] **Problem:** Jeder Service verwendet einen anderen Ansatz:
   - **RFID:** Manuelles `os.getenv()` + JSON-Loading in `ConfigManager`, `python-dotenv`
   - **Audio:** `pydantic_settings.BaseSettings` in ConfigManager, verschachteltes `GlobalConfig` + `AudioConfig`
   - **Backend:** `pydantic_settings.BaseSettings` mit `env_prefix` und `model_validator`
@@ -70,7 +70,7 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 - **Fix:** Einheitliches Pattern definieren. Button/LED haben den saubersten Ansatz (getrennte `EnvConfig` + Service-Config → `AppConfig`). Diesen als Standard für alle Services übernehmen.
 
 ### 6. Health-Endpoint-Pfad inkonsistent
-- [ ] **Problem:**
+- [x] **Problem:**
   - Audio, Backend: `/api/v1/health`
   - Button, LED: `/health`
   - RFID: **Kein Health-Endpoint!**
@@ -80,7 +80,7 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
   2. Pfad vereinheitlichen: `/health` (wie im Framework-Template) oder `/api/v1/health`.
 
 ### 7. MQTT-Client-Interface inkonsistent
-- [ ] **Problem:** Fünf verschiedene MQTT-Client-Implementierungen mit unterschiedlichen APIs:
+- [x] **Problem:** Fünf verschiedene MQTT-Client-Implementierungen mit unterschiedlichen APIs:
   - **Payload-Typ:** RFID/Audio nehmen `str`, Backend/Button/LED nehmen `dict` (auto-serialize)
   - **Topic-Handling:** RFID prepended automatisch `minabox/{device_id}/`, andere verwenden den vollen Topic
   - **`is_connected`:** RFID hat `@property`, Audio/Backend haben `def is_connected()` als Methode, Button/LED haben keine Methode
@@ -88,7 +88,7 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 - **Fix:** Gemeinsames Interface definieren. Idealerweise eine Basisklasse in `shared/` mit einheitlichem `publish(topic, payload_dict)`, `subscribe()`, `is_connected`, und `run()` Pattern.
 
 ### 8. main.py-Struktur inkonsistent
-- [ ] **Problem:** Drei verschiedene Muster:
+- [x] **Problem:** Drei verschiedene Muster:
   - **RFID:** Funktionaler Stil, kein Service-Klasse, `setup_logging()` liest ENV direkt
   - **Audio:** Kein Service-Klasse auf Top-Level, globale `_service`/`_shutdown_event`, separate `run_service()` und `start_fastapi_server()` Funktionen
   - **Backend:** Module-Level structlog-Konfiguration, `signal.signal()` statt `loop.add_signal_handler()`, FastAPI-Lifespan-Pattern
@@ -96,7 +96,7 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 - **Fix:** Button/LED-Pattern als Standard übernehmen (Service-Klasse mit `start()`, `run()`, `stop()`, `request_shutdown()`).
 
 ### 9. Exception-Base-Class-Naming inkonsistent
-- [ ] **Problem:** Verschiedene Namenskonventionen:
+- [x] **Problem:** Verschiedene Namenskonventionen:
   - RFID: `MinaboxRFIDError`
   - Audio: `MinaboxError` (generisch!)
   - Backend: `MinaboxError` (gleicher Name wie Audio!)
@@ -110,14 +110,6 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 
 ## P2 – Mittlere Priorität (Code-Qualität)
 
-### 10. pyproject.toml nicht einheitlich
-- [ ] **Problem:** Verschiedene Konfigurationen:
-  - Backend hat noch `[tool.black]`-Sektion (laut Framework deprecated seit 2026-02-15)
-  - Backend und LED/Button fehlt `[build-system]`-Sektion (RFID und Audio haben sie)
-  - Backend fehlt `[tool.ruff.format]`-Sektion
-  - Audio `[tool.mypy]` hat `python_version = "3.11"` statt `"3.13"`, und `disallow_untyped_defs = false` (weniger strikt als Framework-Vorgabe)
-- **Fix:** Template aus Framework.md Abschnitt 3.1 für alle Services einheitlich anwenden.
-
 ### 11. Dockerfile-Patterns uneinheitlich
 - [ ] **Problem:** Drei verschiedene pip-Install-Strategien:
   - **RFID/Button/LED:** `pip install --no-cache-dir -r requirements.txt`, kopiert `site-packages` direkt
@@ -130,16 +122,16 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 - **Fix:** Eine einheitliche Dockerfile-Vorlage verwenden. Framework Abschnitt 10.1 gibt ein Template vor – dieses konsequent anwenden.
 
 ### 12. RFID-Service fehlt `pydantic-settings` und `uvicorn`
-- [ ] **Problem:** RFID-Service hat keine REST-API (kein FastAPI-Router, kein Health-Endpoint). Er hat `fastapi` in den Requirements, nutzt es aber nicht produktiv.
+- [x] **Problem:** RFID-Service hat keine REST-API (kein FastAPI-Router, kein Health-Endpoint). Er hat `fastapi` in den Requirements, nutzt es aber nicht produktiv.
 - **Fix:** Entweder FastAPI/uvicorn entfernen (wenn kein Health-Endpoint gewünscht ist) oder einen Health-Endpoint implementieren (Framework-Vorgabe).
 
 ### 13. LED MQTT-Client hat Inline-Import
-- [ ] **Datei:** `services/led-service/src/led_service/mqtt_client.py` (Zeile 286)
+- [x] **Datei:** `services/led-service/src/led_service/mqtt_client.py` (Zeile 286)
 - **Problem:** `from datetime import datetime, timezone` wird innerhalb der Methode `_send_config_response()` importiert statt am Dateianfang.
 - **Fix:** Import an den Dateianfang verschieben.
 
 ### 14. Backend verwendet `signal.signal()` statt asyncio Signal-Handler
-- [ ] **Datei:** `services/backend-service/src/backend_service/main.py` (Zeile 195)
+- [x] **Datei:** `services/backend-service/src/backend_service/main.py` (Zeile 195)
 - **Problem:** `signal.signal(signal.SIGTERM, handle_shutdown)` ist nicht async-safe. Alle anderen Services verwenden `loop.add_signal_handler()`.
 - **Fix:** Auf `loop.add_signal_handler()` umstellen (wie Button/LED).
 

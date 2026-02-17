@@ -1,36 +1,161 @@
-"""RFID service entry point with graceful shutdown handling."""
+"""Main entry point for the RFID service.
+
+This module:
+- Sets up structured logging
+- Loads configuration
+- Initializes RFID reader, MQTT, scan loop, API
+- Handles graceful shutdown
+"""
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 import signal
-import sys
-from typing import NoReturn
+from typing import Optional
 
 import structlog
+import uvicorn
 
-from .config import get_config
+from .api.routes import create_app
+from .config import load_app_config
+from .config_schema import AppConfig
 from .hardware import create_reader
+from .hardware.reader_interface import RFIDReader
 from .mqtt_client import MQTTClient
 from .rfid_manager import RFIDManager
+
 
 logger = structlog.get_logger(__name__)
 
 
-def setup_logging() -> None:
-    """Configure structured logging based on LOG_LEVEL environment variable."""
-    log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
-    log_level_int = getattr(logging, log_level_name, logging.INFO)
+class RFIDService:
+    """Main RFID service class."""
 
-    # Choose renderer based on log level
-    if log_level_name == "DEBUG":
+    def __init__(self, config: AppConfig) -> None:
+        self.config = config
+        self._shutdown_event = asyncio.Event()
+        self._mqtt_task: Optional[asyncio.Task] = None
+        self._scan_task: Optional[asyncio.Task] = None
+        self._api_server: Optional[uvicorn.Server] = None
+        self._reader: Optional[RFIDReader] = None
+        self._manager: Optional[RFIDManager] = None
+
+        self.mqtt_client = MQTTClient(
+            config=config,
+            on_set_mode_callback=self._handle_set_mode,
+        )
+
+    async def start(self) -> None:
+        """Start the RFID service."""
+        logger.info("rfid_service_starting")
+
+        # Initialize hardware reader
+        self._reader = create_reader(self.config.rfid.reader)
+        self._reader.initialize()
+
+        # Connect to MQTT
+        await self.mqtt_client.connect()
+
+        # Publish service-started event
+        device_id = self.config.env.minabox_device_id
+        await self.mqtt_client.publish(
+            f"minabox/{device_id}/system/service-started",
+            {"service": "rfid"},
+        )
+
+        # Create and start manager
+        self._manager = RFIDManager(self.config, self._reader, self.mqtt_client)
+        await self._manager.start()
+
+        # Start MQTT message loop
+        self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
+
+        # Start scan loop
+        self._scan_task = asyncio.create_task(self._manager.scan_loop())
+
+        # Start FastAPI server
+        await self._start_api_server()
+
+        logger.info("rfid_service_started")
+
+    async def _start_api_server(self) -> None:
+        """Start the FastAPI server."""
+        app = create_app(self.config, self.mqtt_client)
+        uvicorn_config = uvicorn.Config(
+            app=app,
+            host="0.0.0.0",
+            port=8000,
+            log_config=None,
+        )
+        self._api_server = uvicorn.Server(uvicorn_config)
+        asyncio.create_task(self._api_server.serve())
+        logger.info("api_server_started", port=8000)
+
+    async def run(self) -> None:
+        """Run the service until shutdown is requested."""
+        await self._shutdown_event.wait()
+        logger.info("shutdown_requested")
+
+    async def stop(self) -> None:
+        """Stop the RFID service gracefully."""
+        logger.info("rfid_service_stopping")
+
+        # Stop API server
+        if self._api_server:
+            self._api_server.should_exit = True
+            logger.info("api_server_stopped")
+
+        # Stop manager (stops scanning)
+        if self._manager:
+            await self._manager.stop()
+
+        # Stop MQTT client loop
+        await self.mqtt_client.stop()
+
+        # Cancel scan task
+        if self._scan_task and not self._scan_task.done():
+            self._scan_task.cancel()
+            try:
+                await asyncio.wait_for(self._scan_task, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+
+        # Wait for MQTT task
+        if self._mqtt_task and not self._mqtt_task.done():
+            try:
+                await asyncio.wait_for(self._mqtt_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("mqtt_task_timeout")
+                self._mqtt_task.cancel()
+
+        await self.mqtt_client.disconnect()
+
+        # Clean up hardware
+        if self._reader:
+            self._reader.cleanup()
+            self._reader = None
+
+        logger.info("rfid_service_stopped")
+
+    def request_shutdown(self) -> None:
+        """Request a graceful shutdown."""
+        logger.info("shutdown_signal_received")
+        self._shutdown_event.set()
+
+    def _handle_set_mode(self, mode: str) -> None:
+        """Handle set-mode command from MQTT."""
+        if self._manager:
+            asyncio.create_task(self._manager.set_mode(mode))
+
+
+def setup_logging(log_level: str) -> None:
+    """Set up structured logging (Framework.md: DEBUG = Console, INFO+ = JSON)."""
+    log_level_int = getattr(logging, log_level, logging.INFO)
+    if log_level == "DEBUG":
         renderer = structlog.dev.ConsoleRenderer()
     else:
         renderer = structlog.processors.JSONRenderer()
-
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -45,117 +170,53 @@ def setup_logging() -> None:
     )
 
 
-async def handle_commands(manager: RFIDManager, mqtt_client: MQTTClient) -> None:
-    """Handle incoming MQTT commands."""
-    logger.info("command_handler_started")
-    async for message in mqtt_client.messages():
-        # Je nach MQTT-Bibliothek muss hier ggf. .decode() auf topic/payload angewendet werden
-        topic = str(message.topic)
-        payload = message.payload.decode() if isinstance(message.payload, bytes) else message.payload
+async def main() -> None:
+    """Main async entry point."""
+    config = load_app_config()
+    setup_logging(config.env.log_level)
 
-        if "cmd/set-mode" in topic:
-            try:
-                data = json.loads(payload)
-                mode = data.get("mode")
-                if mode in ("normal", "learning"):
-                    logger.info("setting_mode", mode=mode)
-                    await manager.set_mode(mode)
-                else:
-                    logger.warning("invalid_mode", mode=mode)
-            except json.JSONDecodeError:
-                logger.warning("invalid_command_json", payload=payload)
+    logger.info(
+        "service_initializing",
+        device_id=config.env.minabox_device_id,
+        log_level=config.env.log_level,
+    )
 
-
-async def shutdown(
-    manager: RFIDManager,
-    mqtt_client: MQTTClient,
-    reader,
-    command_task: asyncio.Task | None = None,
-) -> None:
-    """Gracefully shutdown the service."""
-    logger.info("shutdown_initiated")
-
-    if command_task:
-        command_task.cancel()
-
-    # Stop manager first (stop publishing events)
-    await manager.stop()
-
-    # Disconnect MQTT
-    await mqtt_client.disconnect()
-
-    # Clean up hardware
-    reader.cleanup()
-
-    logger.info("shutdown_complete")
-
-
-async def main() -> NoReturn:
-    """Run the RFID service."""
-    setup_logging()
-    logger.info("rfid_service_starting")
-
-    # Load configuration
-    try:
-        config = get_config()
-    except Exception as exc:
-        logger.error("config_load_failed", error=str(exc))
-        sys.exit(1)
-
-    # Create reader
-    try:
-        reader = create_reader(config.reader)
-        reader.initialize()
-    except Exception as exc:
-        logger.error("reader_init_failed", error=str(exc))
-        sys.exit(1)
-
-    # Create MQTT client and connect
-    mqtt_client = MQTTClient(config)
-    try:
-        await mqtt_client.connect()
-    except Exception as exc:
-        logger.error("mqtt_connect_failed", error=str(exc))
-        reader.cleanup()
-        sys.exit(1)
-
-    # Create and start manager
-    manager = RFIDManager(config, reader, mqtt_client)
-    await manager.start()
-
-    # --- NEU: MQTT Commands abonnieren ---
-    await mqtt_client.subscribe("rfid/cmd/set-mode")
-    command_task = asyncio.create_task(handle_commands(manager, mqtt_client))
-    # --------------------------------------
-
-    # Setup signal handlers for graceful shutdown
+    service = RFIDService(config)
     loop = asyncio.get_running_loop()
 
-    def signal_handler(sig):
+    def signal_handler(sig: int) -> None:
         logger.info("signal_received", signal=sig)
-        # Wir starten den Shutdown und stoppen den Loop
-        asyncio.create_task(shutdown(manager, mqtt_client, reader, command_task))
-        loop.stop()
+        service.request_shutdown()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, lambda s=sig: signal_handler(s))
+        try:
+            loop.add_signal_handler(
+                sig,
+                lambda s=sig: signal_handler(s),
+            )
+        except NotImplementedError:
+            break
 
-    # Run scan loop
     try:
-        await manager.scan_loop()
-    except KeyboardInterrupt:
-        logger.info("keyboard_interrupt")
+        await service.start()
+        await service.run()
     except Exception as exc:
-        logger.error("scan_loop_error", error=str(exc))
+        logger.error("service_error", error=str(exc), exc_info=True)
+        raise
     finally:
-        await shutdown(manager, mqtt_client, reader, command_task)
-
-    logger.info("rfid_service_stopped")
-    sys.exit(0)
+        await service.stop()
 
 
-if __name__ == "__main__":
+def run() -> None:
+    """Entry point for python -m rfid_service."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass
+        logger.info("keyboard_interrupt")
+    except Exception:
+        logger.exception("service_crashed")
+        raise
+
+
+if __name__ == "__main__":
+    run()
