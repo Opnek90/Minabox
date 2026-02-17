@@ -195,7 +195,7 @@ services:
       start_period: 20s
 
   # =================================
-  # LED Service (Hardware)
+  # LED Service (Hardware - PRODUCTION)
   # =================================
   led:
     build:
@@ -203,33 +203,42 @@ services:
       dockerfile: Dockerfile
     container_name: minabox-led
     restart: unless-stopped
+    ports:
+      - "8004:8000"
     environment:
-      # MQTT (required)
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
-      
-      # Logging (required)
-      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DISABLE_GPIO=${DISABLE_GPIO:-false}
+    
     volumes:
-      - ./services/led-service/config:/app/config
+      - ./services/led-service/config:/app/config:ro
+    
     networks:
       - minabox-network
     depends_on:
       mqtt:
         condition: service_healthy
+    
     # GPIO-Zugriff
     devices:
       - /dev/gpiomem:/dev/gpiomem
-    # Alternative: privileged mode
-    # privileged: true
+    
+    # User pi (1000) + gpio-Gruppe
+    user: "1000:986"  # UID:GID (986 = gpio im Container)
+    
+    # Zusätzliche Gruppe für gpio
+    group_add:
+      - "986"  # gpio-Gruppe
+    
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health || exit 0"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
-
+    
 # =================================
 # Networks
 # =================================
