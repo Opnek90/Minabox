@@ -57,6 +57,7 @@ class AudioService:
             on_set_volume=self._handle_set_volume,
             on_volume_up=self._handle_volume_up,
             on_volume_down=self._handle_volume_down,
+            on_mute_toggle=self._handle_mute_toggle,
             on_config_update=self._handle_config_update,
             on_config_reload=self._handle_config_reload,
             on_config_get=self._handle_config_get,
@@ -64,6 +65,8 @@ class AudioService:
 
         # Service state
         self._start_time = time()
+        self._muted = False
+        self._volume_before_mute = 0
         self._status_publish_task: asyncio.Task | None = None
         self._running = False
 
@@ -173,6 +176,7 @@ class AudioService:
             f"minabox/{device_id}/audio/set-volume",
             f"minabox/{device_id}/audio/volume-up",
             f"minabox/{device_id}/audio/volume-down",
+            f"minabox/{device_id}/audio/mute-toggle",
             f"minabox/{device_id}/audio/config/update",
             f"minabox/{device_id}/audio/config/reload",
             f"minabox/{device_id}/audio/config/get",
@@ -361,6 +365,27 @@ class AudioService:
             await self._publish_status()
         except Exception as e:
             logger.error("handle_volume_down_failed", error=str(e))
+            await self._publish_error("volume_error", str(e))
+
+    async def _handle_mute_toggle(self) -> None:
+        """Toggle between muted and unmuted: save volume and set 0, or restore."""
+        try:
+            if self._muted:
+                volume = min(
+                    self._volume_before_mute,
+                    self._config.audio_config.max_volume,
+                )
+                await self._vlc_backend.set_volume(volume)
+                self._muted = False
+                logger.info("mute_toggle_unmuted", volume=volume)
+            else:
+                self._volume_before_mute = await self._vlc_backend.get_volume()
+                await self._vlc_backend.set_volume(0)
+                self._muted = True
+                logger.info("mute_toggle_muted", volume_before=self._volume_before_mute)
+            await self._publish_status()
+        except Exception as e:
+            logger.error("mute_toggle_failed", error=str(e))
             await self._publish_error("volume_error", str(e))
 
     async def _handle_config_update(self, new_config: AudioConfig) -> None:

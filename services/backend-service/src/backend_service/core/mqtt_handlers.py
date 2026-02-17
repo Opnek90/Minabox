@@ -278,6 +278,8 @@ class MQTTHandlers:
             await self.mqtt_client.publish_audio_command("volume-up", {})
         elif action == "volume-down":
             await self.mqtt_client.publish_audio_command("volume-down", {})
+        elif action in ("mute", "mute-toggle"):
+            await self.mqtt_client.publish_audio_command("mute-toggle", {})
 
         # Broadcast to WebUI
         if self.websocket_manager:

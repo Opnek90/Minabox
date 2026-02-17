@@ -1,0 +1,58 @@
+"""FastAPI routes for the button service.
+
+This module provides a minimal REST API with health check endpoint.
+"""
+
+from typing import Callable, Dict
+
+from fastapi import FastAPI
+import structlog
+
+from ..config_schema import AppConfig
+from ..mqtt_client import MQTTClient
+
+
+logger = structlog.get_logger(__name__)
+
+
+def create_app(
+    config: AppConfig,
+    mqtt_client: MQTTClient,
+    get_buttons_count: Callable[[], int],
+) -> FastAPI:
+    """Create and configure the FastAPI application.
+    
+    Args:
+        config: Application configuration.
+        mqtt_client: MQTT client instance.
+        get_buttons_count: Callable that returns current number of configured buttons.
+        
+    Returns:
+        Configured FastAPI application.
+    """
+    app = FastAPI(
+        title="Minabox Button Service",
+        description="GPIO-based button and rotary encoder service for Minabox",
+        version="0.1.0",
+    )
+    
+    @app.get("/health")
+    async def health_check() -> Dict[str, object]:
+        """Health check endpoint.
+        
+        Returns service status and basic statistics.
+        """
+        mqtt_connected = mqtt_client._client is not None and mqtt_client._running
+        buttons_count = get_buttons_count()
+        
+        return {
+            "status": "healthy",
+            "service": "button",
+            "device_id": config.env.minabox_device_id,
+            "buttons_configured": buttons_count,
+            "mqtt_connected": mqtt_connected,
+            "mqtt_broker": config.env.mqtt_broker,
+            "mqtt_port": config.env.mqtt_port,
+        }
+    
+    return app

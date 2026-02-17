@@ -167,6 +167,8 @@ services:
       dockerfile: Dockerfile
     container_name: minabox-button
     restart: unless-stopped
+    ports:
+      - "8005:8000"
     environment:
       # MQTT (required)
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
@@ -175,6 +177,10 @@ services:
       
       # Logging (required)
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
+      # Set to true to run without GPIO (e.g. no hardware or avoid sysfs access)
+      - DISABLE_GPIO=${DISABLE_GPIO:-false}
+      # gpiozero: lgpio pin factory (liblgpio, works in Docker with /dev/gpiochip0)
+      - GPIOZERO_PIN_FACTORY=lgpio
     volumes:
       - ./services/button-service/config:/app/config
     networks:
@@ -182,11 +188,14 @@ services:
     depends_on:
       mqtt:
         condition: service_healthy
-    # GPIO-Zugriff
+    # GPIO-Zugriff (User pi + gpio-Gruppe)
+    user: "1000:986"
+    group_add:
+      - "986"
     devices:
+      # lgpio uses the GPIO character device
+      - /dev/gpiochip0:/dev/gpiochip0
       - /dev/gpiomem:/dev/gpiomem
-    # Alternative: privileged mode
-    # privileged: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

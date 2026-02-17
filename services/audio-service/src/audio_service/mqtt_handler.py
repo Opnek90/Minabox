@@ -54,6 +54,7 @@ class MQTTMessageHandler:
         on_set_volume: Callable[[VolumeCommand], None] | None = None,
         on_volume_up: Callable[[VolumeStepCommand], None] | None = None,
         on_volume_down: Callable[[VolumeStepCommand], None] | None = None,
+        on_mute_toggle: Callable[[], None] | None = None,
         on_config_update: Callable[[AudioConfig], None] | None = None,
         on_config_reload: Callable[[], None] | None = None,
         on_config_get: Callable[[], None] | None = None,
@@ -70,6 +71,7 @@ class MQTTMessageHandler:
             on_set_volume: Callback for set volume commands
             on_volume_up: Callback for volume up commands
             on_volume_down: Callback for volume down commands
+            on_mute_toggle: Callback for mute toggle (mute/unmute)
             on_config_update: Callback for config update commands
             on_config_reload: Callback for config reload commands
             on_config_get: Callback for config get requests
@@ -83,6 +85,7 @@ class MQTTMessageHandler:
         self._on_set_volume = on_set_volume
         self._on_volume_up = on_volume_up
         self._on_volume_down = on_volume_down
+        self._on_mute_toggle = on_mute_toggle
         self._on_config_update = on_config_update
         self._on_config_reload = on_config_reload
         self._on_config_get = on_config_get
@@ -161,6 +164,8 @@ class MQTTMessageHandler:
             await self._handle_volume_up(data)
         elif action == "volume-down":
             await self._handle_volume_down(data)
+        elif action == "mute-toggle":
+            await self._handle_mute_toggle()
         elif action == "config/update":
             await self._handle_config_update(data)
         elif action == "config/reload":
@@ -242,6 +247,12 @@ class MQTTMessageHandler:
                 await self._on_volume_down(command)
         except ValidationError as e:
             logger.error("invalid_volume_down_command", error=str(e))
+
+    async def _handle_mute_toggle(self) -> None:
+        """Handle mute toggle command (mute ↔ unmute)."""
+        logger.info("mute_toggle_command_received")
+        if self._on_mute_toggle:
+            await self._on_mute_toggle()
 
     async def _handle_config_update(self, data: dict[str, Any]) -> None:
         """Handle config update command."""
