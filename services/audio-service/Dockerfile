@@ -59,5 +59,7 @@ USER minabox
 # Expose FastAPI port
 EXPOSE 8003
 
-# FIXED: Correct module path
-CMD ["python", "-m", "src.audio_service.main"]
+# Python module path: src/ contains the audio_service package
+ENV PYTHONPATH=/app/src
+
+CMD ["python", "-m", "audio_service.main"]

@@ -218,7 +218,7 @@ services:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
       - DISABLE_GPIO=${DISABLE_GPIO:-false}
     
     volumes:
@@ -242,7 +242,7 @@ services:
       - "986"  # gpio-Gruppe
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health || exit 0"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 5s
       retries: 3
