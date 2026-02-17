@@ -197,8 +197,10 @@ async def run_pulse_pattern(
             if not infinite:
                 pulses += 1
             
-            # Small gap between pulses (10% of duration, min 50ms)
-            gap_ms = max(50, duration_ms * 0.1)
+            # Gap between pulses: deutlich kürzer als der Puls selbst,
+            # damit Pulse wie ein kurzer „Ping“ wirkt (kurzes Aus, dann wieder an).
+            # Pause = höchstens 1/3 der Pulse-Dauer, mindestens 100ms.
+            gap_ms = max(100, duration_ms / 3)
             try:
                 await asyncio.wait_for(
                     cancel_event.wait(),

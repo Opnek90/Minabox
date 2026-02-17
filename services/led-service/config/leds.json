@@ -27,6 +27,18 @@
           "pattern_type": "off"
         }
       }
+    },
+    {
+      "id": "led_7",
+      "name": "RFID-LED",
+      "gpio": 22,
+      "bindings": {
+        "rfid_scanned": {
+          "pattern_type": "pulse",
+          "duration_ms": 400,
+          "repeat": 3
+        }
+      }
     }
   ]
 }

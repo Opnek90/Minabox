@@ -1,6 +1,6 @@
 {
-  "last_track_id": "radio_test",
-  "last_source_type": "stream",
+  "last_track_id": "test_001",
+  "last_source_type": "file",
   "last_source_uri": "/mnt/audio/test/test.mp3",
   "last_position_ms": -1,
   "last_state": "stopped",
