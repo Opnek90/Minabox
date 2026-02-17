@@ -16,7 +16,12 @@ import structlog
 
 from .config_schema import LEDConfig, LEDPattern
 from .exceptions import GPIOControlError, GPIOInitError, InvalidPatternError
-from .led_patterns import run_blink_pattern, run_pulse_pattern, run_solid_pattern
+from .led_patterns import (
+    run_blink_pattern,
+    run_off_pattern,
+    run_pulse_pattern,
+    run_solid_pattern,
+)
 
 
 logger = structlog.get_logger(__name__)
@@ -144,6 +149,14 @@ class LEDController:
                     self.config.id,
                 )
             )
+        elif pattern.pattern_type == "off":
+            # Just ensure the LED is off without any visible pulse
+            self._current_task = asyncio.create_task(
+                run_off_pattern(
+                    self._led,
+                    self.config.id,
+                )
+            )
         elif pattern.pattern_type == "blink":
             if pattern.interval_ms is None:
                 raise InvalidPatternError(
@@ -195,8 +208,41 @@ class LEDController:
         """Clean up resources (cancel pattern, turn off LED)."""
         await self._cancel_current_pattern()
         if self._led:
-            self._led.off()
-            self._led.close()
+            # Try to leave the GPIO pin in a defined low state with pull-down
+            try:
+                # First ensure the LED is off while we still have the LED wrapper
+                self._led.off()
+            finally:
+                # Close the gpiozero LED object to release resources
+                try:
+                    self._led.close()
+                except Exception:
+                    # If close fails we still try to enforce a safe pin state
+                    logger.warning("led_close_failed", led_id=self.config.id, exc_info=True)
+            
+            # After closing the LED, explicitly configure the pin as input with pull-down.
+            # This helps prevent the LED from leichtes Glimmen durch Leckströme,
+            # once the service (or container) has stopped.
+            try:
+                from gpiozero import Device
+                
+                pin = Device.pin_factory.pin(self.config.gpio)
+                pin.function = "input"
+                pin.pull = "down"
+                logger.info(
+                    "led_pin_pulldown_applied",
+                    led_id=self.config.id,
+                    gpio=self.config.gpio,
+                )
+            except Exception as exc:
+                # In worst case we fall back to whatever state gpiozero left the pin in
+                logger.warning(
+                    "led_pin_pulldown_failed",
+                    led_id=self.config.id,
+                    gpio=self.config.gpio,
+                    error=str(exc),
+                    exc_info=True,
+                )
         logger.info("led_cleanup", led_id=self.config.id)
 
 

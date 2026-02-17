@@ -119,12 +119,10 @@ Analog zum Button-Service besitzt der LED-Service eine Config-API über MQTT.
           "repeat": 0
         },
         "audio_paused": {
-          "pattern_type": "solid",
-          "duration_ms": 0
+          "pattern_type": "off"
         },
         "audio_stopped": {
-          "pattern_type": "solid",
-          "duration_ms": 0
+          "pattern_type": "off"
         },
         "rfid_scanned": {
           "pattern_type": "pulse",
@@ -208,10 +206,11 @@ Ein Pattern beschreibt, **wie** die LED auf einen logischen Zustand reagieren so
 
 Felder im Pattern:
 
-- `pattern_type`: `"solid"` | `"blink"` | `"pulse"`.
-  - `solid`: dauerhaft an (oder aus, wenn kein Binding definiert ist).
+- `pattern_type`: `"solid"` | `"blink"` | `"pulse"` | `"off"`.
+  - `solid`: dauerhaft an (oder aus, wenn kein Binding definiert ist), optional mit begrenzter Dauer.
   - `blink`: an/aus im angegebenen Intervall.
   - `pulse`: kurz aufleuchten, dann wieder aus.
+  - `off`: LED sofort ausschalten, ohne sichtbaren Puls (z.B. für häufig eintreffende Zustände wie `audio_stopped`/`audio_paused`).
 
 - `duration_ms` (optional): Dauer des Patterns in Millisekunden.
   - `0` oder fehlend bei `solid`: bleibt aktiv, bis ein anderes Pattern für diese LED angewendet wird.

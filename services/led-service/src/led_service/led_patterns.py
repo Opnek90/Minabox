@@ -50,6 +50,19 @@ async def run_solid_pattern(
     # If duration is 0 or None, LED stays on until another pattern overrides
 
 
+async def run_off_pattern(
+    led: LED,
+    led_id: str,
+) -> None:
+    """Turn the LED off immediately without any visible pulse.
+    
+    Useful for logical states like 'audio_stopped' or 'audio_paused'
+    that may arrive frequently without any visible indication desired.
+    """
+    led.off()
+    logger.debug("pattern_off_applied", led_id=led_id)
+
+
 async def run_blink_pattern(
     led: LED,
     interval_ms: int,

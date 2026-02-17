@@ -21,12 +21,10 @@
           "duration_ms": 0
         },
         "audio_stopped": {
-          "pattern_type": "solid",
-          "duration_ms": 1
+          "pattern_type": "off"
         },
         "audio_paused": {
-          "pattern_type": "solid",
-          "duration_ms": 1
+          "pattern_type": "off"
         }
       }
     }

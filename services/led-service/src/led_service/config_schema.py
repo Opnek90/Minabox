@@ -5,7 +5,7 @@ from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 
 
-PatternType = Literal["solid", "blink", "pulse"]
+PatternType = Literal["solid", "blink", "pulse", "off"]
 
 
 class LEDPattern(BaseModel):
@@ -16,7 +16,10 @@ class LEDPattern(BaseModel):
     """
 
     pattern_type: PatternType = Field(
-        description="Type of LED pattern: 'solid', 'blink' or 'pulse'.",
+        description=(
+            "Type of LED pattern: 'solid', 'blink', 'pulse' or 'off'. "
+            "'off' simply turns the LED off immediately without any visible pulse."
+        ),
     )
     duration_ms: Optional[NonNegativeInt] = Field(
         default=None,
