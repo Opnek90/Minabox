@@ -70,7 +70,7 @@ export const AudioConfigForm: React.FC = () => {
   if (loading || !config) return null;
 
   return (
-    <Box display="flex" flexDirection="column" gap={3} maxWidth={560}>
+    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: { xs: 2, sm: 3 } }}>
       <TextField
         label={t('audio.output_device_type')}
         value={config.output_device_type}
@@ -189,7 +189,7 @@ export const RFIDConfigForm: React.FC = () => {
   if (loading || !config) return null;
 
   return (
-    <Box display="flex" flexDirection="column" gap={3} maxWidth={560}>
+    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: { xs: 2, sm: 3 } }}>
       <FormControl fullWidth size="small">
         <InputLabel>{t('rfid.fields.reader_type')}</InputLabel>
         <Select
@@ -251,23 +251,18 @@ export const RFIDConfigForm: React.FC = () => {
 };
 
 // ============================================================================
-// General Settings (Language + central config)
+// Design Settings (Logo, Language, Theme – no backend save, except logo)
 // ============================================================================
 
-export const GeneralSettingsForm: React.FC = () => {
+export const DesignSettingsForm: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const { mode, colorPreset, toggleMode, setColorPreset } = useThemeContext();
-  const [general, setGeneral] = useState<GeneralConfig | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    configApi.getGeneral().then(setGeneral).catch(() => setError('Laden fehlgeschlagen'));
-    // Check if logo exists
     fetch('/static/logo.png', { method: 'HEAD' })
       .then((r) => { if (r.ok) setLogoUrl('/static/logo.png?t=' + Date.now()); })
       .catch(() => null);
@@ -275,6 +270,7 @@ export const GeneralSettingsForm: React.FC = () => {
 
   const handleLogoUpload = async (file: File) => {
     setLogoUploading(true);
+    setError(null);
     try {
       await configApi.uploadLogo(file);
       setLogoUrl('/static/logo.png?t=' + Date.now());
@@ -286,6 +282,7 @@ export const GeneralSettingsForm: React.FC = () => {
   };
 
   const handleLogoDelete = async () => {
+    setError(null);
     try {
       await configApi.deleteLogo();
       setLogoUrl(null);
@@ -299,24 +296,8 @@ export const GeneralSettingsForm: React.FC = () => {
     localStorage.setItem('minabox-language', lng);
   };
 
-  const handleSaveGeneral = async () => {
-    if (!general) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const updated = await configApi.updateGeneral(general);
-      setGeneral(updated);
-      setSuccess(true);
-    } catch {
-      setError('Speichern fehlgeschlagen');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
-    <Box display="flex" flexDirection="column" gap={3} maxWidth={480}>
-      {/* Logo Upload */}
+    <Box display="flex" flexDirection="column" maxWidth={480} sx={{ gap: { xs: 2, sm: 3 } }}>
       <Box>
         <Typography variant="subtitle2" gutterBottom>{t('general.logo')}</Typography>
         <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
@@ -372,12 +353,10 @@ export const GeneralSettingsForm: React.FC = () => {
 
       <Divider />
 
-      {/* ─── Appearance ─────────────────────────────────────────── */}
       <Typography variant="subtitle2" color="text.secondary">
         {t('general.appearance')}
       </Typography>
 
-      {/* Dark / Light toggle */}
       <Box display="flex" alignItems="center" justifyContent="space-between">
         <Typography variant="body2">{t('general.color_mode')}</Typography>
         <ToggleButtonGroup
@@ -397,7 +376,6 @@ export const GeneralSettingsForm: React.FC = () => {
         </ToggleButtonGroup>
       </Box>
 
-      {/* Accent color */}
       <Box>
         <Typography variant="body2" gutterBottom>{t('general.accent_color')}</Typography>
         <Box display="flex" gap={1.5} flexWrap="wrap">
@@ -424,8 +402,43 @@ export const GeneralSettingsForm: React.FC = () => {
         </Box>
       </Box>
 
-      <Divider />
+      {error && <Alert severity="error">{error}</Alert>}
+    </Box>
+  );
+};
 
+// ============================================================================
+// General Settings (central config: device, MQTT, sleep timer – no Design)
+// ============================================================================
+
+export const GeneralSettingsForm: React.FC = () => {
+  const { t } = useTranslation('admin');
+  const [general, setGeneral] = useState<GeneralConfig | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    configApi.getGeneral().then(setGeneral).catch(() => setError('Laden fehlgeschlagen'));
+  }, []);
+
+  const handleSaveGeneral = async () => {
+    if (!general) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await configApi.updateGeneral(general);
+      setGeneral(updated);
+      setSuccess(true);
+    } catch {
+      setError('Speichern fehlgeschlagen');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Box display="flex" flexDirection="column" maxWidth={480} sx={{ gap: { xs: 2, sm: 3 } }}>
       {/* ─── Sleep Timer ──────────────────────────────────────────── */}
       <Typography variant="subtitle2" color="text.secondary">
         {t('general.sleep_timer')}
@@ -484,15 +497,6 @@ export const GeneralSettingsForm: React.FC = () => {
             size="small"
             fullWidth
             inputProps={{ min: 1, max: 65535 }}
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={general.disable_gpio}
-                onChange={(e) => setGeneral((p) => p ? { ...p, disable_gpio: e.target.checked } : p)}
-              />
-            }
-            label={t('general.disable_gpio')}
           />
           <Typography variant="caption" color="text.secondary">
             {t('general.restart_required')}

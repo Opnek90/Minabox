@@ -3,10 +3,14 @@
   "tabs": {
     "system": "System-Status",
     "general": "Allgemein",
+    "design": "Design",
     "audio": "Audio",
     "leds": "LEDs",
     "buttons": "Buttons",
     "rfid": "RFID"
+  },
+  "design": {
+    "title": "Design"
   },
   "system": {
     "title": "System-Status",

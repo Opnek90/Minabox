@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import { useTranslation } from 'react-i18next';
 
@@ -23,6 +23,12 @@ export const TrackInfo: React.FC<TrackInfoProps> = ({
   stopped = false,
 }) => {
   const { t } = useTranslation('player');
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const artSize = isSmall ? 120 : 180;
+  const iconSize = isSmall ? 48 : 80;
+  const maxTextWidth = isSmall ? '100%' : 320;
 
   return (
     <Box
@@ -30,41 +36,50 @@ export const TrackInfo: React.FC<TrackInfoProps> = ({
       flexDirection="column"
       alignItems="center"
       gap={1}
-      sx={{ py: 2, px: 3, textAlign: 'center' }}
+      sx={{
+        py: isSmall ? 1 : 2,
+        px: isSmall ? 2 : 3,
+        textAlign: 'center',
+      }}
     >
       {/* Album Art Placeholder */}
       <Box
         sx={{
-          width: 180,
-          height: 180,
-          borderRadius: 3,
+          width: artSize,
+          height: artSize,
+          borderRadius: 2,
           backgroundColor: 'primary.light',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          mb: 1,
-          boxShadow: 4,
+          mb: 0.5,
+          boxShadow: isSmall ? 2 : 4,
         }}
       >
-        <MusicNoteIcon sx={{ fontSize: 80, color: 'primary.contrastText' }} />
+        <MusicNoteIcon sx={{ fontSize: iconSize, color: 'primary.contrastText' }} />
       </Box>
 
       {stopped ? (
-        <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+        <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
           {t('nothing_playing')}
         </Typography>
       ) : (
         <>
-          <Typography variant="h5" fontWeight={700} noWrap sx={{ maxWidth: 320 }}>
+          <Typography
+            variant={isSmall ? 'body1' : 'h5'}
+            fontWeight={700}
+            noWrap
+            sx={{ maxWidth: maxTextWidth, width: '100%' }}
+          >
             {title ?? t('unknown_track')}
           </Typography>
 
-          <Typography variant="body1" color="text.secondary" noWrap sx={{ maxWidth: 320 }}>
+          <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: maxTextWidth, width: '100%' }}>
             {artist ?? t('unknown_artist')}
           </Typography>
 
           {album && (
-            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 320 }}>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: maxTextWidth, width: '100%' }}>
               {album}
             </Typography>
           )}

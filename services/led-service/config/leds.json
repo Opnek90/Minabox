@@ -21,10 +21,15 @@
           "duration_ms": 0
         },
         "audio_stopped": {
-          "pattern_type": "off"
+          "pattern_type": "off",
+          "duration_ms": 500,
+          "interval_ms": 500,
+          "repeat": 0
         },
         "audio_paused": {
-          "pattern_type": "off"
+          "pattern_type": "off",
+          "duration_ms": 200,
+          "repeat": 0
         }
       }
     },

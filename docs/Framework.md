@@ -46,6 +46,8 @@ docs/
       Architecture.md    # LED-Service Architektur (vorhanden)
     button/
       Architecture.md    # Button-Service Architektur (vorhanden)
+    host-helper/
+      Architecture.md    # Host-Helper-Service Architektur (systemnahe Aktionen)
     api/                 # Optionale zusätzliche API-Dokumentation (geplant)
 
 services/                # Technische Services (Implementierungen)
@@ -55,6 +57,7 @@ services/                # Technische Services (Implementierungen)
   webui-service/
   led-service/
   button-service/
+  host-helper-service/   # Optional: systemnahe Aktionen, nur vom Backend angesprochen
 
 shared/                  # Gemeinsame Libraries/Module (DRY)
 infrastructure/          # Infrastruktur-Konfigurationen (Mosquitto-Config, Monitoring, CI/CD)
@@ -63,12 +66,13 @@ install/                 # Installations-/Setup-Skripte und Anleitungen
 
 **Hinweise:**
 
-- **`docker-compose.yml` liegt direkt im Root** und orchestriert alle Services (MQTT-Broker, Backend, Audio, RFID, LED, Button, WebUI).
+- **`docker-compose.yml` liegt direkt im Root** und orchestriert alle Services (MQTT-Broker, Backend, Audio, RFID, LED, Button, WebUI, optional Host-Helper).
 - `infrastructure/` enthält nur Konfigurationsdateien für Infrastruktur-Komponenten (z.B. `mosquitto.conf`, Prometheus-Config, Grafana-Dashboards), aber **kein** eigenes Compose-File.
 - Jeder Service-Ordner unter `services/` verwendet die Standardstruktur aus Kapitel **4. Projekt-Struktur pro Service**.
 - Für jeden fachlichen Bereich existiert eine `Architecture.md` unter `docs/services/<bereich>/`.
 - `docs/services/backend/Architecture.md` deckt sowohl die REST-API als auch die Datenbankschicht ab, da der Backend-Service beide Verantwortlichkeiten innehat.
 - Alle Architecture.md-Dateien für die Hauptservices (RFID, Audio, Backend, WebUI, LED, Button) sind bereits vorhanden und beschreiben Aufgaben, Schnittstellen und Konfigurationsmodelle.
+- Der **Host-Helper-Service** (optional) kapselt systemnahe Aktionen auf dem Host (z.B. Dateien verschieben); er wird nur intern vom Backend angesprochen und ist nicht nach außen exponiert. Siehe `docs/services/host-helper/Architecture.md`.
 
 ---
 

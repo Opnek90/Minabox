@@ -25,6 +25,8 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -36,6 +38,7 @@ import { useTranslation } from 'react-i18next';
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import {
   AudioConfigForm,
+  DesignSettingsForm,
   GeneralSettingsForm,
   RFIDConfigForm,
 } from '@/components/admin/ConfigForm';
@@ -769,11 +772,13 @@ const ButtonConfigPanel: React.FC = () => {
 
 export const AdminPage: React.FC = () => {
   const { t } = useTranslation('admin');
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const [tab, setTab] = useState(0);
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
+    <Box sx={{ p: isSmall ? 1.5 : 3 }}>
+      <Typography variant="h5" fontWeight={700} gutterBottom sx={{ fontSize: isSmall ? '1.25rem' : undefined }}>
         {t('title')}
       </Typography>
 
@@ -782,10 +787,22 @@ export const AdminPage: React.FC = () => {
         onChange={(_, v) => setTab(v)}
         variant="scrollable"
         scrollButtons="auto"
-        sx={{ borderBottom: 1, borderColor: 'divider' }}
+        allowScrollButtonsMobile
+        visibleScrollbar
+        sx={{
+          borderBottom: 1,
+          borderColor: 'divider',
+          minHeight: 48,
+          '& .MuiTabs-flexContainer': { gap: 0 },
+          '& .MuiTabs-scroller': { overflowX: 'auto', WebkitOverflowScrolling: 'touch' },
+          ...(isSmall && {
+            '& .MuiTab-root': { minHeight: 40, py: 0.5, fontSize: '0.8rem' },
+          }),
+        }}
       >
         <Tab label={t('tabs.system')} />
         <Tab label={t('tabs.general')} />
+        <Tab label={t('tabs.design')} />
         <Tab label={t('tabs.audio')} />
         <Tab label={t('tabs.leds')} />
         <Tab label={t('tabs.buttons')} />
@@ -802,21 +819,26 @@ export const AdminPage: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tab} index={2}>
+        <Typography variant="h6" gutterBottom>{t('design.title')}</Typography>
+        <DesignSettingsForm />
+      </TabPanel>
+
+      <TabPanel value={tab} index={3}>
         <Typography variant="h6" gutterBottom>{t('audio.title')}</Typography>
         <AudioConfigForm />
       </TabPanel>
 
-      <TabPanel value={tab} index={3}>
+      <TabPanel value={tab} index={4}>
         <Typography variant="h6" gutterBottom>{t('leds.title')}</Typography>
         <LEDConfigPanel />
       </TabPanel>
 
-      <TabPanel value={tab} index={4}>
+      <TabPanel value={tab} index={5}>
         <Typography variant="h6" gutterBottom>{t('buttons.title')}</Typography>
         <ButtonConfigPanel />
       </TabPanel>
 
-      <TabPanel value={tab} index={5}>
+      <TabPanel value={tab} index={6}>
         <Typography variant="h6" gutterBottom>{t('rfid.title')}</Typography>
         <RFIDConfigForm />
       </TabPanel>

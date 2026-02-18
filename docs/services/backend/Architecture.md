@@ -235,6 +235,10 @@ Der Backend subscribed auf folgende MQTT-Topics:
 - `minabox/<device-id>/audio/config/update`
 - `minabox/<device-id>/audio/config/get`
 
+### 2.5 System-/Host-Operationen
+
+Aktionen, die direkt auf dem Host ausgeführt werden müssen (z.B. Dateien verschieben, später ggf. Netz- oder Mount-Konfiguration), werden **nicht** vom Backend selbst ausgeführt. Das Backend delegiert solche Anfragen an den **Host-Helper-Service**, der mit erweiterten Rechten läuft und nur intern erreichbar ist. Das Backend validiert die von der WebUI übergebenen Parameter und leitet sie an den Host-Helper weiter; Host-Details oder Fehler des Host-Helpers werden nicht ungefiltert an die WebUI durchgereicht. Details zu Rolle, Sicherheit und Schnittstelle des Host-Helpers: [docs/services/host-helper/Architecture.md](../host-helper/Architecture.md).
+
 ---
 
 ## 3. Datenbank-Schema

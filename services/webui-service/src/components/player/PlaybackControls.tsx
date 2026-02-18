@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, CircularProgress, IconButton, Tooltip } from '@mui/material';
+import { Box, CircularProgress, IconButton, Tooltip, useMediaQuery, useTheme } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import StopIcon from '@mui/icons-material/Stop';
@@ -28,20 +28,26 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   loading = false,
 }) => {
   const { t } = useTranslation('player');
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isPlaying = state === 'playing';
   const isStopped = state === 'stopped';
 
+  const mainSize = isSmall ? 48 : 64;
+  const iconSize = isSmall ? 24 : 32;
+  const progressSize = isSmall ? 22 : 28;
+
   return (
-    <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
+    <Box display="flex" alignItems="center" justifyContent="center" gap={isSmall ? 0.5 : 1}>
       <Tooltip title={t('controls.previous')}>
         <span>
           <IconButton
             onClick={onPrevious}
             disabled={loading || isStopped}
-            size="large"
+            size={isSmall ? 'medium' : 'large'}
             color="inherit"
           >
-            <SkipPreviousIcon fontSize="large" />
+            <SkipPreviousIcon fontSize={isSmall ? 'medium' : 'large'} />
           </IconButton>
         </span>
       </Tooltip>
@@ -56,18 +62,18 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             sx={{
               bgcolor: 'primary.main',
               color: 'primary.contrastText',
-              width: 64,
-              height: 64,
+              width: mainSize,
+              height: mainSize,
               '&:hover': { bgcolor: 'primary.dark' },
               '&.Mui-disabled': { bgcolor: 'action.disabledBackground' },
             }}
           >
             {loading ? (
-              <CircularProgress size={28} color="inherit" />
+              <CircularProgress size={progressSize} color="inherit" />
             ) : isPlaying ? (
-              <PauseIcon sx={{ fontSize: 32 }} />
+              <PauseIcon sx={{ fontSize: iconSize }} />
             ) : (
-              <PlayArrowIcon sx={{ fontSize: 32 }} />
+              <PlayArrowIcon sx={{ fontSize: iconSize }} />
             )}
           </IconButton>
         </span>
@@ -78,10 +84,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <IconButton
             onClick={onStop}
             disabled={loading || isStopped}
-            size="large"
+            size={isSmall ? 'medium' : 'large'}
             color="inherit"
           >
-            <StopIcon fontSize="large" />
+            <StopIcon fontSize={isSmall ? 'medium' : 'large'} />
           </IconButton>
         </span>
       </Tooltip>
@@ -91,10 +97,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <IconButton
             onClick={onNext}
             disabled={loading || isStopped}
-            size="large"
+            size={isSmall ? 'medium' : 'large'}
             color="inherit"
           >
-            <SkipNextIcon fontSize="large" />
+            <SkipNextIcon fontSize={isSmall ? 'medium' : 'large'} />
           </IconButton>
         </span>
       </Tooltip>

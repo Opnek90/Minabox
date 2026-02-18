@@ -10,6 +10,8 @@ import {
   List,
   ListItemButton,
   Popover,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import HotelIcon from '@mui/icons-material/Hotel';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -52,6 +54,8 @@ const BUTTON_ACTION_LABELS: Record<string, string> = {
 
 export const PlayerPage: React.FC = () => {
   const { t } = useTranslation('player');
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const audioStatus = useAudioStatus();
   const { lastMessage } = useWebSocket();
@@ -193,17 +197,21 @@ export const PlayerPage: React.FC = () => {
       display="flex"
       flexDirection="column"
       alignItems="center"
-      justifyContent="center"
-      sx={{ minHeight: '70vh', p: 2 }}
+      justifyContent={isSmall ? 'flex-start' : 'center'}
+      sx={{
+        minHeight: isSmall ? 0 : '70vh',
+        p: isSmall ? 1.5 : 2,
+        pb: 2,
+      }}
     >
       {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2, width: '100%', maxWidth: 480 }}>
+        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 1.5, width: '100%', maxWidth: 480 }}>
           {error}
         </Alert>
       )}
 
-      <Card sx={{ width: '100%', maxWidth: 480, borderRadius: 4, boxShadow: 6 }}>
-        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: '16px !important' }}>
+      <Card sx={{ width: '100%', maxWidth: 480, borderRadius: isSmall ? 2 : 4, boxShadow: isSmall ? 2 : 6 }}>
+        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: isSmall ? 1 : 2, pb: '16px !important' }}>
           {/* Status row: state chip + sleep timer + kiosk */}
           <Box display="flex" justifyContent="space-between" alignItems="center">
             <Chip
