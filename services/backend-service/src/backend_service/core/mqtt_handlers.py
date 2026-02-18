@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from sqlalchemy.orm import Session
 
-from backend_service.core.db_manager import db_manager
+import backend_service.core.db_manager as _db_module
 from backend_service.core.session_manager import session_manager
 from backend_service.exceptions import ContentNotFoundError
 from backend_service.models.database import Playlist, PlaylistTrack, Tag, Track
@@ -18,6 +18,10 @@ if TYPE_CHECKING:
     from backend_service.core.mqtt_client import MQTTClient
 
 logger = structlog.get_logger(__name__)
+
+# Last audio status (updated by handle_audio_status); used by routes_audio for play-after-pause
+_last_audio_status: dict[str, Any] = {}
+
 
 class MQTTHandlers:
     """Handles incoming MQTT messages and triggers appropriate actions."""
@@ -53,12 +57,12 @@ class MQTTHandlers:
         logger.info("rfid_tag_scanned_received", tag_id=tag_id)
 
         # Check if db_manager is initialized
-        if not db_manager:
+        if not _db_module.db_manager:
             logger.error("db_manager_not_initialized")
             return
 
         # Lookup tag in database
-        session = db_manager.get_session()
+        session = _db_module.db_manager.get_session()
         try:
             tag = session.query(Tag).filter(Tag.tag_id == tag_id).first()
 
@@ -139,12 +143,12 @@ class MQTTHandlers:
         # Create session
         session_manager.create_session(tracks=tracks, playlist_id=playlist_id)
 
-        # Start playback with first track
+        # Start playback with first track (audio service expects track_id as str)
         first_track = tracks[0]
         await self.mqtt_client.publish_audio_command(
             "play",
             {
-                "track_id": first_track.id,
+                "track_id": str(first_track.id),
                 "source_type": first_track.source_type,
                 "source_uri": first_track.source_uri,
                 "start_position_ms": 0,
@@ -173,11 +177,11 @@ class MQTTHandlers:
         # Create session with single track
         session_manager.create_session(tracks=[track])
 
-        # Start playback
+        # Start playback (audio service expects track_id as str)
         await self.mqtt_client.publish_audio_command(
             "play",
             {
-                "track_id": track.id,
+                "track_id": str(track.id),
                 "source_type": track.source_type,
                 "source_uri": track.source_uri,
                 "start_position_ms": 0,
@@ -204,40 +208,40 @@ class MQTTHandlers:
 
         logger.info("rfid_tag_scanned_learning_received", tag_id=tag_id)
 
-        # Check if db_manager is initialized
-        if not db_manager:
-            logger.error("db_manager_not_initialized")
-            return
-
-        # Check if tag already exists
-        session = db_manager.get_session()
-        try:
-            existing_tag = session.query(Tag).filter(Tag.tag_id == tag_id).first()
-            already_assigned = existing_tag is not None
-
-            logger.info(
-                "rfid_tag_learning_result",
-                tag_id=tag_id,
-                already_assigned=already_assigned,
-            )
-
-            # Broadcast to WebUI
-            if self.websocket_manager:
-                await self.websocket_manager.broadcast(
-                    {
-                        "type": "rfid_scanned_learning",
-                        "data": {
-                            "tag_id": tag_id,
-                            "already_assigned": already_assigned,
-                            "timestamp": datetime.now(UTC).isoformat(),
-                        },
-                    }
+        # Check if tag already exists in DB (best-effort; broadcast even if DB unavailable)
+        already_assigned = False
+        if _db_module.db_manager:
+            session = _db_module.db_manager.get_session()
+            try:
+                existing_tag = session.query(Tag).filter(Tag.tag_id == tag_id).first()
+                already_assigned = existing_tag is not None
+                logger.info(
+                    "rfid_tag_learning_result",
+                    tag_id=tag_id,
+                    already_assigned=already_assigned,
                 )
-        finally:
-            session.close()
+            finally:
+                session.close()
+        else:
+            logger.warning("db_manager_not_initialized_using_fallback", tag_id=tag_id)
+
+        # Broadcast to WebUI (always, regardless of DB state)
+        if self.websocket_manager:
+            await self.websocket_manager.broadcast(
+                {
+                    "type": "rfid_scanned_learning",
+                    "data": {
+                        "tag_id": tag_id,
+                        "already_assigned": already_assigned,
+                        "timestamp": datetime.now(UTC).isoformat(),
+                    },
+                }
+            )
 
     async def handle_audio_status(self, topic: str, data: dict[str, Any]) -> None:
         """Handle audio status update.
+
+        Enriches status with track title/artist/album from DB for WebUI display.
 
         Args:
             topic: MQTT topic
@@ -245,15 +249,36 @@ class MQTTHandlers:
         """
         logger.debug("audio_status_received", data=data)
 
-        # Cache status
+        # Cache status (module-level for routes_audio play-after-pause)
         self._audio_status_cache = data
+        _last_audio_status.clear()
+        _last_audio_status.update(data)
+
+        # Enrich with track metadata from DB (audio service only sends track_id)
+        payload = dict(data)
+        track_id_raw = payload.get("track_id")
+        if track_id_raw and _db_module.db_manager:
+            try:
+                tid = int(track_id_raw)
+            except (TypeError, ValueError):
+                tid = None
+            if tid is not None:
+                session = _db_module.db_manager.get_session()
+                try:
+                    track = session.query(Track).filter(Track.id == tid).first()
+                    if track:
+                        payload["track_title"] = track.title
+                        payload["track_artist"] = track.artist
+                        payload["track_album"] = track.album
+                finally:
+                    session.close()
 
         # Broadcast to WebUI
         if self.websocket_manager:
             await self.websocket_manager.broadcast(
                 {
                     "type": "audio_status",
-                    "data": data,
+                    "data": payload,
                 }
             )
 
@@ -275,10 +300,9 @@ class MQTTHandlers:
             await self._handle_next()
         elif action == "prev":
             await self._handle_prev()
-        elif action == "volume-up":
-            await self.mqtt_client.publish_audio_command("volume-up", {})
-        elif action == "volume-down":
-            await self.mqtt_client.publish_audio_command("volume-down", {})
+        elif action in ("volume-up", "volume-down"):
+            # Button service already sends volume commands directly to audio for low latency
+            pass
         elif action in ("mute", "mute-toggle"):
             await self.mqtt_client.publish_audio_command("mute-toggle", {})
 
@@ -301,15 +325,16 @@ class MQTTHandlers:
         if current_state == "playing":
             await self.mqtt_client.publish_audio_command("pause", {})
         elif current_state == "paused":
+            # Resume from paused position (empty payload = audio service resumes with last_position_ms)
             await self.mqtt_client.publish_audio_command("play", {})
         elif current_state == "stopped" and session_manager.session:
-            # Resume from session
+            # Resume from session (audio service expects track_id as str)
             track = session_manager.get_current_track()
             if track:
                 await self.mqtt_client.publish_audio_command(
                     "play",
                     {
-                        "track_id": track.id,
+                        "track_id": str(track.id),
                         "source_type": track.source_type,
                         "source_uri": track.source_uri,
                         "start_position_ms": 0,
@@ -317,13 +342,13 @@ class MQTTHandlers:
                 )
 
     async def _handle_next(self) -> None:
-        """Handle next button."""
+        """Handle next button (audio service expects track_id as str)."""
         next_track = session_manager.next_track()
         if next_track:
             await self.mqtt_client.publish_audio_command(
                 "play",
                 {
-                    "track_id": next_track.id,
+                    "track_id": str(next_track.id),
                     "source_type": next_track.source_type,
                     "source_uri": next_track.source_uri,
                     "start_position_ms": 0,
@@ -334,13 +359,13 @@ class MQTTHandlers:
             await self.mqtt_client.publish_audio_command("stop", {})
 
     async def _handle_prev(self) -> None:
-        """Handle previous button."""
+        """Handle previous button (audio service expects track_id as str)."""
         prev_track = session_manager.prev_track()
         if prev_track:
             await self.mqtt_client.publish_audio_command(
                 "play",
                 {
-                    "track_id": prev_track.id,
+                    "track_id": str(prev_track.id),
                     "source_type": prev_track.source_type,
                     "source_uri": prev_track.source_uri,
                     "start_position_ms": 0,

@@ -1,0 +1,37 @@
+{
+  "title": "RFID-Tags",
+  "tag_list": "Tag-Übersicht",
+  "no_tags": "Noch keine Tags vorhanden",
+  "learn_mode": "Neuen Tag scannen",
+  "learn_mode_active": "Lern-Modus aktiv – Bitte Tag auflegen",
+  "learn_mode_waiting": "Warte auf Tag...",
+  "learn_mode_found": "Tag erkannt: {{tag_id}}",
+  "learn_mode_cancel": "Lern-Modus beenden",
+  "new_tag_dialog": {
+    "title": "Neuen Tag einrichten",
+    "subtitle": "Tag-ID: {{tag_id}}",
+    "assign_content": "Inhalt zuordnen",
+    "content_type": "Inhaltstyp",
+    "content_type_playlist": "Playlist",
+    "content_type_track": "Track oder Stream",
+    "select_playlist": "Playlist auswählen",
+    "select_track": "Track auswählen",
+    "tag_name": "Tag-Name (optional)",
+    "tag_name_placeholder": "z.B. Frosch-Hörspiel"
+  },
+  "edit_tag": "Tag bearbeiten",
+  "delete_tag": "Tag löschen",
+  "delete_confirm": "Möchten Sie den Tag \"{{name}}\" wirklich löschen?",
+  "fields": {
+    "tag_id": "Tag-ID",
+    "name": "Name",
+    "content": "Zugeordneter Inhalt",
+    "content_type": "Inhaltstyp",
+    "created_at": "Erstellt am"
+  },
+  "search_placeholder": "Tags suchen...",
+  "sort": {
+    "name": "Nach Name",
+    "date": "Nach Datum"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "network_error": "Network error – Please check your connection",
+  "server_error": "Server error – Please try again",
+  "tag_not_found": "Tag not found",
+  "playlist_not_found": "Playlist not found",
+  "track_not_found": "Track not found",
+  "upload_failed": "Upload failed",
+  "upload_too_large": "File is too large",
+  "config_invalid": "Invalid configuration",
+  "config_save_failed": "Could not save configuration",
+  "generic_error": "An error occurred",
+  "websocket_error": "WebSocket connection error",
+  "audio_error": "Audio error",
+  "validation_error": "Please check your input",
+  "required_field": "This field is required",
+  "invalid_url": "Invalid URL"
+}

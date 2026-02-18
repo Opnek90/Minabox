@@ -1,0 +1,156 @@
+{
+  "title": "Settings",
+  "tabs": {
+    "system": "System Status",
+    "general": "General",
+    "audio": "Audio",
+    "leds": "LEDs",
+    "buttons": "Buttons",
+    "rfid": "RFID"
+  },
+  "system": {
+    "title": "System Status",
+    "services": "Services",
+    "last_updated": "Last Updated",
+    "uptime": "Uptime",
+    "uptime_value": "{{hours}}h {{minutes}}m",
+    "device_id": "Device ID",
+    "status_online": "Online",
+    "status_offline": "Offline",
+    "status_error": "Error",
+    "restart": "Restart Services",
+    "restart_confirm": "Do you want to restart all services?",
+    "view_logs": "View logs",
+    "logs_title": "Container logs",
+    "logs_placeholder": "Select service…",
+    "logs_loading": "Loading logs…",
+    "logs_unavailable": "Logs not available. On host: docker logs minabox-<service>"
+  },
+  "general": {
+    "title": "General Settings",
+    "language": "Language",
+    "language_de": "German",
+    "language_en": "English",
+    "device_id": "Device ID",
+    "theme": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "log_level": "Log Level",
+    "mqtt_broker": "MQTT Broker",
+    "mqtt_port": "MQTT Port",
+    "disable_gpio": "Disable GPIO (e.g. without hardware)",
+    "save_success": "Settings saved",
+    "restart_required": "Changes require a restart of services."
+  },
+  "audio": {
+    "title": "Audio Settings",
+    "output_device_type": "Output Device Type",
+    "output_device_name": "Output Device Name",
+    "output_device_name_placeholder": "e.g. hw:1,0",
+    "max_volume": "Maximum Volume (Child Safety)",
+    "default_volume": "Default Volume",
+    "resume_on_startup": "Resume playback on startup",
+    "fade_in": "Fade In (ms)",
+    "fade_out": "Fade Out (ms)",
+    "save_success": "Audio settings saved"
+  },
+  "leds": {
+    "title": "LED Settings",
+    "no_leds": "No LEDs configured",
+    "add_led": "Add LED",
+    "edit_led": "Edit LED",
+    "delete_led": "Remove LED",
+    "delete_confirm": "Do you really want to remove the LED \"{{name}}\"?",
+    "fields": {
+      "id": "ID",
+      "name": "Name",
+      "gpio": "GPIO Pin",
+      "bindings": "Bindings"
+    },
+    "bindings": {
+      "title": "State Bindings",
+      "state": "State",
+      "pattern": "Pattern",
+      "add": "Add Binding",
+      "patterns": {
+        "solid": "Solid",
+        "blink": "Blink",
+        "pulse": "Pulse",
+        "off": "Off"
+      },
+      "interval_ms": "Interval (ms)",
+      "duration_ms": "Duration (ms)",
+      "repeat": "Repeats (0 = infinite)"
+    },
+    "test_led": "Test",
+    "test_success": "LED test triggered",
+    "save_success": "LED settings saved"
+  },
+  "buttons": {
+    "title": "Button Settings",
+    "no_buttons": "No buttons configured",
+    "add_button": "Add Button",
+    "edit_button": "Edit Button",
+    "delete_button": "Remove Button",
+    "delete_confirm": "Do you really want to remove the button \"{{name}}\"?",
+    "fields": {
+      "id": "ID",
+      "name": "Name",
+      "type": "Type",
+      "mode": "Mode",
+      "gpio": "GPIO Pin",
+      "clk": "CLK Pin",
+      "dt": "DT Pin",
+      "sw": "SW Pin"
+    },
+    "types": {
+      "push": "Push Button",
+      "rotary": "Rotary Encoder"
+    },
+    "modes": {
+      "basic": "Basic (single action)",
+      "advanced": "Advanced (per event)"
+    },
+    "actions": {
+      "title": "Actions",
+      "event": "Event",
+      "action": "Action",
+      "events": {
+        "short_press": "Short Press",
+        "long_press": "Long Press",
+        "double_press": "Double Press",
+        "rotate_cw": "Rotate Right",
+        "rotate_ccw": "Rotate Left",
+        "press": "Press"
+      }
+    },
+    "test_button": "Test",
+    "test_modal": {
+      "title": "Button Test",
+      "description": "Press the button – detected events will appear here.",
+      "no_events": "No events yet...",
+      "event_log": "Event Log",
+      "close": "Close"
+    },
+    "save_success": "Button settings saved"
+  },
+  "rfid": {
+    "title": "RFID Settings",
+    "fields": {
+      "reader_type": "Reader Type",
+      "interface": "Interface",
+      "scan_interval_ms": "Scan Interval (ms)",
+      "duplicate_suppression_ms": "Duplicate Suppression (ms)"
+    },
+    "reader_types": {
+      "PN532": "PN532",
+      "Mock": "Mock (Simulation)"
+    },
+    "interfaces": {
+      "I2C": "I2C",
+      "SPI": "SPI",
+      "UART": "UART"
+    },
+    "save_success": "RFID settings saved"
+  }
+}

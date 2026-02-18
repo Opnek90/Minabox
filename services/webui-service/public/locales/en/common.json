@@ -1,0 +1,35 @@
+{
+  "app_name": "Minabox",
+  "navigation": {
+    "player": "Player",
+    "rfid": "RFID Tags",
+    "media": "Media Library",
+    "admin": "Settings"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "close": "Close",
+    "confirm": "Confirm",
+    "search": "Search",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "retry": "Retry"
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "error": "Error",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "connecting": "Connecting..."
+  },
+  "websocket": {
+    "connected": "Real-time connection active",
+    "disconnected": "Real-time connection lost",
+    "reconnecting": "Reconnecting..."
+  }
+}

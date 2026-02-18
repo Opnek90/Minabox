@@ -257,9 +257,19 @@ class LEDManager:
         Args:
             led_configs: List of LED configurations.
         """
-        # Clean up existing controllers
+        # Cancel running patterns and release GPIO pins synchronously so that
+        # new controllers for the same pins can be created immediately after.
         for controller in self._controllers.values():
-            asyncio.create_task(controller.cleanup())
+            if controller._current_task and not controller._current_task.done():
+                controller._current_task.cancel()
+            if controller._led is not None:
+                try:
+                    controller._led.off()
+                    controller._led.close()
+                except Exception:
+                    pass
+                controller._led = None
+                controller._gpio_available = False
         self._controllers.clear()
         
         # Initialize new controllers
@@ -283,6 +293,31 @@ class LEDManager:
         
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def test_led(self, led_id: str) -> bool:
+        """Flash an LED briefly for testing.
+
+        Uses the first available binding to trigger the LED's pattern.
+        Returns True if the LED was found and triggered, False otherwise.
+
+        Args:
+            led_id: The LED ID to test.
+        """
+        controller = self._controllers.get(led_id)
+        if not controller:
+            logger.warning("test_led_not_found", led_id=led_id)
+            return False
+
+        bindings = controller.config.bindings
+        if not bindings:
+            logger.warning("test_led_no_bindings", led_id=led_id)
+            return False
+
+        # Trigger the first available binding state
+        first_state = next(iter(bindings))
+        logger.info("test_led_triggered", led_id=led_id, state=first_state)
+        await controller.apply_pattern(first_state)
+        return True
 
     async def cleanup(self) -> None:
         """Clean up all LED controllers."""

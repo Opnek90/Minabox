@@ -1,0 +1,91 @@
+{
+  "title": "Mediathek",
+  "tabs": {
+    "playlists": "Playlists",
+    "tracks": "Tracks & Streams"
+  },
+  "playlists": {
+    "title": "Playlists",
+    "no_playlists": "Noch keine Playlists vorhanden",
+    "create": "Neue Playlist",
+    "play": "Abspielen",
+    "edit": "Playlist bearbeiten",
+    "delete": "Playlist löschen",
+    "delete_confirm": "Möchten Sie die Playlist \"{{name}}\" wirklich löschen?",
+    "add_tracks": "Tracks hinzufügen",
+    "track_count": "{{count}} Track",
+    "track_count_plural": "{{count}} Tracks",
+    "fields": {
+      "name": "Name",
+      "name_placeholder": "Playlist-Name eingeben",
+      "description": "Beschreibung",
+      "description_placeholder": "Optionale Beschreibung"
+    },
+    "track_order": "Reihenfolge",
+    "remove_track": "Track entfernen",
+    "edit_tracks": "Tracks bearbeiten",
+    "edit_tracks_add": "Track zur Playlist hinzufügen",
+    "edit_tracks_more": "… und {{count}} weitere",
+    "edit_tracks_no_match": "Keine Tracks gefunden."
+  },
+  "tracks": {
+    "title": "Tracks",
+    "no_tracks": "Noch keine Tracks vorhanden",
+    "play": "Abspielen",
+    "upload": "Track hochladen",
+    "add_stream": "Stream hinzufügen",
+    "edit": "Track bearbeiten",
+    "delete": "Track löschen",
+    "delete_confirm": "Möchten Sie den Track \"{{title}}\" wirklich löschen?",
+    "filter": {
+      "all": "Alle",
+      "files": "Dateien",
+      "streams": "Streams"
+    },
+    "fields": {
+      "title": "Titel",
+      "artist": "Künstler",
+      "album": "Album",
+      "duration": "Dauer",
+      "source": "Quelle"
+    },
+    "source_types": {
+      "file": "Datei",
+      "stream": "Stream"
+    }
+  },
+  "upload": {
+    "title": "Track hochladen",
+    "select_file": "Datei auswählen",
+    "drop_zone": "Datei hierher ziehen oder klicken zum Auswählen",
+    "drop_zone_active": "Datei loslassen...",
+    "supported_formats": "Unterstützte Formate: MP3, OGG, FLAC, WAV, M4A",
+    "uploading": "Wird hochgeladen...",
+    "progress": "{{percent}}% hochgeladen",
+    "success": "Track erfolgreich hochgeladen",
+    "fields": {
+      "title": "Titel",
+      "title_placeholder": "Track-Titel",
+      "artist": "Künstler",
+      "artist_placeholder": "Künstlername",
+      "album": "Album",
+      "album_placeholder": "Album-Name"
+    }
+  },
+  "stream": {
+    "title": "Stream hinzufügen",
+    "url": "Stream-URL",
+    "url_placeholder": "https://liveradio.swr.de/sw282p3/live.mp3",
+    "url_hint": "Zum Testen: SWR3 Live (oben) oder z. B. https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    "fields": {
+      "title": "Name",
+      "title_placeholder": "Stream-Name",
+      "artist": "Sender/Künstler",
+      "album": "Genre/Kategorie"
+    }
+  },
+  "track_selector": {
+    "title": "Track auswählen",
+    "search_placeholder": "Tracks suchen..."
+  }
+}

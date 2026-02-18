@@ -1,0 +1,28 @@
+{
+  "title": "Player",
+  "now_playing": "Now Playing",
+  "nothing_playing": "Nothing is playing",
+  "controls": {
+    "play": "Play",
+    "pause": "Pause",
+    "stop": "Stop",
+    "next": "Next Track",
+    "previous": "Previous Track"
+  },
+  "volume": "Volume",
+  "volume_label": "Volume: {{value}}%",
+  "progress": "Progress",
+  "playlist_info": "Track {{current}} of {{total}}",
+  "playlist_name": "Playlist: {{name}}",
+  "duration": "Duration",
+  "position": "Position",
+  "states": {
+    "playing": "Playing",
+    "paused": "Paused",
+    "stopped": "Stopped",
+    "error": "Error"
+  },
+  "unknown_track": "Unknown Track",
+  "unknown_artist": "Unknown Artist",
+  "unknown_album": "Unknown Album"
+}

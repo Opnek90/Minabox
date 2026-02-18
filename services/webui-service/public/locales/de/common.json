@@ -1,0 +1,35 @@
+{
+  "app_name": "Minabox",
+  "navigation": {
+    "player": "Wiedergabe",
+    "rfid": "RFID-Tags",
+    "media": "Mediathek",
+    "admin": "Einstellungen"
+  },
+  "actions": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "search": "Suchen",
+    "refresh": "Aktualisieren",
+    "loading": "Wird geladen...",
+    "retry": "Erneut versuchen"
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "error": "Fehler",
+    "connected": "Verbunden",
+    "disconnected": "Getrennt",
+    "connecting": "Verbinde..."
+  },
+  "websocket": {
+    "connected": "Echtzeit-Verbindung aktiv",
+    "disconnected": "Echtzeit-Verbindung getrennt",
+    "reconnecting": "Verbindung wird wiederhergestellt..."
+  }
+}

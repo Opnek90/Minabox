@@ -1,0 +1,28 @@
+{
+  "title": "Wiedergabe",
+  "now_playing": "Aktuell läuft",
+  "nothing_playing": "Nichts wird abgespielt",
+  "controls": {
+    "play": "Abspielen",
+    "pause": "Pausieren",
+    "stop": "Stoppen",
+    "next": "Nächster Track",
+    "previous": "Vorheriger Track"
+  },
+  "volume": "Lautstärke",
+  "volume_label": "Lautstärke: {{value}}%",
+  "progress": "Fortschritt",
+  "playlist_info": "Track {{current}} von {{total}}",
+  "playlist_name": "Playlist: {{name}}",
+  "duration": "Dauer",
+  "position": "Position",
+  "states": {
+    "playing": "Spielt",
+    "paused": "Pausiert",
+    "stopped": "Gestoppt",
+    "error": "Fehler"
+  },
+  "unknown_track": "Unbekannter Track",
+  "unknown_artist": "Unbekannter Künstler",
+  "unknown_album": "Unbekanntes Album"
+}

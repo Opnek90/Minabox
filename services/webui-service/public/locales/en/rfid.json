@@ -1,0 +1,37 @@
+{
+  "title": "RFID Tags",
+  "tag_list": "Tag Overview",
+  "no_tags": "No tags yet",
+  "learn_mode": "Scan New Tag",
+  "learn_mode_active": "Learn Mode active – Please place tag",
+  "learn_mode_waiting": "Waiting for tag...",
+  "learn_mode_found": "Tag detected: {{tag_id}}",
+  "learn_mode_cancel": "Cancel Learn Mode",
+  "new_tag_dialog": {
+    "title": "Set Up New Tag",
+    "subtitle": "Tag ID: {{tag_id}}",
+    "assign_content": "Assign Content",
+    "content_type": "Content Type",
+    "content_type_playlist": "Playlist",
+    "content_type_track": "Track or Stream",
+    "select_playlist": "Select Playlist",
+    "select_track": "Select Track",
+    "tag_name": "Tag Name (optional)",
+    "tag_name_placeholder": "e.g. Frog Audiobook"
+  },
+  "edit_tag": "Edit Tag",
+  "delete_tag": "Delete Tag",
+  "delete_confirm": "Do you really want to delete the tag \"{{name}}\"?",
+  "fields": {
+    "tag_id": "Tag ID",
+    "name": "Name",
+    "content": "Assigned Content",
+    "content_type": "Content Type",
+    "created_at": "Created At"
+  },
+  "search_placeholder": "Search tags...",
+  "sort": {
+    "name": "By Name",
+    "date": "By Date"
+  }
+}

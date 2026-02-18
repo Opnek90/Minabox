@@ -56,6 +56,7 @@ class MQTTClient:
         self._topics = self._build_subscription_topics()
         self._device_id = config.env.minabox_device_id
         self._topic_prefix = f"minabox/{self._device_id}/button"
+        self._audio_topic_prefix = f"minabox/{self._device_id}/audio"
 
     def _build_subscription_topics(self) -> list[str]:
         """Build list of MQTT topics to subscribe to.
@@ -219,6 +220,16 @@ class MQTTClient:
             event_type=event_type,
             topic=topic,
         )
+
+    async def publish_audio_command(self, action: str, payload: dict | None = None) -> None:
+        """Publish directly to audio service topic (e.g. volume-up, volume-down).
+
+        Used so rotary volume commands reach the audio service in one MQTT hop
+        instead of going via the backend, reducing latency.
+        """
+        topic = f"{self._audio_topic_prefix}/{action.replace('_', '-')}"
+        await self.publish(topic, payload or {}, qos=0, retain=False)
+        logger.debug("audio_command_published", action=action, topic=topic)
 
     async def publish_raw_event(
         self,

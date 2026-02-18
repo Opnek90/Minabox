@@ -1,0 +1,156 @@
+{
+  "title": "Einstellungen",
+  "tabs": {
+    "system": "System-Status",
+    "general": "Allgemein",
+    "audio": "Audio",
+    "leds": "LEDs",
+    "buttons": "Buttons",
+    "rfid": "RFID"
+  },
+  "system": {
+    "title": "System-Status",
+    "services": "Services",
+    "last_updated": "Zuletzt aktualisiert",
+    "uptime": "Laufzeit",
+    "uptime_value": "{{hours}}h {{minutes}}m",
+    "device_id": "Geräte-ID",
+    "status_online": "Online",
+    "status_offline": "Offline",
+    "status_error": "Fehler",
+    "restart": "Services neu starten",
+    "restart_confirm": "Möchten Sie alle Services neu starten?",
+    "view_logs": "Logs anzeigen",
+    "logs_title": "Container-Logs",
+    "logs_placeholder": "Service wählen…",
+    "logs_loading": "Lade Logs…",
+    "logs_unavailable": "Logs nicht verfügbar. Auf dem Host: docker logs minabox-<service>"
+  },
+  "general": {
+    "title": "Allgemeine Einstellungen",
+    "language": "Sprache",
+    "language_de": "Deutsch",
+    "language_en": "Englisch",
+    "device_id": "Geräte-ID",
+    "theme": "Design",
+    "log_level": "Log-Level",
+    "mqtt_broker": "MQTT-Broker",
+    "mqtt_port": "MQTT-Port",
+    "disable_gpio": "GPIO deaktivieren (z. B. ohne Hardware)",
+    "save_success": "Einstellungen gespeichert",
+    "restart_required": "Änderungen erfordern Neustart der Services.",
+    "theme_light": "Hell",
+    "theme_dark": "Dunkel"
+  },
+  "audio": {
+    "title": "Audio-Einstellungen",
+    "output_device_type": "Ausgabegerät-Typ",
+    "output_device_name": "Ausgabegerät-Name",
+    "output_device_name_placeholder": "z.B. hw:1,0",
+    "max_volume": "Maximale Lautstärke (Kinderschutz)",
+    "default_volume": "Standard-Lautstärke",
+    "resume_on_startup": "Wiedergabe beim Start fortsetzen",
+    "fade_in": "Einblendung (ms)",
+    "fade_out": "Ausblendung (ms)",
+    "save_success": "Audio-Einstellungen gespeichert"
+  },
+  "leds": {
+    "title": "LED-Einstellungen",
+    "no_leds": "Keine LEDs konfiguriert",
+    "add_led": "LED hinzufügen",
+    "edit_led": "LED bearbeiten",
+    "delete_led": "LED entfernen",
+    "delete_confirm": "Möchten Sie die LED \"{{name}}\" wirklich entfernen?",
+    "fields": {
+      "id": "ID",
+      "name": "Name",
+      "gpio": "GPIO-Pin",
+      "bindings": "Zuordnungen"
+    },
+    "bindings": {
+      "title": "Status-Zuordnungen",
+      "state": "Zustand",
+      "pattern": "Muster",
+      "add": "Zuordnung hinzufügen",
+      "patterns": {
+        "solid": "Dauerlicht",
+        "blink": "Blinken",
+        "pulse": "Pulsieren",
+        "off": "Aus"
+      },
+      "interval_ms": "Intervall (ms)",
+      "duration_ms": "Dauer (ms)",
+      "repeat": "Wiederholungen (0 = endlos)"
+    },
+    "test_led": "Testen",
+    "test_success": "LED-Test ausgelöst",
+    "save_success": "LED-Einstellungen gespeichert"
+  },
+  "buttons": {
+    "title": "Button-Einstellungen",
+    "no_buttons": "Keine Buttons konfiguriert",
+    "add_button": "Button hinzufügen",
+    "edit_button": "Button bearbeiten",
+    "delete_button": "Button entfernen",
+    "delete_confirm": "Möchten Sie den Button \"{{name}}\" wirklich entfernen?",
+    "fields": {
+      "id": "ID",
+      "name": "Name",
+      "type": "Typ",
+      "mode": "Modus",
+      "gpio": "GPIO-Pin",
+      "clk": "CLK-Pin",
+      "dt": "DT-Pin",
+      "sw": "SW-Pin"
+    },
+    "types": {
+      "push": "Taster",
+      "rotary": "Drehgeber"
+    },
+    "modes": {
+      "basic": "Einfach (eine Aktion)",
+      "advanced": "Erweitert (pro Ereignis)"
+    },
+    "actions": {
+      "title": "Aktionen",
+      "event": "Ereignis",
+      "action": "Aktion",
+      "events": {
+        "short_press": "Kurz drücken",
+        "long_press": "Lang drücken",
+        "double_press": "Doppelklick",
+        "rotate_cw": "Drehen rechts",
+        "rotate_ccw": "Drehen links",
+        "press": "Drücken"
+      }
+    },
+    "test_button": "Testen",
+    "test_modal": {
+      "title": "Button-Test",
+      "description": "Drücke den Button – erkannte Ereignisse erscheinen hier.",
+      "no_events": "Noch keine Ereignisse...",
+      "event_log": "Ereignis-Protokoll",
+      "close": "Schließen"
+    },
+    "save_success": "Button-Einstellungen gespeichert"
+  },
+  "rfid": {
+    "title": "RFID-Einstellungen",
+    "fields": {
+      "reader_type": "Leser-Typ",
+      "interface": "Schnittstelle",
+      "scan_interval_ms": "Scan-Intervall (ms)",
+      "duplicate_suppression_ms": "Duplikat-Unterdrückung (ms)"
+    },
+    "reader_types": {
+      "PN532": "PN532",
+      "Mock": "Mock (Simulation)"
+    },
+    "interfaces": {
+      "I2C": "I2C",
+      "SPI": "SPI",
+      "UART": "UART"
+    },
+    "save_success": "RFID-Einstellungen gespeichert"
+  }
+}

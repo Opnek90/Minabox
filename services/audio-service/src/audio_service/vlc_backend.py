@@ -4,6 +4,7 @@ Uses python-vlc to provide audio playback functionality.
 """
 
 import asyncio
+import os
 from pathlib import Path
 
 import structlog
@@ -54,27 +55,38 @@ class VLCBackend(AudioBackend):
         try:
             # AUTO-DETECT: If config is set to 'auto', detect best device
             if self._config.output_device_type == OutputDeviceType.AUTO:
-                logger.info("audio_device_auto_detection_starting")
-
-                from .audio_detector import AudioDeviceDetector
-
-                detector = AudioDeviceDetector()
-                best_device = await detector.get_best_device()
-
-                if best_device:
+                # Prefer PulseAudio when available — VLC's direct ALSA output
+                # pre-buffers ~1-2s of audio (hardcoded AOUT_MAX_PREPARE_TIME),
+                # causing a matching delay before volume changes are audible.
+                # PulseAudio applies per-stream volume with ~20-100ms latency.
+                pulse_server = os.environ.get("PULSE_SERVER")
+                if pulse_server:
                     logger.info(
-                        "audio_device_auto_detected",
-                        card=best_device.card_name,
-                        device=best_device.alsa_device,
-                        name=best_device.name,
+                        "audio_device_using_pulseaudio",
+                        pulse_server=pulse_server,
                     )
-                    # Override config with detected device
-                    self._config.output_device_type = OutputDeviceType.ALSA
-                    self._config.output_device_name = best_device.alsa_device
+                    self._config.output_device_type = OutputDeviceType.PULSEAUDIO
                 else:
-                    logger.warning("audio_device_auto_detection_failed_using_default")
-                    self._config.output_device_type = OutputDeviceType.DEFAULT
-                    self._config.output_device_name = "default"
+                    logger.info("audio_device_auto_detection_starting")
+
+                    from .audio_detector import AudioDeviceDetector
+
+                    detector = AudioDeviceDetector()
+                    best_device = await detector.get_best_device()
+
+                    if best_device:
+                        logger.info(
+                            "audio_device_auto_detected",
+                            card=best_device.card_name,
+                            device=best_device.alsa_device,
+                            name=best_device.name,
+                        )
+                        self._config.output_device_type = OutputDeviceType.ALSA
+                        self._config.output_device_name = best_device.alsa_device
+                    else:
+                        logger.warning("audio_device_auto_detection_failed_using_default")
+                        self._config.output_device_type = OutputDeviceType.DEFAULT
+                        self._config.output_device_name = "default"
 
             # Create VLC instance with audio output configuration
             vlc_args = self._build_vlc_args()

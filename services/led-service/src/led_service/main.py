@@ -160,6 +160,9 @@ class LEDService:
             # Re-initialize LEDs
             self.led_manager.initialize_leds(new_config.leds)
             
+            # Restore system_online state – device is still running
+            asyncio.create_task(self.led_manager.apply_state("system_online"))
+            
             logger.info("config_hot_reload_success")
         except Exception as exc:
             logger.error(
@@ -177,6 +180,9 @@ class LEDService:
             
             # Re-initialize LEDs
             self.led_manager.initialize_leds(new_config.leds)
+            
+            # Restore system_online state – device is still running
+            asyncio.create_task(self.led_manager.apply_state("system_online"))
             
             logger.info("config_reload_success")
         except Exception as exc:

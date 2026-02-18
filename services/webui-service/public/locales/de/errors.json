@@ -1,0 +1,17 @@
+{
+  "network_error": "Netzwerkfehler – Bitte prüfen Sie die Verbindung",
+  "server_error": "Serverfehler – Bitte versuchen Sie es erneut",
+  "tag_not_found": "Tag nicht gefunden",
+  "playlist_not_found": "Playlist nicht gefunden",
+  "track_not_found": "Track nicht gefunden",
+  "upload_failed": "Upload fehlgeschlagen",
+  "upload_too_large": "Datei ist zu groß",
+  "config_invalid": "Ungültige Konfiguration",
+  "config_save_failed": "Konfiguration konnte nicht gespeichert werden",
+  "generic_error": "Ein Fehler ist aufgetreten",
+  "websocket_error": "WebSocket-Verbindungsfehler",
+  "audio_error": "Audio-Fehler",
+  "validation_error": "Bitte prüfen Sie die Eingaben",
+  "required_field": "Dieses Feld ist erforderlich",
+  "invalid_url": "Ungültige URL"
+}

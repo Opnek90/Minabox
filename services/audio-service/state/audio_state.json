@@ -1,8 +1,8 @@
 {
-  "last_track_id": "test_001",
-  "last_source_type": "file",
-  "last_source_uri": "/mnt/audio/test/test.mp3",
-  "last_position_ms": -1,
-  "last_state": "stopped",
-  "last_volume": 0
+  "last_track_id": "4",
+  "last_source_type": "stream",
+  "last_source_uri": "http://wdr-1live-live.icecast.wdr.de/wdr/1live/live/mp3/128/stream.mp3",
+  "last_position_ms": 8596,
+  "last_state": "paused",
+  "last_volume": 23
 }

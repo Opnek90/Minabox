@@ -1,0 +1,91 @@
+{
+  "title": "Media Library",
+  "tabs": {
+    "playlists": "Playlists",
+    "tracks": "Tracks & Streams"
+  },
+  "playlists": {
+    "title": "Playlists",
+    "no_playlists": "No playlists yet",
+    "create": "New Playlist",
+    "play": "Play",
+    "edit": "Edit Playlist",
+    "delete": "Delete Playlist",
+    "delete_confirm": "Do you really want to delete the playlist \"{{name}}\"?",
+    "add_tracks": "Add Tracks",
+    "track_count": "{{count}} track",
+    "track_count_plural": "{{count}} tracks",
+    "fields": {
+      "name": "Name",
+      "name_placeholder": "Enter playlist name",
+      "description": "Description",
+      "description_placeholder": "Optional description"
+    },
+    "track_order": "Order",
+    "remove_track": "Remove Track",
+    "edit_tracks": "Edit Tracks",
+    "edit_tracks_add": "Add track to playlist",
+    "edit_tracks_more": "… and {{count}} more",
+    "edit_tracks_no_match": "No tracks found."
+  },
+  "tracks": {
+    "title": "Tracks",
+    "no_tracks": "No tracks yet",
+    "play": "Play",
+    "upload": "Upload Track",
+    "add_stream": "Add Stream",
+    "edit": "Edit Track",
+    "delete": "Delete Track",
+    "delete_confirm": "Do you really want to delete the track \"{{title}}\"?",
+    "filter": {
+      "all": "All",
+      "files": "Files",
+      "streams": "Streams"
+    },
+    "fields": {
+      "title": "Title",
+      "artist": "Artist",
+      "album": "Album",
+      "duration": "Duration",
+      "source": "Source"
+    },
+    "source_types": {
+      "file": "File",
+      "stream": "Stream"
+    }
+  },
+  "upload": {
+    "title": "Upload Track",
+    "select_file": "Select File",
+    "drop_zone": "Drag file here or click to select",
+    "drop_zone_active": "Drop file here...",
+    "supported_formats": "Supported formats: MP3, OGG, FLAC, WAV, M4A",
+    "uploading": "Uploading...",
+    "progress": "{{percent}}% uploaded",
+    "success": "Track uploaded successfully",
+    "fields": {
+      "title": "Title",
+      "title_placeholder": "Track title",
+      "artist": "Artist",
+      "artist_placeholder": "Artist name",
+      "album": "Album",
+      "album_placeholder": "Album name"
+    }
+  },
+  "stream": {
+    "title": "Add Stream",
+    "url": "Stream URL",
+    "url_placeholder": "https://liveradio.swr.de/sw282p3/live.mp3",
+    "url_hint": "To test: SWR3 Live (above) or e.g. https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    "fields": {
+      "title": "Name",
+      "title_placeholder": "Stream name",
+      "artist": "Station/Artist",
+      "album": "Genre/Category"
+    }
+  },
+  "track_selector": {
+    "title": "Select Track",
+    "search_placeholder": "Search tracks..."
+  }
+}

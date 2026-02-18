@@ -180,7 +180,7 @@ class MQTTMessageHandler:
     async def _handle_play(self, data: dict[str, Any]) -> None:
         """Handle play command."""
         try:
-            if data:  # New track
+            if "source_uri" in data:  # Full play command with source
                 command = PlayCommand(**data)
                 logger.info(
                     "play_command_received",
@@ -189,7 +189,7 @@ class MQTTMessageHandler:
                 )
                 if self._on_play:
                     await self._on_play(command)
-            else:  # Resume
+            else:  # Resume (empty payload or timestamp-only)
                 logger.info("play_resume_command_received")
                 if self._on_play:
                     await self._on_play(None)

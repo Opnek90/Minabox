@@ -161,12 +161,9 @@ class StateManager:
         logger.info("state_cleared")
 
     def can_resume(self) -> bool:
-        """Check if resume is possible.
+        """Check if resume is possible (we have a last source to resume).
 
         Returns:
-            True if valid resume state exists
+            True if we have a last source URI (stream or file) to resume.
         """
-        return self._state.last_source_uri is not None and self._state.last_state in (
-            PlaybackState.PLAYING.value,
-            PlaybackState.PAUSED.value,
-        )
+        return self._state.last_source_uri is not None

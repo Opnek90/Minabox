@@ -74,10 +74,20 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
       - API_PORT=8080
       - WS_ENABLED=true
+      - CONFIG_SERVICES_PATH=/app/config_services
+      - DISABLE_GPIO=${DISABLE_GPIO:-false}
     volumes:
       - ./data:/data
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio
       - ./services/backend-service/config:/app/config:ro
+      - ./services/audio-service/config:/app/config_services/audio
+      - ./services/led-service/config:/app/config_services/led
+      - ./services/button-service/config:/app/config_services/button
+      - ./services/rfid-service/config:/app/config_services/rfid
+      # Optional: mount Docker socket so Admin UI can show container logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    group_add:
+      - "999"   # docker group GID (typical on Linux) for socket access
     networks:
       - minabox-network
     depends_on:

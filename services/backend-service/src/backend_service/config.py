@@ -24,10 +24,17 @@ class ConfigError(Exception):
     pass
 
 
+def _general_settings_path() -> Path:
+    """Path to optional general settings override (e.g. /data/general_settings.json)."""
+    data_path = os.environ.get("DATA_PATH", "/data")
+    return Path(data_path) / "general_settings.json"
+
+
 def _load_env_config() -> EnvConfig:
     """Load required environment variables into an EnvConfig.
 
     Fails fast with a clear error message if any required variable is missing.
+    Optional: overrides from /data/general_settings.json if present.
     """
     required_keys = ("MQTT_BROKER", "MQTT_PORT", "MINABOX_DEVICE_ID", "LOG_LEVEL")
 
@@ -41,6 +48,22 @@ def _load_env_config() -> EnvConfig:
     mqtt_port_raw = os.environ["MQTT_PORT"]
     device_id = os.environ["MINABOX_DEVICE_ID"]
     log_level = os.environ["LOG_LEVEL"].upper()
+
+    # Optional overrides from general_settings.json (takes effect after restart)
+    gs_path = _general_settings_path()
+    if gs_path.exists():
+        try:
+            data = json.loads(gs_path.read_text(encoding="utf-8"))
+            if "mqtt_broker" in data:
+                mqtt_broker = str(data["mqtt_broker"])
+            if "mqtt_port" in data:
+                mqtt_port_raw = str(data["mqtt_port"])
+            if "minabox_device_id" in data:
+                device_id = str(data["minabox_device_id"])
+            if "log_level" in data:
+                log_level = str(data["log_level"]).upper()
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("general_settings_load_failed", path=str(gs_path), error=str(e))
 
     try:
         mqtt_port = int(mqtt_port_raw)

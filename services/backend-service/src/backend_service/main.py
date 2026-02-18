@@ -20,6 +20,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend_service.api import api_router
 from backend_service.api.routes_audio import set_mqtt_client as set_audio_mqtt_client
+from backend_service.api.routes_config import set_mqtt_client as set_config_mqtt_client
+from backend_service.api.routes_rfid import set_mqtt_client as set_rfid_mqtt_client
 from backend_service.api.routes_system import set_mqtt_client as set_system_mqtt_client
 from backend_service.api.websocket import websocket_endpoint, ws_manager
 from backend_service.config import load_app_config
@@ -83,6 +85,8 @@ class BackendService:
 
         # Inject MQTT client into route modules
         set_audio_mqtt_client(self._mqtt_client)
+        set_config_mqtt_client(self._mqtt_client)
+        set_rfid_mqtt_client(self._mqtt_client)
         set_system_mqtt_client(self._mqtt_client)
 
         # Start MQTT listening task
