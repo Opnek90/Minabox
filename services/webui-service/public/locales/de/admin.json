@@ -37,10 +37,19 @@
     "mqtt_broker": "MQTT-Broker",
     "mqtt_port": "MQTT-Port",
     "disable_gpio": "GPIO deaktivieren (z. B. ohne Hardware)",
+    "sleep_timer": "Sleep-Timer",
+    "sleep_timer_minutes": "Standard-Dauer per Button (Minuten)",
+    "sleep_timer_minutes_hint": "Dauer, die beim Aktivieren des Sleep-Timers per physischem Button verwendet wird.",
     "save_success": "Einstellungen gespeichert",
     "restart_required": "Änderungen erfordern Neustart der Services.",
     "theme_light": "Hell",
-    "theme_dark": "Dunkel"
+    "theme_dark": "Dunkel",
+    "logo": "Eigenes Logo",
+    "logo_upload": "Logo hochladen",
+    "logo_delete": "Logo entfernen",
+    "appearance": "Erscheinungsbild",
+    "color_mode": "Farbmodus",
+    "accent_color": "Akzentfarbe"
   },
   "audio": {
     "title": "Audio-Einstellungen",

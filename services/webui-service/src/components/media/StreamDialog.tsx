@@ -70,7 +70,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('stream.title')}</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         <TextField
           label={t('stream.url')}
           placeholder={t('stream.url_placeholder')}

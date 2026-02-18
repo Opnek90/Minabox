@@ -28,6 +28,7 @@ export interface Tag {
   content_id: number;
   created_at: string;
   updated_at: string;
+  last_scanned_at: string | null;
 }
 
 export interface TagCreate {
@@ -55,6 +56,7 @@ export interface Playlist {
   id: number;
   name: string;
   description: string | null;
+  cover_art_url: string | null;
   created_at: string;
   updated_at: string;
   tracks?: PlaylistTrack[] | Track[];
@@ -102,6 +104,7 @@ export interface Track {
   source_type: SourceType;
   source_uri: string;
   created_at: string;
+  last_played_at: string | null;
 }
 
 export interface TrackCreate {
@@ -244,6 +247,12 @@ export interface GeneralConfig {
   mqtt_broker: string;
   mqtt_port: number;
   disable_gpio: boolean;
+  sleep_timer_minutes: number;
+}
+
+export interface SleepTimerStatus {
+  active: boolean;
+  remaining_ms: number | null;
 }
 
 export interface ServiceLogsResponse {
@@ -261,6 +270,9 @@ export type WebSocketMessageType =
   | 'rfid_scanned'
   | 'rfid_scanned_learning'
   | 'rfid_removed'
+  | 'tag_not_found'
+  | 'button_action'
+  | 'sleep_timer_status'
   | 'service_status'
   | 'system_status'
   | 'error';

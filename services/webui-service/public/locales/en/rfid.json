@@ -27,7 +27,14 @@
     "name": "Name",
     "content": "Assigned Content",
     "content_type": "Content Type",
-    "created_at": "Created At"
+    "created_at": "Created At",
+    "last_scanned": "Last scanned"
+  },
+  "notification": {
+    "recognized": "Tag recognized: {{name}}",
+    "unknown_tag": "Unknown tag scanned",
+    "assign_now": "Assign now",
+    "unknown": "Unknown"
   },
   "search_placeholder": "Search tags...",
   "sort": {

@@ -3,9 +3,14 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Snackbar,
   Tab,
   Tabs,
+  TextField,
   Typography,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -43,6 +48,11 @@ export const MediaPage: React.FC = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [streamOpen, setStreamOpen] = useState(false);
 
+  // Track edit state
+  const [editTrack, setEditTrack] = useState<Track | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
+  const [editSaving, setEditSaving] = useState(false);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -54,11 +64,11 @@ export const MediaPage: React.FC = () => {
       setPlaylists(playlistsData);
       setTracks(tracksData);
     } catch {
-      setError('Fehler beim Laden der Daten');
+      setError(t('tracks.load_error'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadData();
@@ -67,10 +77,38 @@ export const MediaPage: React.FC = () => {
   const handleTrackDelete = async (track: Track) => {
     try {
       await tracksApi.delete(track.id);
-      setTracks((prev) => prev.filter((t) => t.id !== track.id));
-      setSuccessMessage('Track gelöscht');
+      setTracks((prev) => prev.filter((tr) => tr.id !== track.id));
+      setSuccessMessage(t('tracks.deleted'));
     } catch {
-      setError('Track konnte nicht gelöscht werden');
+      setError(t('tracks.delete_error'));
+    }
+  };
+
+  const handleTrackEdit = (track: Track) => {
+    setEditTrack(track);
+    setEditForm({
+      title: track.title,
+      artist: track.artist ?? '',
+      album: track.album ?? '',
+    });
+  };
+
+  const handleTrackEditSave = async () => {
+    if (!editTrack) return;
+    setEditSaving(true);
+    try {
+      const updated = await tracksApi.update(editTrack.id, {
+        title: editForm.title.trim() || editTrack.title,
+        artist: editForm.artist.trim() || null,
+        album: editForm.album.trim() || null,
+      });
+      setTracks((prev) => prev.map((tr) => (tr.id === updated.id ? updated : tr)));
+      setEditTrack(null);
+      setSuccessMessage(t('tracks.updated'));
+    } catch {
+      setError(t('tracks.update_error'));
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -107,26 +145,58 @@ export const MediaPage: React.FC = () => {
       {/* Tracks Tab */}
       <TabPanel value={tab} index={1}>
         <Box display="flex" gap={2} mb={2} justifyContent="flex-end" flexWrap="wrap">
-          <Button
-            variant="outlined"
-            startIcon={<StreamIcon />}
-            onClick={() => setStreamOpen(true)}
-          >
+          <Button variant="outlined" startIcon={<StreamIcon />} onClick={() => setStreamOpen(true)}>
             {t('tracks.add_stream')}
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<CloudUploadIcon />}
-            onClick={() => setUploadOpen(true)}
-          >
+          <Button variant="contained" startIcon={<CloudUploadIcon />} onClick={() => setUploadOpen(true)}>
             {t('tracks.upload')}
           </Button>
         </Box>
         <TrackList
           tracks={tracks}
           onDelete={handleTrackDelete}
+          onEdit={handleTrackEdit}
         />
       </TabPanel>
+
+      {/* Track Edit Dialog */}
+      <Dialog open={!!editTrack} onClose={() => setEditTrack(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>{t('tracks.edit')}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
+          <TextField
+            label={t('tracks.fields.title')}
+            value={editForm.title}
+            onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
+            size="small"
+            fullWidth
+            required
+          />
+          <TextField
+            label={t('tracks.fields.artist')}
+            value={editForm.artist}
+            onChange={(e) => setEditForm((p) => ({ ...p, artist: e.target.value }))}
+            size="small"
+            fullWidth
+          />
+          <TextField
+            label={t('tracks.fields.album')}
+            value={editForm.album}
+            onChange={(e) => setEditForm((p) => ({ ...p, album: e.target.value }))}
+            size="small"
+            fullWidth
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditTrack(null)}>{t('cancel', { ns: 'common' })}</Button>
+          <Button
+            variant="contained"
+            onClick={handleTrackEditSave}
+            disabled={editSaving || !editForm.title.trim()}
+          >
+            {t('save', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Upload Dialog */}
       <UploadDialog
@@ -135,7 +205,7 @@ export const MediaPage: React.FC = () => {
         onSuccess={(track) => {
           setTracks((prev) => [...prev, track]);
           setUploadOpen(false);
-          setSuccessMessage('Track hochgeladen');
+          setSuccessMessage(t('tracks.uploaded'));
         }}
       />
 
@@ -146,7 +216,7 @@ export const MediaPage: React.FC = () => {
         onSuccess={(track) => {
           setTracks((prev) => [...prev, track]);
           setStreamOpen(false);
-          setSuccessMessage('Stream hinzugefügt');
+          setSuccessMessage(t('tracks.stream_added'));
         }}
       />
 

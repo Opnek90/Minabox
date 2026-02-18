@@ -8,7 +8,8 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    fallbackLng: 'de',
+    fallbackLng: 'en',
+    lng: localStorage.getItem('minabox-language') ?? 'en',
     supportedLngs: ['de', 'en'],
     ns: ['common', 'player', 'rfid', 'media', 'admin', 'errors'],
     defaultNS: 'common',

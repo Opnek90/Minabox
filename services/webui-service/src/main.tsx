@@ -1,60 +1,66 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { createTheme, CssBaseline, ThemeProvider } from '@mui/material';
 import { WebSocketProvider } from '@/contexts/WebSocketContext';
+import { ThemeContextProvider, useThemeContext } from '@/contexts/ThemeContext';
 import App from '@/App';
 import '@/i18n';
 
 // ============================================================================
-// MUI Theme
+// Themed wrapper – reads ThemeContext and builds the MUI theme dynamically
 // ============================================================================
 
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#e65100', // Deep orange – warm, child-friendly
-      light: '#ff8a50',
-      dark: '#ac1900',
-      contrastText: '#ffffff',
-    },
-    secondary: {
-      main: '#00838f', // Teal – complementary
-      light: '#4fb3bf',
-      dark: '#005662',
-      contrastText: '#ffffff',
-    },
-    background: {
-      default: '#f5f5f5',
-      paper: '#ffffff',
-    },
-  },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h5: { fontWeight: 700 },
-    h6: { fontWeight: 600 },
-  },
-  shape: {
-    borderRadius: 8,
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: 'none',
-          borderRadius: 8,
+const ThemedApp: React.FC = () => {
+  const { mode, primaryColor } = useThemeContext();
+
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode,
+          primary: primaryColor,
+          secondary: {
+            main: '#00838f',
+            light: '#4fb3bf',
+            dark: '#005662',
+            contrastText: '#ffffff',
+          },
+          ...(mode === 'dark'
+            ? {
+                background: { default: '#121212', paper: '#1e1e1e' },
+              }
+            : {
+                background: { default: '#f5f5f5', paper: '#ffffff' },
+              }),
         },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
+        typography: {
+          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+          h5: { fontWeight: 700 },
+          h6: { fontWeight: 600 },
         },
-      },
-    },
-  },
-});
+        shape: { borderRadius: 8 },
+        components: {
+          MuiButton: {
+            styleOverrides: { root: { textTransform: 'none', borderRadius: 8 } },
+          },
+          MuiCard: {
+            styleOverrides: { root: { borderRadius: 12 } },
+          },
+        },
+      }),
+    [mode, primaryColor]
+  );
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <WebSocketProvider>
+        <App />
+      </WebSocketProvider>
+    </ThemeProvider>
+  );
+};
 
 // ============================================================================
 // Entry Point
@@ -66,12 +72,9 @@ if (!rootElement) throw new Error('Root element not found');
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <WebSocketProvider>
-          <App />
-        </WebSocketProvider>
-      </ThemeProvider>
+      <ThemeContextProvider>
+        <ThemedApp />
+      </ThemeContextProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

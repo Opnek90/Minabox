@@ -11,6 +11,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import NfcIcon from '@mui/icons-material/Nfc';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useTranslation } from 'react-i18next';
 import type { Tag } from '@/types/api';
 
@@ -21,8 +22,30 @@ interface TagCardProps {
   onDelete: (tag: Tag) => void;
 }
 
+function formatRelativeTime(isoString: string | null, locale: string): string | null {
+  if (!isoString) return null;
+  try {
+    const diff = Date.now() - new Date(isoString).getTime();
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    const units: [Intl.RelativeTimeFormatUnit, number][] = [
+      ['minute', 60_000],
+      ['hour', 3_600_000],
+      ['day', 86_400_000],
+      ['week', 604_800_000],
+    ];
+    for (let i = units.length - 1; i >= 0; i--) {
+      const [unit, ms] = units[i];
+      if (diff >= ms) return rtf.format(-Math.round(diff / ms), unit);
+    }
+    return rtf.format(-Math.round(diff / 60_000), 'minute');
+  } catch {
+    return null;
+  }
+}
+
 export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDelete }) => {
-  const { t } = useTranslation('rfid');
+  const { t, i18n } = useTranslation('rfid');
+  const relativeTime = formatRelativeTime(tag.last_scanned_at, i18n.language);
 
   return (
     <Card variant="outlined" sx={{ borderRadius: 2 }}>
@@ -49,6 +72,14 @@ export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDe
               <Typography variant="caption" color="text.secondary">
                 {t('fields.content')}: #{tag.content_id} ({tag.content_type})
               </Typography>
+            )}
+            {relativeTime && (
+              <Box display="flex" alignItems="center" gap={0.5} mt={0.75}>
+                <AccessTimeIcon sx={{ fontSize: 12, color: 'text.disabled' }} />
+                <Typography variant="caption" color="text.disabled">
+                  {t('fields.last_scanned')}: {relativeTime}
+                </Typography>
+              </Box>
             )}
           </Box>
           <Box display="flex" alignItems="center" sx={{ mt: -0.5, mr: -0.5 }}>

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Box,
   Button,
   Card,
   CardActions,
   CardContent,
+  CardMedia,
   Chip,
   Dialog,
   DialogActions,
@@ -22,6 +23,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
+import ImageIcon from '@mui/icons-material/Image';
+import UploadIcon from '@mui/icons-material/Upload';
 import { useTranslation } from 'react-i18next';
 import type { Playlist, PlaylistDetail, Track } from '@/types/api';
 import { playlistsApi } from '@/api/playlists';
@@ -57,6 +60,8 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
   const [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(false);
   const [tracksDialogPlaylist, setTracksDialogPlaylist] = useState<PlaylistDetail | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverTargetId, setCoverTargetId] = useState<number | null>(null);
 
   const handleOpenCreate = () => {
     setEditingPlaylist(null);
@@ -114,6 +119,18 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     }
   };
 
+  const handleCoverUpload = async (file: File) => {
+    if (coverTargetId === null) return;
+    try {
+      const updated = await playlistsApi.uploadCover(coverTargetId, file);
+      onUpdate(updated);
+    } catch {
+      // ignore
+    } finally {
+      setCoverTargetId(null);
+    }
+  };
+
   return (
     <Box>
       <Box display="flex" justifyContent="flex-end" mb={2}>
@@ -127,11 +144,37 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           <Typography color="text.secondary">{t('playlists.no_playlists')}</Typography>
         </Box>
       ) : (
+        <>
         <Grid container spacing={2}>
           {playlists.map((pl) => (
             <Grid item xs={12} sm={6} md={4} key={pl.id}>
-              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
-                <CardContent sx={{ pb: 0 }}>
+              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                {/* Cover Art */}
+                {pl.cover_art_url ? (
+                  <CardMedia
+                    component="img"
+                    height="120"
+                    image={pl.cover_art_url}
+                    alt={pl.name}
+                    sx={{ objectFit: 'cover' }}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      height: 80,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'action.hover',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => { setCoverTargetId(pl.id); coverInputRef.current?.click(); }}
+                    title={t('playlists.upload_cover')}
+                  >
+                    <ImageIcon sx={{ color: 'text.disabled', fontSize: 32 }} />
+                  </Box>
+                )}
+                <CardContent sx={{ pb: 0, flex: 1 }}>
                   <Typography
                     variant="subtitle1"
                     fontWeight={600}
@@ -153,7 +196,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                   )}
                   {pl.tracks !== undefined && (
                     <Chip
-                      label={`${pl.tracks.length} Tracks`}
+                      label={`${pl.tracks.length} ${t('playlists.track_count_label')}`}
                       size="small"
                       variant="outlined"
                       sx={{ mt: 1 }}
@@ -171,6 +214,11 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                       <QueueMusicIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  <Tooltip title={t('playlists.upload_cover')}>
+                    <IconButton size="small" onClick={() => { setCoverTargetId(pl.id); coverInputRef.current?.click(); }}>
+                      <UploadIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title={t('playlists.edit')}>
                     <IconButton size="small" onClick={() => handleOpenEdit(pl)}>
                       <EditIcon fontSize="small" />
@@ -186,6 +234,16 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
             </Grid>
           ))}
         </Grid>
+
+        {/* Hidden cover art file input */}
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); e.target.value = ''; }}
+        />
+        </>
       )}
 
       {/* Create / Edit Dialog */}
@@ -193,7 +251,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
           {editingPlaylist ? t('playlists.edit') : t('playlists.create')}
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           <TextField
             label={t('playlists.fields.name')}
             placeholder={t('playlists.fields.name_placeholder')}

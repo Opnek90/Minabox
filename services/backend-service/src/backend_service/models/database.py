@@ -31,6 +31,7 @@ class Tag(Base):
     content_id = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
+    last_scanned_at = Column(DateTime, nullable=True)
 
     def __repr__(self) -> str:
         return f"<Tag(id={self.id}, tag_id={self.tag_id}, content_type={self.content_type}, content_id={self.content_id})>"
@@ -44,6 +45,7 @@ class Playlist(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
     description = Column(String(1000), nullable=True)
+    cover_art_url = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
 
@@ -69,6 +71,7 @@ class Track(Base):
     source_type = Column(String(16), nullable=False)  # 'file' or 'stream'
     source_uri = Column(String(1024), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    last_played_at = Column(DateTime, nullable=True)
 
     def __repr__(self) -> str:
         return (

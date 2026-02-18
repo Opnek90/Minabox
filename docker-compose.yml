@@ -76,6 +76,7 @@ services:
       - WS_ENABLED=true
       - CONFIG_SERVICES_PATH=/app/config_services
       - DISABLE_GPIO=${DISABLE_GPIO:-false}
+      - STATIC_DIR=/data/static
     volumes:
       - ./data:/data
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio

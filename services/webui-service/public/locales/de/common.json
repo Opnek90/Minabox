@@ -31,5 +31,10 @@
     "connected": "Echtzeit-Verbindung aktiv",
     "disconnected": "Echtzeit-Verbindung getrennt",
     "reconnecting": "Verbindung wird wiederhergestellt..."
+  },
+  "theme": {
+    "switch_dark": "Dunkelmodus aktivieren",
+    "switch_light": "Hellmodus aktivieren",
+    "pick_color": "Akzentfarbe wählen"
   }
 }

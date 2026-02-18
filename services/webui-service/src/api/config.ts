@@ -75,4 +75,18 @@ export const configApi = {
     const response = await apiClient.put<GeneralConfig>('/config/general', data);
     return response.data;
   },
+
+  // Logo
+  uploadLogo: async (file: File): Promise<{ url: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<{ url: string }>('/config/logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  deleteLogo: async (): Promise<void> => {
+    await apiClient.delete('/config/logo');
+  },
 };

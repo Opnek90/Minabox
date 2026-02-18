@@ -43,7 +43,6 @@ import { configApi } from '@/api/config';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import type { LEDConfig, LED, LEDPattern, ButtonConfig, Button as ButtonType } from '@/types/api';
 
-const BUTTON_EVENTS = ['short_press', 'long_press', 'double_press', 'rotate_cw', 'rotate_ccw', 'press'] as const;
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -264,7 +263,7 @@ const LEDConfigPanel: React.FC = () => {
         <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600, pb: 1 }}>
           {editLed && config?.leds.some((l) => l.id === editLed.id) ? t('leds.edit_led') : t('leds.add_led')}
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: '16px !important' }}>
           <Box display="flex" flexWrap="wrap" gap={2} sx={{ pt: 1 }}>
             <TextField
               label={t('leds.fields.id')}
@@ -631,7 +630,7 @@ const ButtonConfigPanel: React.FC = () => {
         <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600, pb: 1 }}>
           {editBtn && config.buttons.some((b) => b.id === editBtn.id) ? t('buttons.edit_button') : t('buttons.add_button')}
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: '16px !important' }}>
           <Box display="flex" flexWrap="wrap" gap={2} sx={{ pt: 1 }}>
             <TextField
               label={t('buttons.fields.id')}

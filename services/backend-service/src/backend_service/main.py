@@ -11,15 +11,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
+from pathlib import Path
 
 import structlog
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backend_service.api import api_router
-from backend_service.api.routes_audio import set_mqtt_client as set_audio_mqtt_client
+from backend_service.api.routes_audio import set_mqtt_client as set_audio_mqtt_client, set_mqtt_handlers as set_audio_mqtt_handlers
 from backend_service.api.routes_config import set_mqtt_client as set_config_mqtt_client
 from backend_service.api.routes_rfid import set_mqtt_client as set_rfid_mqtt_client
 from backend_service.api.routes_system import set_mqtt_client as set_system_mqtt_client
@@ -83,8 +86,9 @@ class BackendService:
             self._mqtt_handlers.handle_button_action,
         )
 
-        # Inject MQTT client into route modules
+        # Inject MQTT client and handlers into route modules
         set_audio_mqtt_client(self._mqtt_client)
+        set_audio_mqtt_handlers(self._mqtt_handlers)
         set_config_mqtt_client(self._mqtt_client)
         set_rfid_mqtt_client(self._mqtt_client)
         set_system_mqtt_client(self._mqtt_client)
@@ -148,6 +152,11 @@ class BackendService:
 
         # WebSocket endpoint
         app.add_websocket_route("/ws", websocket_endpoint)
+
+        # Serve user-uploaded static files (logo, playlist covers, …)
+        static_dir = Path(os.environ.get("STATIC_DIR", "/data/static"))
+        static_dir.mkdir(parents=True, exist_ok=True)
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
         return app
 

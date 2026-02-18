@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { AudioStatus, PlayRequest, VolumeRequest } from '@/types/api';
+import type { AudioStatus, PlayRequest, SleepTimerStatus, VolumeRequest } from '@/types/api';
 
 export const audioApi = {
   getStatus: async (): Promise<AudioStatus> => {
@@ -30,5 +30,18 @@ export const audioApi = {
   setVolume: async (volume: number): Promise<void> => {
     const body: VolumeRequest = { volume };
     await apiClient.post('/audio/volume', body);
+  },
+
+  getSleepTimer: async (): Promise<SleepTimerStatus> => {
+    const response = await apiClient.get<SleepTimerStatus>('/audio/sleep-timer');
+    return response.data;
+  },
+
+  startSleepTimer: async (minutes: number): Promise<void> => {
+    await apiClient.post('/audio/sleep-timer', { minutes });
+  },
+
+  cancelSleepTimer: async (): Promise<void> => {
+    await apiClient.delete('/audio/sleep-timer');
   },
 };

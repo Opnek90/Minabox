@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
@@ -14,6 +17,9 @@ from backend_service.models.schemas import (
     PlaylistResponse,
     PlaylistUpdate,
 )
+
+STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
+COVERS_DIR = STATIC_DIR / "covers"
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -222,7 +228,56 @@ async def delete_playlist(playlist_id: int, db: Session = Depends(get_db)) -> No
             },
         )
 
+    # Remove cover art if present
+    cover_path = COVERS_DIR / f"playlist_{playlist_id}.jpg"
+    if cover_path.exists():
+        cover_path.unlink()
+
     db.delete(playlist)
     db.commit()
 
     logger.info("api_playlist_deleted", playlist_id=playlist_id)
+
+
+@router.post("/{playlist_id}/cover", response_model=PlaylistResponse)
+async def upload_playlist_cover(
+    playlist_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> PlaylistResponse:
+    """Upload cover art for a playlist."""
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail={"error": {"code": "PLAYLIST_NOT_FOUND", "message": f"Playlist {playlist_id} not found"}})
+
+    COVERS_DIR.mkdir(parents=True, exist_ok=True)
+    cover_path = COVERS_DIR / f"playlist_{playlist_id}.jpg"
+    content = await file.read()
+    cover_path.write_bytes(content)
+
+    playlist.cover_art_url = f"/static/covers/playlist_{playlist_id}.jpg"
+    db.commit()
+    db.refresh(playlist)
+    logger.info("playlist_cover_uploaded", playlist_id=playlist_id)
+    return PlaylistResponse.model_validate(playlist)
+
+
+@router.delete("/{playlist_id}/cover", response_model=PlaylistResponse)
+async def delete_playlist_cover(
+    playlist_id: int,
+    db: Session = Depends(get_db),
+) -> PlaylistResponse:
+    """Remove cover art from a playlist."""
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail={"error": {"code": "PLAYLIST_NOT_FOUND", "message": f"Playlist {playlist_id} not found"}})
+
+    cover_path = COVERS_DIR / f"playlist_{playlist_id}.jpg"
+    if cover_path.exists():
+        cover_path.unlink()
+
+    playlist.cover_art_url = None
+    db.commit()
+    db.refresh(playlist)
+    logger.info("playlist_cover_deleted", playlist_id=playlist_id)
+    return PlaylistResponse.model_validate(playlist)

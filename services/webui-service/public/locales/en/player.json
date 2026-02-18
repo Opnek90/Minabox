@@ -24,5 +24,11 @@
   },
   "unknown_track": "Unknown Track",
   "unknown_artist": "Unknown Artist",
-  "unknown_album": "Unknown Album"
+  "unknown_album": "Unknown Album",
+  "sleep_timer": {
+    "title": "Sleep Timer",
+    "preset": "Stop in {{minutes}} min"
+  },
+  "kiosk_mode": "Kiosk Mode",
+  "kiosk_exit": "Exit Kiosk Mode"
 }

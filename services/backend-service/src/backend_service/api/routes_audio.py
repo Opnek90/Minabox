@@ -2,28 +2,45 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
 from backend_service.core.mqtt_client import MQTTClient
-from backend_service.core.mqtt_handlers import _last_audio_status
+from backend_service.core.mqtt_handlers import _last_audio_status, mark_deliberate_stop
 from backend_service.core.session_manager import session_manager
 from backend_service.models.database import Playlist, PlaylistTrack, Track
 from backend_service.models.schemas import AudioPlayCommand, AudioVolumeCommand
 
+if TYPE_CHECKING:
+    from backend_service.core.mqtt_handlers import MQTTHandlers
+
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
-# MQTT client will be injected at startup
+# MQTT client and handlers will be injected at startup
 _mqtt_client: MQTTClient | None = None
+_mqtt_handlers: "MQTTHandlers | None" = None
 
 
 def set_mqtt_client(mqtt_client: MQTTClient) -> None:
     """Set MQTT client for audio routes."""
     global _mqtt_client
     _mqtt_client = mqtt_client
+
+
+def set_mqtt_handlers(handlers: "MQTTHandlers") -> None:
+    """Set MQTT handlers for audio routes (needed for sleep timer)."""
+    global _mqtt_handlers
+    _mqtt_handlers = handlers
+
+
+class SleepTimerRequest(BaseModel):
+    minutes: int = Field(default=30, ge=1, le=480)
 
 
 def _build_play_payload(track: Track, start_position_ms: int = 0) -> dict:
@@ -126,6 +143,7 @@ async def stop_audio() -> dict:
     if not _mqtt_client:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
+    mark_deliberate_stop()
     await _mqtt_client.publish_audio_command("stop", {})
 
     return {"status": "ok", "message": "Stop command sent"}
@@ -185,3 +203,31 @@ async def set_volume(command: AudioVolumeCommand) -> dict:
     await _mqtt_client.publish_audio_command("set-volume", {"volume": command.volume})
 
     return {"status": "ok", "message": f"Volume set to {command.volume}"}
+
+
+@router.get("/sleep-timer")
+async def get_sleep_timer() -> dict:
+    """Return current sleep timer status."""
+    if not _mqtt_handlers:
+        return {"active": False, "remaining_ms": None}
+    return _mqtt_handlers.get_sleep_timer_status()
+
+
+@router.post("/sleep-timer")
+async def start_sleep_timer(command: SleepTimerRequest) -> dict:
+    """Start (or restart) the sleep timer."""
+    if not _mqtt_handlers:
+        raise HTTPException(status_code=500, detail="Handlers not initialized")
+    logger.info("api_sleep_timer_start", minutes=command.minutes)
+    await _mqtt_handlers.start_sleep_timer(command.minutes)
+    return {"status": "ok", "active": True, "minutes": command.minutes}
+
+
+@router.delete("/sleep-timer")
+async def cancel_sleep_timer() -> dict:
+    """Cancel the running sleep timer."""
+    if not _mqtt_handlers:
+        raise HTTPException(status_code=500, detail="Handlers not initialized")
+    logger.info("api_sleep_timer_cancel")
+    await _mqtt_handlers.cancel_sleep_timer()
+    return {"status": "ok", "active": False}

@@ -58,11 +58,34 @@ class DatabaseManager:
             bind=self.engine,
         )
 
-        # Create tables (if not using Alembic migrations)
-        # In production, use Alembic migrations instead
+        # Create tables for any models not yet in the DB
         Base.metadata.create_all(bind=self.engine)
 
+        # Add columns introduced after initial schema (idempotent)
+        self._apply_column_migrations()
+
         logger.info("db_connected_successfully", database_url=database_url)
+
+    def _apply_column_migrations(self) -> None:
+        """Add new nullable columns to existing tables (idempotent ALTER TABLE)."""
+        migrations = [
+            ("tags",      "last_scanned_at",  "DATETIME"),
+            ("tracks",    "last_played_at",    "DATETIME"),
+            ("playlists", "cover_art_url",     "VARCHAR(512)"),
+        ]
+        with self.engine.connect() as conn:
+            for table, column, col_type in migrations:
+                try:
+                    conn.execute(
+                        __import__("sqlalchemy").text(
+                            f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
+                        )
+                    )
+                    conn.commit()
+                    logger.info("db_column_added", table=table, column=column)
+                except Exception:
+                    # Column already exists – silently skip
+                    pass
 
     def disconnect(self) -> None:
         """Disconnect from database."""

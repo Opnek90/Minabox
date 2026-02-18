@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import os
+import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -22,6 +27,16 @@ logger = structlog.get_logger(__name__)
 # Last audio status (updated by handle_audio_status); used by routes_audio for play-after-pause
 _last_audio_status: dict[str, Any] = {}
 
+# Set to True by routes_audio.stop_audio() so that the resulting playing→stopped
+# state transition does NOT trigger auto-advance to the next track.
+_deliberate_stop: bool = False
+
+
+def mark_deliberate_stop() -> None:
+    """Signal that the next 'stopped' status is from an explicit stop command."""
+    global _deliberate_stop
+    _deliberate_stop = True
+
 
 class MQTTHandlers:
     """Handles incoming MQTT messages and triggers appropriate actions."""
@@ -40,6 +55,9 @@ class MQTTHandlers:
         self.mqtt_client = mqtt_client
         self.websocket_manager = websocket_manager
         self._audio_status_cache: dict[str, Any] = {}
+        self._sleep_timer_task: asyncio.Task | None = None
+        self._sleep_timer_start_time: float = 0.0
+        self._sleep_timer_duration_ms: int = 0
         logger.info("mqtt_handlers_initialized")
 
     async def handle_rfid_tag_scanned(self, topic: str, data: dict[str, Any]) -> None:
@@ -68,7 +86,6 @@ class MQTTHandlers:
 
             if not tag:
                 logger.warning("tag_not_found", tag_id=tag_id)
-                # Broadcast to WebUI
                 if self.websocket_manager:
                     await self.websocket_manager.broadcast(
                         {
@@ -80,6 +97,10 @@ class MQTTHandlers:
                         }
                     )
                 return
+
+            # Update last_scanned_at timestamp
+            tag.last_scanned_at = datetime.now(UTC)
+            session.commit()
 
             logger.info(
                 "tag_found",
@@ -248,11 +269,24 @@ class MQTTHandlers:
             data: Status data
         """
         logger.debug("audio_status_received", data=data)
+        global _deliberate_stop  # noqa: PLW0603
+
+        prev_state = self._audio_status_cache.get("state")
+        new_state = data.get("state")
 
         # Cache status (module-level for routes_audio play-after-pause)
         self._audio_status_cache = data
         _last_audio_status.clear()
         _last_audio_status.update(data)
+
+        # Auto-advance playlist when a track ends naturally (playing → stopped)
+        if prev_state == "playing" and new_state == "stopped":
+            if _deliberate_stop:
+                _deliberate_stop = False
+                logger.info("auto_advance_skipped_deliberate_stop")
+            else:
+                logger.info("track_ended_naturally_auto_advancing")
+                await self._handle_next()
 
         # Enrich with track metadata from DB (audio service only sends track_id)
         payload = dict(data)
@@ -270,6 +304,10 @@ class MQTTHandlers:
                         payload["track_title"] = track.title
                         payload["track_artist"] = track.artist
                         payload["track_album"] = track.album
+                        # Update last_played_at when playback starts
+                        if payload.get("state") == "playing":
+                            track.last_played_at = datetime.now(UTC)
+                            session.commit()
                 finally:
                     session.close()
 
@@ -305,6 +343,8 @@ class MQTTHandlers:
             pass
         elif action in ("mute", "mute-toggle"):
             await self.mqtt_client.publish_audio_command("mute-toggle", {})
+        elif action == "sleep_timer_toggle":
+            await self._handle_sleep_timer_toggle()
 
         # Broadcast to WebUI
         if self.websocket_manager:
@@ -371,3 +411,84 @@ class MQTTHandlers:
                     "start_position_ms": 0,
                 },
             )
+
+    # -------------------------------------------------------------------------
+    # Sleep Timer
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _read_sleep_timer_minutes() -> int:
+        """Read sleep_timer_minutes from general_settings.json (default 30)."""
+        data_path = os.environ.get("DATA_PATH", "/data")
+        gs_path = Path(data_path) / "general_settings.json"
+        try:
+            if gs_path.exists():
+                data = json.loads(gs_path.read_text(encoding="utf-8"))
+                return max(1, int(data.get("sleep_timer_minutes", 30)))
+        except (OSError, ValueError, json.JSONDecodeError):
+            pass
+        return 30
+
+    def get_sleep_timer_status(self) -> dict[str, Any]:
+        """Return current sleep timer status (for REST GET endpoint)."""
+        if self._sleep_timer_task and not self._sleep_timer_task.done():
+            elapsed_ms = int((time.time() - self._sleep_timer_start_time) * 1000)
+            remaining_ms = max(0, self._sleep_timer_duration_ms - elapsed_ms)
+            return {"active": True, "remaining_ms": remaining_ms}
+        return {"active": False, "remaining_ms": None}
+
+    async def start_sleep_timer(self, minutes: int) -> None:
+        """Start (or restart) the sleep timer for the given number of minutes."""
+        if self._sleep_timer_task and not self._sleep_timer_task.done():
+            self._sleep_timer_task.cancel()
+            try:
+                await self._sleep_timer_task
+            except asyncio.CancelledError:
+                pass
+        self._sleep_timer_task = asyncio.create_task(
+            self._sleep_timer_coroutine(minutes)
+        )
+
+    async def cancel_sleep_timer(self) -> None:
+        """Cancel the running sleep timer."""
+        if self._sleep_timer_task and not self._sleep_timer_task.done():
+            self._sleep_timer_task.cancel()
+            try:
+                await self._sleep_timer_task
+            except asyncio.CancelledError:
+                pass
+
+    async def _handle_sleep_timer_toggle(self) -> None:
+        """Toggle sleep timer: start with configured duration or cancel if running."""
+        if self._sleep_timer_task and not self._sleep_timer_task.done():
+            await self.cancel_sleep_timer()
+        else:
+            minutes = self._read_sleep_timer_minutes()
+            await self.start_sleep_timer(minutes)
+
+    async def _sleep_timer_coroutine(self, minutes: int) -> None:
+        """Run the sleep timer: broadcast start, wait, then stop playback."""
+        self._sleep_timer_start_time = time.time()
+        self._sleep_timer_duration_ms = minutes * 60_000
+        logger.info("sleep_timer_started", minutes=minutes)
+
+        if self.websocket_manager:
+            await self.websocket_manager.broadcast({
+                "type": "sleep_timer_status",
+                "data": {"active": True, "remaining_ms": self._sleep_timer_duration_ms},
+            })
+        try:
+            await asyncio.sleep(minutes * 60)
+            # Timer fired naturally — stop playback
+            mark_deliberate_stop()
+            await self.mqtt_client.publish_audio_command("stop", {})
+            logger.info("sleep_timer_fired", minutes=minutes)
+        except asyncio.CancelledError:
+            logger.info("sleep_timer_cancelled")
+        finally:
+            self._sleep_timer_task = None
+            if self.websocket_manager:
+                await self.websocket_manager.broadcast({
+                    "type": "sleep_timer_status",
+                    "data": {"active": False, "remaining_ms": None},
+                })

@@ -27,7 +27,14 @@
     "name": "Name",
     "content": "Zugeordneter Inhalt",
     "content_type": "Inhaltstyp",
-    "created_at": "Erstellt am"
+    "created_at": "Erstellt am",
+    "last_scanned": "Zuletzt gescannt"
+  },
+  "notification": {
+    "recognized": "Tag erkannt: {{name}}",
+    "unknown_tag": "Unbekannter Tag gescannt",
+    "assign_now": "Jetzt zuordnen",
+    "unknown": "Unbekannt"
   },
   "search_placeholder": "Tags suchen...",
   "sort": {

@@ -47,4 +47,18 @@ export const playlistsApi = {
     });
     return response.data;
   },
+
+  uploadCover: async (playlistId: number, file: File): Promise<Playlist> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<Playlist>(`/playlists/${playlistId}/cover`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  deleteCover: async (playlistId: number): Promise<Playlist> => {
+    const response = await apiClient.delete<Playlist>(`/playlists/${playlistId}/cover`);
+    return response.data;
+  },
 };

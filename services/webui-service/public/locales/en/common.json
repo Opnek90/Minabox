@@ -31,5 +31,10 @@
     "connected": "Real-time connection active",
     "disconnected": "Real-time connection lost",
     "reconnecting": "Reconnecting..."
+  },
+  "theme": {
+    "switch_dark": "Switch to dark mode",
+    "switch_light": "Switch to light mode",
+    "pick_color": "Pick accent color"
   }
 }

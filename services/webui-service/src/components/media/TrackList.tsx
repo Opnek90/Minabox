@@ -204,7 +204,7 @@ export const TrackList: React.FC<TrackListProps> = ({
               <ListItemText
                 primary={track.title}
                 secondary={
-                  <Box component="span" display="flex" gap={1} alignItems="center">
+                  <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
                     {track.artist && (
                       <Typography component="span" variant="caption">
                         {track.artist}
@@ -222,6 +222,14 @@ export const TrackList: React.FC<TrackListProps> = ({
                         variant="outlined"
                         sx={{ height: 18, fontSize: '0.65rem' }}
                       />
+                    )}
+                    {track.last_played_at && (
+                      <Typography component="span" variant="caption" color="text.disabled">
+                        · {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+                            -Math.round((Date.now() - new Date(track.last_played_at).getTime()) / 3_600_000),
+                            'hour'
+                          )}
+                      </Typography>
                     )}
                   </Box>
                 }

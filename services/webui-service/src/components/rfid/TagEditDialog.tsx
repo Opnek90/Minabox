@@ -73,7 +73,7 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{title}</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         {isNewTag && (
           <Typography variant="body2" color="text.secondary">
             {t('new_tag_dialog.subtitle', { tag_id: newTagId })}

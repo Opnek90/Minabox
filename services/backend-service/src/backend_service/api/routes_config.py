@@ -8,9 +8,12 @@ from pathlib import Path
 
 import httpx
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from backend_service.config import get_config
+
+# Static files directory (shared with static mount in main.py)
+STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -57,6 +60,7 @@ _BUTTON_ACTIONS: list[str] = [
     "next",
     "prev",
     "stop",
+    "sleep_timer_toggle",
 ]
 
 
@@ -90,12 +94,21 @@ GENERAL_SETTINGS_PATH = DATA_PATH / "general_settings.json"
 def _general_settings_read() -> dict:
     """Return current general settings (runtime config + env)."""
     config = get_config()
+    # Read sleep_timer_minutes from persisted overrides (default 30)
+    sleep_timer_minutes = 30
+    if GENERAL_SETTINGS_PATH.exists():
+        try:
+            data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
+            sleep_timer_minutes = int(data.get("sleep_timer_minutes", 30))
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
     return {
         "minabox_device_id": config.device_id,
         "log_level": config.env.log_level,
         "mqtt_broker": config.env.mqtt_broker,
         "mqtt_port": config.env.mqtt_port,
         "disable_gpio": os.environ.get("DISABLE_GPIO", "false").lower() in ("true", "1"),
+        "sleep_timer_minutes": sleep_timer_minutes,
     }
 
 
@@ -108,12 +121,14 @@ async def get_general_config() -> dict:
 @router.put("/general")
 async def update_general_config(body: dict) -> dict:
     """Update general settings. Persisted to /data/general_settings.json; takes effect after restart."""
-    allowed = {"minabox_device_id", "log_level", "mqtt_broker", "mqtt_port", "disable_gpio"}
+    allowed = {"minabox_device_id", "log_level", "mqtt_broker", "mqtt_port", "disable_gpio", "sleep_timer_minutes"}
     data = {k: v for k, v in body.items() if k in allowed}
     if "log_level" in data:
         data["log_level"] = str(data["log_level"]).upper()
     if "disable_gpio" in data:
         data["disable_gpio"] = bool(data["disable_gpio"])
+    if "sleep_timer_minutes" in data:
+        data["sleep_timer_minutes"] = max(1, int(data["sleep_timer_minutes"]))
     try:
         GENERAL_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
         # Persist for next startup (and for GET to reflect after restart)
@@ -338,3 +353,32 @@ async def update_rfid_config(body: dict) -> dict:
     except OSError as e:
         logger.error("config_write_failed", service="rfid", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to write RFID config") from e
+
+
+# ---------------------------------------------------------------------------
+# Logo endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/logo")
+async def upload_logo(file: UploadFile = File(...)) -> dict:
+    """Upload a custom logo image (stored as /data/static/logo.png)."""
+    STATIC_DIR.mkdir(parents=True, exist_ok=True)
+    logo_path = STATIC_DIR / "logo.png"
+    try:
+        content = await file.read()
+        logo_path.write_bytes(content)
+        logger.info("logo_uploaded", size=len(content))
+        return {"url": "/static/logo.png"}
+    except OSError as e:
+        logger.error("logo_upload_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to save logo") from e
+
+
+@router.delete("/logo")
+async def delete_logo() -> dict:
+    """Remove the custom logo."""
+    logo_path = STATIC_DIR / "logo.png"
+    if logo_path.exists():
+        logo_path.unlink()
+        logger.info("logo_deleted")
+    return {"deleted": True}

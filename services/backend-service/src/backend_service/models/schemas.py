@@ -85,6 +85,7 @@ class TagResponse(TagBase):
     id: int
     created_at: datetime
     updated_at: datetime | None = None
+    last_scanned_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -124,6 +125,7 @@ class PlaylistResponse(PlaylistBase):
     """Schema for playlist API response (without tracks)."""
 
     id: int
+    cover_art_url: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -164,6 +166,7 @@ class TrackResponse(TrackBase):
     id: int
     duration_ms: int | None = None
     created_at: datetime
+    last_played_at: datetime | None = None
 
     class Config:
         from_attributes = True
