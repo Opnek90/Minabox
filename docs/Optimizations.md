@@ -230,6 +230,16 @@ Prioritäten: **P0** = Bug/Blocker, **P1** = Hohe Priorität, **P2** = Mittlere 
 - [ ] **Beschreibung:** Aktuell existieren keine Tests für die Services (keine Dateien unter `tests/`). Framework Abschnitt 9 definiert die Test-Philosophie.
 - **Fix:** Mindestens Unit-Tests für Business-Logic und API-Endpoints pro Service erstellen.
 
+### V4. Button: MQTT-Topic und Aktion vereinheitlichen (saubere Struktur)
+- [ ] **Beschreibung:** Aktuell verwenden Config und Code durchgängig **Unterstriche** für Aktionen (`play_pause`, `sleep_timer_toggle`). Beim Publizieren baut der Button-Service den MQTT-Topic-Suffix mit **Bindestrichen** (`action.replace('_', '-')` → z. B. `minabox/box1/button/sleep-timer-toggle`). Das Backend muss die Action aus dem Topic lesen und wieder in Unterstriche umwandeln.
+- **Ziel:** Topic-Suffix = Aktion 1:1 (Unterstriche im Topic), keine Konvertierung mehr nötig.
+- **Änderungen:**
+  1. **Button-Service** `mqtt_client.py`: In `publish_action` und ggf. `publish_audio_command` die Umwandlung `action.replace('_', '-')` entfernen → Topic z. B. `minabox/box1/button/sleep_timer_toggle`.
+  2. **Backend** `mqtt_handlers.py` `handle_button_action`: Action direkt aus Topic (letztes Segment) verwenden, Normalisierung „Bindestrich → Unterstrich“ entfernen.
+  3. **WebUI** `PlayerPage.tsx`: Fallback-Label-Lookup für Bindestrich-Varianten ggf. vereinfachen oder beibehalten (Abwärtskompatibilität).
+  4. **Dokumentation:** Button-Service README/Architecture – Topic-Beispiele auf Unterstriche anpassen.
+- **Vorteil:** Eine konsistente Darstellung von Aktion und Topic, weniger Fehleranfälligkeit, kein doppeltes Mapping.
+
 ---
 
-**Letzte Aktualisierung:** 2026-02-17
+**Letzte Aktualisierung:** 2026-02-19

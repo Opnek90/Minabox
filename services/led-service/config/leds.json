@@ -42,6 +42,12 @@
           "pattern_type": "pulse",
           "duration_ms": 400,
           "repeat": 3
+        },
+        "button_pressed": {
+          "pattern_type": "blink",
+          "duration_ms": 500,
+          "interval_ms": 500,
+          "repeat": 1
         }
       }
     }

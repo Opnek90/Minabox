@@ -327,26 +327,27 @@ class MQTTHandlers:
             topic: MQTT topic (e.g., minabox/box1/button/play-pause)
             data: Event data
         """
-        # Extract action from topic
-        action = topic.split("/")[-1]
+        # Extract action from topic (topic uses hyphens; normalize to underscores for handlers and WebUI)
+        action_from_topic = topic.split("/")[-1]
+        action = action_from_topic.replace("-", "_")
         logger.info("button_action_received", action=action, data=data)
 
         # Handle different button actions
-        if action == "play-pause":
+        if action == "play_pause":
             await self._handle_play_pause()
         elif action == "next":
             await self._handle_next()
         elif action == "prev":
             await self._handle_prev()
-        elif action in ("volume-up", "volume-down"):
+        elif action in ("volume_up", "volume_down"):
             # Button service already sends volume commands directly to audio for low latency
             pass
-        elif action in ("mute", "mute-toggle"):
+        elif action in ("mute", "mute_toggle"):
             await self.mqtt_client.publish_audio_command("mute-toggle", {})
         elif action == "sleep_timer_toggle":
             await self._handle_sleep_timer_toggle()
 
-        # Broadcast to WebUI
+        # Broadcast to WebUI (normalized action with underscores for consistent label lookup)
         if self.websocket_manager:
             await self.websocket_manager.broadcast(
                 {
