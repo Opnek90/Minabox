@@ -116,7 +116,8 @@ export const PlayerPage: React.FC = () => {
       }
     } else if (lastMessage.type === 'button_action') {
       const action = (lastMessage.data as { action?: string }).action ?? '';
-      const label = BUTTON_ACTION_LABELS[action] ?? action;
+      const actionKey = action.replace(/-/g, '_');
+      const label = BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action;
       setButtonFeedback(label);
       if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
       buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);

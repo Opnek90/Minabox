@@ -487,9 +487,6 @@ export const GeneralSettingsForm: React.FC = () => {
       await systemApi.moveAudio(source, path);
       let pollId: ReturnType<typeof setInterval> | null = setInterval(async () => {
         const st = await systemApi.getMoveStatus();
-        // #region agent log
-        fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '36e3b3' }, body: JSON.stringify({ sessionId: '36e3b3', hypothesisId: 'H4,H5', location: 'ConfigForm.tsx:move-status', message: 'move_status_received', data: { status: st.status, total: st.total, current: st.current, raw: st }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
         setMoveProgress({
           status: st.status,
           total: st.total,

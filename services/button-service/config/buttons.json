@@ -13,6 +13,21 @@
         "rotate_ccw": "volume_down",
         "press": "mute_toggle"
       }
+    },
+    {
+      "id": "btn_2",
+      "name": "Play/Pause",
+      "mode": "advanced",
+      "type": "push",
+      "gpio": 4,
+      "clk": null,
+      "dt": null,
+      "sw": null,
+      "actions": {
+        "short_press": "play_pause",
+        "long_press": "next",
+        "double_press": "sleep_timer_toggle"
+      }
     }
   ]
 }

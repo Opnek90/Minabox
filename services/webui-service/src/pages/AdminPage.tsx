@@ -455,17 +455,26 @@ const ButtonConfigPanel: React.FC = () => {
   const handleSaveButtonDialog = () => {
     if (!editBtn || !config) return;
     const isNew = !config.buttons.some((b) => b.id === btnForm.id);
+    const mode = (btnForm.mode as ButtonType['mode']) ?? editBtn.mode;
+    const rawActions = btnForm.actions ?? editBtn.actions ?? null;
+    const actionsClean =
+      mode === 'advanced' && rawActions
+        ? Object.fromEntries(
+            Object.entries(rawActions).filter(([, v]) => v != null && String(v).trim() !== '')
+          )
+        : null;
     const updated: ButtonType = {
       id: (btnForm.id ?? editBtn.id),
       name: btnForm.name ?? editBtn.name,
-      mode: (btnForm.mode as ButtonType['mode']) ?? editBtn.mode,
+      mode,
       type: (btnForm.type as ButtonType['type']) ?? editBtn.type,
       gpio: btnForm.gpio ?? editBtn.gpio ?? null,
       clk: btnForm.clk ?? editBtn.clk ?? null,
       dt: btnForm.dt ?? editBtn.dt ?? null,
       sw: btnForm.sw ?? editBtn.sw ?? null,
-      action: btnForm.action ?? editBtn.action ?? null,
-      actions: btnForm.actions ?? editBtn.actions ?? null,
+      ...(mode === 'basic'
+        ? { action: btnForm.action ?? editBtn.action ?? null, actions: null }
+        : { actions: Object.keys(actionsClean ?? {}).length ? actionsClean : null }),
     };
     if (isNew) {
       setConfig({ buttons: [...config.buttons, updated] });

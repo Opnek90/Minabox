@@ -13,6 +13,8 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
 import { useTranslation } from 'react-i18next';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
+import { CommandPalette } from '@/components/common/CommandPalette';
 
 interface HeaderProps {
   onMenuToggle?: () => void;
@@ -24,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle, showMenuButton = f
   const { isConnected } = useWebSocket();
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
-
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   // Re-attempt logo on mount so it picks up a freshly uploaded image
   useEffect(() => {
     setLogoError(false);
@@ -61,17 +63,25 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle, showMenuButton = f
           {t('app_name')}
         </Typography>
 
-        {/* WebSocket status */}
-        <Tooltip title={isConnected ? t('websocket.connected') : t('websocket.disconnected')}>
-          <Chip
-            icon={isConnected ? <WifiIcon fontSize="small" /> : <WifiOffIcon fontSize="small" />}
-            label={isConnected ? t('status.connected') : t('status.disconnected')}
-            color={isConnected ? 'success' : 'error'}
-            variant="outlined"
-            size="small"
-            sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
-          />
-        </Tooltip>
+{/* WebSocket status */}
+<Tooltip title={isConnected ? t('websocket.connected') : t('websocket.disconnected')}>
+  <Chip
+    icon={isConnected ? <WifiIcon fontSize="small" /> : <WifiOffIcon fontSize="small" />}
+    label={isConnected ? t('status.connected') : t('status.disconnected')}
+    color={isConnected ? 'success' : 'error'}
+    variant="outlined"
+    size="small"
+    sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
+  />
+</Tooltip>
+
+<Tooltip title="Quick actions">
+  <IconButton color="inherit" size="small" onClick={() => setCommandPaletteOpen(true)} sx={{ ml: 1 }}>
+    <ElectricBoltIcon fontSize="small" />
+  </IconButton>
+</Tooltip>
+
+<CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
       </Toolbar>
     </AppBar>
   );
