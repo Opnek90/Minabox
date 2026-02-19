@@ -20,15 +20,18 @@
 # - WEBUI_PORT: WebUI port (default: 80)
 # - AUDIO_FILES_PATH: Path to audio files on the host (default: ./audio)
 # - DISABLE_GPIO: Set to 'true' to disable GPIO (e.g. for dev without hardware)
+# - HOST_HELPER_API_KEY: API key for Backend <-> Host-Helper (required for media path / move)
 #
-# Startup order:
+# Startup order (depends_on with condition: service_healthy):
 #   1. mqtt        – Message bus; everything depends on it
 #   2. backend     – Central data store; starts after mqtt is healthy
-#   3. audio       – Receives play commands from backend via MQTT
-#   4. rfid        – Publishes scan events to MQTT
-#   5. button      – Publishes button events to MQTT
-#   6. led         – Reacts to system state events via MQTT
-#   7. webui       – Proxies to backend API
+#   3. audio, webui, host-helper – start after backend is healthy
+#   4. rfid, button, led – start after mqtt is healthy (parallel to backend)
+#
+# Resource limits: omitted by default because on many Raspberry Pi setups the
+# kernel has cgroup memory disabled, which causes "Limitation discarded" warnings.
+# To enable memory limits on Pi: add cgroup_memory=1 to /boot/firmware/cmdline.txt
+# (or /boot/cmdline.txt), then reboot. Then you can add deploy.resources per service.
 
 services:
 
@@ -77,6 +80,9 @@ services:
       - CONFIG_SERVICES_PATH=/app/config_services
       - DISABLE_GPIO=${DISABLE_GPIO:-false}
       - STATIC_DIR=/data/static
+      - HOST_HELPER_URL=http://host-helper:8000
+      - HOST_HELPER_API_KEY=${HOST_HELPER_API_KEY:-}
+      - ALLOWED_AUDIO_PATHS=${ALLOWED_AUDIO_PATHS:-/media,/mnt,/home/pi}
     volumes:
       - ./data:/data
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio
@@ -100,6 +106,47 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+  # =================================
+  # Host-Helper (internal; .env write, optional move)
+  # =================================
+  host-helper:
+    build:
+      context: ./services/host-helper-service
+      dockerfile: Dockerfile
+    container_name: minabox-host-helper
+    restart: unless-stopped
+    user: "0:0"   # run as root so docker socket is accessible for recreate-stack
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HOST_HELPER_API_KEY=${HOST_HELPER_API_KEY:?HOST_HELPER_API_KEY must be set in .env}
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-minabox}
+      - ENV_FILE_PATH=/workspace/.env
+      - ALLOWED_BASE_PATHS=${ALLOWED_AUDIO_PATHS:-/media,/mnt,/home/pi}
+      - HOST_PROC=/host/proc
+      - HOST_ETC_HOSTNAME=/host/etc/hostname
+      - HOST_ROOT=/host
+      - HOST_IP=${HOST_IP:-}
+    volumes:
+      - .:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/host/proc:ro
+      - /etc/hostname:/host/etc/hostname:ro
+      # rw required so move can write to destination (e.g. USB under /host/media)
+      - /:/host:rw
+    group_add:
+      - "999"
+    networks:
+      - minabox-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # =================================
   # Audio Service
@@ -164,7 +211,7 @@ services:
     networks:
       - minabox-network
     depends_on:
-      mqtt:
+      backend:
         condition: service_healthy
     devices:
       - /dev/i2c-1:/dev/i2c-1
@@ -201,7 +248,7 @@ services:
     networks:
       - minabox-network
     depends_on:
-      mqtt:
+      backend:
         condition: service_healthy
     # GPIO-Zugriff (User pi + gpio-Gruppe)
     user: "1000:986"
@@ -240,7 +287,7 @@ services:
     networks:
       - minabox-network
     depends_on:
-      mqtt:
+      backend:
         condition: service_healthy
     devices:
       - /dev/gpiomem:/dev/gpiomem
@@ -269,7 +316,7 @@ services:
     networks:
       - minabox-network
     depends_on:
-      backend:
+      host-helper:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]

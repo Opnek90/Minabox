@@ -149,6 +149,41 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
         raise HTTPException(status_code=500, detail="Failed to read logs") from e
 
 
+def _restart_containers_sync() -> None:
+    """Restart all Minabox containers via Docker API (blocking)."""
+    try:
+        import docker
+        client = docker.from_env()
+        for name in CONTAINER_NAMES.values():
+            try:
+                container = client.containers.get(name)
+                container.restart()
+            except Exception as e:
+                logger.warning("restart_container_failed", container=name, error=str(e))
+        # Also restart host-helper if present
+        try:
+            client.containers.get("minabox-host-helper").restart()
+        except Exception:
+            pass
+    except Exception as e:
+        logger.warning("restart_containers_failed", error=str(e))
+        raise
+
+
+@router.post("/restart")
+async def restart_services() -> dict:
+    """Restart all Minabox services (containers). Requires Docker socket mounted."""
+    try:
+        await asyncio.to_thread(_restart_containers_sync)
+        return {"ok": True}
+    except Exception as e:
+        logger.error("restart_failed", error=str(e))
+        raise HTTPException(
+            status_code=503,
+            detail="Restart failed. Ensure Docker socket is mounted.",
+        ) from e
+
+
 @router.get("/health", response_model=HealthCheckResponse)
 async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
     """Health check endpoint.
