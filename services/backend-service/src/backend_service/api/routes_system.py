@@ -22,41 +22,34 @@ from backend_service.models.schemas import HealthCheckResponse
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
-# Service start time
 _start_time = time.time()
-
-# MQTT client will be injected at startup
 _mqtt_client: MQTTClient | None = None
 
-# Known Minabox services for status panel; URLs for HTTP health check (from backend container on minabox-network)
 SERVICE_IDS = ("backend", "mqtt", "audio", "rfid", "button", "led", "webui")
 SERVICE_HEALTH_URLS = {
-    "audio": "http://audio:8003/health",
-    "rfid": "http://rfid:8000/health",
+    "audio":  "http://audio:8003/health",
+    "rfid":   "http://rfid:8000/health",
     "button": "http://button:8000/health",
-    "led": "http://led:8000/health",
-    "webui": "http://webui:80/",
+    "led":    "http://led:8000/health",
+    "webui":  "http://webui:80/",
+}
+CONTAINER_NAMES = {
+    "audio":  "minabox-audio",
+    "rfid":   "minabox-rfid",
+    "button": "minabox-button",
+    "led":    "minabox-led",
+    "webui":  "minabox-webui",
+    "backend": "minabox-backend",
 }
 HEALTH_TIMEOUT = 2.0
 
-# Container names for docker logs (when running with docker compose)
-CONTAINER_NAMES = {
-    "audio": "minabox-audio",
-    "rfid": "minabox-rfid",
-    "button": "minabox-button",
-    "led": "minabox-led",
-    "webui": "minabox-webui",
-}
-
 
 def set_mqtt_client(mqtt_client: MQTTClient) -> None:
-    """Set MQTT client for system routes."""
     global _mqtt_client
     _mqtt_client = mqtt_client
 
 
 async def _check_service_http(sid: str) -> bool:
-    """Return True if service responds with 2xx."""
     url = SERVICE_HEALTH_URLS.get(sid)
     if not url:
         return False
@@ -69,27 +62,118 @@ async def _check_service_http(sid: str) -> bool:
         return False
 
 
+def _get_container_stats_sync(container_name: str) -> dict | None:
+    """
+    Fetch CPU + RAM stats for a container via Docker API (blocking).
+    Returns dict with cpu_percent, memory_mb, memory_percent or None if unavailable.
+    """
+    try:
+        import docker
+        client = docker.from_env()
+        container = client.containers.get(container_name)
+        raw = container.stats(stream=False)
+
+        # ── CPU % ──────────────────────────────────────────────────────────
+        cpu_delta = (
+            raw["cpu_stats"]["cpu_usage"]["total_usage"]
+            - raw["precpu_stats"]["cpu_usage"]["total_usage"]
+        )
+        system_delta = (
+            raw["cpu_stats"].get("system_cpu_usage", 0)
+            - raw["precpu_stats"].get("system_cpu_usage", 0)
+        )
+        num_cpus = raw["cpu_stats"].get("online_cpus") or len(
+            raw["cpu_stats"]["cpu_usage"].get("percpu_usage", [1])
+        )
+        cpu_percent = (
+            round((cpu_delta / system_delta) * num_cpus * 100.0, 1)
+            if system_delta > 0
+            else 0.0
+        )
+
+        # ── RAM ────────────────────────────────────────────────────────────
+        mem_usage = raw["memory_stats"].get("usage", 0)
+        # Subtract cache so we get RSS-like value (same as `docker stats`)
+        mem_cache = (
+            raw["memory_stats"].get("stats", {}).get("cache", 0)
+            or raw["memory_stats"].get("stats", {}).get("inactive_file", 0)
+        )
+        mem_rss = max(mem_usage - mem_cache, 0)
+        mem_limit = raw["memory_stats"].get("limit", 0)
+        memory_mb = round(mem_rss / 1024 / 1024, 1)
+        memory_percent = (
+            round((mem_rss / mem_limit) * 100.0, 1) if mem_limit > 0 else 0.0
+        )
+
+        return {
+            "cpu_percent": cpu_percent,
+            "memory_mb": memory_mb,
+            "memory_percent": memory_percent,
+        }
+    except Exception as e:
+        logger.debug("container_stats_failed", container=container_name, error=str(e))
+        return None
+
+
+async def _get_container_stats(sid: str) -> dict | None:
+    container = CONTAINER_NAMES.get(sid)
+    if not container:
+        return None
+    try:
+        return await asyncio.to_thread(_get_container_stats_sync, container)
+    except Exception:
+        return None
+
+
 @router.get("/status")
 async def system_status() -> dict:
-    """Return system status for Admin UI (device_id, uptime, service list)."""
+    """Return system status for Admin UI (device_id, uptime, service list with metrics)."""
     config = get_config()
     uptime_seconds = int(time.time() - _start_time)
     mqtt_ok = _mqtt_client.is_connected if _mqtt_client else False
     now = datetime.now(UTC).isoformat()
-    services = []
 
+    # Run health checks + stats concurrently
+    health_checks = {
+        sid: _check_service_http(sid)
+        for sid in SERVICE_IDS
+        if sid not in ("backend", "mqtt")
+    }
+    stats_checks = {
+        sid: _get_container_stats(sid)
+        for sid in SERVICE_IDS
+        if sid not in ("mqtt",)
+    }
+
+    health_results = dict(
+        zip(health_checks.keys(), await asyncio.gather(*health_checks.values()))
+    )
+    stats_results = dict(
+        zip(stats_checks.keys(), await asyncio.gather(*stats_checks.values()))
+    )
+
+    services = []
     for sid in SERVICE_IDS:
         if sid == "backend":
             state = "online"
         elif sid == "mqtt":
             state = "online" if mqtt_ok else "offline"
         else:
-            state = "online" if await _check_service_http(sid) else "offline"
-        services.append({
+            state = "online" if health_results.get(sid) else "offline"
+
+        entry: dict = {
             "service": sid,
             "state": state,
             "timestamp": now,
-        })
+        }
+
+        stats = stats_results.get(sid)
+        if stats:
+            entry["cpu_percent"] = stats["cpu_percent"]
+            entry["memory_mb"] = stats["memory_mb"]
+            entry["memory_percent"] = stats["memory_percent"]
+
+        services.append(entry)
 
     return {
         "device_id": config.device_id,
@@ -99,7 +183,6 @@ async def system_status() -> dict:
 
 
 def _sync_docker_logs(container_name: str, tail: int) -> str | None:
-    """Get container logs via Docker API (blocking). Returns None if Docker unavailable."""
     try:
         import docker
         client = docker.from_env()
@@ -112,7 +195,6 @@ def _sync_docker_logs(container_name: str, tail: int) -> str | None:
 
 
 async def _get_logs_via_docker(service: str, tail: int) -> str | None:
-    """Try to get logs via Docker API. Returns content or None if unavailable."""
     container = CONTAINER_NAMES.get(service)
     if not container:
         return None
@@ -125,20 +207,17 @@ async def _get_logs_via_docker(service: str, tail: int) -> str | None:
 
 @router.get("/logs")
 async def get_service_logs(service: str, tail: int = 200) -> dict:
-    """Return recent logs for a service. Uses docker logs if available, else /data/logs/<service>.log."""
     if service not in SERVICE_IDS:
         raise HTTPException(status_code=400, detail="Invalid service")
-    # Prefer docker logs when socket is available (e.g. backend started with docker)
     content = await _get_logs_via_docker(service, tail)
     if content is not None:
         return {"service": service, "lines": content, "tail": tail}
-    # Fallback: read from file
     data_path = os.environ.get("DATA_PATH", "/data")
     path = Path(data_path) / "logs" / f"{service}.log"
     if not path.exists():
         raise HTTPException(
             status_code=404,
-            detail="Logs not available. Mount Docker socket into backend (e.g. /var/run/docker.sock) to view container logs.",
+            detail="Logs not available. Mount Docker socket into backend to view container logs.",
         )
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").strip().splitlines()
@@ -150,7 +229,6 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
 
 
 def _restart_containers_sync() -> None:
-    """Restart all Minabox containers via Docker API (blocking)."""
     try:
         import docker
         client = docker.from_env()
@@ -160,7 +238,6 @@ def _restart_containers_sync() -> None:
                 container.restart()
             except Exception as e:
                 logger.warning("restart_container_failed", container=name, error=str(e))
-        # Also restart host-helper if present
         try:
             client.containers.get("minabox-host-helper").restart()
         except Exception:
@@ -172,7 +249,6 @@ def _restart_containers_sync() -> None:
 
 @router.post("/restart")
 async def restart_services() -> dict:
-    """Restart all Minabox services (containers). Requires Docker socket mounted."""
     try:
         await asyncio.to_thread(_restart_containers_sync)
         return {"ok": True}
@@ -186,26 +262,15 @@ async def restart_services() -> dict:
 
 @router.get("/health", response_model=HealthCheckResponse)
 async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
-    """Health check endpoint.
-
-    Returns:
-        Health status
-    """
     uptime_seconds = int(time.time() - _start_time)
-
-    # Check database connection
     try:
         db.execute(text("SELECT 1"))
         database_connected = True
     except Exception as e:
         logger.error("health_check_db_failed", error=str(e))
         database_connected = False
-
-    # Check MQTT connection
     mqtt_connected = _mqtt_client.is_connected if _mqtt_client else False
-
     status = "healthy" if (database_connected and mqtt_connected) else "unhealthy"
-
     return HealthCheckResponse(
         status=status,
         service="backend",

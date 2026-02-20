@@ -27,7 +27,7 @@ class Tag(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tag_id = Column(String(32), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=True)
-    content_type = Column(String(16), nullable=False)  # 'playlist' or 'track'
+    content_type = Column(String(16), nullable=False)  # 'playlist', 'track' or 'stream'
     content_id = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
@@ -58,8 +58,24 @@ class Playlist(Base):
         return f"<Playlist(id={self.id}, name={self.name})>"
 
 
+class Stream(Base):
+    """Audio stream (e.g. web radio). Not part of playlists."""
+
+    __tablename__ = "streams"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    artist = Column(String(255), nullable=True)
+    source_uri = Column(String(1024), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    last_played_at = Column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<Stream(id={self.id}, title={self.title})>"
+
+
 class Track(Base):
-    """Audio track or stream."""
+    """Audio track (file or remote). Used in playlists."""
 
     __tablename__ = "tracks"
 
@@ -67,8 +83,8 @@ class Track(Base):
     title = Column(String(255), nullable=False)
     artist = Column(String(255), nullable=True)
     album = Column(String(255), nullable=True)
-    duration_ms = Column(Integer, nullable=True)  # None for streams
-    source_type = Column(String(16), nullable=False)  # 'file' or 'stream'
+    duration_ms = Column(Integer, nullable=True)
+    source_type = Column(String(16), nullable=False)  # 'file' or 'remote'
     source_uri = Column(String(1024), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     last_played_at = Column(DateTime, nullable=True)

@@ -7,8 +7,8 @@
 // Enums
 // ============================================================================
 
-export type ContentType = 'playlist' | 'track';
-export type SourceType = 'file' | 'stream';
+export type ContentType = 'playlist' | 'track' | 'stream';
+export type SourceType = 'file' | 'remote';
 export type AudioState = 'playing' | 'paused' | 'stopped' | 'error';
 export type ServiceState = 'online' | 'offline' | 'error';
 export type RFIDMode = 'normal' | 'learning';
@@ -122,6 +122,31 @@ export interface TrackUpdate {
 }
 
 // ============================================================================
+// Streams
+// ============================================================================
+
+export interface Stream {
+  id: number;
+  title: string;
+  artist: string | null;
+  source_uri: string;
+  created_at: string;
+  last_played_at: string | null;
+}
+
+export interface StreamCreate {
+  title: string;
+  artist?: string | null;
+  source_uri: string;
+}
+
+export interface StreamUpdate {
+  title?: string;
+  artist?: string | null;
+  source_uri?: string;
+}
+
+// ============================================================================
 // Audio
 // ============================================================================
 
@@ -149,6 +174,7 @@ export interface VolumeRequest {
 export interface PlayRequest {
   playlist_id?: number;
   track_id?: number;
+  stream_id?: number;
   position_ms?: number;
 }
 
@@ -330,4 +356,15 @@ export interface LearningModeRequest {
 export interface LearningModeResponse {
   active: boolean;
   timestamp: string;
+}
+
+export interface ServiceStatus {
+  service: string;
+  state: ServiceState;
+  timestamp: string;
+  version?: string | null;
+  // Optional – populated when Docker socket is available
+  cpu_percent?: number | null;
+  memory_mb?: number | null;
+  memory_percent?: number | null;
 }

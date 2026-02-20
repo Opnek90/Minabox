@@ -17,9 +17,10 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
 
-type CommandGroup = 'Navigation' | 'Playback' | 'Sleep Timer';
+type CommandGroup = 'navigation' | 'playback' | 'sleep_timer';
 
 interface CommandItem {
   id: string;
@@ -35,41 +36,115 @@ interface CommandPaletteProps {
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose }) => {
+  const { t } = useTranslation('common');
   const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down('sm')); // responsive fullscreen pattern [web:33]
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
+  // Reset query when dialog closes
   useEffect(() => {
     if (!open) setQuery('');
   }, [open]);
 
+  // Ctrl+K / Cmd+K global shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        open ? onClose() : undefined;
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
   const commands: CommandItem[] = useMemo(
     () => [
+      // Navigation
       {
         id: 'nav-player',
-        group: 'Navigation',
-        label: 'Player',
-        keywords: ['home', 'play'],
+        group: 'navigation',
+        label: t('command_palette.nav.player'),
+        keywords: ['home', 'start'],
         run: () => navigate('/player'),
       },
-      { id: 'nav-rfid', group: 'Navigation', label: 'RFID', keywords: ['tags'], run: () => navigate('/rfid') },
-      { id: 'nav-media', group: 'Navigation', label: 'Media', keywords: ['library'], run: () => navigate('/media') },
-      { id: 'nav-admin', group: 'Navigation', label: 'Admin', keywords: ['settings', 'config'], run: () => navigate('/admin') },
+      {
+        id: 'nav-rfid',
+        group: 'navigation',
+        label: t('command_palette.nav.rfid'),
+        keywords: ['tags', 'karten'],
+        run: () => navigate('/rfid'),
+      },
+      {
+        id: 'nav-media',
+        group: 'navigation',
+        label: t('command_palette.nav.media'),
+        keywords: ['bibliothek', 'library', 'musik'],
+        run: () => navigate('/media'),
+      },
+      {
+        id: 'nav-admin',
+        group: 'navigation',
+        label: t('command_palette.nav.admin'),
+        keywords: ['settings', 'einstellungen', 'config'],
+        run: () => navigate('/admin'),
+      },
 
-      { id: 'pb-play', group: 'Playback', label: 'Play', keywords: ['start'], run: async () => audioApi.play() },
-      { id: 'pb-pause', group: 'Playback', label: 'Pause', keywords: ['stop'], run: async () => audioApi.pause() },
-      { id: 'pb-stop', group: 'Playback', label: 'Stop', keywords: ['end'], run: async () => audioApi.stop() },
-      { id: 'pb-next', group: 'Playback', label: 'Next', keywords: ['skip'], run: async () => audioApi.next() },
-      { id: 'pb-prev', group: 'Playback', label: 'Previous', keywords: ['back'], run: async () => audioApi.previous() },
+      // Playback
+      {
+        id: 'pb-play',
+        group: 'playback',
+        label: t('command_palette.playback.play'),
+        keywords: ['start', 'abspielen'],
+        run: () => audioApi.play(),
+      },
+      {
+        id: 'pb-pause',
+        group: 'playback',
+        label: t('command_palette.playback.pause'),
+        keywords: ['pausieren', 'stop'],
+        run: () => audioApi.pause(),
+      },
+      {
+        id: 'pb-stop',
+        group: 'playback',
+        label: t('command_palette.playback.stop'),
+        keywords: ['stoppen', 'end'],
+        run: () => audioApi.stop(),
+      },
+      {
+        id: 'pb-next',
+        group: 'playback',
+        label: t('command_palette.playback.next'),
+        keywords: ['skip', 'weiter', 'überspringen'],
+        run: () => audioApi.next(),
+      },
+      {
+        id: 'pb-prev',
+        group: 'playback',
+        label: t('command_palette.playback.previous'),
+        keywords: ['back', 'zurück'],
+        run: () => audioApi.previous(),
+      },
 
-      { id: 'sleep-15', group: 'Sleep Timer', label: 'Sleep timer: 15 min', keywords: ['timer'], run: async () => audioApi.startSleepTimer(15) },
-      { id: 'sleep-30', group: 'Sleep Timer', label: 'Sleep timer: 30 min', run: async () => audioApi.startSleepTimer(30) },
-      { id: 'sleep-45', group: 'Sleep Timer', label: 'Sleep timer: 45 min', run: async () => audioApi.startSleepTimer(45) },
-      { id: 'sleep-60', group: 'Sleep Timer', label: 'Sleep timer: 60 min', run: async () => audioApi.startSleepTimer(60) },
-      { id: 'sleep-cancel', group: 'Sleep Timer', label: 'Sleep timer: cancel', keywords: ['off'], run: async () => audioApi.cancelSleepTimer() },
+      // Sleep Timer
+      ...[15, 30, 45, 60].map((min) => ({
+        id: `sleep-${min}`,
+        group: 'sleep_timer' as CommandGroup,
+        label: t('command_palette.sleep_timer.preset', { minutes: min }),
+        keywords: ['timer', 'schlaf', 'sleep'],
+        run: () => audioApi.startSleepTimer(min),
+      })),
+      {
+        id: 'sleep-cancel',
+        group: 'sleep_timer' as CommandGroup,
+        label: t('command_palette.sleep_timer.cancel'),
+        keywords: ['off', 'aus', 'deaktivieren'],
+        run: () => audioApi.cancelSleepTimer(),
+      },
     ],
-    [navigate]
+    [t, navigate]
   );
 
   const filtered = useMemo(() => {
@@ -99,58 +174,85 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullScreen={fullScreen} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullScreen={fullScreen}
+      maxWidth="sm"
+      fullWidth
+    >
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1 }}>
-        <Typography variant="h6" sx={{ flex: 1, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          Quick Actions
+        <Typography variant="h6" sx={{ flex: 1, fontWeight: 700 }}>
+          {t('command_palette.title')}
         </Typography>
-        <IconButton onClick={onClose} size="small" aria-label="close">
+        <Typography
+          variant="caption"
+          color="text.disabled"
+          sx={{ flexShrink: 0, fontFamily: 'monospace' }}
+        >
+          Ctrl+K
+        </Typography>
+        <IconButton size="small" onClick={onClose} aria-label={t('cancel')}>
           <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 1 }}>
-        <TextField
-          autoFocus
-          fullWidth
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search actions…"
-          size="small"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
-              </InputAdornment>
-            ),
-          }}
-        />
-
-        <Box sx={{ mt: 1.5 }}>
-          {filtered.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-              No actions found.
-            </Typography>
-          ) : (
-            Array.from(grouped.entries()).map(([group, items]) => (
-              <Box key={group} sx={{ mt: 1 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
-                  {group}
-                </Typography>
-                <List dense sx={{ py: 0.5 }}>
-                  {items.map((cmd) => (
-                    <ListItemButton key={cmd.id} onClick={() => handleRun(cmd)}>
-                      <ListItemText
-                        primary={cmd.label}
-                        primaryTypographyProps={{ noWrap: true }}
-                      />
-                    </ListItemButton>
-                  ))}
-                </List>
-              </Box>
-            ))
-          )}
+      <DialogContent sx={{ p: 0 }}>
+        {/* Search field */}
+        <Box sx={{ px: 2, pt: 1, pb: 1 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            placeholder={t('command_palette.placeholder')}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
         </Box>
+
+        {/* Results grouped */}
+        {grouped.size === 0 ? (
+          <Typography
+            variant="body2"
+            color="text.disabled"
+            sx={{ px: 2, py: 3, textAlign: 'center' }}
+          >
+            {t('actions.retry')}
+          </Typography>
+        ) : (
+          <List dense disablePadding>
+            {Array.from(grouped.entries()).map(([group, items]) => (
+              <Box key={group}>
+                <Typography
+                  variant="overline"
+                  color="text.secondary"
+                  sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'block', lineHeight: 1 }}
+                >
+                  {t(`command_palette.groups.${group}`)}
+                </Typography>
+                {items.map((cmd) => (
+                  <ListItemButton
+                    key={cmd.id}
+                    onClick={() => handleRun(cmd)}
+                    sx={{ px: 2, py: 0.75 }}
+                  >
+                    <ListItemText
+                      primary={cmd.label}
+                      primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
+                    />
+                  </ListItemButton>
+                ))}
+              </Box>
+            ))}
+          </List>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -2,7 +2,8 @@
   "title": "Mediathek",
   "tabs": {
     "playlists": "Playlists",
-    "tracks": "Tracks & Streams"
+    "tracks": "Tracks",
+    "streams": "Streams"
   },
   "playlists": {
     "title": "Playlists",
@@ -56,7 +57,13 @@
       "artist": "Künstler",
       "album": "Album",
       "duration": "Dauer",
+      "last_played": "Zuletzt gespielt",
       "source": "Quelle"
+    },
+    "sort": {
+      "asc": "Aufsteigend",
+      "desc": "Absteigend",
+      "last_played": "Zuletzt gespielt"
     },
     "source_types": {
       "file": "Datei",
@@ -96,5 +103,21 @@
   "track_selector": {
     "title": "Track auswählen",
     "search_placeholder": "Tracks suchen..."
+  },
+  "streams": {
+    "no_streams": "Keine Streams",
+    "delete": "Stream löschen",
+    "delete_confirm": "Stream \"{{title}}\" wirklich löschen?",
+    "search_placeholder": "Streams suchen...",
+    "fields": {
+      "title": "Titel",
+      "artist": "Künstler",
+      "last_played": "Zuletzt gespielt"
+    },
+    "sort": {
+      "asc": "Aufsteigend",
+      "desc": "Absteigend",
+      "last_played": "Zuletzt gespielt"
+    }
   }
 }

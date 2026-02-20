@@ -42,10 +42,59 @@ const ThemedApp: React.FC = () => {
         shape: { borderRadius: 8 },
         components: {
           MuiButton: {
-            styleOverrides: { root: { textTransform: 'none', borderRadius: 8 } },
+            styleOverrides: {
+              root: { textTransform: 'none', borderRadius: 8 },
+            },
           },
           MuiCard: {
-            styleOverrides: { root: { borderRadius: 12 } },
+            styleOverrides: {
+              root: { borderRadius: 12 },
+            },
+          },
+
+          // ── Globale Dialog-Standards ──────────────────────────────────────
+          MuiDialogTitle: {
+            styleOverrides: {
+              root: {
+                fontWeight: 700,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                paddingBottom: 8,
+              },
+            },
+          },
+          MuiDialogContent: {
+            defaultProps: {
+              dividers: true,
+            },
+            styleOverrides: {
+              root: {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                paddingTop: '16px !important',
+              },
+            },
+          },
+
+          // ── Typografie: verhindert Textüberlauf aus Containern ────────────
+          MuiTypography: {
+            styleOverrides: {
+              root: {
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+              },
+            },
+          },
+
+          // ── Chip: kein ungewolltes Schrumpfen (z.B. im Header) ────────────
+          MuiChip: {
+            styleOverrides: {
+              root: {
+                flexShrink: 0,
+              },
+            },
           },
         },
       }),

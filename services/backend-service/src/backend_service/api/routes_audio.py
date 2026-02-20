@@ -13,7 +13,7 @@ from backend_service.core.db_manager import get_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import _last_audio_status, mark_deliberate_stop
 from backend_service.core.session_manager import session_manager
-from backend_service.models.database import Playlist, PlaylistTrack, Track
+from backend_service.models.database import Playlist, PlaylistTrack, Stream, Track
 from backend_service.models.schemas import AudioPlayCommand, AudioVolumeCommand
 
 if TYPE_CHECKING:
@@ -70,7 +70,21 @@ async def play_audio(
 
     start_ms = command.start_position_ms or 0
 
-    # No track/playlist: resume from pause, from session, or from audio service persisted state (e.g. stream)
+    # Play by stream_id: load stream and play (no session)
+    if command.stream_id:
+        stream = db.query(Stream).filter(Stream.id == command.stream_id).first()
+        if not stream:
+            raise HTTPException(status_code=404, detail="Stream not found")
+        payload = {
+            "track_id": f"stream-{stream.id}",
+            "source_type": "stream",
+            "source_uri": stream.source_uri,
+            "start_position_ms": start_ms,
+        }
+        await _mqtt_client.publish_audio_command("play", payload)
+        return {"status": "ok", "message": "Stream playback started"}
+
+    # No track/playlist/stream: resume from pause, from session, or from audio service persisted state
     if not command.track_id and not command.playlist_id:
         current_state = _last_audio_status.get("state", "stopped")
         if current_state == "paused":

@@ -20,20 +20,22 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import AudiotrackIcon from '@mui/icons-material/Audiotrack';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import LinkIcon from '@mui/icons-material/Link';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import AudiotrackIcon from '@mui/icons-material/Audiotrack';
-import StreamIcon from '@mui/icons-material/Stream';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import SearchIcon from '@mui/icons-material/Search';
 import { useTranslation } from 'react-i18next';
-import type { Track } from '@/types/api';
 import { audioApi } from '@/api/audio';
+import type { Track } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
 
-type SortKey = 'title' | 'artist' | 'duration_ms';
+
+type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
+
 
 interface TrackListProps {
   tracks: Track[];
@@ -42,6 +44,7 @@ interface TrackListProps {
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
 }
+
 
 export const TrackList: React.FC<TrackListProps> = ({
   tracks,
@@ -52,7 +55,7 @@ export const TrackList: React.FC<TrackListProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const [search, setSearch] = useState('');
-  const [filterSource, setFilterSource] = useState<'all' | 'file' | 'stream'>('all');
+  const [filterSource, setFilterSource] = useState<'all' | 'file' | 'remote'>('all');
   const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -74,6 +77,9 @@ export const TrackList: React.FC<TrackListProps> = ({
     if (sortKey === 'duration_ms') {
       aVal = a.duration_ms ?? 0;
       bVal = b.duration_ms ?? 0;
+    } else if (sortKey === 'last_played_at') {
+      aVal = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
+      bVal = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
     } else if (sortKey === 'artist') {
       aVal = (a.artist ?? '').toLowerCase();
       bVal = (b.artist ?? '').toLowerCase();
@@ -129,7 +135,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         >
           <ToggleButton value="all">{t('tracks.filter.all')}</ToggleButton>
           <ToggleButton value="file">{t('tracks.filter.files')}</ToggleButton>
-          <ToggleButton value="stream">{t('tracks.filter.streams')}</ToggleButton>
+          <ToggleButton value="remote">{t('tracks.filter.remote', { defaultValue: 'Remote' })}</ToggleButton>
         </ToggleButtonGroup>
 
         {/* Sort controls */}
@@ -143,8 +149,11 @@ export const TrackList: React.FC<TrackListProps> = ({
             <ToggleButton value="title">{t('tracks.fields.title')}</ToggleButton>
             <ToggleButton value="artist">{t('tracks.fields.artist')}</ToggleButton>
             <ToggleButton value="duration_ms">{t('tracks.fields.duration')}</ToggleButton>
+            <ToggleButton value="last_played_at">{t('tracks.fields.last_played')}</ToggleButton>
           </ToggleButtonGroup>
-          <Tooltip title={sortDir === 'asc' ? 'Aufsteigend' : 'Absteigend'}>
+          <Tooltip
+            title={t(`tracks.sort.${sortDir}`)}
+          >
             <IconButton
               size="small"
               onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
@@ -168,7 +177,11 @@ export const TrackList: React.FC<TrackListProps> = ({
                 !selectionMode && (
                   <Box>
                     <Tooltip title={t('tracks.play')}>
-                      <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => audioApi.play({ track_id: track.id })}
+                      >
                         <PlayArrowIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
@@ -191,12 +204,16 @@ export const TrackList: React.FC<TrackListProps> = ({
                   </Box>
                 )
               }
-              sx={selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : undefined}
+              sx={
+                selectionMode
+                  ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }
+                  : undefined
+              }
               onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
             >
               <Box mr={1} color="text.secondary">
-                {track.source_type === 'stream' ? (
-                  <StreamIcon fontSize="small" />
+                {track.source_type === 'remote' ? (
+                  <LinkIcon fontSize="small" />
                 ) : (
                   <AudiotrackIcon fontSize="small" />
                 )}
@@ -204,7 +221,13 @@ export const TrackList: React.FC<TrackListProps> = ({
               <ListItemText
                 primary={track.title}
                 secondary={
-                  <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
+                  <Box
+                    component="span"
+                    display="flex"
+                    gap={1}
+                    alignItems="center"
+                    flexWrap="wrap"
+                  >
                     {track.artist && (
                       <Typography component="span" variant="caption">
                         {track.artist}
@@ -215,7 +238,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                         · {track.album}
                       </Typography>
                     )}
-                    {track.duration_ms && (
+                    {track.duration_ms != null && (
                       <Chip
                         label={formatTime(track.duration_ms)}
                         size="small"
@@ -225,10 +248,14 @@ export const TrackList: React.FC<TrackListProps> = ({
                     )}
                     {track.last_played_at && (
                       <Typography component="span" variant="caption" color="text.disabled">
-                        · {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                            -Math.round((Date.now() - new Date(track.last_played_at).getTime()) / 3_600_000),
-                            'hour'
-                          )}
+                        ·{' '}
+                        {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+                          -Math.round(
+                            (Date.now() - new Date(track.last_played_at).getTime()) /
+                              3_600_000
+                          ),
+                          'hour'
+                        )}
                       </Typography>
                     )}
                   </Box>
@@ -241,14 +268,18 @@ export const TrackList: React.FC<TrackListProps> = ({
 
       {/* Delete Confirmation */}
       <Dialog open={!!trackToDelete} onClose={() => setTrackToDelete(null)}>
-        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('tracks.delete')}</DialogTitle>
+        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
+          {t('tracks.delete')}
+        </DialogTitle>
         <DialogContent>
           <DialogContentText>
             {t('tracks.delete_confirm', { title: trackToDelete?.title })}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTrackToDelete(null)}>{t('cancel', { ns: 'common' })}</Button>
+          <Button onClick={() => setTrackToDelete(null)}>
+            {t('cancel', { ns: 'common' })}
+          </Button>
           <Button
             onClick={() => {
               if (trackToDelete) {

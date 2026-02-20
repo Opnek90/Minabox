@@ -5,6 +5,7 @@
       "name": "Lautstärke",
       "mode": "advanced",
       "type": "rotary",
+      "gpio": null,
       "clk": 5,
       "dt": 6,
       "sw": 16,

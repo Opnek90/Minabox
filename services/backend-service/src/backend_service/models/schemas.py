@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 # ============================================================================
 # Enums
@@ -16,13 +16,14 @@ class ContentType(str, Enum):
 
     PLAYLIST = "playlist"
     TRACK = "track"
+    STREAM = "stream"
 
 
 class SourceType(str, Enum):
-    """Source type for audio tracks."""
+    """Source type for audio tracks (file = local, remote = NAS/DLNA/CIFS/NFS/SMB)."""
 
     FILE = "file"
-    STREAM = "stream"
+    REMOTE = "remote"
 
 
 class AudioState(str, Enum):
@@ -60,9 +61,9 @@ class TagBase(BaseModel):
     tag_id: str = Field(..., description="RFID tag UID (e.g., 04A224BC19)")
     name: str | None = Field(None, description="Human-readable name")
     content_type: ContentType = Field(
-        ..., description="Type of content (playlist/track)"
+        ..., description="Type of content (playlist/track/stream)"
     )
-    content_id: int = Field(..., description="ID of playlist or track", gt=0)
+    content_id: int = Field(..., description="ID of playlist, track or stream", gt=0)
 
 
 class TagCreate(TagBase):
@@ -140,6 +141,44 @@ class PlaylistDetailResponse(PlaylistResponse):
 
 
 # ============================================================================
+# Streams
+# ============================================================================
+
+
+class StreamBase(BaseModel):
+    """Base schema for streams."""
+
+    title: str = Field(..., min_length=1, max_length=255, description="Stream title")
+    artist: str | None = Field(None, max_length=255, description="Artist or station name")
+    source_uri: str = Field(..., description="Stream URL")
+
+
+class StreamCreate(StreamBase):
+    """Schema for creating a new stream."""
+
+    pass
+
+
+class StreamUpdate(BaseModel):
+    """Schema for updating an existing stream."""
+
+    title: str | None = Field(None, min_length=1, max_length=255)
+    artist: str | None = None
+    source_uri: str | None = None
+
+
+class StreamResponse(StreamBase):
+    """Schema for stream API response."""
+
+    id: int
+    created_at: datetime
+    last_played_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
 # Tracks
 # ============================================================================
 
@@ -150,14 +189,25 @@ class TrackBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Track title")
     artist: str | None = Field(None, max_length=255, description="Artist name")
     album: str | None = Field(None, max_length=255, description="Album name")
-    source_type: SourceType = Field(..., description="Source type (file/stream)")
-    source_uri: str = Field(..., description="File path or stream URL")
+    source_type: SourceType = Field(
+        ..., description="Source type (file = local, remote = NAS/DLNA/CIFS/NFS/SMB)"
+    )
+    source_uri: str = Field(..., description="File path or remote URI")
 
 
 class TrackCreate(TrackBase):
     """Schema for creating a new track (without file upload)."""
 
     duration_ms: int | None = Field(None, ge=0, description="Duration in milliseconds")
+
+
+class TrackUpdate(BaseModel):
+    """Schema for updating an existing track."""
+
+    title: str | None = Field(None, min_length=1, max_length=255)
+    artist: str | None = None
+    album: str | None = None
+    duration_ms: int | None = Field(None, ge=0)
 
 
 class TrackResponse(TrackBase):
@@ -182,19 +232,20 @@ class AudioPlayCommand(BaseModel):
 
     track_id: int | None = Field(None, description="Track ID to play")
     playlist_id: int | None = Field(None, description="Playlist ID to play")
+    stream_id: int | None = Field(None, description="Stream ID to play")
     start_position_ms: int = Field(
         0, ge=0, description="Start position in milliseconds"
     )
 
-    @field_validator("track_id", "playlist_id")
-    @classmethod
-    def validate_content(cls, v: int | None, info: Any) -> int | None:
-        """Ensure either track_id or playlist_id is provided, but not both."""
-        values = info.data
-        if "track_id" in values and "playlist_id" in values:
-            if values.get("track_id") and values.get("playlist_id"):
-                raise ValueError("Cannot specify both track_id and playlist_id")
-        return v
+    @model_validator(mode="after")
+    def validate_single_content(self) -> "AudioPlayCommand":
+        """Ensure at most one of track_id, playlist_id, stream_id is provided."""
+        provided = sum(
+            1 for v in (self.track_id, self.playlist_id, self.stream_id) if v is not None
+        )
+        if provided > 1:
+            raise ValueError("Provide at most one of track_id, playlist_id, stream_id")
+        return self
 
 
 class AudioVolumeCommand(BaseModel):

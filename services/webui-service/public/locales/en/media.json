@@ -2,7 +2,8 @@
   "title": "Media Library",
   "tabs": {
     "playlists": "Playlists",
-    "tracks": "Tracks & Streams"
+    "tracks": "Tracks",
+    "streams": "Streams"
   },
   "playlists": {
     "title": "Playlists",
@@ -56,7 +57,13 @@
       "artist": "Artist",
       "album": "Album",
       "duration": "Duration",
+      "last_played": "Last played",
       "source": "Source"
+    },
+    "sort": {
+      "asc": "Ascending",
+      "desc": "Descending",
+      "last_played": "Last played"
     },
     "source_types": {
       "file": "File",
@@ -96,5 +103,21 @@
   "track_selector": {
     "title": "Select Track",
     "search_placeholder": "Search tracks..."
+  },
+  "streams": {
+    "no_streams": "No streams",
+    "delete": "Delete Stream",
+    "delete_confirm": "Really delete stream \"{{title}}\"?",
+    "search_placeholder": "Search streams...",
+    "fields": {
+      "title": "Title",
+      "artist": "Artist",
+      "last_played": "Last played"
+    },
+    "sort": {
+      "asc": "Ascending",
+      "desc": "Descending",
+      "last_played": "Last played"
+    }
   }
 }

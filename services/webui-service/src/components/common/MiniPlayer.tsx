@@ -1,23 +1,129 @@
-import React from 'react';
-import { Box, IconButton, LinearProgress, Paper, Tooltip, Typography } from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import React, { useEffect, useRef } from 'react';
+import {
+  Box,
+  IconButton,
+  LinearProgress,
+  Paper,
+  Tooltip,
+  Typography,
+} from '@mui/material';
 import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
-import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
+import { useSleepTimer } from '@/hooks/useSleepTimer';
 import { audioApi } from '@/api/audio';
 
+// ── Sleep-Timer Ring ─────────────────────────────────────────────────────────
+interface SleepRingProps {
+  remainingMs: number;
+  totalMs: number;
+  size?: number;
+}
+
+const SleepRing: React.FC<SleepRingProps> = ({ remainingMs, totalMs, size = 36 }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const ratio = totalMs > 0 ? Math.max(0, Math.min(remainingMs / totalMs, 1)) : 0;
+
+  // Draw arc on each render
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    ctx.scale(dpr, dpr);
+
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = size / 2 - 3;
+    const startAngle = -Math.PI / 2;
+    const endAngle = startAngle + 2 * Math.PI * ratio;
+
+    ctx.clearRect(0, 0, size, size);
+
+    // Track ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(128,128,128,0.2)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Progress arc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, endAngle);
+    ctx.strokeStyle = '#ff9800';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }, [ratio, size]);
+
+  const minutes = Math.ceil(remainingMs / 60000);
+
+  return (
+    <Tooltip title={`Sleep-Timer: noch ${minutes} Min.`}>
+      <Box
+        sx={{
+          position: 'relative',
+          width: size,
+          height: size,
+          flexShrink: 0,
+          cursor: 'default',
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          style={{ width: size, height: size, display: 'block' }}
+        />
+        {/* Minute label inside ring */}
+        <Typography
+          variant="caption"
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.6rem',
+            fontWeight: 700,
+            color: 'warning.main',
+            lineHeight: 1,
+            pointerEvents: 'none',
+          }}
+        >
+          {minutes}
+        </Typography>
+      </Box>
+    </Tooltip>
+  );
+};
+
+// ── MiniPlayer ───────────────────────────────────────────────────────────────
 export const MiniPlayer: React.FC = () => {
   const { t } = useTranslation('player');
   const navigate = useNavigate();
   const audioStatus = useAudioStatus();
+  const sleepTimer = useSleepTimer();
 
   if (!audioStatus || audioStatus.state === 'stopped') return null;
 
   const { state, track_title, track_artist, position_ms, duration_ms } = audioStatus;
-  const progress = duration_ms && duration_ms > 0 ? (position_ms / duration_ms) * 100 : 0;
+  const progress =
+    duration_ms && duration_ms > 0 ? (position_ms / duration_ms) * 100 : 0;
+
+  const showSleepRing =
+    sleepTimer?.active === true && (sleepTimer.remaining_ms ?? 0) > 0;
+
+  // Best-effort total: use first observed remaining when timer starts
+  // We approximate total from a common preset bucket (15/30/45/60 min)
+  const PRESET_MS = [15, 30, 45, 60].map((m) => m * 60 * 1000);
+  const remaining = sleepTimer?.remaining_ms ?? 0;
+  const totalMs = PRESET_MS.find((p) => p >= remaining) ?? remaining;
 
   return (
     <Paper
@@ -33,7 +139,7 @@ export const MiniPlayer: React.FC = () => {
         borderColor: 'divider',
       }}
     >
-      {/* Progress bar at top edge */}
+      {/* Progress bar */}
       {duration_ms && duration_ms > 0 && (
         <LinearProgress
           variant="determinate"
@@ -51,8 +157,12 @@ export const MiniPlayer: React.FC = () => {
         sx={{ cursor: 'pointer' }}
         onClick={() => navigate('/player')}
       >
-        {/* Icon */}
-        <MusicNoteIcon fontSize="small" color="primary" sx={{ flexShrink: 0 }} />
+        {/* Sleep-Timer Ring oder Music-Icon */}
+        {showSleepRing ? (
+          <Box onClick={(e) => e.stopPropagation()}>
+            <SleepRing remainingMs={remaining} totalMs={totalMs} size={36} />
+          </Box>
+        ) : null}
 
         {/* Track info */}
         <Box flex={1} minWidth={0}>
@@ -73,10 +183,14 @@ export const MiniPlayer: React.FC = () => {
 
         {/* Controls */}
         <Box display="flex" alignItems="center" onClick={(e) => e.stopPropagation()}>
-          <Tooltip title={state === 'playing' ? t('controls.pause') : t('controls.play')}>
+          <Tooltip
+            title={state === 'playing' ? t('controls.pause') : t('controls.play')}
+          >
             <IconButton
               size="small"
-              onClick={() => (state === 'playing' ? audioApi.pause() : audioApi.play())}
+              onClick={() =>
+                state === 'playing' ? audioApi.pause() : audioApi.play()
+              }
             >
               {state === 'playing' ? (
                 <PauseIcon fontSize="small" />

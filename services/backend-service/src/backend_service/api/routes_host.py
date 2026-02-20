@@ -61,7 +61,6 @@ class MoveAudioBody(BaseModel):
 
 @router.get("/host-status")
 async def get_host_status() -> dict:
-    """Return host status (hostname, IP, memory, CPU, disk) from Host-Helper."""
     url = _host_helper_url()
     api_key = _host_helper_api_key()
     if not api_key:
@@ -81,7 +80,6 @@ async def get_host_status() -> dict:
 
 @router.get("/audio-path")
 async def get_audio_path() -> dict:
-    """Return current/saved audio path. Tries Host-Helper (.env), else backend env (container path)."""
     url = _host_helper_url()
     api_key = _host_helper_api_key()
     if not api_key:
@@ -98,8 +96,8 @@ async def get_audio_path() -> dict:
                 saved = data.get("audio_files_path")
                 if saved:
                     return {"path": saved}
-            config = get_config()
-            return {"path": config.env.audio_storage_path}
+        config = get_config()
+        return {"path": config.env.audio_storage_path}
     except Exception as e:
         logger.debug("host_helper_get_audio_path_failed", error=str(e))
         config = get_config()
@@ -108,7 +106,6 @@ async def get_audio_path() -> dict:
 
 @router.put("/audio-path")
 async def put_audio_path(body: AudioPathBody) -> dict:
-    """Save audio path to host .env via Host-Helper. Requires stack restart to take effect."""
     path = body.path.strip()
     _validate_path(path)
     url = _host_helper_url()
@@ -142,7 +139,6 @@ async def put_audio_path(body: AudioPathBody) -> dict:
 
 @router.post("/move-audio")
 async def move_audio(body: MoveAudioBody):
-    """Start moving files from source to destination via Host-Helper (async). Returns 202; poll GET /move-status for progress."""
     _validate_path(body.source)
     _validate_path(body.destination)
     url = _host_helper_url()
@@ -171,15 +167,11 @@ async def move_audio(body: MoveAudioBody):
             return JSONResponse(content=r.json(), status_code=r.status_code)
     except httpx.RequestError as e:
         logger.warning("host_helper_move_failed", error=str(e))
-        raise HTTPException(
-            status_code=503,
-            detail="Host-Helper unreachable.",
-        ) from e
+        raise HTTPException(status_code=503, detail="Host-Helper unreachable.") from e
 
 
 @router.get("/move-status")
 async def get_move_status() -> dict:
-    """Return current move job progress from Host-Helper (status: idle | running | done | error)."""
     url = _host_helper_url()
     api_key = _host_helper_api_key()
     if not api_key:
@@ -191,32 +183,14 @@ async def get_move_status() -> dict:
                 headers={"X-Api-Key": api_key},
             )
             if r.status_code == 200:
-                body = r.json()
-                # #region agent log
-                import json
-                try:
-                    with open("/data/debug-36e3b3.log", "a") as f:
-                        f.write(json.dumps({"sessionId": "36e3b3", "hypothesisId": "H1", "location": "routes_host.py:get_move_status", "message": "move_status_response", "data": {"status_code": r.status_code, "body": body}, "timestamp": __import__("time").time() * 1000}) + "\n")
-                except Exception:
-                    pass
-                # #endregion
-                return body
+                return r.json()
     except Exception as e:
-        # #region agent log
-        import json
-        try:
-            with open("/data/debug-36e3b3.log", "a") as f:
-                f.write(json.dumps({"sessionId": "36e3b3", "hypothesisId": "H1", "location": "routes_host.py:get_move_status", "message": "move_status_failed", "data": {"error": str(e)}, "timestamp": __import__("time").time() * 1000}) + "\n")
-        except Exception:
-            pass
-        # #endregion
         logger.debug("host_helper_move_status_failed", error=str(e))
     return {"status": "idle", "total": 0, "current": 0, "error": None}
 
 
 @router.post("/reboot")
 async def reboot_host() -> dict:
-    """Reboot the host (Pi) via Host-Helper."""
     url = _host_helper_url()
     api_key = _host_helper_api_key()
     if not api_key:

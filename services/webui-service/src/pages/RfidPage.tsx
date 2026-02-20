@@ -9,7 +9,6 @@ import {
   DialogContentText,
   DialogTitle,
   InputAdornment,
-  Snackbar,
   TextField,
   Typography,
 } from '@mui/material';
@@ -19,19 +18,34 @@ import { TagList } from '@/components/rfid/TagList';
 import { TagEditDialog } from '@/components/rfid/TagEditDialog';
 import { LearnModeButton } from '@/components/rfid/LearnModeButton';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { PageShell } from '@/components/common/PageShell';
+import { useToast } from '@/contexts/ToastContext';
 import { tagsApi } from '@/api/tags';
 import { playlistsApi } from '@/api/playlists';
+import { streamsApi } from '@/api/streams';
 import { tracksApi } from '@/api/tracks';
 import { useWebSocket } from '@/contexts/WebSocketContext';
-import type { Tag, Playlist, Track, ContentType, RFIDScannedMessage } from '@/types/api';
+import type { Tag, Playlist, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
 
-export const RfidPage: React.FC = () => {
+
+interface RfidPageProps {
+  pendingTagId?: string | null;
+  onPendingTagHandled?: () => void;
+}
+
+
+export const RfidPage: React.FC<RfidPageProps> = ({
+  pendingTagId,
+  onPendingTagHandled,
+}) => {
   const { t } = useTranslation('rfid');
   const { lastMessage } = useWebSocket();
+  const { showSuccess, showError } = useToast();
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,20 +57,21 @@ export const RfidPage: React.FC = () => {
   const [editTag, setEditTag] = useState<Tag | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteTag, setDeleteTag] = useState<Tag | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [tagsData, playlistsData, tracksData] = await Promise.all([
+      const [tagsData, playlistsData, tracksData, streamsData] = await Promise.all([
         tagsApi.getAll(),
         playlistsApi.getAll(),
         tracksApi.getAll(),
+        streamsApi.getAll(),
       ]);
       setTags(tagsData);
       setPlaylists(playlistsData);
       setTracks(tracksData);
+      setStreams(streamsData);
     } catch {
       setError('Fehler beim Laden der Daten');
     } finally {
@@ -68,7 +83,7 @@ export const RfidPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  // Listen for WebSocket RFID learning mode events
+  // Lern-Modus: Karte gescannt → TagEditDialog öffnen
   useEffect(() => {
     if (lastMessage?.type === 'rfid_scanned_learning') {
       const msg = lastMessage as RFIDScannedMessage;
@@ -78,6 +93,15 @@ export const RfidPage: React.FC = () => {
       setEditTag(null);
     }
   }, [lastMessage]);
+
+  // Drawer → "Zuweisen" gedrückt: pendingTagId kommt rein
+  useEffect(() => {
+    if (!pendingTagId) return;
+    setScannedTagId(pendingTagId);
+    setEditTag(null);
+    setEditDialogOpen(true);
+    onPendingTagHandled?.();
+  }, [pendingTagId, onPendingTagHandled]);
 
   const handleLearnModeActivate = async () => {
     setLearnModeLoading(true);
@@ -115,20 +139,18 @@ export const RfidPage: React.FC = () => {
   }) => {
     try {
       if (editTag) {
-        // Update existing tag (backend expects RFID tag_id in URL)
         const updated = await tagsApi.update(editTag.tag_id, data);
         setTags((prev) => prev.map((t) => (t.tag_id === updated.tag_id ? updated : t)));
-        setSuccessMessage('Tag aktualisiert');
+        showSuccess(t('toast.tag_updated', { defaultValue: 'Tag aktualisiert' }));
       } else if (scannedTagId) {
-        // Create new tag from learn mode
         const newTag = await tagsApi.create({ tag_id: scannedTagId, ...data });
         setTags((prev) => [...prev, newTag]);
-        setSuccessMessage('Tag gespeichert');
+        showSuccess(t('toast.tag_saved', { defaultValue: 'Tag gespeichert' }));
         setLearnModeActive(false);
         await tagsApi.setLearningMode(false);
       }
     } catch {
-      setError('Tag konnte nicht gespeichert werden');
+      showError(t('toast.tag_save_error', { defaultValue: 'Tag konnte nicht gespeichert werden' }));
     } finally {
       setEditDialogOpen(false);
       setEditTag(null);
@@ -140,10 +162,10 @@ export const RfidPage: React.FC = () => {
     if (!deleteTag) return;
     try {
       await tagsApi.delete(deleteTag.tag_id);
-      setTags((prev) => prev.filter((t) => t.tag_id !== deleteTag!.tag_id));
-      setSuccessMessage('Tag gelöscht');
+      setTags((prev) => prev.filter((t) => t.tag_id !== deleteTag.tag_id));
+      showSuccess(t('toast.tag_deleted', { defaultValue: 'Tag gelöscht' }));
     } catch {
-      setError('Tag konnte nicht gelöscht werden');
+      showError(t('toast.tag_delete_error', { defaultValue: 'Tag konnte nicht gelöscht werden' }));
     } finally {
       setDeleteTag(null);
     }
@@ -160,40 +182,39 @@ export const RfidPage: React.FC = () => {
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
-        {t('title')}
-      </Typography>
-
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Actions Row */}
-      <Box display="flex" gap={2} mb={3} flexWrap="wrap" alignItems="flex-start">
-        <TextField
-          placeholder={t('search_placeholder')}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          size="small"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ minWidth: 240 }}
-        />
+    <PageShell
+      title={t('title')}
+      actions={
         <LearnModeButton
           active={learnModeActive}
           loading={learnModeLoading}
           onActivate={handleLearnModeActivate}
           onDeactivate={handleLearnModeDeactivate}
         />
-      </Box>
+      }
+    >
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Search */}
+      <TextField
+        placeholder={t('search_placeholder')}
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        size="small"
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon />
+            </InputAdornment>
+          ),
+        }}
+        sx={{ mb: 3, maxWidth: 400 }}
+      />
 
       {/* Tag List */}
       <TagList
@@ -211,6 +232,7 @@ export const RfidPage: React.FC = () => {
         newTagId={scannedTagId}
         playlists={playlists}
         tracks={tracks}
+        streams={streams}
         onSave={handleEditSave}
         onClose={() => {
           if (learnModeActive) {
@@ -226,26 +248,21 @@ export const RfidPage: React.FC = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteTag} onClose={() => setDeleteTag(null)}>
-        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('delete_tag')}</DialogTitle>
+        <DialogTitle>{t('delete_tag')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
             {t('delete_confirm', { name: deleteTag?.name ?? deleteTag?.tag_id })}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTag(null)}>{t('cancel', { ns: 'common' })}</Button>
+          <Button onClick={() => setDeleteTag(null)}>
+            {t('cancel', { ns: 'common' })}
+          </Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
             {t('delete', { ns: 'common' })}
           </Button>
         </DialogActions>
       </Dialog>
-
-      <Snackbar
-        open={!!successMessage}
-        autoHideDuration={3000}
-        onClose={() => setSuccessMessage(null)}
-        message={successMessage}
-      />
-    </Box>
+    </PageShell>
   );
 };
