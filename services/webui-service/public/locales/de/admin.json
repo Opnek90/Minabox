@@ -109,17 +109,27 @@
     "edit_led": "LED bearbeiten",
     "delete_led": "LED entfernen",
     "delete_confirm": "Möchten Sie die LED \"{{name}}\" wirklich entfernen?",
+    "steps": {
+      "basics": "Basis",
+      "bindings": "Zuordnungen"
+    },
     "fields": {
       "id": "ID",
+      "id_hint": "Eindeutige ID, z.B. led_1",
       "name": "Name",
       "gpio": "GPIO-Pin",
-      "bindings": "Zuordnungen"
+      "gpio_hint": "GPIO-Pin-Nummer des Raspberry Pi",
+      "bindings": "Zuordnungen",
+      "actions": "Aktionen"
     },
     "bindings": {
       "title": "Status-Zuordnungen",
+      "description": "Definiere, welches Muster die LED bei welchem System-Zustand anzeigt.",
+      "none": "Noch keine Zuordnungen definiert.",
       "state": "Zustand",
       "pattern": "Muster",
       "add": "Zuordnung hinzufügen",
+      "add_placeholder": "Zustand wählen…",
       "patterns": {
         "solid": "Dauerlicht",
         "blink": "Blinken",
@@ -141,15 +151,23 @@
     "edit_button": "Button bearbeiten",
     "delete_button": "Button entfernen",
     "delete_confirm": "Möchten Sie den Button \"{{name}}\" wirklich entfernen?",
+    "steps": {
+      "basics": "Basis",
+      "actions": "Aktionen"
+    },
     "fields": {
       "id": "ID",
+      "id_hint": "Eindeutige ID, z.B. btn_1",
       "name": "Name",
       "type": "Typ",
       "mode": "Modus",
+      "mode_hint": "Einfach: eine Aktion. Erweitert: verschiedene Aktionen pro Ereignis.",
       "gpio": "GPIO-Pin",
+      "gpio_hint": "GPIO-Pin-Nummer des Raspberry Pi",
       "clk": "CLK-Pin",
       "dt": "DT-Pin",
-      "sw": "SW-Pin"
+      "sw": "SW-Pin",
+      "actions": "Aktionen"
     },
     "types": {
       "push": "Taster",
@@ -163,6 +181,8 @@
       "title": "Aktionen",
       "event": "Ereignis",
       "action": "Aktion",
+      "basic_hint": "Wähle eine Aktion, die beim Drücken ausgelöst wird.",
+      "advanced_hint": "Weise jedem Ereignis eine eigene Aktion zu.",
       "events": {
         "short_press": "Kurz drücken",
         "long_press": "Lang drücken",

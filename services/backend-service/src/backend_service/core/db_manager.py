@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from backend_service.models.database import Base
+from backend_service.models.database import Base, PlaylistTrack, Stream, Track
 
 logger = structlog.get_logger(__name__)
 
@@ -64,6 +64,9 @@ class DatabaseManager:
         # Add columns introduced after initial schema (idempotent)
         self._apply_column_migrations()
 
+        # One-time: migrate stream-type tracks to streams table, then remove from tracks
+        self._migrate_stream_tracks_to_streams()
+
         logger.info("db_connected_successfully", database_url=database_url)
 
     def _apply_column_migrations(self) -> None:
@@ -86,6 +89,48 @@ class DatabaseManager:
                 except Exception:
                     # Column already exists – silently skip
                     pass
+
+    def _migrate_stream_tracks_to_streams(self) -> None:
+        """One-time migration: move rows with source_type='stream' from tracks to streams."""
+        session = self.get_session()
+        try:
+            stream_tracks = (
+                session.query(Track)
+                .filter(Track.source_type == "stream")
+                .all()
+            )
+            if not stream_tracks:
+                return
+            stream_ids = [t.id for t in stream_tracks]
+            # Remove playlist_tracks that reference these track ids
+            session.query(PlaylistTrack).filter(
+                PlaylistTrack.track_id.in_(stream_ids)
+            ).delete(synchronize_session=False)
+            for t in stream_tracks:
+                session.add(
+                    Stream(
+                        title=t.title,
+                        artist=t.artist,
+                        source_uri=t.source_uri,
+                        created_at=t.created_at,
+                        last_played_at=t.last_played_at,
+                    )
+                )
+            session.commit()
+            session.query(Track).filter(Track.source_type == "stream").delete(
+                synchronize_session=False
+            )
+            session.commit()
+            logger.info(
+                "db_streams_migrated",
+                count=len(stream_tracks),
+                track_ids=stream_ids,
+            )
+        except Exception as e:
+            session.rollback()
+            logger.warning("db_stream_migration_skipped", error=str(e))
+        finally:
+            session.close()
 
     def disconnect(self) -> None:
         """Disconnect from database."""

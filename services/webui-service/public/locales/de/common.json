@@ -36,5 +36,37 @@
     "switch_dark": "Dunkelmodus aktivieren",
     "switch_light": "Hellmodus aktivieren",
     "pick_color": "Akzentfarbe wählen"
+  },
+  "save": "Speichern",
+  "cancel": "Abbrechen",
+  "delete": "Löschen",
+  "back": "Zurück",
+  "next": "Weiter",
+  "clear": "Leeren",
+  "command_palette": {
+    "title": "Schnellaktionen",
+    "placeholder": "Aktion suchen…",
+    "groups": {
+      "navigation": "Navigation",
+      "playback": "Wiedergabe",
+      "sleep_timer": "Sleep-Timer"
+    },
+    "nav": {
+      "player": "Wiedergabe",
+      "rfid": "RFID-Tags",
+      "media": "Mediathek",
+      "admin": "Einstellungen"
+    },
+    "playback": {
+      "play": "Abspielen",
+      "pause": "Pausieren",
+      "stop": "Stoppen",
+      "next": "Nächster Titel",
+      "previous": "Vorheriger Titel"
+    },
+    "sleep_timer": {
+      "preset": "Sleep-Timer: {{minutes}} Min.",
+      "cancel": "Sleep-Timer abbrechen"
+    }
   }
 }

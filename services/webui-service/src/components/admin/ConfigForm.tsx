@@ -17,7 +17,6 @@ import {
   MenuItem,
   Select,
   Slider,
-  Snackbar,
   Switch,
   TextField,
   ToggleButton,
@@ -32,10 +31,13 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '@/contexts/ToastContext';
+import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import { systemApi } from '@/api/system';
 import { useThemeContext, COLOR_PRESETS, type ColorPresetKey } from '@/contexts/ThemeContext';
 import type { AudioConfig, RFIDConfig, GeneralConfig } from '@/types/api';
+
 
 const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
   orange: 'Orange',
@@ -45,36 +47,33 @@ const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
   red: 'Red',
 };
 
+
 // ============================================================================
 // Audio Config Form
 // ============================================================================
 
 export const AudioConfigForm: React.FC = () => {
   const { t } = useTranslation('admin');
+  const { showSuccess } = useToast();
+  const { saving, error, setError, run } = useFormState();
   const [config, setConfig] = useState<AudioConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    configApi.getAudio().then(setConfig).catch(() => setError('Laden fehlgeschlagen')).finally(() => setLoading(false));
+    configApi
+      .getAudio()
+      .then(setConfig)
+      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleSave = async () => {
-    if (!config) return;
-    setSaving(true);
-    setError(null);
-    try {
+  const handleSave = () =>
+    run(async () => {
+      if (!config) return;
       const updated = await configApi.updateAudio(config);
       setConfig(updated);
-      setSuccess(true);
-    } catch {
-      setError('Speichern fehlgeschlagen');
-    } finally {
-      setSaving(false);
-    }
-  };
+      showSuccess(t('audio.save_success'));
+    });
 
   if (loading || !config) return null;
 
@@ -101,11 +100,8 @@ export const AudioConfigForm: React.FC = () => {
         </Typography>
         <Slider
           value={config.max_volume}
-          min={0}
-          max={100}
-          step={5}
+          min={0} max={100} step={5} marks
           onChange={(_, v) => setConfig((p) => p ? { ...p, max_volume: v as number } : p)}
-          marks
           valueLabelDisplay="auto"
         />
       </Box>
@@ -117,9 +113,8 @@ export const AudioConfigForm: React.FC = () => {
           value={config.default_volume}
           min={0}
           max={config.max_volume}
-          step={5}
+          step={5} marks
           onChange={(_, v) => setConfig((p) => p ? { ...p, default_volume: v as number } : p)}
-          marks
           valueLabelDisplay="auto"
         />
       </Box>
@@ -138,21 +133,19 @@ export const AudioConfigForm: React.FC = () => {
       )}
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <Button
-          variant="contained"
-          startIcon={<SaveIcon />}
-          onClick={handleSave}
-          disabled={saving}
-        >
+        <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
           {t('save', { ns: 'common' })}
         </Button>
       </Box>
-      <Snackbar open={success} autoHideDuration={3000} onClose={() => setSuccess(false)} message={t('audio.save_success')} />
     </Box>
   );
 };
 
-// Default RFID config so fields are never empty if API returns partial/empty
+
+// ============================================================================
+// RFID Config Form
+// ============================================================================
+
 const DEFAULT_RFID_CONFIG: RFIDConfig = {
   reader_type: 'PN532',
   interface: 'I2C',
@@ -160,40 +153,28 @@ const DEFAULT_RFID_CONFIG: RFIDConfig = {
   duplicate_suppression_ms: 2000,
 };
 
-// ============================================================================
-// RFID Config Form
-// ============================================================================
-
 export const RFIDConfigForm: React.FC = () => {
   const { t } = useTranslation('admin');
+  const { showSuccess } = useToast();
+  const { saving, error, setError, run } = useFormState();
   const [config, setConfig] = useState<RFIDConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     configApi
       .getRfid()
       .then((data) => setConfig({ ...DEFAULT_RFID_CONFIG, ...data }))
-      .catch(() => setError('Laden fehlgeschlagen'))
+      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSave = async () => {
-    if (!config) return;
-    setSaving(true);
-    setError(null);
-    try {
+  const handleSave = () =>
+    run(async () => {
+      if (!config) return;
       const updated = await configApi.updateRfid(config);
       setConfig(updated);
-      setSuccess(true);
-    } catch {
-      setError('Speichern fehlgeschlagen');
-    } finally {
-      setSaving(false);
-    }
-  };
+      showSuccess(t('rfid.save_success'));
+    });
 
   if (loading || !config) return null;
 
@@ -210,7 +191,6 @@ export const RFIDConfigForm: React.FC = () => {
           <MenuItem value="Mock">{t('rfid.reader_types.Mock')}</MenuItem>
         </Select>
       </FormControl>
-
       <FormControl fullWidth size="small">
         <InputLabel>{t('rfid.fields.interface')}</InputLabel>
         <Select
@@ -223,7 +203,6 @@ export const RFIDConfigForm: React.FC = () => {
           <MenuItem value="UART">{t('rfid.interfaces.UART')}</MenuItem>
         </Select>
       </FormControl>
-
       <TextField
         label={t('rfid.fields.scan_interval_ms')}
         type="number"
@@ -231,11 +210,9 @@ export const RFIDConfigForm: React.FC = () => {
         onChange={(e) =>
           setConfig((p) => p ? { ...p, scan_interval_ms: parseInt(e.target.value) || 0 } : p)
         }
-        size="small"
-        fullWidth
+        size="small" fullWidth
         inputProps={{ min: 100, step: 100 }}
       />
-
       <TextField
         label={t('rfid.fields.duplicate_suppression_ms')}
         type="number"
@@ -243,32 +220,30 @@ export const RFIDConfigForm: React.FC = () => {
         onChange={(e) =>
           setConfig((p) => p ? { ...p, duplicate_suppression_ms: parseInt(e.target.value) || 0 } : p)
         }
-        size="small"
-        fullWidth
+        size="small" fullWidth
         inputProps={{ min: 0, step: 100 }}
       />
-
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
         <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
           {t('save', { ns: 'common' })}
         </Button>
       </Box>
-      <Snackbar open={success} autoHideDuration={3000} onClose={() => setSuccess(false)} message={t('rfid.save_success')} />
     </Box>
   );
 };
 
+
 // ============================================================================
-// Design Settings (Logo, Language, Theme – no backend save, except logo)
+// Design Settings
 // ============================================================================
 
 export const DesignSettingsForm: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
+  const { showSuccess, showError } = useToast();
   const { mode, colorPreset, toggleMode, setColorPreset } = useThemeContext();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -279,24 +254,24 @@ export const DesignSettingsForm: React.FC = () => {
 
   const handleLogoUpload = async (file: File) => {
     setLogoUploading(true);
-    setError(null);
     try {
       await configApi.uploadLogo(file);
       setLogoUrl('/static/logo.png?t=' + Date.now());
+      showSuccess(t('general.logo_upload_success', { defaultValue: 'Logo hochgeladen' }));
     } catch {
-      setError('Logo upload failed');
+      showError(t('general.logo_upload_error', { defaultValue: 'Logo-Upload fehlgeschlagen' }));
     } finally {
       setLogoUploading(false);
     }
   };
 
   const handleLogoDelete = async () => {
-    setError(null);
     try {
       await configApi.deleteLogo();
       setLogoUrl(null);
+      showSuccess(t('general.logo_delete_success', { defaultValue: 'Logo gelöscht' }));
     } catch {
-      setError('Logo deletion failed');
+      showError(t('general.logo_delete_error', { defaultValue: 'Logo konnte nicht gelöscht werden' }));
     }
   };
 
@@ -315,7 +290,14 @@ export const DesignSettingsForm: React.FC = () => {
               component="img"
               src={logoUrl}
               alt="Logo"
-              sx={{ height: 48, maxWidth: 160, objectFit: 'contain', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+              sx={{
+                height: 48,
+                maxWidth: 160,
+                objectFit: 'contain',
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
             />
           )}
           <input
@@ -399,9 +381,10 @@ export const DesignSettingsForm: React.FC = () => {
                   bgcolor: COLOR_PRESETS[key].main,
                   cursor: 'pointer',
                   border: colorPreset === key ? '3px solid white' : '3px solid transparent',
-                  boxShadow: colorPreset === key
-                    ? `0 0 0 2px ${COLOR_PRESETS[key].main}`
-                    : '0 1px 3px rgba(0,0,0,0.3)',
+                  boxShadow:
+                    colorPreset === key
+                      ? `0 0 0 2px ${COLOR_PRESETS[key].main}`
+                      : '0 1px 3px rgba(0,0,0,0.3)',
                   transition: 'transform 0.15s',
                   '&:hover': { transform: 'scale(1.15)' },
                 }}
@@ -410,43 +393,43 @@ export const DesignSettingsForm: React.FC = () => {
           ))}
         </Box>
       </Box>
-
-      {error && <Alert severity="error">{error}</Alert>}
     </Box>
   );
 };
 
+
 // ============================================================================
-// General Settings (central config: device, MQTT, sleep timer – no Design)
+// General Settings
 // ============================================================================
 
 export const GeneralSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');
+  const { showSuccess, showError } = useToast();
+  const { saving, error, setError, run } = useFormState();
+
   const [general, setGeneral] = useState<GeneralConfig | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [newAudioPath, setNewAudioPath] = useState('');
   const [audioPathSaving, setAudioPathSaving] = useState(false);
-  const [audioPathSuccess, setAudioPathSuccess] = useState(false);
-  const [audioPathSuccessRestart, setAudioPathSuccessRestart] = useState(false);
   const [audioPathError, setAudioPathError] = useState<string | null>(null);
   const [mediaPathDialogOpen, setMediaPathDialogOpen] = useState(false);
-  const [copySnackbarOpen, setCopySnackbarOpen] = useState(false);
   const [moveProgressOpen, setMoveProgressOpen] = useState(false);
-  const [moveProgress, setMoveProgress] = useState<{ status: string; total: number; current: number; error: string | null }>({
-    status: 'idle',
-    total: 0,
-    current: 0,
-    error: null,
-  });
-  const [moveSuccessSnackbar, setMoveSuccessSnackbar] = useState(false);
+  const [moveProgress, setMoveProgress] = useState<{
+    status: string;
+    total: number;
+    current: number;
+    error: string | null;
+  }>({ status: 'idle', total: 0, current: 0, error: null });
 
   useEffect(() => {
     configApi.getGeneral().then(setGeneral).catch(() => setError('Laden fehlgeschlagen'));
     systemApi.getAudioPath().then((r) => setAudioPath(r.path)).catch(() => setAudioPath(null));
   }, []);
+
+  const extractDetail = (err: unknown): string | null =>
+    err && typeof err === 'object' && 'response' in err
+      ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? null
+      : null;
 
   const saveAudioPathAndMaybeRestart = async (doRestart: boolean) => {
     const path = newAudioPath.trim();
@@ -459,16 +442,13 @@ export const GeneralSettingsForm: React.FC = () => {
       setAudioPath(path);
       setNewAudioPath('');
       if (doRestart) {
-        setAudioPathSuccessRestart(true);
+        showSuccess(t('general.media_path_success_restart'));
         await systemApi.restart();
       } else {
-        setAudioPathSuccess(true);
+        showSuccess(t('general.media_path_success'));
       }
-    } catch (err: unknown) {
-      const msg = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-        : null;
-      setAudioPathError(msg || t('general.media_path_error'));
+    } catch (err) {
+      setAudioPathError(extractDetail(err) ?? t('general.media_path_error'));
     } finally {
       setAudioPathSaving(false);
     }
@@ -485,80 +465,72 @@ export const GeneralSettingsForm: React.FC = () => {
     setMoveProgress({ status: 'running', total: 0, current: 0, error: null });
     try {
       await systemApi.moveAudio(source, path);
-      let pollId: ReturnType<typeof setInterval> | null = setInterval(async () => {
-        const st = await systemApi.getMoveStatus();
-        setMoveProgress({
-          status: st.status,
-          total: st.total,
-          current: st.current,
-          error: st.error ?? null,
-        });
-        if (st.status === 'done') {
-          if (pollId) clearInterval(pollId);
-          pollId = null;
-          try {
-            await systemApi.putAudioPath(path);
-            setAudioPath(path);
-            setNewAudioPath('');
-            setMoveProgress((p) => ({ ...p, status: 'rebooting' }));
+      const pollId = setInterval(async () => {
+        try {
+          const st = await systemApi.getMoveStatus();
+          setMoveProgress({ status: st.status, total: st.total, current: st.current, error: st.error ?? null });
+          if (st.status === 'done') {
+            clearInterval(pollId);
             try {
+              await systemApi.putAudioPath(path);
+              setAudioPath(path);
+              setNewAudioPath('');
+              setMoveProgress((p) => ({ ...p, status: 'rebooting' }));
               await systemApi.rebootHost();
               setMoveProgressOpen(false);
-              setMoveSuccessSnackbar(true);
-            } catch (rebootErr: unknown) {
-              const detail = rebootErr && typeof rebootErr === 'object' && 'response' in rebootErr
-                ? (rebootErr as { response?: { data?: { detail?: string } } }).response?.data?.detail
-                : null;
+              showSuccess(t('general.media_path_success_moved'));
+            } catch (err) {
+              const detail = extractDetail(err);
               setMoveProgress((p) => ({
                 ...p,
                 status: 'error',
-                error: detail ? `${t('general.media_path_reboot_failed')}: ${detail}` : t('general.media_path_reboot_failed'),
+                error: detail
+                  ? `${t('general.media_path_reboot_failed')}: ${detail}`
+                  : t('general.media_path_reboot_failed'),
               }));
             }
-          } catch (saveErr: unknown) {
-            const detail = saveErr && typeof saveErr === 'object' && 'response' in saveErr
-              ? (saveErr as { response?: { data?: { detail?: string } } }).response?.data?.detail
-              : null;
-            setMoveProgress((p) => ({
-              ...p,
-              status: 'error',
-              error: detail || t('general.media_path_error'),
-            }));
+            setAudioPathSaving(false);
+          } else if (st.status === 'error') {
+            clearInterval(pollId);
+            setAudioPathSaving(false);
           }
-          setAudioPathSaving(false);
-        } else if (st.status === 'error') {
-          if (pollId) clearInterval(pollId);
-          pollId = null;
-          setAudioPathSaving(false);
+        } catch {
+          // poll errors are non-fatal, keep polling
         }
       }, 1000);
-    } catch (err: unknown) {
-      const msg = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-        : null;
-      setMoveProgress({ status: 'error', total: 0, current: 0, error: msg || t('general.media_path_move_error') });
+    } catch (err) {
+      setMoveProgress({
+        status: 'error',
+        total: 0,
+        current: 0,
+        error: extractDetail(err) ?? t('general.media_path_move_error'),
+      });
       setAudioPathSaving(false);
     }
   };
 
-  const handleSaveGeneral = async () => {
-    if (!general) return;
-    setSaving(true);
-    setError(null);
-    try {
+  const handleSaveGeneral = () =>
+    run(async () => {
+      if (!general) return;
       const updated = await configApi.updateGeneral(general);
       setGeneral(updated);
-      setSuccess(true);
+      showSuccess(t('general.save_success'));
+    });
+
+  const handleCopyPath = async () => {
+    if (!audioPath) return;
+    try {
+      await navigator.clipboard.writeText(audioPath);
+      showSuccess(t('general.media_path_copied'));
     } catch {
-      setError('Speichern fehlgeschlagen');
-    } finally {
-      setSaving(false);
+      showError(t('general.media_path_copy_error', { defaultValue: 'Kopieren fehlgeschlagen' }));
     }
   };
 
   return (
     <Box display="flex" flexDirection="column" maxWidth={480} sx={{ gap: { xs: 2, sm: 3 } }}>
-      {/* ─── Medienverzeichnis ────────────────────────────────────── */}
+
+      {/* ─── Medienverzeichnis ─────────────────────────────────── */}
       <Typography variant="subtitle2" color="text.secondary">
         {t('general.media_path_title')}
       </Typography>
@@ -568,29 +540,12 @@ export const GeneralSettingsForm: React.FC = () => {
             {t('general.media_path_current')}: <strong>{audioPath}</strong>
           </Typography>
           <Tooltip title={t('general.media_path_copy')}>
-            <IconButton
-              size="small"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(audioPath);
-                  setCopySnackbarOpen(true);
-                } catch {
-                  // ignore
-                }
-              }}
-              aria-label={t('general.media_path_copy')}
-            >
+            <IconButton size="small" onClick={handleCopyPath} aria-label={t('general.media_path_copy')}>
               <ContentCopyIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
       )}
-      <Snackbar
-        open={copySnackbarOpen}
-        autoHideDuration={2000}
-        onClose={() => setCopySnackbarOpen(false)}
-        message={t('general.media_path_copied')}
-      />
       <TextField
         label={t('general.media_path_new')}
         value={newAudioPath}
@@ -609,18 +564,8 @@ export const GeneralSettingsForm: React.FC = () => {
         {t('general.media_path_save')}
       </Button>
       {audioPathError && <Alert severity="error">{audioPathError}</Alert>}
-      <Snackbar
-        open={audioPathSuccess}
-        autoHideDuration={4000}
-        onClose={() => setAudioPathSuccess(false)}
-        message={t('general.media_path_success')}
-      />
-      <Snackbar
-        open={audioPathSuccessRestart}
-        autoHideDuration={6000}
-        onClose={() => setAudioPathSuccessRestart(false)}
-        message={t('general.media_path_success_restart')}
-      />
+
+      {/* Media Path Dialog */}
       <Dialog open={mediaPathDialogOpen} onClose={() => setMediaPathDialogOpen(false)}>
         <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
           {t('general.media_path_restart_dialog_title')}
@@ -629,45 +574,33 @@ export const GeneralSettingsForm: React.FC = () => {
           <DialogContentText>{t('general.media_path_restart_dialog_message')}</DialogContentText>
         </DialogContent>
         <DialogActions sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-          <Button onClick={() => setMediaPathDialogOpen(false)}>{t('cancel', { ns: 'common' })}</Button>
+          <Button onClick={() => setMediaPathDialogOpen(false)}>
+            {t('cancel', { ns: 'common' })}
+          </Button>
           <Button onClick={() => saveAudioPathAndMaybeRestart(false)} disabled={audioPathSaving}>
             {t('general.media_path_save_only')}
           </Button>
           {audioPath && (
-            <Button onClick={runMoveAndRestart} variant="contained" color="primary" disabled={audioPathSaving}>
+            <Button onClick={runMoveAndRestart} variant="contained" disabled={audioPathSaving}>
               {t('general.media_path_move_and_restart')}
             </Button>
           )}
-          <Button onClick={() => saveAudioPathAndMaybeRestart(true)} variant="contained" color="primary" disabled={audioPathSaving}>
+          <Button onClick={() => saveAudioPathAndMaybeRestart(true)} variant="contained" disabled={audioPathSaving}>
             {t('general.media_path_save_and_restart')}
           </Button>
         </DialogActions>
       </Dialog>
 
+      {/* Move Progress Dialog */}
       <Dialog
         open={moveProgressOpen}
         onClose={() => {}}
         disableEscapeKeyDown
         maxWidth="sm"
         fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-            overflow: 'hidden',
-          },
-        }}
+        PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}
       >
-        <DialogTitle
-          component="div"
-          sx={{
-            fontSize: '1.25rem',
-            fontWeight: 600,
-            pb: 0,
-            pt: 2.5,
-            px: 3,
-          }}
-        >
+        <DialogTitle component="div" sx={{ fontSize: '1.25rem', fontWeight: 600, pb: 0, pt: 2.5, px: 3 }}>
           {moveProgress.status === 'rebooting'
             ? t('general.media_path_move_rebooting_title')
             : moveProgress.status === 'error'
@@ -691,15 +624,7 @@ export const GeneralSettingsForm: React.FC = () => {
                   ? t('general.media_path_move_rebooting_subtitle')
                   : t('general.media_path_move_progress_subtitle')}
               </Typography>
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 2,
-                  bgcolor: 'action.hover',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                }}
-              >
+              <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
                 <LinearProgress
                   variant={moveProgress.total > 0 ? 'determinate' : 'indeterminate'}
                   value={moveProgress.total > 0 ? (100 * moveProgress.current) / moveProgress.total : 0}
@@ -712,7 +637,10 @@ export const GeneralSettingsForm: React.FC = () => {
                 />
                 {moveProgress.total > 0 && (
                   <Typography variant="caption" color="text.secondary">
-                    {t('general.media_path_move_files_count', { current: moveProgress.current, total: moveProgress.total })}
+                    {t('general.media_path_move_files_count', {
+                      current: moveProgress.current,
+                      total: moveProgress.total,
+                    })}
                   </Typography>
                 )}
               </Box>
@@ -728,16 +656,9 @@ export const GeneralSettingsForm: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Snackbar
-        open={moveSuccessSnackbar}
-        autoHideDuration={6000}
-        onClose={() => setMoveSuccessSnackbar(false)}
-        message={t('general.media_path_success_moved')}
-      />
-
       <Divider />
 
-      {/* ─── Sleep Timer ──────────────────────────────────────────── */}
+      {/* ─── Sleep Timer ───────────────────────────────────────── */}
       <Typography variant="subtitle2" color="text.secondary">
         {t('general.sleep_timer')}
       </Typography>
@@ -746,7 +667,11 @@ export const GeneralSettingsForm: React.FC = () => {
           label={t('general.sleep_timer_minutes')}
           type="number"
           value={general.sleep_timer_minutes ?? 30}
-          onChange={(e) => setGeneral((p) => p ? { ...p, sleep_timer_minutes: Math.max(1, parseInt(e.target.value, 10) || 30) } : p)}
+          onChange={(e) =>
+            setGeneral((p) =>
+              p ? { ...p, sleep_timer_minutes: Math.max(1, parseInt(e.target.value, 10) || 30) } : p
+            )
+          }
           size="small"
           fullWidth
           inputProps={{ min: 1, max: 480 }}
@@ -756,6 +681,7 @@ export const GeneralSettingsForm: React.FC = () => {
 
       <Divider />
 
+      {/* ─── Allgemein ─────────────────────────────────────────── */}
       {general && (
         <>
           <Typography variant="subtitle2" color="text.secondary">
@@ -791,7 +717,9 @@ export const GeneralSettingsForm: React.FC = () => {
             label={t('general.mqtt_port')}
             type="number"
             value={general.mqtt_port}
-            onChange={(e) => setGeneral((p) => p ? { ...p, mqtt_port: parseInt(e.target.value, 10) || 1883 } : p)}
+            onChange={(e) =>
+              setGeneral((p) => p ? { ...p, mqtt_port: parseInt(e.target.value, 10) || 1883 } : p)
+            }
             size="small"
             fullWidth
             inputProps={{ min: 1, max: 65535 }}
@@ -805,7 +733,6 @@ export const GeneralSettingsForm: React.FC = () => {
           </Button>
         </>
       )}
-      <Snackbar open={success} autoHideDuration={3000} onClose={() => setSuccess(false)} message={t('general.save_success')} />
     </Box>
   );
 };

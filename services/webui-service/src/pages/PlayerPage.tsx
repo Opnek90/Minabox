@@ -10,6 +10,7 @@ import {
   List,
   ListItemButton,
   Popover,
+  Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
@@ -23,37 +24,31 @@ import { PlaybackControls } from '@/components/player/PlaybackControls';
 import { ProgressBar } from '@/components/player/ProgressBar';
 import { VolumeControl } from '@/components/player/VolumeControl';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { useToast } from '@/contexts/ToastContext';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type { AudioConfig } from '@/types/api';
 
-// ============================================================================
-// Sleep timer presets (minutes)
-// ============================================================================
+
 const SLEEP_PRESETS = [15, 30, 45, 60];
 
-// ============================================================================
-// Button action label map (keys match button_service action names)
-// ============================================================================
 const BUTTON_ACTION_LABELS: Record<string, string> = {
-  play_pause:           '⏯ Play / Pause',
-  next:                 '⏭ Next',
-  prev:                 '⏮ Previous',
-  volume_up:            '🔊 Volume +',
-  volume_down:          '🔉 Volume –',
-  mute_toggle:          '🔇 Mute',
-  stop:                 '⏹ Stop',
-  sleep_timer_toggle:   '🌙 Sleep Timer',
+  play_pause:         '⏯ Play / Pause',
+  next:               '⏭ Next',
+  prev:               '⏮ Previous',
+  volume_up:          '🔊 Volume +',
+  volume_down:        '🔉 Volume –',
+  mute_toggle:        '🔇 Mute',
+  stop:               '⏹ Stop',
+  sleep_timer_toggle: '🌙 Sleep Timer',
 };
 
-// ============================================================================
-// PlayerPage
-// ============================================================================
 
 export const PlayerPage: React.FC = () => {
   const { t } = useTranslation('player');
+  const { showError } = useToast();
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
@@ -65,16 +60,13 @@ export const PlayerPage: React.FC = () => {
   const [optimisticVolume, setOptimisticVolume] = useState<number | null>(null);
   const optimisticTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sleep timer state — driven by backend; local interval is display-only countdown
   const [sleepAnchor, setSleepAnchor] = useState<HTMLElement | null>(null);
   const [sleepRemainingMs, setSleepRemainingMs] = useState<number | null>(null);
   const sleepDisplayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Button feedback state
   const [buttonFeedback, setButtonFeedback] = useState<string | null>(null);
   const buttonFeedbackTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load audio config (for max_volume) and initial sleep timer state
   useEffect(() => {
     configApi.getAudio().then(setAudioConfig).catch(() => null);
     audioApi.getSleepTimer().then((status) => {
@@ -92,7 +84,6 @@ export const PlayerPage: React.FC = () => {
     };
   }, []);
 
-  // Clear optimistic volume when WS confirms
   useEffect(() => {
     if (audioStatus?.volume == null || optimisticVolume === null) return;
     if (Math.abs(audioStatus.volume - optimisticVolume) <= 2) {
@@ -104,7 +95,6 @@ export const PlayerPage: React.FC = () => {
     }
   }, [audioStatus?.volume, optimisticVolume]);
 
-  // Sync sleep timer display with backend WebSocket events
   useEffect(() => {
     if (!lastMessage) return;
     if (lastMessage.type === 'sleep_timer_status') {
@@ -124,7 +114,6 @@ export const PlayerPage: React.FC = () => {
     }
   }, [lastMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Display-only countdown (seeded from backend's remaining_ms)
   const startDisplayCountdown = (initialMs: number) => {
     if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
     const endMs = Date.now() + initialMs;
@@ -146,13 +135,17 @@ export const PlayerPage: React.FC = () => {
     setSleepRemainingMs(null);
   };
 
-  // UI actions delegate to backend
   const handleStartSleepTimer = (minutes: number) => {
-    audioApi.startSleepTimer(minutes).catch(() => null);
+    setSleepAnchor(null);
+    audioApi.startSleepTimer(minutes).catch(() =>
+      showError(t('sleep_timer.error', { defaultValue: 'Sleep Timer konnte nicht gesetzt werden' }))
+    );
   };
 
   const handleCancelSleepTimer = () => {
-    audioApi.cancelSleepTimer().catch(() => null);
+    audioApi.cancelSleepTimer().catch(() =>
+      showError(t('sleep_timer.cancel_error', { defaultValue: 'Sleep Timer konnte nicht abgebrochen werden' }))
+    );
   };
 
   const formatSleepRemaining = (ms: number) => {
@@ -167,16 +160,17 @@ export const PlayerPage: React.FC = () => {
     try {
       await fn();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error');
+      const msg = err instanceof Error ? err.message : 'Error';
+      setError(msg);
     } finally {
       setActionLoading(false);
     }
   }, []);
 
-  const handlePlay = () => handleAction(audioApi.play);
-  const handlePause = () => handleAction(audioApi.pause);
-  const handleStop = () => handleAction(audioApi.stop);
-  const handleNext = () => handleAction(audioApi.next);
+  const handlePlay     = () => handleAction(audioApi.play);
+  const handlePause    = () => handleAction(audioApi.pause);
+  const handleStop     = () => handleAction(audioApi.stop);
+  const handleNext     = () => handleAction(audioApi.next);
   const handlePrevious = () => handleAction(audioApi.previous);
 
   const handleVolumeChange = useCallback((volume: number) => {
@@ -200,28 +194,46 @@ export const PlayerPage: React.FC = () => {
       alignItems="center"
       justifyContent={isSmall ? 'flex-start' : 'center'}
       sx={{
-        minHeight: isSmall ? 0 : '70vh',
+        minHeight: isSmall ? 'calc(100vh - 120px)' : '70vh',
         p: isSmall ? 1.5 : 2,
         pb: 2,
       }}
     >
       {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 1.5, width: '100%', maxWidth: 480 }}>
+        <Alert
+          severity="error"
+          onClose={() => setError(null)}
+          sx={{ mb: 1.5, width: '100%', maxWidth: 480 }}
+        >
           {error}
         </Alert>
       )}
 
-      <Card sx={{ width: '100%', maxWidth: 480, borderRadius: isSmall ? 2 : 4, boxShadow: isSmall ? 2 : 6 }}>
-        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: isSmall ? 1 : 2, pb: '16px !important' }}>
+      <Card
+        sx={{
+          width: '100%',
+          maxWidth: 480,
+          borderRadius: isSmall ? 2 : 4,
+          boxShadow: isSmall ? 2 : 6,
+        }}
+      >
+        <CardContent
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: isSmall ? 1.5 : 2,
+            p: isSmall ? 1.5 : 2,
+            pb: '16px !important',
+          }}
+        >
           {/* Status row: state chip + sleep timer + kiosk */}
-          <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Box display="flex" justifyContent="space-between" alignItems="center" minWidth={0}>
             <Chip
               label={t(`states.${state}`)}
               color={state === 'playing' ? 'success' : state === 'error' ? 'error' : 'default'}
               size="small"
             />
-            <Box display="flex" alignItems="center" gap={0.5}>
-              {/* Sleep timer chip or button */}
+            <Box display="flex" alignItems="center" gap={0.5} flexShrink={0}>
               {sleepRemainingMs !== null ? (
                 <Chip
                   icon={<HotelIcon fontSize="small" />}
@@ -233,12 +245,19 @@ export const PlayerPage: React.FC = () => {
                   deleteIcon={<CancelIcon />}
                 />
               ) : (
-                <IconButton size="small" onClick={(e) => setSleepAnchor(e.currentTarget)} title={t('sleep_timer.title')}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => setSleepAnchor(e.currentTarget)}
+                  title={t('sleep_timer.title')}
+                >
                   <HotelIcon fontSize="small" />
                 </IconButton>
               )}
-              {/* Kiosk mode button */}
-              <IconButton size="small" onClick={() => navigate('/kiosk')} title={t('kiosk_mode')}>
+              <IconButton
+                size="small"
+                onClick={() => navigate('/kiosk')}
+                title={t('kiosk_mode')}
+              >
                 <FullscreenIcon fontSize="small" />
               </IconButton>
             </Box>
@@ -255,7 +274,9 @@ export const PlayerPage: React.FC = () => {
             <List dense sx={{ py: 0.5, minWidth: 160 }}>
               {SLEEP_PRESETS.map((min) => (
                 <ListItemButton key={min} onClick={() => handleStartSleepTimer(min)}>
-                  {t('sleep_timer.preset', { minutes: min })}
+                  <Typography variant="body2">
+                    {t('sleep_timer.preset', { minutes: min })}
+                  </Typography>
                 </ListItemButton>
               ))}
             </List>

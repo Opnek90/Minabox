@@ -48,14 +48,6 @@
     "language_en": "English",
     "device_id": "Device ID",
     "theme": "Theme",
-    "theme_light": "Light",
-    "theme_dark": "Dark",
-    "logo": "Custom Logo",
-    "logo_upload": "Upload Logo",
-    "logo_delete": "Remove Logo",
-    "appearance": "Appearance",
-    "color_mode": "Color Mode",
-    "accent_color": "Accent Color",
     "log_level": "Log Level",
     "mqtt_broker": "MQTT Broker",
     "mqtt_port": "MQTT Port",
@@ -88,7 +80,15 @@
     "media_path_success_restart": "Path saved. Pi is rebooting…",
     "media_path_error": "Failed to save path.",
     "media_path_copy": "Copy path",
-    "media_path_copied": "Copied to clipboard"
+    "media_path_copied": "Copied to clipboard",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "logo": "Custom Logo",
+    "logo_upload": "Upload Logo",
+    "logo_delete": "Remove Logo",
+    "appearance": "Appearance",
+    "color_mode": "Color Mode",
+    "accent_color": "Accent Color"
   },
   "audio": {
     "title": "Audio Settings",
@@ -109,17 +109,27 @@
     "edit_led": "Edit LED",
     "delete_led": "Remove LED",
     "delete_confirm": "Do you really want to remove the LED \"{{name}}\"?",
+    "steps": {
+      "basics": "Basics",
+      "bindings": "Bindings"
+    },
     "fields": {
       "id": "ID",
+      "id_hint": "Unique ID, e.g. led_1",
       "name": "Name",
       "gpio": "GPIO Pin",
-      "bindings": "Bindings"
+      "gpio_hint": "GPIO pin number of the Raspberry Pi",
+      "bindings": "Bindings",
+      "actions": "Actions"
     },
     "bindings": {
       "title": "State Bindings",
+      "description": "Define which pattern the LED shows for each system state.",
+      "none": "No bindings defined yet.",
       "state": "State",
       "pattern": "Pattern",
       "add": "Add Binding",
+      "add_placeholder": "Select state…",
       "patterns": {
         "solid": "Solid",
         "blink": "Blink",
@@ -141,15 +151,23 @@
     "edit_button": "Edit Button",
     "delete_button": "Remove Button",
     "delete_confirm": "Do you really want to remove the button \"{{name}}\"?",
+    "steps": {
+      "basics": "Basics",
+      "actions": "Actions"
+    },
     "fields": {
       "id": "ID",
+      "id_hint": "Unique ID, e.g. btn_1",
       "name": "Name",
       "type": "Type",
       "mode": "Mode",
+      "mode_hint": "Basic: one action. Advanced: different actions per event.",
       "gpio": "GPIO Pin",
+      "gpio_hint": "GPIO pin number of the Raspberry Pi",
       "clk": "CLK Pin",
       "dt": "DT Pin",
-      "sw": "SW Pin"
+      "sw": "SW Pin",
+      "actions": "Actions"
     },
     "types": {
       "push": "Push Button",
@@ -163,6 +181,8 @@
       "title": "Actions",
       "event": "Event",
       "action": "Action",
+      "basic_hint": "Choose an action to trigger when the button is pressed.",
+      "advanced_hint": "Assign a separate action to each event.",
       "events": {
         "short_press": "Short Press",
         "long_press": "Long Press",

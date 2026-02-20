@@ -13,8 +13,10 @@ import {
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AudioFileIcon from '@mui/icons-material/AudioFile';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '@/contexts/ToastContext';
 import type { Track } from '@/types/api';
 import { tracksApi } from '@/api/tracks';
+
 
 interface UploadDialogProps {
   open: boolean;
@@ -22,8 +24,10 @@ interface UploadDialogProps {
   onSuccess: (track: Track) => void;
 }
 
+
 export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuccess }) => {
   const { t } = useTranslation('media');
+  const { showError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -32,15 +36,12 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
   const [album, setAlbum] = useState('');
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
-  const applyFile = (selected: File) => {
+  const applyFile = useCallback((selected: File) => {
     setFile(selected);
-    if (!title) {
-      setTitle(selected.name.replace(/\.[^.]+$/, ''));
-    }
-  };
+    setTitle((prev) => prev || selected.name.replace(/\.[^.]+$/, ''));
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] ?? null;
@@ -62,12 +63,21 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
     setDragOver(false);
     const dropped = e.dataTransfer.files[0];
     if (dropped) applyFile(dropped);
-  }, [title]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [applyFile]);
+
+  const handleReset = () => {
+    setFile(null);
+    setTitle('');
+    setArtist('');
+    setAlbum('');
+    setProgress(0);
+    setDragOver(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
-    setError(null);
     setProgress(0);
     try {
       const track = await tracksApi.upload(
@@ -78,21 +88,10 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
       onSuccess(track);
       handleReset();
     } catch {
-      setError('Upload fehlgeschlagen');
+      showError(t('upload.error', { defaultValue: 'Upload fehlgeschlagen' }));
     } finally {
       setUploading(false);
     }
-  };
-
-  const handleReset = () => {
-    setFile(null);
-    setTitle('');
-    setArtist('');
-    setAlbum('');
-    setProgress(0);
-    setError(null);
-    setDragOver(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleClose = () => {
@@ -112,7 +111,6 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
           accept="audio/*,.mp3,.ogg,.flac,.wav,.m4a,.aac"
           onChange={handleFileSelect}
           style={{ display: 'none' }}
-          id="audio-upload-input"
         />
 
         {/* Drop Zone */}
@@ -130,10 +128,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
             textAlign: 'center',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
-            '&:hover': {
-              borderColor: 'primary.light',
-              bgcolor: 'action.hover',
-            },
+            '&:hover': { borderColor: 'primary.light', bgcolor: 'action.hover' },
           }}
         >
           {file ? (
@@ -167,50 +162,37 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
           placeholder={t('upload.fields.title_placeholder')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          fullWidth
-          size="small"
+          fullWidth size="small"
         />
         <TextField
           label={t('upload.fields.artist')}
           placeholder={t('upload.fields.artist_placeholder')}
           value={artist}
           onChange={(e) => setArtist(e.target.value)}
-          fullWidth
-          size="small"
+          fullWidth size="small"
         />
         <TextField
           label={t('upload.fields.album')}
           placeholder={t('upload.fields.album_placeholder')}
           value={album}
           onChange={(e) => setAlbum(e.target.value)}
-          fullWidth
-          size="small"
+          fullWidth size="small"
         />
 
         {uploading && (
           <>
-            <LinearProgress variant="determinate" value={progress} />
+            <LinearProgress variant="determinate" value={progress} sx={{ borderRadius: 1 }} />
             <Typography variant="caption" textAlign="center">
               {t('upload.progress', { percent: progress })}
             </Typography>
           </>
-        )}
-
-        {error && (
-          <Typography color="error" variant="body2">
-            {error}
-          </Typography>
         )}
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose} disabled={uploading}>
           {t('cancel', { ns: 'common' })}
         </Button>
-        <Button
-          onClick={handleUpload}
-          variant="contained"
-          disabled={!file || uploading}
-        >
+        <Button onClick={handleUpload} variant="contained" disabled={!file || uploading}>
           {uploading ? t('upload.uploading') : t('upload.title')}
         </Button>
       </DialogActions>

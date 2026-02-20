@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 import backend_service.core.db_manager as _db_module
 from backend_service.core.session_manager import session_manager
 from backend_service.exceptions import ContentNotFoundError
-from backend_service.models.database import Playlist, PlaylistTrack, Tag, Track
+from backend_service.models.database import Playlist, PlaylistTrack, Stream, Tag, Track
 
 if TYPE_CHECKING:
     from backend_service.api.websocket import WebSocketManager
@@ -114,6 +114,8 @@ class MQTTHandlers:
                 await self._handle_playlist_playback(session, tag.content_id)
             elif tag.content_type == "track":
                 await self._handle_track_playback(session, tag.content_id)
+            elif tag.content_type == "stream":
+                await self._handle_stream_playback(session, tag.content_id)
 
             # Broadcast to WebUI
             if self.websocket_manager:
@@ -210,6 +212,28 @@ class MQTTHandlers:
         )
 
         logger.info("track_playback_started", track_id=track_id, title=track.title)
+
+    async def _handle_stream_playback(
+        self, session: Session, stream_id: int
+    ) -> None:
+        """Start stream playback (no session)."""
+        stream = session.query(Stream).filter(Stream.id == stream_id).first()
+        if not stream:
+            logger.error("stream_not_found", stream_id=stream_id)
+            raise ContentNotFoundError(f"Stream {stream_id} not found")
+
+        await self.mqtt_client.publish_audio_command(
+            "play",
+            {
+                "track_id": f"stream-{stream.id}",
+                "source_type": "stream",
+                "source_uri": stream.source_uri,
+                "start_position_ms": 0,
+            },
+        )
+        logger.info(
+            "stream_playback_started", stream_id=stream_id, title=stream.title
+        )
 
     async def handle_rfid_tag_scanned_learning(
         self,

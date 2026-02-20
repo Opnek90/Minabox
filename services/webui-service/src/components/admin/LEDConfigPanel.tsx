@@ -1,0 +1,422 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Divider,
+  IconButton,
+  Paper,
+  Stack,
+  Step,
+  StepLabel,
+  Stepper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Tooltip,
+  Typography,
+  useMediaQuery,
+  useTheme,
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
+import SaveIcon from '@mui/icons-material/Save';
+import { useTranslation } from 'react-i18next';
+import { useToast } from '@/contexts/ToastContext';
+import { configApi } from '@/api/config';
+import type { LEDConfig, LED, LEDPattern } from '@/types/api';
+
+
+export const LEDConfigPanel: React.FC = () => {
+  const { t } = useTranslation('admin');
+  const { showSuccess, showError } = useToast();
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const [config, setConfig] = useState<LEDConfig | null>(null);
+  const [ledStates, setLedStates] = useState<string[]>([]);
+  const [ledPatterns, setLedPatterns] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [testingLedId, setTestingLedId] = useState<string | null>(null);
+
+  const [editLed, setEditLed] = useState<LED | null>(null);
+  const [isNewLed, setIsNewLed] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+  const [ledForm, setLedForm] = useState({ id: '', name: '', gpio: 17 });
+  const [bindingsForm, setBindingsForm] = useState<Record<string, LEDPattern>>({});
+  const [addBindingState, setAddBindingState] = useState('');
+  const [deleteLed, setDeleteLed] = useState<LED | null>(null);
+
+  const stepLabels = useMemo(
+    () => [t('leds.steps.basics'), t('leds.steps.bindings')],
+    [t]
+  );
+
+  useEffect(() => {
+    configApi.getLeds().then(setConfig).catch(() => setError('Laden fehlgeschlagen'));
+    configApi.getLedStates().then(setLedStates).catch(() => {});
+    configApi.getLedPatterns().then(setLedPatterns).catch(() => {});
+  }, []);
+
+  const handleSave = async () => {
+    if (!config) return;
+    setSaving(true);
+    try {
+      const updated = await configApi.updateLeds(config);
+      setConfig(updated);
+      showSuccess(t('leds.save_success'));
+    } catch {
+      showError(t('leds.save_error', { defaultValue: 'Speichern fehlgeschlagen' }));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openAddLed = () => {
+    const nextNum = config?.leds.length
+      ? Math.max(...config.leds.map((l) => parseInt(l.id.replace(/\D/g, ''), 10) || 0)) + 1
+      : 1;
+    setLedForm({ id: `led_${nextNum}`, name: '', gpio: 17 });
+    setBindingsForm({ system_online: { pattern_type: 'solid', duration_ms: 0 } });
+    setEditLed({ id: `led_${nextNum}`, name: '', gpio: 17, bindings: {} });
+    setIsNewLed(true);
+    setActiveStep(0);
+  };
+
+  const openEditLed = (led: LED) => {
+    setLedForm({ id: led.id, name: led.name, gpio: led.gpio });
+    setBindingsForm({ ...led.bindings });
+    setEditLed(led);
+    setIsNewLed(false);
+    setActiveStep(0);
+  };
+
+  const closeDialog = () => {
+    setEditLed(null);
+    setActiveStep(0);
+  };
+
+  const handleNext = () => setActiveStep((s) => s + 1);
+  const handleBack = () => setActiveStep((s) => s - 1);
+  const isStep0Valid = ledForm.name.trim().length > 0 && ledForm.id.trim().length > 0;
+
+  const updateBinding = (state: string, patch: Partial<LEDPattern>) => {
+    setBindingsForm((prev) => ({
+      ...prev,
+      [state]: { ...(prev[state] || { pattern_type: 'solid' }), ...patch },
+    }));
+  };
+
+  const addBinding = (state: string) => {
+    setBindingsForm((prev) => ({
+      ...prev,
+      [state]: { pattern_type: 'solid', duration_ms: 0 },
+    }));
+    setAddBindingState('');
+  };
+
+  const removeBinding = (state: string) => {
+    setBindingsForm((prev) => {
+      const next = { ...prev };
+      delete next[state];
+      return next;
+    });
+  };
+
+  const handleSaveLedDialog = () => {
+    if (!editLed || !config) return;
+    const updatedLed: LED = {
+      id: ledForm.id,
+      name: ledForm.name,
+      gpio: ledForm.gpio,
+      bindings: bindingsForm,
+    };
+    if (isNewLed) {
+      setConfig({ leds: [...config.leds, updatedLed] });
+    } else {
+      setConfig({ leds: config.leds.map((l) => (l.id === ledForm.id ? updatedLed : l)) });
+    }
+    closeDialog();
+  };
+
+  const handleDeleteLed = (led: LED) => {
+    setConfig((prev) => prev ? { leds: prev.leds.filter((l) => l.id !== led.id) } : prev);
+    setDeleteLed(null);
+  };
+
+  const handleTestLed = async (led: LED) => {
+    setTestingLedId(led.id);
+    try {
+      await configApi.testLed(led.id);
+      showSuccess(t('leds.test_success', { name: led.name, defaultValue: `Test gestartet: ${led.name}` }));
+    } catch {
+      showError(t('leds.test_error', { name: led.name, defaultValue: `Test fehlgeschlagen: ${led.name}` }));
+    } finally {
+      setTestingLedId(null);
+    }
+  };
+
+  if (!config) {
+    return error ? <Alert severity="error">{error}</Alert> : null;
+  }
+
+  const availableStates = ledStates.filter((s) => !(s in bindingsForm));
+
+  return (
+    <Box>
+      <Box display="flex" alignItems="center" gap={2} mb={2}>
+        <Button variant="outlined" startIcon={<AddIcon />} onClick={openAddLed}>
+          {t('leds.add_led')}
+        </Button>
+        <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
+          {t('save', { ns: 'common' })}
+        </Button>
+      </Box>
+
+      {config.leds.length === 0 ? (
+        <Typography color="text.secondary">{t('leds.no_leds')}</Typography>
+      ) : (
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>{t('leds.fields.name')}</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>GPIO</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>{t('leds.fields.bindings')}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>{t('leds.fields.actions')}</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {config.leds.map((led) => (
+                <TableRow key={led.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={600}>{led.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">{led.id}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={`GPIO ${led.gpio}`} size="small" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" flexWrap="wrap" gap={0.5}>
+                      {Object.entries(led.bindings).map(([state, pat]) => (
+                        <Chip
+                          key={state}
+                          label={`${state} → ${pat.pattern_type}`}
+                          size="small"
+                          sx={{ fontSize: '0.7rem' }}
+                        />
+                      ))}
+                      {Object.keys(led.bindings).length === 0 && (
+                        <Typography variant="caption" color="text.disabled">–</Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      <Tooltip title={t('leds.test_led')}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="warning"
+                            disabled={testingLedId !== null || Object.keys(led.bindings).length === 0}
+                            onClick={() => handleTestLed(led)}
+                          >
+                            {testingLedId === led.id ? (
+                              <CircularProgress size={16} color="warning" />
+                            ) : (
+                              <ElectricBoltIcon fontSize="small" />
+                            )}
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={t('leds.edit_led')}>
+                        <IconButton size="small" onClick={() => openEditLed(led)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={t('leds.delete_led')}>
+                        <IconButton size="small" color="error" onClick={() => setDeleteLed(led)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {/* ── Edit / Add Dialog ─────────────────────────────────────────── */}
+      <Dialog open={!!editLed} onClose={closeDialog} maxWidth="sm" fullWidth fullScreen={isSmall}>
+        <DialogTitle>
+          {isNewLed ? t('leds.add_led') : t('leds.edit_led')}
+        </DialogTitle>
+        <DialogContent>
+          <Stepper activeStep={activeStep} sx={{ mb: 3 }}>
+            {stepLabels.map((label) => (
+              <Step key={label}><StepLabel>{label}</StepLabel></Step>
+            ))}
+          </Stepper>
+
+          {activeStep === 0 && (
+            <Stack spacing={2}>
+              <TextField
+                label={t('leds.fields.id')} value={ledForm.id}
+                onChange={(e) => setLedForm((p) => ({ ...p, id: e.target.value }))}
+                size="small" fullWidth disabled={!isNewLed}
+                helperText={t('leds.fields.id_hint')}
+              />
+              <TextField
+                label={t('leds.fields.name')} value={ledForm.name}
+                onChange={(e) => setLedForm((p) => ({ ...p, name: e.target.value }))}
+                size="small" fullWidth required autoFocus={isNewLed}
+              />
+              <TextField
+                label={t('leds.fields.gpio')} type="number" value={ledForm.gpio}
+                onChange={(e) => setLedForm((p) => ({ ...p, gpio: parseInt(e.target.value, 10) || 0 }))}
+                size="small" fullWidth inputProps={{ min: 0 }}
+                helperText={t('leds.fields.gpio_hint')}
+              />
+            </Stack>
+          )}
+
+          {activeStep === 1 && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {t('leds.bindings.description')}
+              </Typography>
+              <Stack spacing={1.5} sx={{ mb: 2 }}>
+                {Object.entries(bindingsForm).length === 0 && (
+                  <Typography variant="body2" color="text.disabled">
+                    {t('leds.bindings.none')}
+                  </Typography>
+                )}
+                {Object.entries(bindingsForm).map(([state, pat]) => (
+                  <Card key={state} variant="outlined">
+                    <CardHeader
+                      title={<Typography variant="subtitle2" fontWeight={700}>{state}</Typography>}
+                      action={
+                        <IconButton size="small" color="error" onClick={() => removeBinding(state)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      }
+                      sx={{ pb: 0, pt: 1, px: 2 }}
+                    />
+                    <Divider />
+                    <CardContent
+                      sx={{
+                        pt: 1.5,
+                        display: 'grid',
+                        gridTemplateColumns: isSmall ? '1fr' : '1fr 1fr',
+                        gap: 1.5,
+                        '&:last-child': { pb: 1.5 },
+                      }}
+                    >
+                      <TextField
+                        select label={t('leds.bindings.pattern')}
+                        value={pat.pattern_type || 'solid'}
+                        onChange={(e) => updateBinding(state, { pattern_type: e.target.value as LEDPattern['pattern_type'] })}
+                        size="small" fullWidth
+                        SelectProps={{ native: true }} InputLabelProps={{ shrink: true }}
+                      >
+                        {ledPatterns.map((p) => (
+                          <option key={p} value={p}>{t(`leds.bindings.patterns.${p}`)}</option>
+                        ))}
+                      </TextField>
+                      <TextField
+                        label={t('leds.bindings.duration_ms')} type="number"
+                        value={pat.duration_ms ?? ''}
+                        onChange={(e) => updateBinding(state, { duration_ms: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                        size="small" fullWidth inputProps={{ min: 0 }}
+                      />
+                      {(pat.pattern_type || 'solid') === 'blink' && (
+                        <TextField
+                          label={t('leds.bindings.interval_ms')} type="number"
+                          value={pat.interval_ms ?? ''}
+                          onChange={(e) => updateBinding(state, { interval_ms: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                          size="small" fullWidth inputProps={{ min: 50 }}
+                        />
+                      )}
+                      <TextField
+                        label={t('leds.bindings.repeat')} type="number"
+                        value={pat.repeat ?? ''}
+                        onChange={(e) => updateBinding(state, { repeat: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                        size="small" fullWidth inputProps={{ min: 0 }} placeholder="0"
+                      />
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+
+              {availableStates.length > 0 && (
+                <TextField
+                  select size="small" label={t('leds.bindings.add')}
+                  value={addBindingState}
+                  onChange={(e) => { if (e.target.value) addBinding(e.target.value); }}
+                  fullWidth SelectProps={{ native: true }} InputLabelProps={{ shrink: true }}
+                >
+                  <option value="">— {t('leds.bindings.add_placeholder')}</option>
+                  {availableStates.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </TextField>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+          <Button onClick={closeDialog}>{t('cancel', { ns: 'common' })}</Button>
+          <Box display="flex" gap={1}>
+            {activeStep > 0 && (
+              <Button onClick={handleBack}>{t('back', { ns: 'common' })}</Button>
+            )}
+            {activeStep < stepLabels.length - 1 ? (
+              <Button variant="contained" onClick={handleNext} disabled={!isStep0Valid}>
+                {t('next', { ns: 'common' })}
+              </Button>
+            ) : (
+              <Button variant="contained" onClick={handleSaveLedDialog} disabled={!isStep0Valid}>
+                {t('save', { ns: 'common' })}
+              </Button>
+            )}
+          </Box>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Delete Dialog ─────────────────────────────────────────────── */}
+      <Dialog open={!!deleteLed} onClose={() => setDeleteLed(null)}>
+        <DialogTitle>{t('leds.delete_led')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {t('leds.delete_confirm', { name: deleteLed?.name })}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteLed(null)}>{t('cancel', { ns: 'common' })}</Button>
+          <Button onClick={() => deleteLed && handleDeleteLed(deleteLed)} color="error" variant="contained">
+            {t('delete', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};

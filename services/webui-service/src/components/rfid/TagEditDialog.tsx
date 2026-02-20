@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import type { Tag, ContentType, Playlist, Track } from '@/types/api';
+import type { Tag, ContentType, Playlist, Stream, Track } from '@/types/api';
 
 interface TagEditDialogProps {
   open: boolean;
@@ -22,6 +22,7 @@ interface TagEditDialogProps {
   newTagId?: string | null;
   playlists: Playlist[];
   tracks: Track[];
+  streams: Stream[];
   onSave: (data: {
     name: string | null;
     content_type: ContentType;
@@ -36,6 +37,7 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
   newTagId,
   playlists,
   tracks,
+  streams,
   onSave,
   onClose,
 }) => {
@@ -67,7 +69,8 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
     ? t('new_tag_dialog.title')
     : t('edit_tag');
 
-  const contentOptions = contentType === 'playlist' ? playlists : tracks;
+  const contentOptions =
+    contentType === 'playlist' ? playlists : contentType === 'stream' ? streams : tracks;
   const isValid = contentId !== '';
 
   return (
@@ -101,6 +104,7 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
           >
             <MenuItem value="playlist">{t('new_tag_dialog.content_type_playlist')}</MenuItem>
             <MenuItem value="track">{t('new_tag_dialog.content_type_track')}</MenuItem>
+            <MenuItem value="stream">{t('new_tag_dialog.content_type_stream', { defaultValue: 'Stream' })}</MenuItem>
           </Select>
         </FormControl>
 
@@ -108,14 +112,18 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
           <InputLabel>
             {contentType === 'playlist'
               ? t('new_tag_dialog.select_playlist')
-              : t('new_tag_dialog.select_track')}
+              : contentType === 'stream'
+                ? t('new_tag_dialog.select_stream', { defaultValue: 'Stream wählen' })
+                : t('new_tag_dialog.select_track')}
           </InputLabel>
           <Select
             value={contentId}
             label={
               contentType === 'playlist'
                 ? t('new_tag_dialog.select_playlist')
-                : t('new_tag_dialog.select_track')
+                : contentType === 'stream'
+                  ? t('new_tag_dialog.select_stream', { defaultValue: 'Stream wählen' })
+                  : t('new_tag_dialog.select_track')
             }
             onChange={(e) => setContentId(e.target.value as number)}
           >

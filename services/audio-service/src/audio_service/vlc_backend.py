@@ -246,20 +246,20 @@ class VLCBackend(AudioBackend):
             raise PlaybackError(f"Playback failed: {e}") from e
 
     async def _validate_source(self, source_uri: str) -> None:
-        """Validate audio source exists/is reachable.
+        """Validate audio source exists or is a known remote/stream scheme.
 
-        Args:
-            source_uri: Source to validate
-
-        Raises:
-            FileNotFoundError: If local file doesn't exist
-            StreamUnreachableError: If stream URL is invalid
+        Local files are checked with Path.exists(). HTTP(S) and remote schemes
+        (smb, nfs, dlna, etc.) are passed through to VLC without existence check.
         """
-        # Check if it's a local file
-        if not source_uri.startswith(("http://", "https://")):
-            path = Path(source_uri)
-            if not path.exists():
-                raise FileNotFoundError(f"Audio file not found: {source_uri}")
+        # Remote/stream schemes: no local path check (VLC handles them)
+        if source_uri.startswith(
+            ("http://", "https://", "smb://", "nfs://", "dlna://", "ftp://")
+        ):
+            return
+        # Local file: must exist
+        path = Path(source_uri)
+        if not path.exists():
+            raise FileNotFoundError(f"Audio file not found: {source_uri}")
 
     async def _wait_for_state(
         self,

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend_service.config import get_config
 from backend_service.core.db_manager import get_db
 from backend_service.models.database import Track
-from backend_service.models.schemas import TrackCreate, TrackResponse
+from backend_service.models.schemas import TrackCreate, TrackResponse, TrackUpdate
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -67,10 +67,10 @@ async def create_track(
     track_data: TrackCreate,
     db: Session = Depends(get_db),
 ) -> TrackResponse:
-    """Create new track (stream or manual file entry).
+    """Create new track (file or remote). Use POST /streams for streams.
 
     Args:
-        track_data: Track data
+        track_data: Track data (source_type must be 'file' or 'remote')
 
     Returns:
         Created track
@@ -93,6 +93,39 @@ async def create_track(
 
     logger.info("api_track_created", track_id=track.id, title=track.title)
     return track
+
+
+@router.put("/{track_id}", response_model=TrackResponse)
+async def update_track(
+    track_id: int,
+    track_data: TrackUpdate,
+    db: Session = Depends(get_db),
+) -> TrackResponse:
+    """Update an existing track (metadata only)."""
+    logger.info("api_update_track", track_id=track_id)
+    track = db.query(Track).filter(Track.id == track_id).first()
+    if not track:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": {
+                    "code": "TRACK_NOT_FOUND",
+                    "message": f"Track {track_id} not found",
+                    "details": {"track_id": track_id},
+                }
+            },
+        )
+    if track_data.title is not None:
+        track.title = track_data.title
+    if track_data.artist is not None:
+        track.artist = track_data.artist
+    if track_data.album is not None:
+        track.album = track_data.album
+    if track_data.duration_ms is not None:
+        track.duration_ms = track_data.duration_ms
+    db.commit()
+    db.refresh(track)
+    return TrackResponse.model_validate(track)
 
 
 @router.post("/upload", response_model=TrackResponse, status_code=201)

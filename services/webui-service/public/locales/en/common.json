@@ -36,5 +36,37 @@
     "switch_dark": "Switch to dark mode",
     "switch_light": "Switch to light mode",
     "pick_color": "Pick accent color"
+  },
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "back": "Back",
+  "next": "Next",
+  "clear": "Clear",
+  "command_palette": {
+    "title": "Quick Actions",
+    "placeholder": "Search actions…",
+    "groups": {
+      "navigation": "Navigation",
+      "playback": "Playback",
+      "sleep_timer": "Sleep Timer"
+    },
+    "nav": {
+      "player": "Player",
+      "rfid": "RFID Tags",
+      "media": "Media Library",
+      "admin": "Settings"
+    },
+    "playback": {
+      "play": "Play",
+      "pause": "Pause",
+      "stop": "Stop",
+      "next": "Next Track",
+      "previous": "Previous Track"
+    },
+    "sleep_timer": {
+      "preset": "Sleep timer: {{minutes}} min",
+      "cancel": "Cancel sleep timer"
+    }
   }
 }

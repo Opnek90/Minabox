@@ -6,47 +6,44 @@ import {
   DialogContent,
   DialogTitle,
   TextField,
-  Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import type { Track } from '@/types/api';
-import { tracksApi } from '@/api/tracks';
+import { useToast } from '@/contexts/ToastContext';
+import type { Stream } from '@/types/api';
+import { streamsApi } from '@/api/streams';
 import { isValidUrl } from '@/utils/validators';
 
 interface StreamDialogProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: (track: Track) => void;
+  onSuccess: (stream: Stream) => void;
 }
 
 export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuccess }) => {
   const { t } = useTranslation('media');
+  const { showError } = useToast();
 
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
-  const [album, setAlbum] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const urlError = url && !isValidUrl(url) ? t('invalid_url', { ns: 'errors' }) : '';
+  const isValid = url && title && isValidUrl(url);
 
   const handleSave = async () => {
-    if (!url || !title || !isValidUrl(url)) return;
+    if (!isValid) return;
     setLoading(true);
-    setError(null);
     try {
-      const track = await tracksApi.create({
+      const stream = await streamsApi.create({
         title,
         artist: artist || null,
-        album: album || null,
-        source_type: 'stream',
         source_uri: url,
       });
-      onSuccess(track);
+      onSuccess(stream);
       handleReset();
     } catch {
-      setError('Stream konnte nicht gespeichert werden');
+      showError(t('stream.error', { defaultValue: 'Stream konnte nicht gespeichert werden' }));
     } finally {
       setLoading(false);
     }
@@ -56,16 +53,12 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
     setUrl('');
     setTitle('');
     setArtist('');
-    setAlbum('');
-    setError(null);
   };
 
   const handleClose = () => {
     handleReset();
     onClose();
   };
-
-  const isValid = url && title && isValidUrl(url);
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -76,8 +69,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
           placeholder={t('stream.url_placeholder')}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          fullWidth
-          size="small"
+          fullWidth size="small"
           error={!!urlError}
           helperText={urlError || (url ? undefined : t('stream.url_hint'))}
           required
@@ -87,38 +79,19 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
           placeholder={t('stream.fields.title_placeholder')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          fullWidth
-          size="small"
+          fullWidth size="small"
           required
         />
         <TextField
           label={t('stream.fields.artist')}
           value={artist}
           onChange={(e) => setArtist(e.target.value)}
-          fullWidth
-          size="small"
+          fullWidth size="small"
         />
-        <TextField
-          label={t('stream.fields.album')}
-          value={album}
-          onChange={(e) => setAlbum(e.target.value)}
-          fullWidth
-          size="small"
-        />
-
-        {error && (
-          <Typography color="error" variant="body2">
-            {error}
-          </Typography>
-        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose}>{t('cancel', { ns: 'common' })}</Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={!isValid || loading}
-        >
+        <Button onClick={handleSave} variant="contained" disabled={!isValid || loading}>
           {t('add', { ns: 'common' })}
         </Button>
       </DialogActions>
