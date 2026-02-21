@@ -94,6 +94,7 @@ services:
       - ./services/display-service/config:/app/config_services/display
       # Optional: mount Docker socket so Admin UI can show container logs
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./.cursor:/cursor-debug
     group_add:
       - "999"   # docker group GID (typical on Linux) for socket access
     networks:
@@ -135,6 +136,7 @@ services:
       - /etc/hostname:/host/etc/hostname:ro
       # rw required so move can write to destination (e.g. USB under /host/media)
       - /:/host:rw
+      - ./.cursor:/cursor-debug
     group_add:
       - "999"
     networks:
@@ -320,6 +322,7 @@ services:
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
       - BACKEND_URL=http://backend:8080
+      - TZ=${TZ:-Europe/Berlin}
     volumes:
       - ./services/display-service/config:/app/config:ro
     networks:

@@ -217,15 +217,19 @@
     "font_sans": "Sans",
     "font_mono": "Mono",
     "elements": "Display elements",
-    "elements_hint": "Enable elements, choose area (column 1–3) and order.",
+    "elements_hint": "Enable elements, choose area (1=Header, 2=Left, 3=Right) and order.",
     "active": "On",
     "area": "Area",
+    "area_header": "Header",
+    "area_left": "Left",
+    "area_right": "Right",
     "element_types": {
       "volume": "Volume",
       "sleep_timer": "Sleep Timer",
       "mute": "Mute",
       "play_state": "Playback state",
-      "clock": "Clock"
+      "clock": "Clock",
+      "error_state": "Error indicator"
     },
     "order": "Order",
     "save_button": "Save",

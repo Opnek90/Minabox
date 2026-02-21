@@ -6,7 +6,7 @@ import asyncio
 import logging
 import os
 import signal
-from datetime import datetime, timezone
+from datetime import datetime
 
 import httpx
 import structlog
@@ -116,6 +116,9 @@ class DisplayService:
         self._shutdown_event.set()
 
     def _handle_mqtt_message(self, topic: str, payload: bytes) -> None:
+        if topic.endswith("/audio/error") or topic.endswith("/system/service-error"):
+            self.state_manager.set_error()
+            return
         self.state_manager.update_audio(topic, payload)
 
     def _handle_config_reload(self) -> None:
@@ -137,7 +140,7 @@ class DisplayService:
             logger.error("config_reload_failed", error=str(exc), exc_info=True)
 
     def _build_areas(self) -> list[list[dict]]:
-        """Build 3 columns (areas) from current config and state. Mute/sleep_timer = icon."""
+        """Build header (area 0) + left (1) + right (2). Play-state = icon, sleep_timer = icon + minutes."""
         cfg = self._display_config
         if not cfg or not cfg.enabled:
             return [[], [], []]
@@ -161,16 +164,22 @@ class DisplayService:
                     result[area_idx].append({"type": "text", "value": f"{vol}%"})
                 elif el.type == "sleep_timer":
                     if sleep_timer.get("active") and sleep_timer.get("remaining_ms") is not None:
-                        result[area_idx].append({"type": "icon", "value": "sleep_timer"})
+                        remaining_ms = sleep_timer.get("remaining_ms") or 0
+                        minutes = max(0, (remaining_ms + 59999) // 60000)
+                        result[area_idx].append({"type": "sleep_timer", "minutes": minutes})
                 elif el.type == "mute":
                     if audio.get("muted"):
                         result[area_idx].append({"type": "icon", "value": "mute"})
                 elif el.type == "play_state":
                     state = audio.get("state", "stopped")
-                    result[area_idx].append({"type": "text", "value": state[:5]})
+                    icon_val = "play" if state == "playing" else "pause" if state == "paused" else "stop"
+                    result[area_idx].append({"type": "icon", "value": icon_val})
                 elif el.type == "clock":
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now()
                     result[area_idx].append({"type": "text", "value": now.strftime("%H:%M")})
+                elif el.type == "error_state":
+                    if self.state_manager.has_error():
+                        result[area_idx].append({"type": "icon", "value": "error"})
         return result
 
     async def _render_loop(self) -> None:

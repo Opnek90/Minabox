@@ -4,7 +4,10 @@ import {
   Box,
   Button,
   Chip,
-  Collapse,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   LinearProgress,
   Stack,
@@ -13,14 +16,17 @@ import {
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import TerminalIcon from '@mui/icons-material/Terminal';
 import { useTranslation } from 'react-i18next';
 import { systemApi } from '@/api/system';
 import type { ServiceStatus as ServiceStatusType } from '@/types/api';
+
+/** Strip ANSI escape sequences (colors/formatting) so terminal output is readable in the UI. */
+function stripAnsi(text: string): string {
+  return text.replace(/\u001b\[[0-9;]*m/g, '').replace(/\u001b\[?[0-9;]*[a-zA-Z]/g, '');
+}
 
 // ── Structlog JSON parser ────────────────────────────────────────────────────
 interface ParsedLine {
@@ -63,32 +69,33 @@ function levelColor(level: string): ChipColor {
 
 // ── Log line renderer ────────────────────────────────────────────────────────
 const LogLine: React.FC<{ raw: string }> = ({ raw }) => {
-  const parsed = parseStructlogLine(raw);
+  const clean = stripAnsi(raw);
+  const parsed = parseStructlogLine(clean);
 
   if (parsed) {
     return (
-      <Box sx={{ mb: 0.5, fontFamily: 'monospace', fontSize: '0.72rem', lineHeight: 1.6 }}>
+      <Box sx={{ mb: 0.5, fontFamily: 'monospace', fontSize: '0.8rem', lineHeight: 1.6 }}>
         <Chip
           size="small"
           label={parsed.level}
           color={levelColor(parsed.level)}
-          sx={{ mr: 0.75, height: 16, fontSize: '0.65rem' }}
+          sx={{ mr: 0.75, height: 18, fontSize: '0.7rem' }}
         />
         {parsed.ts && (
           <Typography
             component="span"
-            sx={{ color: 'text.disabled', fontSize: '0.7rem', mr: 0.75 }}
+            sx={{ color: 'text.disabled', fontSize: '0.75rem', mr: 0.75 }}
           >
             {parsed.ts}
           </Typography>
         )}
-        <Typography component="span" sx={{ fontSize: '0.72rem' }}>
+        <Typography component="span" sx={{ fontSize: '0.8rem' }}>
           {parsed.message}
         </Typography>
         {Object.keys(parsed.data).length > 0 && (
           <Typography
             component="span"
-            sx={{ ml: 0.75, opacity: 0.6, fontSize: '0.7rem' }}
+            sx={{ ml: 0.75, opacity: 0.8, fontSize: '0.75rem' }}
           >
             {JSON.stringify(parsed.data)}
           </Typography>
@@ -100,9 +107,9 @@ const LogLine: React.FC<{ raw: string }> = ({ raw }) => {
   return (
     <Box
       component="pre"
-      sx={{ m: 0, fontFamily: 'monospace', fontSize: '0.72rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}
+      sx={{ m: 0, fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}
     >
-      {raw || ' '}
+      {clean || ' '}
     </Box>
   );
 };
@@ -116,7 +123,7 @@ interface ServiceStatusProps {
 export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service }) => {
   const { t } = useTranslation('admin');
 
-  const [logsOpen, setLogsOpen] = useState(false);
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [logsLines, setLogsLines] = useState<string[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState<string | null>(null);
@@ -144,20 +151,21 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service }) => 
       const res = await systemApi.getLogs(service.service, 200);
       const lines = (res.lines ?? '').split('\n').filter(Boolean);
       setLogsLines(lines);
-    } catch {
-      setLogsError(t('system.logs_unavailable').replace('<service>', service.service));
+    } catch (err: unknown) {
+      const detail =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      const fallback = t('system.logs_unavailable').replace('<service>', service.service);
+      setLogsError(detail && typeof detail === 'string' ? detail : fallback);
     } finally {
       setLogsLoading(false);
     }
   };
 
-  const handleToggleLogs = async () => {
-    if (!logsOpen) {
-      setLogsOpen(true);
-      await fetchLogs();
-    } else {
-      setLogsOpen(false);
-    }
+  const handleOpenLogsModal = async () => {
+    setLogsModalOpen(true);
+    await fetchLogs();
   };
 
   return (
@@ -218,22 +226,17 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service }) => 
           </Stack>
         )}
 
-        {/* Log toggle button */}
-        <Tooltip title={logsOpen ? t('system.logs_title') : t('system.view_logs')}>
+        {/* Log button: opens modal */}
+        <Tooltip title={t('system.view_logs')}>
           <IconButton
             size="small"
-            onClick={handleToggleLogs}
-            color={logsOpen ? 'primary' : 'default'}
+            onClick={handleOpenLogsModal}
+            color="default"
             sx={{ flexShrink: 0 }}
           >
             <TerminalIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        {logsOpen && (
-          <IconButton size="small" onClick={() => setLogsOpen(false)} sx={{ flexShrink: 0 }}>
-            <ExpandLessIcon fontSize="small" />
-          </IconButton>
-        )}
       </Box>
 
       {/* ── CPU/RAM progress bars (wenn Metriken vorhanden) ───────────────── */}
@@ -275,64 +278,66 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service }) => 
         </Box>
       )}
 
-      {/* ── Inline Log Panel ────────────────────────────────────────────────── */}
-      <Collapse in={logsOpen} unmountOnExit>
-        <Box
-          sx={{
-            borderTop: '1px solid',
-            borderColor: 'divider',
-            bgcolor: 'background.default',
-          }}
-        >
-          {/* Log toolbar */}
-          <Box
-            display="flex"
-            alignItems="center"
-            justifyContent="space-between"
-            sx={{ px: 1.5, py: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}
+      {/* ── Logs Modal ──────────────────────────────────────────────────────── */}
+      <Dialog
+        open={logsModalOpen}
+        onClose={() => setLogsModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            minHeight: '60vh',
+            maxHeight: '85vh',
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Typography variant="h6" component="span">
+            {t('system.logs_title')} · {service.service}
+          </Typography>
+          <Button
+            size="small"
+            startIcon={<RefreshIcon />}
+            onClick={fetchLogs}
+            disabled={logsLoading}
           >
-            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-              {t('system.logs_title')} · {service.service}
-            </Typography>
-            <Button
-              size="small"
-              startIcon={<RefreshIcon />}
-              onClick={fetchLogs}
-              disabled={logsLoading}
-              sx={{ minWidth: 'auto', py: 0.25, px: 1, fontSize: '0.7rem' }}
-            >
-              {t('refresh', { ns: 'common' })}
-            </Button>
-          </Box>
-
-          {/* Log content */}
+            {t('refresh', { ns: 'common' })}
+          </Button>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0, bgcolor: 'grey.50', display: 'flex', flexDirection: 'column' }}>
           <Box
             sx={{
-              maxHeight: 260,
+              flex: 1,
+              minHeight: 320,
               overflowY: 'auto',
-              p: 1.5,
+              p: 2,
               fontFamily: 'monospace',
             }}
           >
             {logsLoading && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="body2" color="text.secondary">
                 {t('system.logs_loading')}
               </Typography>
             )}
             {logsError && !logsLoading && (
-              <Alert severity="info" sx={{ fontSize: '0.75rem', py: 0.5 }}>
+              <Alert severity="info" sx={{ fontSize: '0.875rem' }}>
                 {logsError}
               </Alert>
             )}
             {!logsLoading && !logsError && logsLines.length === 0 && (
-              <Typography variant="caption" color="text.disabled">–</Typography>
+              <Typography variant="body2" color="text.disabled">–</Typography>
             )}
             {!logsLoading && logsLines.map((line, i) => (
               <LogLine key={i} raw={line} />
             ))}
           </Box>
-        </Box>
-      </Collapse>
+        </DialogContent>
+        <DialogActions sx={{ px: 2, py: 1.5 }}>
+          <Button onClick={() => setLogsModalOpen(false)} variant="contained">
+            {t('close', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

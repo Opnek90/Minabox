@@ -33,6 +33,8 @@ class MQTTClient:
         prefix = f"minabox/{device_id}"
         self._topics = [
             f"{prefix}/audio/status",
+            f"{prefix}/audio/error",
+            f"{prefix}/system/service-error",
             f"{prefix}/display/config/reload",
         ]
 

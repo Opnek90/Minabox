@@ -243,9 +243,9 @@ export interface ButtonConfig {
 // Config: Display (OLED)
 // ============================================================================
 
-export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock';
+export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state';
 
-/** Column/area on the OLED: 0 = left, 1 = center, 2 = right */
+/** Area on the OLED: 0 = header (full width), 1 = left column, 2 = right column */
 export type DisplayArea = 0 | 1 | 2;
 
 export interface DisplayElement {
@@ -253,7 +253,7 @@ export interface DisplayElement {
   type: DisplayElementType;
   enabled: boolean;
   order: number;
-  /** Column (0, 1, 2) for 3-column layout */
+  /** Area: 0 = header, 1 = left, 2 = right */
   area?: DisplayArea;
 }
 

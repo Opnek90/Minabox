@@ -21,11 +21,13 @@ class StateManager:
             "muted": False,
         }
         self._sleep_timer: dict[str, Any] = {"active": False, "remaining_ms": None}
+        self._has_error: bool = False
 
     def update_audio(self, topic: str, payload: bytes) -> None:
-        """Update cached audio state from MQTT audio/status."""
+        """Update cached audio state from MQTT audio/status. Clears error on new status."""
         if not topic.endswith("/audio/status"):
             return
+        self._has_error = False
         try:
             data = json.loads(payload.decode("utf-8"))
             self._audio["state"] = data.get("state", "stopped")
@@ -33,6 +35,14 @@ class StateManager:
             self._audio["muted"] = bool(data.get("muted", False))
         except (json.JSONDecodeError, UnicodeDecodeError, TypeError) as exc:
             logger.warning("audio_status_parse_failed", error=str(exc))
+
+    def set_error(self) -> None:
+        """Set error state (called on audio/error or system/service-error)."""
+        self._has_error = True
+
+    def has_error(self) -> bool:
+        """Return True if an error was reported (audio/error or system/service-error)."""
+        return self._has_error
 
     def update_sleep_timer(self, active: bool, remaining_ms: int | None) -> None:
         """Update sleep timer state (from backend API poll)."""

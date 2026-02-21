@@ -280,9 +280,13 @@ export const DisplayConfigPanel: React.FC = () => {
                         size="small"
                         variant={(el.area ?? 0) === a ? 'contained' : 'outlined'}
                         onClick={() => setElementArea(el.type, a)}
-                        sx={{ minWidth: 32 }}
+                        sx={{ minWidth: 56 }}
                       >
-                        {a + 1}
+                        {a === 0
+                          ? t('display.area_header')
+                          : a === 1
+                            ? t('display.area_left')
+                            : t('display.area_right')}
                       </Button>
                     ))}
                   </Box>

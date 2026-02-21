@@ -71,6 +71,7 @@ _DISPLAY_ELEMENT_TYPES: list[str] = [
     "mute",
     "play_state",
     "clock",
+    "error_state",
 ]
 
 
