@@ -239,6 +239,38 @@ export interface ButtonConfig {
   buttons: Button[];
 }
 
+// ============================================================================
+// Config: Display (OLED)
+// ============================================================================
+
+export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock';
+
+/** Column/area on the OLED: 0 = left, 1 = center, 2 = right */
+export type DisplayArea = 0 | 1 | 2;
+
+export interface DisplayElement {
+  id: string;
+  type: DisplayElementType;
+  enabled: boolean;
+  order: number;
+  /** Column (0, 1, 2) for 3-column layout */
+  area?: DisplayArea;
+}
+
+/** Font size: small (8px), medium (10px), large (12px) */
+export type DisplayFontSize = 'small' | 'medium' | 'large';
+/** Font: default (built-in), sans, mono */
+export type DisplayFont = 'default' | 'sans' | 'mono';
+
+export interface DisplayConfig {
+  enabled: boolean;
+  i2c_bus: number;
+  i2c_address: number;
+  font_size?: DisplayFontSize;
+  font?: DisplayFont;
+  elements: DisplayElement[];
+}
+
 export interface Button {
   id: string;
   name: string;

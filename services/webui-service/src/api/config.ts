@@ -1,5 +1,12 @@
 import apiClient from './client';
-import type { AudioConfig, LEDConfig, ButtonConfig, RFIDConfig, GeneralConfig } from '@/types/api';
+import type {
+  AudioConfig,
+  LEDConfig,
+  ButtonConfig,
+  RFIDConfig,
+  GeneralConfig,
+  DisplayConfig,
+} from '@/types/api';
 
 export const configApi = {
   // Audio config
@@ -40,6 +47,22 @@ export const configApi = {
 
   getButtonActions: async (): Promise<string[]> => {
     const response = await apiClient.get<string[]>('/config/buttons/actions');
+    return response.data;
+  },
+
+  // Display config
+  getDisplay: async (): Promise<DisplayConfig> => {
+    const response = await apiClient.get<DisplayConfig>('/config/display');
+    return response.data;
+  },
+
+  updateDisplay: async (data: DisplayConfig): Promise<DisplayConfig> => {
+    const response = await apiClient.put<DisplayConfig>('/config/display', data);
+    return response.data;
+  },
+
+  getDisplayElementTypes: async (): Promise<string[]> => {
+    const response = await apiClient.get<string[]>('/config/display/element-types');
     return response.data;
   },
 

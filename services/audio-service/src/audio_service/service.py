@@ -223,6 +223,7 @@ class AudioService:
                 "position_ms": status.position_ms,
                 "duration_ms": status.duration_ms,
                 "volume": status.volume,
+                "muted": self._muted,
                 "timestamp": datetime.now(UTC).isoformat(),
             }
 

@@ -1,8 +1,8 @@
 {
   "last_track_id": "6",
   "last_source_type": "file",
-  "last_source_uri": null,
-  "last_position_ms": -1,
-  "last_state": "stopped",
-  "last_volume": 0
+  "last_source_uri": "/mnt/audio/tracks/6/original.mp3",
+  "last_position_ms": 5222,
+  "last_state": "paused",
+  "last_volume": 30
 }

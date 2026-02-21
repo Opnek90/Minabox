@@ -12,6 +12,7 @@ import { PageShell } from '@/components/common/PageShell';
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import { LEDConfigPanel } from '@/components/admin/LEDConfigPanel';
 import { ButtonConfigPanel } from '@/components/admin/ButtonConfigPanel';
+import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
 import {
   AudioConfigForm,
   DesignSettingsForm,
@@ -64,6 +65,7 @@ export const AdminPage: React.FC = () => {
         <Tab label={t('tabs.audio')} />
         <Tab label={t('tabs.leds')} />
         <Tab label={t('tabs.buttons')} />
+        <Tab label={t('tabs.display')} />
         <Tab label={t('tabs.rfid')} />
       </Tabs>
 
@@ -91,6 +93,10 @@ export const AdminPage: React.FC = () => {
         <ButtonConfigPanel />
       </TabPanel>
       <TabPanel value={tab} index={6}>
+        <Typography variant="h6" gutterBottom>{t('display.title')}</Typography>
+        <DisplayConfigPanel />
+      </TabPanel>
+      <TabPanel value={tab} index={7}>
         <Typography variant="h6" gutterBottom>{t('rfid.title')}</Typography>
         <RFIDConfigForm />
       </TabPanel>

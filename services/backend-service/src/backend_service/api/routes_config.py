@@ -63,6 +63,16 @@ _BUTTON_ACTIONS: list[str] = [
     "sleep_timer_toggle",
 ]
 
+# All display element types (OLED display service).
+# Source of truth: display-service config_schema.py
+_DISPLAY_ELEMENT_TYPES: list[str] = [
+    "volume",
+    "sleep_timer",
+    "mute",
+    "play_state",
+    "clock",
+]
+
 
 @router.get("/leds/states")
 async def get_led_states() -> list[str]:
@@ -150,6 +160,7 @@ CONFIG_FILES = {
     "leds": ("led", "leds.json"),
     "buttons": ("button", "buttons.json"),
     "rfid": ("rfid", "rfid.json"),
+    "display": ("display", "display.json"),
 }
 
 
@@ -290,6 +301,50 @@ async def update_buttons_config(body: dict) -> dict:
     except OSError as e:
         logger.error("config_write_failed", service="buttons", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to write button config") from e
+
+
+@router.get("/display/element-types")
+async def get_display_element_types() -> list[str]:
+    """Return all supported display element type identifiers."""
+    return _DISPLAY_ELEMENT_TYPES
+
+
+@router.get("/display")
+async def get_display_config() -> dict:
+    """Return display service config (for Admin UI)."""
+    path = _config_path("display")
+    if not path or not path.exists():
+        logger.warning("config_not_available", service="display", path=str(path) if path else "none")
+        raise HTTPException(
+            status_code=503,
+            detail="Display config not available (CONFIG_SERVICES_PATH not mounted?)",
+        )
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error("config_read_failed", service="display", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to read display config") from e
+
+
+@router.put("/display")
+async def update_display_config(body: dict) -> dict:
+    """Update display service config."""
+    path = _config_path("display")
+    if path is None:
+        raise HTTPException(status_code=503, detail="Display config not available")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        if _mqtt_client is not None:
+            config = get_config()
+            topic = config.get_mqtt_topic("display", "config/reload")
+            await _mqtt_client.publish(topic, {})
+            logger.info("display_config_reload_published", topic=topic)
+        return body
+    except OSError as e:
+        logger.error("config_write_failed", service="display", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to write display config") from e
 
 
 def _rfid_flatten(data: dict) -> dict:
