@@ -7,7 +7,7 @@
 // Enums
 // ============================================================================
 
-export type ContentType = 'playlist' | 'track' | 'stream';
+export type ContentType = 'playlist' | 'track' | 'stream' | 'podcast';
 export type SourceType = 'file' | 'remote';
 export type AudioState = 'playing' | 'paused' | 'stopped' | 'error';
 export type ServiceState = 'online' | 'offline' | 'error';
@@ -103,6 +103,7 @@ export interface Track {
   duration_ms: number | null;
   source_type: SourceType;
   source_uri: string;
+  cover_art_url?: string | null;
   created_at: string;
   last_played_at: string | null;
 }
@@ -147,6 +148,44 @@ export interface StreamUpdate {
 }
 
 // ============================================================================
+// Podcasts
+// ============================================================================
+
+export interface Podcast {
+  id: number;
+  title: string;
+  rss_url: string;
+  description: string | null;
+  cover_art_url: string | null;
+  last_fetched_at: string | null;
+  created_at: string;
+}
+
+export interface PodcastEpisode {
+  id: number;
+  podcast_id: number;
+  title: string;
+  source_uri: string;
+  published_at: string | null;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+export interface PodcastCreate {
+  title: string;
+  rss_url: string;
+  description?: string | null;
+  cover_art_url?: string | null;
+}
+
+export interface PodcastUpdate {
+  title?: string;
+  rss_url?: string;
+  description?: string | null;
+  cover_art_url?: string | null;
+}
+
+// ============================================================================
 // Audio
 // ============================================================================
 
@@ -165,6 +204,24 @@ export interface AudioStatus {
   track_title?: string | null;
   track_artist?: string | null;
   track_album?: string | null;
+  track_cover_art_url?: string | null;
+}
+
+export interface QueueItem {
+  track_id: number;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  index: number;
+  is_current: boolean;
+}
+
+export type RepeatMode = 'none' | 'all';
+
+export interface AudioSessionResponse {
+  queue: QueueItem[];
+  repeat_mode: RepeatMode;
+  shuffle: boolean;
 }
 
 export interface VolumeRequest {
@@ -175,6 +232,7 @@ export interface PlayRequest {
   playlist_id?: number;
   track_id?: number;
   stream_id?: number;
+  podcast_id?: number;
   position_ms?: number;
 }
 
@@ -243,7 +301,7 @@ export interface ButtonConfig {
 // Config: Display (OLED)
 // ============================================================================
 
-export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state';
+export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state' | 'repeat' | 'shuffle';
 
 /** Area on the OLED: 0 = header (full width), 1 = left column, 2 = right column */
 export type DisplayArea = 0 | 1 | 2;
@@ -299,6 +357,12 @@ export interface RFIDConfig {
 // Config: General (central .env-style settings)
 // ============================================================================
 
+export interface AllowedUsageTimeSlot {
+  weekday: number; // 0=Monday .. 6=Sunday
+  start: string;   // "HH:MM"
+  end: string;     // "HH:MM"
+}
+
 export interface GeneralConfig {
   minabox_device_id: string;
   log_level: string;
@@ -306,6 +370,13 @@ export interface GeneralConfig {
   mqtt_port: number;
   disable_gpio: boolean;
   sleep_timer_minutes: number;
+  bedtime_fade_enabled: boolean;
+  bedtime_fade_duration_minutes: number;
+  bedtime_fade_interval_seconds: number;
+  bedtime_fade_step_percent: number;
+  allowed_usage_times: AllowedUsageTimeSlot[];
+  daily_limit_enabled?: boolean;
+  daily_limit_minutes?: number;
 }
 
 export interface SleepTimerStatus {
@@ -399,4 +470,44 @@ export interface ServiceStatus {
   cpu_percent?: number | null;
   memory_mb?: number | null;
   memory_percent?: number | null;
+}
+
+// ============================================================================
+// Listening stats (Parent Dashboard)
+// ============================================================================
+
+export interface MinutesPerDayItem {
+  date: string;
+  minutes: number;
+}
+
+export interface TopTagItem {
+  tag_id: number;
+  name: string | null;
+  scan_count: number;
+}
+
+export interface TopPlaylistItem {
+  playlist_id: number;
+  name: string | null;
+  play_count: number;
+}
+
+export interface HeatmapItem {
+  hour: number;
+  weekday: number;
+  minutes: number;
+}
+
+export interface ListeningSummaryResponse {
+  minutes_per_day: MinutesPerDayItem[];
+  top_tags: TopTagItem[];
+  top_playlists: TopPlaylistItem[];
+  heatmap: HeatmapItem[];
+}
+
+export interface UsageTodayResponse {
+  minutes_today: number;
+  daily_limit_enabled: boolean;
+  daily_limit_minutes: number;
 }

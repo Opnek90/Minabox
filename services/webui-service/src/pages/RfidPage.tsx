@@ -20,10 +20,11 @@ import { PageShell } from '@/components/common/PageShell';
 import { useToast } from '@/contexts/ToastContext';
 import { tagsApi } from '@/api/tags';
 import { playlistsApi } from '@/api/playlists';
+import { podcastsApi } from '@/api/podcasts';
 import { streamsApi } from '@/api/streams';
 import { tracksApi } from '@/api/tracks';
 import { useWebSocket } from '@/contexts/WebSocketContext';
-import type { Tag, Playlist, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
+import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
 
 
 interface RfidPageProps {
@@ -44,6 +45,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
+  const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,16 +62,18 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const [tagsData, playlistsData, tracksData, streamsData] = await Promise.all([
+      const [tagsData, playlistsData, tracksData, streamsData, podcastsData] = await Promise.all([
         tagsApi.getAll(),
         playlistsApi.getAll(),
         tracksApi.getAll(),
         streamsApi.getAll(),
+        podcastsApi.list(),
       ]);
       setTags(tagsData);
       setPlaylists(playlistsData);
       setTracks(tracksData);
       setStreams(streamsData);
+      setPodcasts(podcastsData);
     } catch {
       setError('Fehler beim Laden der Daten');
     } finally {
@@ -219,6 +223,8 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         tags={filteredTags}
         playlists={playlists}
         tracks={tracks}
+        streams={streams}
+        podcasts={podcasts}
         onEdit={handleEditOpen}
         onDelete={setDeleteTag}
       />
@@ -231,6 +237,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         playlists={playlists}
         tracks={tracks}
         streams={streams}
+        podcasts={podcasts}
         onSave={handleEditSave}
         onClose={() => {
           if (learnModeActive) {

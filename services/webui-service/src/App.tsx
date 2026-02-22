@@ -23,6 +23,9 @@ const MediaPage = React.lazy(() =>
 const AdminPage = React.lazy(() =>
   import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage }))
 );
+const DashboardPage = React.lazy(() =>
+  import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage }))
+);
 const KioskPage = React.lazy(() =>
   import('@/pages/KioskPage').then((m) => ({ default: m.KioskPage }))
 );
@@ -138,6 +141,7 @@ const MainLayout: React.FC = () => {
                 }
               />
               <Route path="/media" element={<MediaPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<Navigate to="/player" replace />} />
             </Routes>

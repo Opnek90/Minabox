@@ -36,7 +36,7 @@ import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import { systemApi } from '@/api/system';
 import { useThemeContext, COLOR_PRESETS, type ColorPresetKey } from '@/contexts/ThemeContext';
-import type { AudioConfig, RFIDConfig, GeneralConfig } from '@/types/api';
+import type { AudioConfig, RFIDConfig, GeneralConfig, AllowedUsageTimeSlot } from '@/types/api';
 
 
 const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
@@ -94,30 +94,6 @@ export const AudioConfigForm: React.FC = () => {
         size="small"
         fullWidth
       />
-      <Box>
-        <Typography gutterBottom variant="body2">
-          {t('audio.max_volume')}: {config.max_volume}%
-        </Typography>
-        <Slider
-          value={config.max_volume}
-          min={0} max={100} step={5} marks
-          onChange={(_, v) => setConfig((p) => p ? { ...p, max_volume: v as number } : p)}
-          valueLabelDisplay="auto"
-        />
-      </Box>
-      <Box>
-        <Typography gutterBottom variant="body2">
-          {t('audio.default_volume')}: {config.default_volume}%
-        </Typography>
-        <Slider
-          value={config.default_volume}
-          min={0}
-          max={config.max_volume}
-          step={5} marks
-          onChange={(_, v) => setConfig((p) => p ? { ...p, default_volume: v as number } : p)}
-          valueLabelDisplay="auto"
-        />
-      </Box>
       {config.resume_on_startup !== undefined && (
         <FormControlLabel
           control={
@@ -422,7 +398,23 @@ export const GeneralSettingsForm: React.FC = () => {
   }>({ status: 'idle', total: 0, current: 0, error: null });
 
   useEffect(() => {
-    configApi.getGeneral().then(setGeneral).catch(() => setError('Laden fehlgeschlagen'));
+    configApi.getGeneral().then((data) => {
+      const g = data as GeneralConfig;
+      const times = Array.isArray(g.allowed_usage_times) ? g.allowed_usage_times : [];
+      const slots: AllowedUsageTimeSlot[] = [];
+      for (let wd = 0; wd <= 6; wd++) {
+        const existing = times.find((s) => s.weekday === wd);
+        slots.push(existing ?? { weekday: wd, start: '07:00', end: '19:00' });
+      }
+      setGeneral({
+        ...g,
+        bedtime_fade_enabled: g.bedtime_fade_enabled ?? false,
+        bedtime_fade_duration_minutes: g.bedtime_fade_duration_minutes ?? 15,
+        bedtime_fade_interval_seconds: g.bedtime_fade_interval_seconds ?? 30,
+        bedtime_fade_step_percent: g.bedtime_fade_step_percent ?? 2,
+        allowed_usage_times: slots,
+      });
+    }).catch(() => setError('Laden fehlgeschlagen'));
     systemApi.getAudioPath().then((r) => setAudioPath(r.path)).catch(() => setAudioPath(null));
   }, []);
 
@@ -677,6 +669,73 @@ export const GeneralSettingsForm: React.FC = () => {
           inputProps={{ min: 1, max: 480 }}
           helperText={t('general.sleep_timer_minutes_hint')}
         />
+      )}
+
+      {/* ─── Bedtime Fade ──────────────────────────────────────── */}
+      {general && (
+        <>
+          <Typography variant="subtitle2" color="text.secondary">
+            {t('general.bedtime_fade')}
+          </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={general.bedtime_fade_enabled ?? false}
+                onChange={(e) =>
+                  setGeneral((p) => p ? { ...p, bedtime_fade_enabled: e.target.checked } : p)
+                }
+              />
+            }
+            label={t('general.bedtime_fade_enabled')}
+          />
+          <Box display="flex" gap={2} flexWrap="wrap">
+            <TextField
+              label={t('general.bedtime_fade_duration_minutes')}
+              type="number"
+              value={general.bedtime_fade_duration_minutes ?? 15}
+              onChange={(e) =>
+                setGeneral((p) =>
+                  p
+                    ? { ...p, bedtime_fade_duration_minutes: Math.max(1, parseInt(e.target.value, 10) || 15) }
+                    : p
+                )
+              }
+              size="small"
+              inputProps={{ min: 1, max: 120 }}
+            />
+            <TextField
+              label={t('general.bedtime_fade_interval_seconds')}
+              type="number"
+              value={general.bedtime_fade_interval_seconds ?? 30}
+              onChange={(e) =>
+                setGeneral((p) =>
+                  p
+                    ? { ...p, bedtime_fade_interval_seconds: Math.max(5, parseInt(e.target.value, 10) || 30) }
+                    : p
+                )
+              }
+              size="small"
+              inputProps={{ min: 5, max: 300 }}
+            />
+            <TextField
+              label={t('general.bedtime_fade_step_percent')}
+              type="number"
+              value={general.bedtime_fade_step_percent ?? 2}
+              onChange={(e) =>
+                setGeneral((p) =>
+                  p
+                    ? {
+                        ...p,
+                        bedtime_fade_step_percent: Math.max(0.5, Math.min(50, parseFloat(e.target.value) || 2)),
+                      }
+                    : p
+                )
+              }
+              size="small"
+              inputProps={{ min: 0.5, max: 50, step: 0.5 }}
+            />
+          </Box>
+        </>
       )}
 
       <Divider />

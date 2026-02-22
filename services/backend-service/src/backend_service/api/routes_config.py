@@ -44,6 +44,7 @@ _LED_BINDING_STATES: list[str] = [
     "rfid_unknown_tag",
     "button_pressed",
     "backend_unreachable",
+    "usage_denied",
 ]
 
 # All LED pattern types.
@@ -61,6 +62,8 @@ _BUTTON_ACTIONS: list[str] = [
     "prev",
     "stop",
     "sleep_timer_toggle",
+    "repeat_cycle",
+    "shuffle_toggle",
 ]
 
 # All display element types (OLED display service).
@@ -72,6 +75,8 @@ _DISPLAY_ELEMENT_TYPES: list[str] = [
     "play_state",
     "clock",
     "error_state",
+    "repeat",
+    "shuffle",
 ]
 
 
@@ -105,13 +110,33 @@ GENERAL_SETTINGS_PATH = DATA_PATH / "general_settings.json"
 def _general_settings_read() -> dict:
     """Return current general settings (runtime config + env)."""
     config = get_config()
-    # Read sleep_timer_minutes from persisted overrides (default 30)
+    # Read from persisted overrides
     sleep_timer_minutes = 30
+    bedtime_fade_enabled = False
+    bedtime_fade_duration_minutes = 15
+    bedtime_fade_interval_seconds = 30
+    bedtime_fade_step_percent = 2.0
+    allowed_usage_times: list[dict] = []
+    daily_limit_enabled = False
+    daily_limit_minutes = 120
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
-            sleep_timer_minutes = int(data.get("sleep_timer_minutes", 30))
-        except (json.JSONDecodeError, OSError, ValueError):
+            sleep_timer_minutes = max(1, int(data.get("sleep_timer_minutes", 30)))
+            bedtime_fade_enabled = bool(data.get("bedtime_fade_enabled", False))
+            bedtime_fade_duration_minutes = max(1, int(data.get("bedtime_fade_duration_minutes", 15)))
+            bedtime_fade_interval_seconds = max(5, int(data.get("bedtime_fade_interval_seconds", 30)))
+            bedtime_fade_step_percent = max(0.5, min(50.0, float(data.get("bedtime_fade_step_percent", 2.0))))
+            daily_limit_enabled = bool(data.get("daily_limit_enabled", False))
+            daily_limit_minutes = max(1, min(1440, int(data.get("daily_limit_minutes", 120))))
+            raw_times = data.get("allowed_usage_times")
+            if isinstance(raw_times, list):
+                allowed_usage_times = [
+                    {"weekday": int(x.get("weekday", 0)), "start": str(x.get("start", "07:00")), "end": str(x.get("end", "19:00"))}
+                    for x in raw_times
+                    if isinstance(x, dict) and 0 <= x.get("weekday", 0) <= 6
+                ]
+        except (json.JSONDecodeError, OSError, ValueError, TypeError):
             pass
     return {
         "minabox_device_id": config.device_id,
@@ -120,6 +145,13 @@ def _general_settings_read() -> dict:
         "mqtt_port": config.env.mqtt_port,
         "disable_gpio": os.environ.get("DISABLE_GPIO", "false").lower() in ("true", "1"),
         "sleep_timer_minutes": sleep_timer_minutes,
+        "bedtime_fade_enabled": bedtime_fade_enabled,
+        "bedtime_fade_duration_minutes": bedtime_fade_duration_minutes,
+        "bedtime_fade_interval_seconds": bedtime_fade_interval_seconds,
+        "bedtime_fade_step_percent": bedtime_fade_step_percent,
+        "daily_limit_enabled": daily_limit_enabled,
+        "daily_limit_minutes": daily_limit_minutes,
+        "allowed_usage_times": allowed_usage_times,
     }
 
 
@@ -129,10 +161,32 @@ async def get_general_config() -> dict:
     return _general_settings_read()
 
 
+def _validate_allowed_usage_times(times: list) -> list[dict]:
+    """Validate and normalize allowed_usage_times. weekday 0-6, start/end HH:MM."""
+    result = []
+    for x in times:
+        if not isinstance(x, dict):
+            continue
+        wd = x.get("weekday", 0)
+        try:
+            wd = max(0, min(6, int(wd)))
+        except (TypeError, ValueError):
+            wd = 0
+        start = str(x.get("start", "07:00"))[:5]
+        end = str(x.get("end", "19:00"))[:5]
+        result.append({"weekday": wd, "start": start, "end": end})
+    return result
+
+
 @router.put("/general")
 async def update_general_config(body: dict) -> dict:
     """Update general settings. Persisted to /data/general_settings.json; takes effect after restart."""
-    allowed = {"minabox_device_id", "log_level", "mqtt_broker", "mqtt_port", "disable_gpio", "sleep_timer_minutes"}
+    allowed = {
+        "minabox_device_id", "log_level", "mqtt_broker", "mqtt_port", "disable_gpio", "sleep_timer_minutes",
+        "bedtime_fade_enabled", "bedtime_fade_duration_minutes", "bedtime_fade_interval_seconds", "bedtime_fade_step_percent",
+        "daily_limit_enabled", "daily_limit_minutes",
+        "allowed_usage_times",
+    }
     data = {k: v for k, v in body.items() if k in allowed}
     if "log_level" in data:
         data["log_level"] = str(data["log_level"]).upper()
@@ -140,6 +194,21 @@ async def update_general_config(body: dict) -> dict:
         data["disable_gpio"] = bool(data["disable_gpio"])
     if "sleep_timer_minutes" in data:
         data["sleep_timer_minutes"] = max(1, int(data["sleep_timer_minutes"]))
+    if "bedtime_fade_enabled" in data:
+        data["bedtime_fade_enabled"] = bool(data["bedtime_fade_enabled"])
+    if "bedtime_fade_duration_minutes" in data:
+        data["bedtime_fade_duration_minutes"] = max(1, int(data["bedtime_fade_duration_minutes"]))
+    if "bedtime_fade_interval_seconds" in data:
+        data["bedtime_fade_interval_seconds"] = max(5, int(data["bedtime_fade_interval_seconds"]))
+    if "bedtime_fade_step_percent" in data:
+        data["bedtime_fade_step_percent"] = max(0.5, min(50.0, float(data["bedtime_fade_step_percent"])))
+    if "daily_limit_enabled" in data:
+        data["daily_limit_enabled"] = bool(data["daily_limit_enabled"])
+    if "daily_limit_minutes" in data:
+        data["daily_limit_minutes"] = max(1, min(1440, int(data["daily_limit_minutes"])))
+    if "allowed_usage_times" in data:
+        raw = data["allowed_usage_times"]
+        data["allowed_usage_times"] = _validate_allowed_usage_times(raw if isinstance(raw, list) else [])
     try:
         GENERAL_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
         # Persist for next startup (and for GET to reflect after restart)

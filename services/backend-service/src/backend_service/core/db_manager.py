@@ -75,6 +75,8 @@ class DatabaseManager:
             ("tags",      "last_scanned_at",  "DATETIME"),
             ("tracks",    "last_played_at",    "DATETIME"),
             ("playlists", "cover_art_url",     "VARCHAR(512)"),
+            ("tracks",    "cover_art_url",     "VARCHAR(512)"),
+            ("playback_events", "podcast_id",   "INTEGER"),
         ]
         with self.engine.connect() as conn:
             for table, column, col_type in migrations:

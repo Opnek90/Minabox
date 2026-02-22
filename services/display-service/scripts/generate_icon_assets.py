@@ -67,6 +67,26 @@ def draw_icon_error() -> Image.Image:
     return img
 
 
+def draw_icon_repeat() -> Image.Image:
+    """Repeat: circular arrows (simplified)."""
+    img = Image.new("1", (SIZE, SIZE), 0)
+    d = ImageDraw.Draw(img)
+    d.arc((2, 2, 12, 12), 200, 340, fill=1, width=1)
+    d.arc((4, 4, 14, 14), 20, 160, fill=1, width=1)
+    d.point([(3, 5), (4, 4), (12, 11), (13, 12)], fill=1)
+    return img
+
+
+def draw_icon_shuffle() -> Image.Image:
+    """Shuffle: crossed arrows (simplified)."""
+    img = Image.new("1", (SIZE, SIZE), 0)
+    d = ImageDraw.Draw(img)
+    d.line([(2, 4), (6, 8), (10, 4)], fill=1, width=1)
+    d.line([(6, 8), (10, 12), (14, 8)], fill=1, width=1)
+    d.line([(6, 8), (2, 12), (6, 10)], fill=1, width=1)
+    return img
+
+
 def main():
     base = Path(__file__).resolve().parent.parent / "src" / "display_service" / "assets" / "icons"
     base.mkdir(parents=True, exist_ok=True)
@@ -77,6 +97,8 @@ def main():
         ("icon_pause", draw_icon_pause),
         ("icon_stop", draw_icon_stop),
         ("icon_error", draw_icon_error),
+        ("icon_repeat", draw_icon_repeat),
+        ("icon_shuffle", draw_icon_shuffle),
     ]
     for name, draw_fn in icons:
         img = draw_fn()

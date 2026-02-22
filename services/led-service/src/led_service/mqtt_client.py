@@ -87,6 +87,9 @@ class MQTTClient:
             # Backend status
             f"{prefix}/backend/unreachable",
             
+            # Parental: usage outside allowed times
+            f"{prefix}/led/usage-denied",
+            
             # Config API
             f"{prefix}/led/config/update",
             f"{prefix}/led/config/reload",

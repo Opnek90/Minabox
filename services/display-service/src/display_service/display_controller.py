@@ -61,6 +61,22 @@ _ICON_MOON = [
     (13, 6), (13, 7), (13, 8), (13, 9),
     (14, 7), (14, 8),
 ]
+# Repeat: circular arrows (simplified two curved arrows)
+_ICON_REPEAT = [
+    (2, 8), (3, 7), (4, 6), (5, 5), (6, 4), (7, 4), (8, 5), (9, 6), (10, 7), (11, 8),
+    (3, 8), (4, 7), (5, 6), (6, 5), (7, 5), (8, 6), (9, 7), (10, 8),
+    (10, 8), (11, 9), (12, 10), (13, 11), (14, 12), (13, 13), (12, 14), (11, 13), (10, 12), (9, 11),
+    (10, 9), (11, 10), (12, 11), (13, 12), (12, 13), (11, 12),
+]
+# Shuffle: crossed arrows (simplified)
+_ICON_SHUFFLE = [
+    (2, 4), (3, 5), (4, 6), (5, 7), (6, 8), (7, 7), (8, 6), (9, 5), (10, 4),
+    (3, 4), (4, 5), (5, 6), (6, 7), (7, 6), (8, 5), (9, 4),
+    (6, 8), (7, 9), (8, 10), (9, 11), (10, 12), (11, 11), (12, 10), (13, 9), (14, 8),
+    (7, 9), (8, 10), (9, 11), (10, 10), (11, 9), (12, 8),
+    (6, 8), (5, 9), (4, 10), (3, 11), (2, 12), (3, 13), (4, 12), (5, 11), (6, 10),
+    (5, 9), (4, 10), (3, 11), (4, 12), (5, 11),
+]
 
 
 def init(i2c_bus: int, i2c_address: int) -> bool:
@@ -150,7 +166,13 @@ def _icon_image_from_pixels(icon_name: str) -> Any:
         from PIL import Image
     except ImportError:
         return None
-    points = _ICON_MUTE if icon_name == "mute" else _ICON_MOON if icon_name == "sleep_timer" else []
+    points = (
+        _ICON_MUTE if icon_name == "mute"
+        else _ICON_MOON if icon_name == "sleep_timer"
+        else _ICON_REPEAT if icon_name == "repeat"
+        else _ICON_SHUFFLE if icon_name == "shuffle"
+        else []
+    )
     img = Image.new("1", (_ICON_SIZE, _ICON_SIZE), 0)
     for (px, py) in points:
         img.putpixel((px, py), 1)

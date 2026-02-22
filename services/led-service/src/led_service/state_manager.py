@@ -45,6 +45,7 @@ class StateManager:
             f"{prefix}/system/booting": lambda _: "system_booting",
             f"{prefix}/button/raw-event": lambda _: "button_pressed",
             f"{prefix}/backend/unreachable": lambda _: "backend_unreachable",
+            f"{prefix}/led/usage-denied": lambda _: "usage_denied",
         }
 
     def derive_state(self, topic: str, payload: bytes) -> str | None:

@@ -32,6 +32,7 @@ from backend_service.config_schema import AppConfig
 from backend_service.core.db_manager import init_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
+from backend_service.core.podcast_fetcher import run_podcast_fetch_loop
 
 logger = structlog.get_logger(__name__)
 
@@ -46,6 +47,7 @@ class BackendService:
         self._mqtt_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._db = None
+        self._podcast_fetch_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the backend service."""
@@ -95,6 +97,9 @@ class BackendService:
 
         # Start MQTT listening task
         self._mqtt_task = asyncio.create_task(self._mqtt_client.run())
+
+        # Start podcast RSS fetch loop (daily)
+        self._podcast_fetch_task = asyncio.create_task(run_podcast_fetch_loop(self._db))
 
         # Start FastAPI server
         await self._start_api_server()
@@ -173,6 +178,14 @@ class BackendService:
         if self._api_server:
             self._api_server.should_exit = True
             logger.info("api_server_stopped")
+
+        # Stop podcast fetch task
+        if self._podcast_fetch_task:
+            self._podcast_fetch_task.cancel()
+            try:
+                await self._podcast_fetch_task
+            except asyncio.CancelledError:
+                pass
 
         # Stop MQTT
         if self._mqtt_client:

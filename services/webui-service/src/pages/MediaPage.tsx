@@ -17,6 +17,8 @@ import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
 import { PlaylistList } from '@/components/media/PlaylistList';
 import { RemoteTrackDialog } from '@/components/media/RemoteTrackDialog';
+import { PodcastDialog } from '@/components/media/PodcastDialog';
+import { PodcastList } from '@/components/media/PodcastList';
 import { StreamDialog } from '@/components/media/StreamDialog';
 import { StreamList } from '@/components/media/StreamList';
 import { TrackList } from '@/components/media/TrackList';
@@ -25,9 +27,10 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageShell } from '@/components/common/PageShell';
 import { useToast } from '@/contexts/ToastContext';
 import { playlistsApi } from '@/api/playlists';
+import { podcastsApi } from '@/api/podcasts';
 import { streamsApi } from '@/api/streams';
 import { tracksApi } from '@/api/tracks';
-import type { Playlist, Stream, Track } from '@/types/api';
+import type { Playlist, Podcast, Stream, Track } from '@/types/api';
 
 
 interface TabPanelProps {
@@ -51,11 +54,13 @@ export const MediaPage: React.FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
+  const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [remoteTrackOpen, setRemoteTrackOpen] = useState(false);
   const [streamOpen, setStreamOpen] = useState(false);
+  const [podcastOpen, setPodcastOpen] = useState(false);
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
@@ -65,14 +70,16 @@ export const MediaPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [playlistsData, tracksData, streamsData] = await Promise.all([
+      const [playlistsData, tracksData, streamsData, podcastsData] = await Promise.all([
         playlistsApi.getAll(),
         tracksApi.getAll(),
         streamsApi.getAll(),
+        podcastsApi.list(),
       ]);
       setPlaylists(playlistsData);
       setTracks(tracksData);
       setStreams(streamsData);
+      setPodcasts(podcastsData);
     } catch {
       setError(t('tracks.load_error'));
     } finally {
@@ -166,6 +173,14 @@ export const MediaPage: React.FC = () => {
           >
             {t('tracks.add_stream')}
           </Button>
+        ) : tab === 3 ? (
+          <Button
+            variant="contained"
+            size="small"
+            onClick={() => setPodcastOpen(true)}
+          >
+            {t('podcasts.add', { defaultValue: 'Add Podcast' })}
+          </Button>
         ) : undefined
       }
     >
@@ -183,6 +198,7 @@ export const MediaPage: React.FC = () => {
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />
         <Tab label={t('tabs.streams', { defaultValue: 'Streams' })} />
+        <Tab label={t('tabs.podcasts', { defaultValue: 'Podcasts' })} />
       </Tabs>
 
       <TabPanel value={tab} index={0}>
@@ -205,6 +221,21 @@ export const MediaPage: React.FC = () => {
 
       <TabPanel value={tab} index={2}>
         <StreamList streams={streams} onDelete={handleStreamDelete} />
+      </TabPanel>
+
+      <TabPanel value={tab} index={3}>
+        <PodcastList
+          podcasts={podcasts}
+          onDelete={async (podcast) => {
+            try {
+              await podcastsApi.delete(podcast.id);
+              setPodcasts((prev) => prev.filter((p) => p.id !== podcast.id));
+              showSuccess(t('podcasts.deleted', { defaultValue: 'Podcast deleted' }));
+            } catch {
+              showError(t('podcasts.delete_error', { defaultValue: 'Could not delete podcast' }));
+            }
+          }}
+        />
       </TabPanel>
 
       {/* Track Edit Dialog */}
@@ -278,6 +309,17 @@ export const MediaPage: React.FC = () => {
           setStreams((prev) => [...prev, stream]);
           setStreamOpen(false);
           showSuccess(t('tracks.stream_added'));
+        }}
+      />
+
+      {/* Podcast Dialog */}
+      <PodcastDialog
+        open={podcastOpen}
+        onClose={() => setPodcastOpen(false)}
+        onSuccess={(podcast) => {
+          setPodcasts((prev) => [...prev, podcast]);
+          setPodcastOpen(false);
+          showSuccess(t('podcasts.created', { defaultValue: 'Podcast added' }));
         }}
       />
     </PageShell>

@@ -1,5 +1,12 @@
 import apiClient from './client';
-import type { AudioStatus, PlayRequest, SleepTimerStatus, VolumeRequest } from '@/types/api';
+import type {
+  AudioSessionResponse,
+  AudioStatus,
+  PlayRequest,
+  RepeatMode,
+  SleepTimerStatus,
+  VolumeRequest,
+} from '@/types/api';
 
 export const audioApi = {
   getStatus: async (): Promise<AudioStatus> => {
@@ -43,5 +50,18 @@ export const audioApi = {
 
   cancelSleepTimer: async (): Promise<void> => {
     await apiClient.delete('/audio/sleep-timer');
+  },
+
+  getSession: async (): Promise<AudioSessionResponse> => {
+    const response = await apiClient.get<AudioSessionResponse>('/audio/session');
+    return response.data;
+  },
+
+  setRepeatMode: async (mode: RepeatMode): Promise<void> => {
+    await apiClient.post('/audio/repeat', { mode });
+  },
+
+  setShuffle: async (shuffle: boolean): Promise<void> => {
+    await apiClient.post('/audio/shuffle', { shuffle });
   },
 };

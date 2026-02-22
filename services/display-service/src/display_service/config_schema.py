@@ -6,7 +6,7 @@ from typing import List, Literal
 
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 
-DisplayElementType = Literal["volume", "sleep_timer", "mute", "play_state", "clock", "error_state"]
+DisplayElementType = Literal["volume", "sleep_timer", "mute", "play_state", "clock", "error_state", "repeat", "shuffle"]
 DisplayArea = Literal[0, 1, 2]  # 0=header (full width), 1=left column, 2=right column
 DisplayFontSize = Literal["small", "medium", "large"]
 DisplayFont = Literal["default", "sans", "mono"]
@@ -17,7 +17,7 @@ class DisplayElement(BaseModel):
 
     id: str = Field(min_length=1, description="Unique identifier (e.g. 'vol', 'time').")
     type: DisplayElementType = Field(
-        description="Element type: volume, sleep_timer, mute, play_state, clock, error_state.",
+        description="Element type: volume, sleep_timer, mute, play_state, clock, error_state, repeat, shuffle.",
     )
     enabled: bool = Field(default=True, description="Whether this element is shown.")
     order: NonNegativeInt = Field(

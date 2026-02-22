@@ -13,11 +13,15 @@
     "assign_content": "Assign Content",
     "content_type": "Content Type",
     "content_type_playlist": "Playlist",
-    "content_type_track": "Track or Stream",
+    "content_type_track": "Track",
     "select_playlist": "Select Playlist",
     "select_track": "Select Track",
     "tag_name": "Tag Name (optional)",
-    "tag_name_placeholder": "e.g. Frog Audiobook"
+    "tag_name_placeholder": "e.g. Frog Audiobook",
+    "content_type_stream": "Stream",
+    "content_type_podcast": "Podcast",
+    "select_stream": "Select Stream",
+    "select_podcast": "Select Podcast"
   },
   "edit_tag": "Edit Tag",
   "delete_tag": "Delete Tag",

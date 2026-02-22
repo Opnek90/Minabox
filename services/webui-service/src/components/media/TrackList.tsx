@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Avatar,
   Box,
   Button,
   Chip,
@@ -13,6 +14,7 @@ import {
   InputAdornment,
   List,
   ListItem,
+  ListItemAvatar,
   ListItemText,
   TextField,
   ToggleButton,
@@ -211,13 +213,25 @@ export const TrackList: React.FC<TrackListProps> = ({
               }
               onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
             >
-              <Box mr={1} color="text.secondary">
-                {track.source_type === 'remote' ? (
-                  <LinkIcon fontSize="small" />
+              <ListItemAvatar sx={{ minWidth: 44 }}>
+                {track.cover_art_url ? (
+                  <Avatar
+                    src={track.cover_art_url}
+                    variant="rounded"
+                    sx={{ width: 40, height: 40 }}
+                  >
+                    <AudiotrackIcon />
+                  </Avatar>
                 ) : (
-                  <AudiotrackIcon fontSize="small" />
+                  <Avatar variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'action.selected' }}>
+                    {track.source_type === 'remote' ? (
+                      <LinkIcon fontSize="small" />
+                    ) : (
+                      <AudiotrackIcon fontSize="small" />
+                    )}
+                  </Avatar>
                 )}
-              </Box>
+              </ListItemAvatar>
               <ListItemText
                 primary={track.title}
                 secondary={

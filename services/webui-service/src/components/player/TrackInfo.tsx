@@ -7,6 +7,7 @@ interface TrackInfoProps {
   title: string | null | undefined;
   artist: string | null | undefined;
   album: string | null | undefined;
+  coverArtUrl?: string | null;
   playlistName?: string | null;
   playlistCurrent?: number | null;
   playlistTotal?: number | null;
@@ -17,6 +18,7 @@ export const TrackInfo: React.FC<TrackInfoProps> = ({
   title,
   artist,
   album,
+  coverArtUrl,
   playlistName,
   playlistCurrent,
   playlistTotal,
@@ -42,7 +44,7 @@ export const TrackInfo: React.FC<TrackInfoProps> = ({
         textAlign: 'center',
       }}
     >
-      {/* Album Art Placeholder */}
+      {/* Album Art or Placeholder */}
       <Box
         sx={{
           width: artSize,
@@ -54,9 +56,23 @@ export const TrackInfo: React.FC<TrackInfoProps> = ({
           justifyContent: 'center',
           mb: 0.5,
           boxShadow: isSmall ? 2 : 4,
+          overflow: 'hidden',
         }}
       >
-        <MusicNoteIcon sx={{ fontSize: iconSize, color: 'primary.contrastText' }} />
+        {coverArtUrl ? (
+          <Box
+            component="img"
+            src={coverArtUrl}
+            alt=""
+            sx={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        ) : (
+          <MusicNoteIcon sx={{ fontSize: iconSize, color: 'primary.contrastText' }} />
+        )}
       </Box>
 
       {stopped ? (

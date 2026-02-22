@@ -21,6 +21,7 @@ class StateManager:
             "muted": False,
         }
         self._sleep_timer: dict[str, Any] = {"active": False, "remaining_ms": None}
+        self._session: dict[str, Any] = {"repeat_mode": "none", "shuffle": False}
         self._has_error: bool = False
 
     def update_audio(self, topic: str, payload: bytes) -> None:
@@ -56,3 +57,12 @@ class StateManager:
     def get_sleep_timer(self) -> dict[str, Any]:
         """Return current sleep timer state (active, remaining_ms)."""
         return dict(self._sleep_timer)
+
+    def update_session(self, repeat_mode: str, shuffle: bool) -> None:
+        """Update session state (from backend API poll)."""
+        self._session["repeat_mode"] = repeat_mode
+        self._session["shuffle"] = shuffle
+
+    def get_session(self) -> dict[str, Any]:
+        """Return current session state (repeat_mode, shuffle)."""
+        return dict(self._session)

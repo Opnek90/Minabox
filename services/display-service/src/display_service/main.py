@@ -43,6 +43,7 @@ class DisplayService:
         self._mqtt_task: asyncio.Task | None = None
         self._render_task: asyncio.Task | None = None
         self._sleep_poll_task: asyncio.Task | None = None
+        self._session_poll_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._display_config: DisplayServiceConfig | None = None
 
@@ -64,6 +65,7 @@ class DisplayService:
         self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
         self._render_task = asyncio.create_task(self._render_loop())
         self._sleep_poll_task = asyncio.create_task(self._sleep_timer_poll_loop())
+        self._session_poll_task = asyncio.create_task(self._session_poll_loop())
         await self._start_api_server()
         logger.info("display_service_started")
 
@@ -98,6 +100,12 @@ class DisplayService:
             self._sleep_poll_task.cancel()
             try:
                 await self._sleep_poll_task
+            except asyncio.CancelledError:
+                pass
+        if self._session_poll_task and not self._session_poll_task.done():
+            self._session_poll_task.cancel()
+            try:
+                await self._session_poll_task
             except asyncio.CancelledError:
                 pass
         if self._mqtt_task and not self._mqtt_task.done():
@@ -156,6 +164,7 @@ class DisplayService:
             by_area[area_idx] = area_el
         audio = self.state_manager.get_audio()
         sleep_timer = self.state_manager.get_sleep_timer()
+        session = self.state_manager.get_session()
         result: list[list[dict]] = [[], [], []]
         for area_idx in (0, 1, 2):
             for el in by_area[area_idx]:
@@ -180,6 +189,12 @@ class DisplayService:
                 elif el.type == "error_state":
                     if self.state_manager.has_error():
                         result[area_idx].append({"type": "icon", "value": "error"})
+                elif el.type == "repeat":
+                    if session.get("repeat_mode") == "all":
+                        result[area_idx].append({"type": "icon", "value": "repeat"})
+                elif el.type == "shuffle":
+                    if session.get("shuffle"):
+                        result[area_idx].append({"type": "icon", "value": "shuffle"})
         return result
 
     async def _render_loop(self) -> None:
@@ -224,6 +239,27 @@ class DisplayService:
                 break
             except Exception as exc:
                 logger.debug("sleep_timer_poll_error", error=str(exc))
+
+    async def _session_poll_loop(self) -> None:
+        """Poll backend for session (repeat_mode, shuffle)."""
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(SLEEP_TIMER_POLL_INTERVAL)
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    try:
+                        r = await client.get(f"{BACKEND_URL}/api/v1/audio/session")
+                        if r.status_code == 200:
+                            data = r.json()
+                            self.state_manager.update_session(
+                                data.get("repeat_mode", "none"),
+                                data.get("shuffle", False),
+                            )
+                    except (httpx.ConnectError, httpx.TimeoutException):
+                        pass
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.debug("session_poll_error", error=str(exc))
 
 
 def setup_logging(log_level: str) -> None:

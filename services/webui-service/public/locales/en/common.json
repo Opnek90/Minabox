@@ -1,10 +1,23 @@
 {
   "app_name": "Minabox",
+  "dashboard": {
+    "tabs": {
+      "stats": "Statistics",
+      "settings": "Parental Controls"
+    },
+    "daily_limit": "Daily limit",
+    "daily_limit_hint": "When exceeded, playback fades out and no new playback starts.",
+    "daily_limit_enabled": "Daily limit enabled",
+    "daily_limit_minutes": "Minutes per day",
+    "minutes_today": "Listened today",
+    "remaining_minutes": "Remaining"
+  },
   "navigation": {
     "player": "Player",
     "rfid": "RFID Tags",
     "media": "Media Library",
-    "admin": "Settings"
+    "admin": "Settings",
+    "dashboard": "Parent Dashboard"
   },
   "actions": {
     "save": "Save",
@@ -55,7 +68,8 @@
       "player": "Player",
       "rfid": "RFID Tags",
       "media": "Media Library",
-      "admin": "Settings"
+      "admin": "Settings",
+      "dashboard": "Parent Dashboard"
     },
     "playback": {
       "play": "Play",

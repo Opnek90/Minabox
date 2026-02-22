@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import type { Tag, ContentType, Playlist, Stream, Track } from '@/types/api';
+import type { Tag, ContentType, Playlist, Podcast, Stream, Track } from '@/types/api';
 
 interface TagEditDialogProps {
   open: boolean;
@@ -23,6 +23,7 @@ interface TagEditDialogProps {
   playlists: Playlist[];
   tracks: Track[];
   streams: Stream[];
+  podcasts: Podcast[];
   onSave: (data: {
     name: string | null;
     content_type: ContentType;
@@ -38,6 +39,7 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
   playlists,
   tracks,
   streams,
+  podcasts,
   onSave,
   onClose,
 }) => {
@@ -70,7 +72,13 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
     : t('edit_tag');
 
   const contentOptions =
-    contentType === 'playlist' ? playlists : contentType === 'stream' ? streams : tracks;
+    contentType === 'playlist'
+      ? playlists
+      : contentType === 'stream'
+        ? streams
+        : contentType === 'podcast'
+          ? podcasts
+          : tracks;
   const isValid = contentId !== '';
 
   return (
@@ -105,6 +113,7 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
             <MenuItem value="playlist">{t('new_tag_dialog.content_type_playlist')}</MenuItem>
             <MenuItem value="track">{t('new_tag_dialog.content_type_track')}</MenuItem>
             <MenuItem value="stream">{t('new_tag_dialog.content_type_stream', { defaultValue: 'Stream' })}</MenuItem>
+            <MenuItem value="podcast">{t('new_tag_dialog.content_type_podcast', { defaultValue: 'Podcast' })}</MenuItem>
           </Select>
         </FormControl>
 
@@ -114,7 +123,9 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
               ? t('new_tag_dialog.select_playlist')
               : contentType === 'stream'
                 ? t('new_tag_dialog.select_stream', { defaultValue: 'Stream wählen' })
-                : t('new_tag_dialog.select_track')}
+                : contentType === 'podcast'
+                  ? t('new_tag_dialog.select_podcast', { defaultValue: 'Podcast wählen' })
+                  : t('new_tag_dialog.select_track')}
           </InputLabel>
           <Select
             value={contentId}
@@ -123,7 +134,9 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
                 ? t('new_tag_dialog.select_playlist')
                 : contentType === 'stream'
                   ? t('new_tag_dialog.select_stream', { defaultValue: 'Stream wählen' })
-                  : t('new_tag_dialog.select_track')
+                  : contentType === 'podcast'
+                    ? t('new_tag_dialog.select_podcast', { defaultValue: 'Podcast wählen' })
+                    : t('new_tag_dialog.select_track')
             }
             onChange={(e) => setContentId(e.target.value as number)}
           >

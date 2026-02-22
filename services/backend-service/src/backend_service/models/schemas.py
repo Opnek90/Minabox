@@ -17,6 +17,7 @@ class ContentType(str, Enum):
     PLAYLIST = "playlist"
     TRACK = "track"
     STREAM = "stream"
+    PODCAST = "podcast"
 
 
 class SourceType(str, Enum):
@@ -179,6 +180,61 @@ class StreamResponse(StreamBase):
 
 
 # ============================================================================
+# Podcasts
+# ============================================================================
+
+
+class PodcastBase(BaseModel):
+    """Base schema for podcasts."""
+
+    title: str = Field(..., min_length=1, max_length=255, description="Podcast title")
+    rss_url: str = Field(..., description="RSS feed URL")
+    description: str | None = Field(None, max_length=2000)
+    cover_art_url: str | None = Field(None, max_length=512)
+
+
+class PodcastCreate(PodcastBase):
+    """Schema for creating a new podcast."""
+
+    pass
+
+
+class PodcastUpdate(BaseModel):
+    """Schema for updating an existing podcast."""
+
+    title: str | None = Field(None, min_length=1, max_length=255)
+    rss_url: str | None = None
+    description: str | None = None
+    cover_art_url: str | None = None
+
+
+class PodcastResponse(PodcastBase):
+    """Schema for podcast API response."""
+
+    id: int
+    last_fetched_at: datetime | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PodcastEpisodeResponse(BaseModel):
+    """Schema for a single podcast episode."""
+
+    id: int
+    podcast_id: int
+    title: str
+    source_uri: str
+    published_at: datetime | None = None
+    duration_ms: int | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
 # Tracks
 # ============================================================================
 
@@ -215,6 +271,7 @@ class TrackResponse(TrackBase):
 
     id: int
     duration_ms: int | None = None
+    cover_art_url: str | None = None
     created_at: datetime
     last_played_at: datetime | None = None
 
@@ -233,18 +290,23 @@ class AudioPlayCommand(BaseModel):
     track_id: int | None = Field(None, description="Track ID to play")
     playlist_id: int | None = Field(None, description="Playlist ID to play")
     stream_id: int | None = Field(None, description="Stream ID to play")
+    podcast_id: int | None = Field(None, description="Podcast ID (plays latest episode)")
     start_position_ms: int = Field(
         0, ge=0, description="Start position in milliseconds"
     )
 
     @model_validator(mode="after")
     def validate_single_content(self) -> "AudioPlayCommand":
-        """Ensure at most one of track_id, playlist_id, stream_id is provided."""
+        """Ensure at most one of track_id, playlist_id, stream_id, podcast_id is provided."""
         provided = sum(
-            1 for v in (self.track_id, self.playlist_id, self.stream_id) if v is not None
+            1
+            for v in (self.track_id, self.playlist_id, self.stream_id, self.podcast_id)
+            if v is not None
         )
         if provided > 1:
-            raise ValueError("Provide at most one of track_id, playlist_id, stream_id")
+            raise ValueError(
+                "Provide at most one of track_id, playlist_id, stream_id, podcast_id"
+            )
         return self
 
 

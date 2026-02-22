@@ -19,6 +19,22 @@ class Base(DeclarativeBase):
     pass
 
 
+class PlaybackEvent(Base):
+    """One playback session (track/stream/playlist) for analytics."""
+
+    __tablename__ = "playback_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    started_at = Column(DateTime, nullable=False)
+    ended_at = Column(DateTime, nullable=True)
+    track_id = Column(Integer, ForeignKey("tracks.id", ondelete="SET NULL"), nullable=True)
+    stream_id = Column(Integer, ForeignKey("streams.id", ondelete="SET NULL"), nullable=True)
+    playlist_id = Column(Integer, ForeignKey("playlists.id", ondelete="SET NULL"), nullable=True)
+    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True)
+    podcast_id = Column(Integer, ForeignKey("podcasts.id", ondelete="SET NULL"), nullable=True)
+    content_type = Column(String(16), nullable=False)  # 'playlist', 'track', 'stream', 'podcast'
+
+
 class Tag(Base):
     """RFID tag to content mapping."""
 
@@ -86,6 +102,7 @@ class Track(Base):
     duration_ms = Column(Integer, nullable=True)
     source_type = Column(String(16), nullable=False)  # 'file' or 'remote'
     source_uri = Column(String(1024), nullable=False)
+    cover_art_url = Column(String(512), nullable=True)  # e.g. /static/covers/track_123.jpg
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     last_played_at = Column(DateTime, nullable=True)
 
@@ -120,3 +137,44 @@ class PlaylistTrack(Base):
 
     def __repr__(self) -> str:
         return f"<PlaylistTrack(playlist_id={self.playlist_id}, track_id={self.track_id}, position={self.position})>"
+
+
+class Podcast(Base):
+    """Podcast feed (RSS)."""
+
+    __tablename__ = "podcasts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    rss_url = Column(String(1024), nullable=False)
+    description = Column(String(2000), nullable=True)
+    cover_art_url = Column(String(512), nullable=True)
+    last_fetched_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Podcast(id={self.id}, title={self.title})>"
+
+
+class PodcastEpisode(Base):
+    """Single episode of a podcast."""
+
+    __tablename__ = "podcast_episodes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    podcast_id = Column(
+        Integer, ForeignKey("podcasts.id", ondelete="CASCADE"), nullable=False
+    )
+    title = Column(String(512), nullable=False)
+    source_uri = Column(String(1024), nullable=False)  # audio URL
+    guid = Column(String(512), nullable=True)  # feed guid for deduplication
+    published_at = Column(DateTime, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("podcast_id", "source_uri", name="uq_podcast_episode_uri"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PodcastEpisode(id={self.id}, podcast_id={self.podcast_id}, title={self.title})>"

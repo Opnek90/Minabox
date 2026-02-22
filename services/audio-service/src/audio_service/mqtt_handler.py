@@ -99,7 +99,7 @@ class MQTTMessageHandler:
             topic: MQTT topic
             payload: Message payload (JSON string)
         """
-        logger.info(
+        logger.debug(
             "mqtt_command_received",
             topic=topic,
             payload_length=len(payload),
@@ -224,7 +224,7 @@ class MQTTMessageHandler:
         """Handle set volume command."""
         try:
             command = VolumeCommand(**data)
-            logger.info("set_volume_command_received", volume=command.volume)
+            logger.debug("set_volume_command_received", volume=command.volume)
             if self._on_set_volume:
                 await self._on_set_volume(command)
         except ValidationError as e:

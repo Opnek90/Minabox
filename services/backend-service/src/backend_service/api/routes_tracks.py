@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
@@ -15,8 +16,47 @@ from backend_service.core.db_manager import get_db
 from backend_service.models.database import Track
 from backend_service.models.schemas import TrackCreate, TrackResponse, TrackUpdate
 
+STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
+COVERS_DIR = STATIC_DIR / "covers"
+
 logger = structlog.get_logger(__name__)
 router = APIRouter()
+
+
+def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
+    """Extract embedded cover art from audio file; save to COVERS_DIR and return URL path."""
+    try:
+        audio = MutagenFile(str(file_path))
+        if not audio:
+            return None
+        data: bytes | None = None
+        ext = ".jpg"
+        if hasattr(audio, "tags") and audio.tags:
+            apics = getattr(audio.tags, "getall", lambda _: [])("APIC")
+            if not apics:
+                for key in getattr(audio.tags, "keys", lambda: [])():
+                    if key and str(key).startswith("APIC"):
+                        apics = [audio.tags[key]]
+                        break
+            if apics:
+                frame = apics[0]
+                data = getattr(frame, "data", None)
+                if hasattr(frame, "mime") and frame.mime and "png" in (frame.mime or "").lower():
+                    ext = ".png"
+        if data is None and hasattr(audio, "pictures") and audio.pictures:
+            pic = audio.pictures[0]
+            data = getattr(pic, "data", None)
+            if getattr(pic, "mime", "") and "png" in (pic.mime or "").lower():
+                ext = ".png"
+        if not data or len(data) == 0:
+            return None
+        COVERS_DIR.mkdir(parents=True, exist_ok=True)
+        cover_path = COVERS_DIR / f"track_{track_id}{ext}"
+        cover_path.write_bytes(data)
+        return f"/static/covers/track_{track_id}{ext}"
+    except Exception as e:
+        logger.warning("track_cover_extract_failed", track_id=track_id, error=str(e))
+        return None
 
 
 @router.get("", response_model=list[TrackResponse])
@@ -185,7 +225,7 @@ async def upload_track(
             path=str(file_path),
         )
 
-        # Extract metadata
+        # Extract metadata and cover art
         try:
             audio_file = MutagenFile(str(file_path))
             if audio_file and audio_file.info:
@@ -209,6 +249,10 @@ async def upload_track(
                 track_id=track.id,
                 error=str(e),
             )
+
+        cover_url = _extract_cover_art(file_path, track.id)
+        if cover_url:
+            track.cover_art_url = cover_url
 
         # Update track with source_uri
         track.source_uri = str(file_path)

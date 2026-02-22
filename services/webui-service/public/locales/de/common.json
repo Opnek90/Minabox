@@ -1,10 +1,23 @@
 {
   "app_name": "Minabox",
+  "dashboard": {
+    "tabs": {
+      "stats": "Statistik",
+      "settings": "Kinderschutz"
+    },
+    "daily_limit": "Tageslimit",
+    "daily_limit_hint": "Nach Überschreitung wird ausgeblendet und keine neue Wiedergabe gestartet.",
+    "daily_limit_enabled": "Tageslimit aktiv",
+    "daily_limit_minutes": "Minuten pro Tag",
+    "minutes_today": "Heute gehört",
+    "remaining_minutes": "Noch verfügbar"
+  },
   "navigation": {
     "player": "Wiedergabe",
     "rfid": "RFID-Tags",
     "media": "Mediathek",
-    "admin": "Einstellungen"
+    "admin": "Einstellungen",
+    "dashboard": "Eltern-Dashboard"
   },
   "actions": {
     "save": "Speichern",
@@ -55,7 +68,8 @@
       "player": "Wiedergabe",
       "rfid": "RFID-Tags",
       "media": "Mediathek",
-      "admin": "Einstellungen"
+      "admin": "Einstellungen",
+      "dashboard": "Eltern-Dashboard"
     },
     "playback": {
       "play": "Abspielen",

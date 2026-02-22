@@ -218,6 +218,14 @@ class VLCBackend(AudioBackend):
             # Validate source
             await self._validate_source(source_uri)
 
+            # Reset player when transitioning from Ended/Stopped to new media (e.g. next track in playlist).
+            # Without this, VLC may not transition to Playing when loading new media after a track has ended.
+            try:
+                self._player.stop()
+                await self._wait_for_state(vlc.State.Stopped, timeout_sec=1.5)
+            except (PlaybackError, Exception):
+                await asyncio.sleep(0.2)
+
             # Create media
             media = self._instance.media_new(source_uri)
             if media is None:
@@ -361,7 +369,7 @@ class VLCBackend(AudioBackend):
         clamped_volume = min(volume, self._config.max_volume)
         clamped_volume = max(clamped_volume, 0)  # Ensure valid range
 
-        logger.info(
+        logger.debug(
             "volume_set_requested",
             requested=volume,
             clamped=clamped_volume,
@@ -378,7 +386,7 @@ class VLCBackend(AudioBackend):
                 )
                 return
             self._pending_volume = None
-            logger.info("volume_set_successful", volume=clamped_volume)
+            logger.debug("volume_set_successful", volume=clamped_volume)
         except Exception as e:
             logger.error("volume_set_failed", error=str(e))
             raise PlaybackError(f"Set volume failed: {e}") from e

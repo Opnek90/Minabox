@@ -5,15 +5,21 @@ import {
   Card,
   CardContent,
   Chip,
+  Collapse,
   Fade,
   IconButton,
   List,
   ListItemButton,
   Popover,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import RepeatIcon from '@mui/icons-material/Repeat';
+import ShuffleIcon from '@mui/icons-material/Shuffle';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HotelIcon from '@mui/icons-material/Hotel';
 import CancelIcon from '@mui/icons-material/Cancel';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
@@ -29,10 +35,42 @@ import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
-import type { AudioConfig } from '@/types/api';
+import type { AudioConfig, AudioSessionResponse, QueueItem, RepeatMode } from '@/types/api';
 
 
 const SLEEP_PRESETS = [15, 30, 45, 60];
+
+const UpNextCollapse: React.FC<{ queue: QueueItem[] }> = ({ queue }) => {
+  const { t } = useTranslation('player');
+  const [expanded, setExpanded] = useState(false);
+  const n = queue.length;
+  return (
+    <Box>
+      <ListItemButton
+        dense
+        onClick={() => setExpanded((e) => !e)}
+        sx={{ py: 0.25, minHeight: 32 }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          {t('player.up_next_count', { defaultValue: 'Up next ({{count}})', count: n })}
+        </Typography>
+        {expanded ? <ExpandLessIcon fontSize="small" sx={{ ml: 0.5 }} /> : <ExpandMoreIcon fontSize="small" sx={{ ml: 0.5 }} />}
+      </ListItemButton>
+      <Collapse in={expanded}>
+        <List dense disablePadding sx={{ maxHeight: 140, overflow: 'auto' }}>
+          {queue.map((q) => (
+            <ListItemButton key={`${q.track_id}-${q.index}`} dense disableRipple>
+              <Typography variant="body2" noWrap>
+                {q.title}
+                {q.artist ? ` · ${q.artist}` : ''}
+              </Typography>
+            </ListItemButton>
+          ))}
+        </List>
+      </Collapse>
+    </Box>
+  );
+};
 
 const BUTTON_ACTION_LABELS: Record<string, string> = {
   play_pause:         '⏯ Play / Pause',
@@ -43,6 +81,8 @@ const BUTTON_ACTION_LABELS: Record<string, string> = {
   mute_toggle:        '🔇 Mute',
   stop:               '⏹ Stop',
   sleep_timer_toggle: '🌙 Sleep Timer',
+  repeat_cycle:       '🔁 Repeat',
+  shuffle_toggle:     '🔀 Shuffle',
 };
 
 
@@ -66,6 +106,7 @@ export const PlayerPage: React.FC = () => {
 
   const [buttonFeedback, setButtonFeedback] = useState<string | null>(null);
   const buttonFeedbackTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [session, setSession] = useState<AudioSessionResponse | null>(null);
 
   useEffect(() => {
     configApi.getAudio().then(setAudioConfig).catch(() => null);
@@ -111,8 +152,27 @@ export const PlayerPage: React.FC = () => {
       setButtonFeedback(label);
       if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
       buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
+    } else if (lastMessage.type === 'repeat_mode') {
+      const data = lastMessage.data as { repeat_mode?: RepeatMode };
+      if (data?.repeat_mode) {
+        setSession((prev) => (prev ? { ...prev, repeat_mode: data.repeat_mode } : null));
+      }
+    } else if (lastMessage.type === 'shuffle_mode') {
+      const data = lastMessage.data as { shuffle?: boolean };
+      if (data?.shuffle !== undefined) {
+        setSession((prev) => (prev ? { ...prev, shuffle: data.shuffle } : null));
+      }
     }
   }, [lastMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep session in sync: refetch when playing (so queue/repeat stay visible); clear when stopped and no track
+  useEffect(() => {
+    if (audioStatus?.state === 'playing' || audioStatus?.state === 'paused') {
+      audioApi.getSession().then((s) => setSession(s)).catch(() => setSession(null));
+    } else if (audioStatus?.state === 'stopped' && !audioStatus?.track_id) {
+      setSession(null);
+    }
+  }, [audioStatus?.state, audioStatus?.track_id]);
 
   const startDisplayCountdown = (initialMs: number) => {
     if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
@@ -184,7 +244,7 @@ export const PlayerPage: React.FC = () => {
     return <LoadingSpinner message={t('title')} fullPage />;
   }
 
-  const { state, track_title, track_artist, track_album, position_ms, duration_ms, volume } = audioStatus;
+  const { state, track_title, track_artist, track_album, track_cover_art_url, position_ms, duration_ms, volume } = audioStatus;
   const displayVolume = optimisticVolume ?? volume ?? 0;
 
   return (
@@ -287,6 +347,7 @@ export const PlayerPage: React.FC = () => {
             title={state !== 'stopped' ? track_title : null}
             artist={state !== 'stopped' ? track_artist : null}
             album={state !== 'stopped' ? track_album : null}
+            coverArtUrl={state !== 'stopped' ? track_cover_art_url : null}
             playlistCurrent={state !== 'stopped' ? (audioStatus.playlist_position ?? null) : null}
             playlistTotal={state !== 'stopped' ? (audioStatus.playlist_total ?? null) : null}
             stopped={state === 'stopped'}
@@ -312,6 +373,47 @@ export const PlayerPage: React.FC = () => {
             maxVolume={audioConfig?.max_volume ?? 100}
             onVolumeChange={handleVolumeChange}
           />
+
+          {/* Repeat + Shuffle (icon buttons) and Up next (collapsible) */}
+          {session && (
+            <Box sx={{ pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
+              <Box display="flex" alignItems="center" gap={0.5} sx={{ mb: 0.5 }}>
+                <Tooltip title={session.repeat_mode === 'all' ? t('player.repeat_all', { defaultValue: 'Repeat all' }) : t('player.repeat_off', { defaultValue: 'Repeat off' })}>
+                  <IconButton
+                    size="small"
+                    color={session.repeat_mode === 'all' ? 'primary' : 'default'}
+                    onClick={() => {
+                      const mode = session.repeat_mode === 'all' ? 'none' : 'all';
+                      audioApi.setRepeatMode(mode).then(() =>
+                        setSession((p) => (p ? { ...p, repeat_mode: mode } : null))
+                      ).catch(() => {});
+                    }}
+                    aria-label={session.repeat_mode === 'all' ? 'Repeat all' : 'Repeat off'}
+                  >
+                    <RepeatIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={session.shuffle ? t('player.shuffle_on', { defaultValue: 'Shuffle on' }) : t('player.shuffle_off', { defaultValue: 'Shuffle off' })}>
+                  <IconButton
+                    size="small"
+                    color={session.shuffle ? 'primary' : 'default'}
+                    onClick={() => {
+                      const next = !session.shuffle;
+                      audioApi.setShuffle(next).then(() =>
+                        setSession((p) => (p ? { ...p, shuffle: next } : null))
+                      ).catch(() => {});
+                    }}
+                    aria-label={session.shuffle ? 'Shuffle on' : 'Shuffle off'}
+                  >
+                    <ShuffleIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+              {session.queue.filter((q) => !q.is_current).length > 0 && (
+                <UpNextCollapse queue={session.queue.filter((q) => !q.is_current).slice(0, 8)} />
+              )}
+            </Box>
+          )}
         </CardContent>
       </Card>
 

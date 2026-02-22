@@ -12,6 +12,7 @@ import {
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import NfcIcon from '@mui/icons-material/Nfc';
 import LibraryMusicIcon from '@mui/icons-material/LibraryMusic';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +29,7 @@ const navItems: NavItem[] = [
   { path: '/player', labelKey: 'navigation.player', icon: <PlayCircleOutlineIcon /> },
   { path: '/rfid', labelKey: 'navigation.rfid', icon: <NfcIcon /> },
   { path: '/media', labelKey: 'navigation.media', icon: <LibraryMusicIcon /> },
+  { path: '/dashboard', labelKey: 'navigation.dashboard', icon: <BarChartIcon /> },
   { path: '/admin', labelKey: 'navigation.admin', icon: <SettingsIcon /> },
 ];
 

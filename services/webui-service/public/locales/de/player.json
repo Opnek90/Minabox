@@ -25,6 +25,11 @@
   "unknown_track": "Unbekannter Track",
   "unknown_artist": "Unbekannter Künstler",
   "unknown_album": "Unbekanntes Album",
+  "repeat_all": "Alle wiederholen",
+  "repeat_off": "Wiederholung aus",
+  "shuffle_on": "Zufall an",
+  "shuffle_off": "Zufall aus",
+  "up_next_count": "Als Nächstes ({{count}})",
   "sleep_timer": {
     "title": "Sleep-Timer",
     "preset": "Stopp in {{minutes}} Min."
