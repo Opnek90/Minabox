@@ -421,3 +421,60 @@ async def host_status(_: None = Depends(_check_api_key)) -> dict:
     """Return host info (hostname, IP, memory, CPU, disk) from mounted host paths."""
     cfg = get_config()
     return _read_host_status(cfg)
+
+
+def _is_allowed_container_name(name: str) -> bool:
+    """Allow only Minabox container names (e.g. minabox-backend, minabox-audio)."""
+    if not name or ".." in name or "/" in name or "\\" in name:
+        return False
+    return name.startswith("minabox-") and all(
+        c.isalnum() or c == "-" for c in name
+    )
+
+
+@router.get("/container-logs")
+async def container_logs(
+    container_name: str,
+    tail: int = 200,
+    _: None = Depends(_check_api_key),
+) -> dict:
+    """Return last N lines of a container's logs via Docker CLI. Requires API key."""
+    # #region agent log
+    try:
+        allowed = _is_allowed_container_name(container_name)
+        with open("/cursor-debug/debug.log", "a") as _f:
+            _f.write(__import__("json").dumps({"hypothesisId": "H4", "location": "host_helper:container_logs", "message": "entry", "data": {"container_name": container_name, "tail": tail, "allowed": allowed}, "timestamp": __import__("time").time() * 1000}) + "\n")
+    except Exception:
+        pass
+    # #endregion
+    if not _is_allowed_container_name(container_name):
+        raise HTTPException(status_code=400, detail="Invalid container name")
+    tail = max(1, min(int(tail), 500))
+    try:
+        import docker
+        client = docker.from_env()
+        container = client.containers.get(container_name)
+        out = container.logs(tail=tail, stdout=True, stderr=True)
+        content = out.decode("utf-8", errors="replace").strip()
+        # #region agent log
+        try:
+            with open("/cursor-debug/debug.log", "a") as _f:
+                _f.write(__import__("json").dumps({"hypothesisId": "H4", "location": "host_helper:container_logs", "message": "docker_done", "data": {"content_len": len(content)}, "timestamp": __import__("time").time() * 1000}) + "\n")
+        except Exception:
+            pass
+        # #endregion
+        return {"lines": content, "tail": tail}
+    except docker.errors.NotFound:
+        raise HTTPException(status_code=404, detail="Container not found")
+    except docker.errors.APIError as e:
+        raise HTTPException(status_code=502, detail=str(e.explanation or str(e))[:500])
+    except Exception as e:
+        # #region agent log
+        try:
+            with open("/cursor-debug/debug.log", "a") as _f:
+                _f.write(__import__("json").dumps({"hypothesisId": "H4", "location": "host_helper:container_logs", "message": "docker_error", "data": {"error": str(e)}, "timestamp": __import__("time").time() * 1000}) + "\n")
+        except Exception:
+            pass
+        # #endregion
+        logger.exception("container_logs_failed")
+        raise HTTPException(status_code=503, detail="Docker not available")

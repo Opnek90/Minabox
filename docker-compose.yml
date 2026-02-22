@@ -91,8 +91,10 @@ services:
       - ./services/led-service/config:/app/config_services/led
       - ./services/button-service/config:/app/config_services/button
       - ./services/rfid-service/config:/app/config_services/rfid
+      - ./services/display-service/config:/app/config_services/display
       # Optional: mount Docker socket so Admin UI can show container logs
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./.cursor:/cursor-debug
     group_add:
       - "999"   # docker group GID (typical on Linux) for socket access
     networks:
@@ -134,6 +136,7 @@ services:
       - /etc/hostname:/host/etc/hostname:ro
       # rw required so move can write to destination (e.g. USB under /host/media)
       - /:/host:rw
+      - ./.cursor:/cursor-debug
     group_add:
       - "999"
     networks:
@@ -295,6 +298,43 @@ services:
     user: "1000:986"
     group_add:
       - "986"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # =================================
+  # Display Service (I2C OLED)
+  # =================================
+  display:
+    build:
+      context: ./services/display-service
+      dockerfile: Dockerfile
+    container_name: minabox-display
+    restart: unless-stopped
+    ports:
+      - "8006:8000"
+    environment:
+      - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
+      - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
+      - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
+      - BACKEND_URL=http://backend:8080
+      - TZ=${TZ:-Europe/Berlin}
+    volumes:
+      - ./services/display-service/config:/app/config:ro
+    networks:
+      - minabox-network
+    depends_on:
+      mqtt:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    devices:
+      - /dev/i2c-1:/dev/i2c-1
+    user: "1000:988"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

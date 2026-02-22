@@ -38,10 +38,11 @@ class VLCBackend(AudioBackend):
         self._config = config
         self._instance: vlc.Instance | None = None
         self._player: vlc.MediaPlayer | None = None
-        self._current_source_uri: str | None = None
-        self._current_track_id: str | None = None
-        self._current_source_type: str | None = None
-        self._initialized = False
+        self._pending_volume: int | None = None  # desired volume when VLC has no media (returns -1)
+
+    def update_config(self, config: AudioConfig) -> None:
+        """Update audio config at runtime (e.g. after hot-reload). Only the config reference is updated; VLC stays initialized."""
+        self._config = config
 
     async def initialize(self) -> None:
         """Initialize VLC instance and media player.
@@ -230,6 +231,15 @@ class VLCBackend(AudioBackend):
             # Wait for player to actually start
             await self._wait_for_state(vlc.State.Playing, timeout_sec=5)
 
+            # Apply pending volume (set while no media was loaded)
+            if self._pending_volume is not None:
+                applied = min(self._pending_volume, self._config.max_volume)
+                applied = max(applied, 0)
+                if self._player.audio_set_volume(applied) != -1:
+                    self._pending_volume = None
+                else:
+                    self._pending_volume = applied
+
             # Set start position if specified
             if start_position_ms > 0:
                 await asyncio.sleep(0.2)  # Brief delay for VLC to load media
@@ -357,8 +367,14 @@ class VLCBackend(AudioBackend):
         try:
             result = self._player.audio_set_volume(clamped_volume)
             if result == -1:
-                raise PlaybackError("VLC set_volume returned error")
-
+                # VLC often returns -1 when no media is loaded; store desired volume and apply on next play
+                self._pending_volume = clamped_volume
+                logger.debug(
+                    "volume_set_deferred_no_media",
+                    volume=clamped_volume,
+                )
+                return
+            self._pending_volume = None
             logger.info("volume_set_successful", volume=clamped_volume)
         except Exception as e:
             logger.error("volume_set_failed", error=str(e))
@@ -371,8 +387,10 @@ class VLCBackend(AudioBackend):
 
         try:
             vol = self._player.audio_get_volume()
-            # VLC returns -1 if no media loaded or error
-            return vol if vol >= 0 else 0
+            # VLC returns -1 if no media loaded or error; use pending volume so UI/state stay consistent
+            if vol >= 0:
+                return vol
+            return self._pending_volume if self._pending_volume is not None else 0
         except Exception as e:
             logger.warning("get_volume_failed", error=str(e))
             return 0

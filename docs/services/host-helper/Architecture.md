@@ -25,21 +25,43 @@ Nicht-Ziele:
 - **Aufrufer:** Nur das Backend darf den Host-Helper aufrufen. Empfohlen: interner API-Key oder Token, der nur dem Backend bekannt ist und bei jedem Request mitgesendet wird (gleiches Netz reicht als erste Absicherung).
 - **Eingabevalidierung:**
   - Erlaubte Pfade: Allowlist bzw. konfigurierbare Basis-Pfade; alle übergebenen Pfade müssen darunter liegen und gegen Path-Traversal abgesichert sein.
+  - Container-Logs: Nur erlaubte Container-Namen (Allowlist, z.B. `minabox-*`); keine beliebigen Namen oder Path-Traversal.
   - Keine beliebigen Shell-Befehle; nur fest definierte Aktionen mit parametrisierten Argumenten.
 - **Logging:** Alle Aktionen werden protokolliert (Aufrufer, Zeitpunkt, Aktion, Parameter, Ergebnis). Ermöglicht Audit und Fehleranalyse.
 
 ---
 
-## 3. Schnittstelle (konzeptionell)
+## 3. Schnittstelle (HTTP-API)
 
-Der Host-Helper stellt eine kleine HTTP-API bereit (z.B. mit FastAPI). Die folgenden Endpoints sind konzeptionell; Implementierungsdetails gehören in die spätere Umsetzung.
+Der Host-Helper stellt eine HTTP-API bereit (FastAPI). Alle Endpoints außer `GET /health` erfordern den Header `X-Api-Key` mit dem konfigurierten API-Key (nur Backend bekannt).
 
-### Phase 1 (empfohlener Fokus)
+### Health
+
+- **`GET /health`** – Health-Check (ohne API-Key). Für Docker/Orchestrierung.
+
+### Audio-Pfad
+
+- **`GET /audio-path`** – Aktueller konfigurierter Audio-Pfad (vom Host aus gelesen). Response: z.B. `{ "path": "/mnt/audio", ... }`.
+- **`POST /apply-audio-path`** – Audio-Pfad setzen. Request-Body: Zielpfad (z.B. `{ "path": "/media/usb0/music" }`). Validierung gegen Allowlist; Pfad wird in Host-Konfiguration geschrieben.
+
+### Verschiebung (Move)
 
 - **`POST /move`** – Dateien oder Ordner verschieben.
   - Request: Quellpfad, Zielpfad (beide innerhalb erlaubter Basis-Pfade).
   - Response: Erfolg/Fehler, ggf. Hinweis (z.B. Ziel existiert bereits).
   - Validierung: Beide Pfade müssen unter der konfigurierten Allowlist liegen; keine relativen Pfade wie `../`.
+- **`GET /move-status`** – Status der laufenden oder letzten Verschiebung. Response: z.B. `{ "status": "running" | "idle", ... }` (ggf. Fortschritt, Fehlermeldung).
+
+### Host-System
+
+- **`POST /reboot`** – Host-Neustart (Raspberry Pi Reboot). Response: Bestätigung; Verbindung bricht danach ab.
+- **`GET /host-status`** – Host-Infos (Hostname, IP, RAM, CPU, Disk, Load). Liest von gemounteten Host-Pfaden (z.B. `/host/etc`, `/host/proc`). Response: JSON mit hostname, ip, memory, cpu, disk, load.
+
+### Container-Logs
+
+- **`GET /container-logs`** – Logs eines Docker-Containers abrufen. Query-Parameter: `container_name` (z.B. `minabox-audio`), `tail` (Anzahl Zeilen, Default 200, max 500). Response: `{ "lines": "<stdout/stderr als Text>", "tail": N }`.
+  - **Sicherheit:** Nur Container-Namen aus der Allowlist sind erlaubt (Präfix `minabox-`, alphanumerisch und Bindestriche). Path-Traversal und beliebige Namen werden abgelehnt (HTTP 400). API-Key erforderlich.
+  - Das Backend ruft diesen Endpoint für die Admin-Log-Anzeige auf (`GET /api/v1/system/logs?service=...`), da der Host-Helper Zugriff auf die Docker-API hat; das Backend muss keinen Docker-Socket mounten.
 
 ### Geplant (später, optional)
 
@@ -47,14 +69,13 @@ Der Host-Helper stellt eine kleine HTTP-API bereit (z.B. mit FastAPI). Die folge
 - Netz-Konfiguration (z.B. IP-Adresse ändern)
 - Passwort ändern (z.B. Root-/User-Passwort)
 
-Keine Implementierungsdetails in dieser Architektur; nur Zweck und grober Vertrag (Request/Response-Idee).
-
 ---
 
 ## 4. Integration mit dem Backend
 
 - Das **Backend** ruft den Host-Helper über eine interne URL auf (z.B. `http://host-helper:8000`), nur aus dem gemeinsamen Docker-Netz.
-- Das Backend kann eigene REST-Endpoints bereitstellen (z.B. `POST /api/v1/system/move-audio`), die von der WebUI aufgerufen werden. Nach Validierung der Parameter leitet das Backend die Anfrage an den Host-Helper weiter und gibt das Ergebnis an die WebUI zurück.
+- Das Backend kann eigene REST-Endpoints bereitstellen (z.B. `POST /api/v1/system/move-audio`, `GET /api/v1/system/logs`, `GET /api/v1/system/host-status`), die von der WebUI aufgerufen werden. Nach Validierung der Parameter leitet das Backend die Anfrage an den Host-Helper weiter und gibt das Ergebnis an die WebUI zurück.
+- **Logs:** Für die Admin-Log-Anzeige ruft das Backend `GET /container-logs` beim Host-Helper auf (mit Service-zu-Container-Name-Mapping). Der Host-Helper hat Zugriff auf die Docker-API; das Backend muss keinen Docker-Socket mounten, wenn Host-Helper konfiguriert ist.
 - **Abhängigkeiten:** Der Host-Helper kann parallel zum Backend starten oder danach; das Backend muss fehlgeschlagene Aufrufe abfangen (z.B. Host-Helper nicht erreichbar, Timeout). In diesem Fall soll die WebUI eine klare Fehlermeldung erhalten, ohne Host-Details zu exponieren.
 
 ```mermaid

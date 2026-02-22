@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  Box,
   Button,
   Dialog,
   DialogActions,
@@ -10,7 +9,6 @@ import {
   DialogTitle,
   InputAdornment,
   TextField,
-  Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTranslation } from 'react-i18next';

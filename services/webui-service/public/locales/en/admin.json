@@ -7,6 +7,7 @@
     "audio": "Audio",
     "leds": "LEDs",
     "buttons": "Buttons",
+    "display": "Display",
     "rfid": "RFID"
   },
   "design": {
@@ -30,6 +31,11 @@
     "logs_title": "Container logs",
     "logs_placeholder": "Select service…",
     "logs_loading": "Loading logs…",
+    "logs_auto_refresh": "Auto-refresh",
+    "logs_column_level": "Level",
+    "logs_column_time": "Time",
+    "logs_column_message": "Message",
+    "logs_column_data": "Data",
     "logs_unavailable": "Logs not available. On host: docker logs minabox-<service>",
     "host_title": "Host",
     "host_hostname": "Hostname",
@@ -201,6 +207,39 @@
       "close": "Close"
     },
     "save_success": "Button settings saved"
+  },
+  "display": {
+    "title": "OLED Display",
+    "enabled": "Display enabled",
+    "i2c_bus": "I2C Bus",
+    "i2c_address": "I2C Address",
+    "font_size": "Font size",
+    "font_size_small": "Small",
+    "font_size_medium": "Medium",
+    "font_size_large": "Large",
+    "font": "Font",
+    "font_default": "Default",
+    "font_sans": "Sans",
+    "font_mono": "Mono",
+    "elements": "Display elements",
+    "elements_hint": "Enable elements, choose area (1=Header, 2=Left, 3=Right) and order.",
+    "active": "On",
+    "area": "Area",
+    "area_header": "Header",
+    "area_left": "Left",
+    "area_right": "Right",
+    "element_types": {
+      "volume": "Volume",
+      "sleep_timer": "Sleep Timer",
+      "mute": "Mute",
+      "play_state": "Playback state",
+      "clock": "Clock",
+      "error_state": "Error indicator"
+    },
+    "order": "Order",
+    "save_button": "Save",
+    "save_success": "Display settings saved",
+    "save_error": "Save failed"
   },
   "rfid": {
     "title": "RFID Settings",

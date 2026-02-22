@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -23,6 +23,7 @@ import RouterIcon from '@mui/icons-material/Router';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StorageIcon from '@mui/icons-material/Storage';
 import { useTranslation } from 'react-i18next';
+import { ServiceLogsModal } from './ServiceLogsModal';
 import { ServiceStatusCard } from './ServiceStatus';
 import { systemApi, type HostStatusResponse } from '@/api/system';
 import type { SystemStatus as SystemStatusType } from '@/types/api';
@@ -69,13 +70,21 @@ export const SystemStatusPanel: React.FC = () => {
   const { t } = useTranslation('admin');
   const [status, setStatus] = useState<SystemStatusType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
+  const [logsModalService, setLogsModalService] = useState<string | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusResponse | null>(null);
 
+  const initialLoadRef = useRef(true);
   const loadStatus = useCallback(async () => {
-    setLoading(true);
+    if (initialLoadRef.current) {
+      setLoading(true);
+      initialLoadRef.current = false;
+    } else {
+      setRefreshing(true);
+    }
     setError(null);
     try {
       const [data, host] = await Promise.all([
@@ -88,6 +97,7 @@ export const SystemStatusPanel: React.FC = () => {
       setError('Status konnte nicht geladen werden');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -124,7 +134,7 @@ export const SystemStatusPanel: React.FC = () => {
           startIcon={<RefreshIcon />}
           onClick={loadStatus}
           size="small"
-          disabled={loading}
+          disabled={loading || refreshing}
         >
           {t('refresh', { ns: 'common' })}
         </Button>
@@ -255,11 +265,20 @@ export const SystemStatusPanel: React.FC = () => {
         <Grid container spacing={1}>
           {status?.services.map((svc) => (
             <Grid item xs={12} sm={6} key={svc.service}>
-              <ServiceStatusCard service={svc} />
+              <ServiceStatusCard
+                service={svc}
+                onOpenLogs={() => setLogsModalService(svc.service)}
+              />
             </Grid>
           ))}
         </Grid>
       )}
+
+      <ServiceLogsModal
+        serviceName={logsModalService ?? ''}
+        open={logsModalService !== null}
+        onClose={() => setLogsModalService(null)}
+      />
 
       {/* ── Restart Dialog ────────────────────────────────────────────────── */}
       <Dialog open={restartDialogOpen} onClose={() => setRestartDialogOpen(false)}>

@@ -7,6 +7,7 @@
     "audio": "Audio",
     "leds": "LEDs",
     "buttons": "Buttons",
+    "display": "Display",
     "rfid": "RFID"
   },
   "design": {
@@ -30,6 +31,11 @@
     "logs_title": "Container-Logs",
     "logs_placeholder": "Service wählen…",
     "logs_loading": "Lade Logs…",
+    "logs_auto_refresh": "Auto-Aktualisierung",
+    "logs_column_level": "Level",
+    "logs_column_time": "Zeit",
+    "logs_column_message": "Nachricht",
+    "logs_column_data": "Daten",
     "logs_unavailable": "Logs nicht verfügbar. Auf dem Host: docker logs minabox-<service>",
     "host_title": "Host",
     "host_hostname": "Hostname",
@@ -201,6 +207,39 @@
       "close": "Schließen"
     },
     "save_success": "Button-Einstellungen gespeichert"
+  },
+  "display": {
+    "title": "OLED-Display",
+    "enabled": "Display aktiv",
+    "i2c_bus": "I2C-Bus",
+    "i2c_address": "I2C-Adresse",
+    "font_size": "Schriftgröße",
+    "font_size_small": "Klein",
+    "font_size_medium": "Mittel",
+    "font_size_large": "Groß",
+    "font": "Schriftart",
+    "font_default": "Standard",
+    "font_sans": "Sans",
+    "font_mono": "Mono",
+    "elements": "Anzeige-Elemente",
+    "elements_hint": "Elemente aktivieren, Bereich (1=Header, 2=Links, 3=Rechts) und Reihenfolge wählen.",
+    "active": "Aktiv",
+    "area": "Bereich",
+    "area_header": "Header",
+    "area_left": "Links",
+    "area_right": "Rechts",
+    "element_types": {
+      "volume": "Lautstärke",
+      "sleep_timer": "Sleep-Timer",
+      "mute": "Stummschaltung",
+      "play_state": "Wiedergabe-Status",
+      "clock": "Uhrzeit",
+      "error_state": "Fehler-Anzeige"
+    },
+    "order": "Reihenfolge",
+    "save_button": "Speichern",
+    "save_success": "Display-Einstellungen gespeichert",
+    "save_error": "Speichern fehlgeschlagen"
   },
   "rfid": {
     "title": "RFID-Einstellungen",

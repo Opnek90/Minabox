@@ -524,7 +524,9 @@ LOG_LEVEL=INFO
 
 ### 7.3 Log-Output
 
-Standard: `stdout` (durch Docker aufgenommen)
+Standard: `stdout` (durch Docker aufgenommen). Es werden **keine Log-Dateien** im Projekt oder unter `/data/logs/` geschrieben; alle Ausgaben landen in Docks Log-Verwaltung (z.B. `json-file`-Driver).
+
+Im Admin-UI (System-Status) zeigt der **Log-Button** pro Service die Container-Logs an. Dafür fragt das Backend die Docker-API ab (`container.logs()`). Der Docker-Socket muss in den Backend-Container gemountet sein (z.B. `/var/run/docker.sock`) und der Container muss Zugriff darauf haben (z.B. `group_add` mit der Docker-Gruppe des Hosts).
 
 ```bash
 docker compose logs -f                # Alle Services

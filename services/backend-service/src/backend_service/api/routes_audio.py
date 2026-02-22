@@ -167,16 +167,18 @@ async def stop_audio() -> dict:
 async def next_track() -> dict:
     """Skip to next track.
 
-    Returns:
-        Success response
+    Uses session manager (same logic as button next): advance index and send
+    audio/play with the new track, or audio/stop at end of playlist.
     """
     logger.info("api_audio_next")
 
     if not _mqtt_client:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
-    # TODO: Use session manager
-    await _mqtt_client.publish_audio_command("next", {})
+    if _mqtt_handlers:
+        await _mqtt_handlers._handle_next()
+    else:
+        await _mqtt_client.publish_audio_command("next", {})
 
     return {"status": "ok", "message": "Next command sent"}
 
@@ -185,16 +187,18 @@ async def next_track() -> dict:
 async def previous_track() -> dict:
     """Skip to previous track.
 
-    Returns:
-        Success response
+    Uses session manager (same logic as button prev): go back one track and
+    send audio/play with that track.
     """
     logger.info("api_audio_prev")
 
     if not _mqtt_client:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
-    # TODO: Use session manager
-    await _mqtt_client.publish_audio_command("prev", {})
+    if _mqtt_handlers:
+        await _mqtt_handlers._handle_prev()
+    else:
+        await _mqtt_client.publish_audio_command("prev", {})
 
     return {"status": "ok", "message": "Previous command sent"}
 
