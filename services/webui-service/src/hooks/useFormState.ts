@@ -1,10 +1,5 @@
 import { useState } from 'react';
 
-interface FormState {
-  saving: boolean;
-  error: string | null;
-}
-
 export function useFormState() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
