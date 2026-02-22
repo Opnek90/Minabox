@@ -39,6 +39,9 @@ class VLCBackend(AudioBackend):
         self._instance: vlc.Instance | None = None
         self._player: vlc.MediaPlayer | None = None
         self._pending_volume: int | None = None  # desired volume when VLC has no media (returns -1)
+        self._current_track_id: str | None = None
+        self._current_source_type: str | None = None
+        self._current_source_uri: str | None = None
 
     def update_config(self, config: AudioConfig) -> None:
         """Update audio config at runtime (e.g. after hot-reload). Only the config reference is updated; VLC stays initialized."""

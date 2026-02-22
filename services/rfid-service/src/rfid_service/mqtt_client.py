@@ -3,7 +3,7 @@
 This module handles:
 - Publishing RFID events (tag-scanned, tag-removed, status)
 - Subscribing to command topics (cmd/set-mode)
-- Connection management with automatic reconnection
+- Connection management with automatic reconnection on broker restart
 """
 
 from __future__ import annotations
@@ -104,36 +104,39 @@ class MQTTClient:
                 self._client = None
 
     async def run(self) -> None:
-        """Run the MQTT client message loop.
-
-        This method processes incoming MQTT messages until stopped.
-        """
-        if not self._client:
-            raise MinaboxRFIDError("MQTT client not connected")
-
+        """Run the MQTT client message loop with automatic reconnection on broker restart."""
         self._running = True
         logger.info("mqtt_client_running")
+        reconnect_delay = 2.0
+        while self._running:
+            try:
+                if self._client is None:
+                    await self.connect()
+                reconnect_delay = 2.0
+                async for message in self._client.messages:
+                    if not self._running:
+                        break
 
-        try:
-            async for message in self._client.messages:
+                    topic = message.topic.value
+                    payload = message.payload
+
+                    if topic.endswith("/rfid/cmd/set-mode"):
+                        self._handle_set_mode(payload)
+                    else:
+                        logger.warning("mqtt_unknown_topic", topic=topic)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
                 if not self._running:
-                    break
-
-                topic = message.topic.value
-                payload = message.payload
-
-                if topic.endswith("/rfid/cmd/set-mode"):
-                    self._handle_set_mode(payload)
-                else:
-                    logger.warning("mqtt_unknown_topic", topic=topic)
-        except Exception as exc:
-            if self._running:
-                logger.error(
-                    "mqtt_loop_error",
+                    raise
+                logger.warning(
+                    "mqtt_connection_lost_reconnecting",
                     error=str(exc),
                     exc_info=True,
                 )
-                raise
+                await self.disconnect()
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 60.0)
 
     async def stop(self) -> None:
         """Stop the MQTT client message loop."""

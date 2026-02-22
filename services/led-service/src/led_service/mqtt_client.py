@@ -141,50 +141,53 @@ class MQTTClient:
                 self._client = None
 
     async def run(self) -> None:
-        """Run the MQTT client message loop.
-        
-        This method processes incoming MQTT messages until stopped.
-        """
-        if not self._client:
-            raise MinaboxLEDError("MQTT client not connected")
-        
+        """Run the MQTT client message loop with automatic reconnection on broker restart."""
         self._running = True
         logger.info("mqtt_client_running")
-        
-        try:
-            async for message in self._client.messages:
+        reconnect_delay = 2.0
+        while self._running:
+            try:
+                if self._client is None:
+                    await self.connect()
+                reconnect_delay = 2.0
+                async for message in self._client.messages:
+                    if not self._running:
+                        break
+
+                    topic = message.topic.value
+                    payload = message.payload
+
+                    # Handle config API messages
+                    if topic.endswith("/led/config/update"):
+                        await self._handle_config_update(payload)
+                    elif topic.endswith("/led/config/reload"):
+                        await self._handle_config_reload()
+                    elif topic.endswith("/led/config/get"):
+                        await self._handle_config_get()
+                    else:
+                        # Regular message - pass to callback
+                        try:
+                            self._on_message(topic, payload)
+                        except Exception as exc:
+                            logger.error(
+                                "message_callback_error",
+                                topic=topic,
+                                error=str(exc),
+                                exc_info=True,
+                            )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
                 if not self._running:
-                    break
-                
-                topic = message.topic.value
-                payload = message.payload
-                
-                # Handle config API messages
-                if topic.endswith("/led/config/update"):
-                    await self._handle_config_update(payload)
-                elif topic.endswith("/led/config/reload"):
-                    await self._handle_config_reload()
-                elif topic.endswith("/led/config/get"):
-                    await self._handle_config_get()
-                else:
-                    # Regular message - pass to callback
-                    try:
-                        self._on_message(topic, payload)
-                    except Exception as exc:
-                        logger.error(
-                            "message_callback_error",
-                            topic=topic,
-                            error=str(exc),
-                            exc_info=True,
-                        )
-        except Exception as exc:
-            if self._running:
-                logger.error(
-                    "mqtt_loop_error",
+                    raise
+                logger.warning(
+                    "mqtt_connection_lost_reconnecting",
                     error=str(exc),
                     exc_info=True,
                 )
-                raise
+                await self.disconnect()
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 60.0)
 
     async def stop(self) -> None:
         """Stop the MQTT client message loop."""

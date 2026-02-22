@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import TYPE_CHECKING, Callable
 
@@ -72,37 +73,45 @@ class MQTTClient:
                 self._client = None
 
     async def run(self) -> None:
-        """Run the MQTT message loop."""
-        if not self._client:
-            raise RuntimeError("MQTT client not connected")
+        """Run the MQTT message loop with automatic reconnection on broker restart."""
         self._running = True
         logger.info("mqtt_client_running")
-        try:
-            async for message in self._client.messages:
+        reconnect_delay = 2.0
+        while self._running:
+            try:
+                if self._client is None:
+                    await self.connect()
+                reconnect_delay = 2.0
+                async for message in self._client.messages:
+                    if not self._running:
+                        break
+                    topic = message.topic.value
+                    payload = message.payload
+                    if topic.endswith("/display/config/reload"):
+                        logger.info("config_reload_received")
+                        try:
+                            self._on_config_reload()
+                        except Exception as exc:
+                            logger.error("config_reload_failed", error=str(exc), exc_info=True)
+                    else:
+                        try:
+                            self._on_message(topic, payload)
+                        except Exception as exc:
+                            logger.error(
+                                "message_callback_error",
+                                topic=topic,
+                                error=str(exc),
+                                exc_info=True,
+                            )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
                 if not self._running:
-                    break
-                topic = message.topic.value
-                payload = message.payload
-                if topic.endswith("/display/config/reload"):
-                    logger.info("config_reload_received")
-                    try:
-                        self._on_config_reload()
-                    except Exception as exc:
-                        logger.error("config_reload_failed", error=str(exc), exc_info=True)
-                else:
-                    try:
-                        self._on_message(topic, payload)
-                    except Exception as exc:
-                        logger.error(
-                            "message_callback_error",
-                            topic=topic,
-                            error=str(exc),
-                            exc_info=True,
-                        )
-        except Exception as exc:
-            if self._running:
-                logger.error("mqtt_loop_error", error=str(exc), exc_info=True)
-            raise
+                    raise
+                logger.warning("mqtt_connection_lost_reconnecting", error=str(exc))
+                await self.disconnect()
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 60.0)
 
     async def stop(self) -> None:
         """Stop the MQTT message loop."""

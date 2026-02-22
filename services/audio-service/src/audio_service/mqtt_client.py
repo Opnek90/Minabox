@@ -45,6 +45,7 @@ class MQTTClient:
         self._on_message = on_message_callback
         self._client: Client | None = None
         self._running = False
+        self._subscribed_topics: set[str] = set()
 
     @retry(
         stop=stop_after_attempt(5),
@@ -89,7 +90,8 @@ class MQTTClient:
                 self._client = None
 
     async def subscribe(self, topic: str) -> None:
-        """Subscribe to MQTT topic."""
+        """Subscribe to MQTT topic (stored for re-subscribe after reconnect)."""
+        self._subscribed_topics.add(topic)
         if self._client is None:
             raise MQTTConnectionError("MQTT client not connected")
 
@@ -101,46 +103,50 @@ class MQTTClient:
             raise MQTTConnectionError(f"Failed to subscribe to {topic}") from exc
 
     async def run(self) -> None:
-        """Run the MQTT client message loop.
-
-        This method processes incoming MQTT messages until stopped.
-        """
-        if self._client is None:
-            raise MQTTConnectionError("MQTT client not connected")
-
+        """Run the MQTT client message loop with automatic reconnection on broker restart."""
         self._running = True
         logger.info("mqtt_client_running")
+        reconnect_delay = 2.0
+        while self._running:
+            try:
+                if self._client is None:
+                    await self.connect()
+                for topic in self._subscribed_topics:
+                    await self._client.subscribe(topic)
+                    logger.debug("mqtt_resubscribed", topic=topic)
+                reconnect_delay = 2.0
+                async for message in self._client.messages:
+                    if not self._running:
+                        break
 
-        try:
-            async for message in self._client.messages:
-                if not self._running:
-                    break
+                    topic = message.topic.value
+                    payload = message.payload.decode("utf-8")
 
-                topic = message.topic.value
-                payload = message.payload.decode("utf-8")
+                    logger.debug(
+                        "mqtt_message_received",
+                        topic=topic,
+                        payload_length=len(payload),
+                    )
 
-                logger.debug(
-                    "mqtt_message_received",
-                    topic=topic,
-                    payload_length=len(payload),
-                )
-
-                if self._on_message:
-                    try:
-                        await self._on_message(topic, payload)
-                    except Exception as exc:
-                        logger.error(
-                            "mqtt_message_handler_error",
-                            topic=topic,
-                            error=str(exc),
-                        )
-        except asyncio.CancelledError:
-            logger.info("mqtt_run_cancelled")
-            raise
-        except Exception as exc:
-            if self._running:
-                logger.error("mqtt_loop_error", error=str(exc))
+                    if self._on_message:
+                        try:
+                            await self._on_message(topic, payload)
+                        except Exception as exc:
+                            logger.error(
+                                "mqtt_message_handler_error",
+                                topic=topic,
+                                error=str(exc),
+                            )
+            except asyncio.CancelledError:
+                logger.info("mqtt_run_cancelled")
                 raise
+            except Exception as exc:
+                if not self._running:
+                    raise
+                logger.warning("mqtt_connection_lost_reconnecting", error=str(exc))
+                await self.disconnect()
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 60.0)
 
     async def stop(self) -> None:
         """Stop the MQTT client message loop."""

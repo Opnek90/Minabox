@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -187,32 +188,33 @@ class MQTTClient:
         return len(topic_parts) == len(pattern_parts)
 
     async def run(self) -> None:
-        """Run the MQTT client message loop.
-
-        This should be run as a background task.
-        """
-        if not self._connected or not self.client:
-            raise MQTTConnectionError("MQTT client not connected")
-
+        """Run the MQTT client message loop with automatic reconnection on broker restart."""
         self._running = True
         logger.info("mqtt_listening_started")
-
-        try:
-            # Subscribe to all registered topics
-            for topic in self._message_handlers.keys():
-                await self.client.subscribe(topic)
-                logger.info("mqtt_topic_subscribed", topic=topic)
-
-            # Listen for messages
-            async for message in self.client.messages:
+        reconnect_delay = 2.0
+        while self._running:
+            try:
+                if not self._connected or not self.client:
+                    await self.connect()
+                reconnect_delay = 2.0
+                # Subscribe to all registered topics
+                for topic in self._message_handlers.keys():
+                    await self.client.subscribe(topic)
+                    logger.info("mqtt_topic_subscribed", topic=topic)
+                # Listen for messages
+                async for message in self.client.messages:
+                    if not self._running:
+                        break
+                    await self._handle_message(message.topic.value, message.payload.decode())
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
                 if not self._running:
-                    break
-                await self._handle_message(message.topic.value, message.payload.decode())
-
-        except Exception as e:
-            logger.error("mqtt_listening_error", error=str(e))
-            self._running = False
-            raise
+                    raise
+                logger.warning("mqtt_connection_lost_reconnecting", error=str(e))
+                await self.disconnect()
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, 60.0)
 
     async def stop(self) -> None:
         """Stop the MQTT client message loop."""

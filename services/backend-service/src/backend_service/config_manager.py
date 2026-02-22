@@ -28,7 +28,7 @@ class ConfigManager:
         """Load the backend configuration from disk."""
         config = _load_backend_config(self._config_path)
         self._current_config = config
-        logger.info("config_loaded", path=str(self._config_path))
+        logger.debug("config_loaded", path=str(self._config_path))
         return config
 
     def get_current_config(self) -> BackendServiceConfig | None:
