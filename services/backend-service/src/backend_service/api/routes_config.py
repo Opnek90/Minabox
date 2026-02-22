@@ -199,6 +199,11 @@ async def update_audio_config(body: dict) -> dict:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        if _mqtt_client is not None:
+            config = get_config()
+            topic = config.get_mqtt_topic("audio", "config/reload")
+            await _mqtt_client.publish(topic, {})
+            logger.info("audio_config_reload_published", topic=topic)
         return body
     except OSError as e:
         logger.error("config_write_failed", service="audio", error=str(e))

@@ -79,6 +79,11 @@ class AudioService:
         """Expose MQTT client for health checks."""
         return self._mqtt_client
 
+    def _get_audio_config(self) -> AudioConfig:
+        """Return current audio config (reloaded from disk if available)."""
+        current = self._config_manager.get_current_config()
+        return current if current is not None else self._config.audio
+
     async def start(self) -> None:
         """Start the audio service (non-blocking)."""
         logger.info("audio_service_starting")
@@ -91,15 +96,14 @@ class AudioService:
             await self._vlc_backend.initialize()
 
             # Set initial volume
+            audio_cfg = self._get_audio_config()
             state = self._state_manager.get_state()
             if state.last_volume > 0:
-                initial_volume = min(
-                    state.last_volume, self._config.audio.max_volume
-                )
+                initial_volume = min(state.last_volume, audio_cfg.max_volume)
             else:
                 initial_volume = min(
-                    self._config.audio.default_volume,
-                    self._config.audio.max_volume,
+                    audio_cfg.default_volume,
+                    audio_cfg.max_volume,
                 )
             initial_volume = max(initial_volume, 0)
             logger.info("setting_service_initial_volume", volume=initial_volume)
@@ -342,6 +346,7 @@ class AudioService:
         """Handle set volume command."""
         try:
             await self._vlc_backend.set_volume(command.volume)
+            await self._save_current_state()
             await self._publish_status()
         except Exception as exc:
             logger.error("handle_set_volume_failed", error=str(exc))
@@ -353,6 +358,7 @@ class AudioService:
             current_volume = await self._vlc_backend.get_volume()
             new_volume = min(current_volume + command.step, 100)
             await self._vlc_backend.set_volume(new_volume)
+            await self._save_current_state()
             await self._publish_status()
         except Exception as exc:
             logger.error("handle_volume_up_failed", error=str(exc))
@@ -364,6 +370,7 @@ class AudioService:
             current_volume = await self._vlc_backend.get_volume()
             new_volume = max(current_volume - command.step, 0)
             await self._vlc_backend.set_volume(new_volume)
+            await self._save_current_state()
             await self._publish_status()
         except Exception as exc:
             logger.error("handle_volume_down_failed", error=str(exc))
@@ -375,7 +382,7 @@ class AudioService:
             if self._muted:
                 volume = min(
                     self._volume_before_mute,
-                    self._config.audio.max_volume,
+                    self._get_audio_config().max_volume,
                 )
                 await self._vlc_backend.set_volume(volume)
                 self._muted = False
@@ -404,6 +411,9 @@ class AudioService:
         """Handle config reload command."""
         try:
             self._config_manager.reload_config()
+            current = self._config_manager.get_current_config()
+            if current is not None:
+                self._vlc_backend.update_config(current)
             await self._publish_config_response(success=True)
             logger.info("config_reload_successful")
         except Exception as exc:

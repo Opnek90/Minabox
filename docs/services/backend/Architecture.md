@@ -65,6 +65,9 @@ Nicht-Ziele:
 - `POST /api/v1/audio/prev` – Vorheriger Track
 - `POST /api/v1/audio/volume` – Lautstärke setzen
 - `GET /api/v1/audio/status` – Aktueller Wiedergabe-Status
+- `GET /api/v1/audio/sleep-timer` – Sleep-Timer-Status abrufen
+- `POST /api/v1/audio/sleep-timer` – Sleep-Timer starten (Payload: z.B. `minutes`)
+- `DELETE /api/v1/audio/sleep-timer` – Sleep-Timer abbrechen
 
 **RFID-Control:**
 
@@ -80,12 +83,29 @@ Nicht-Ziele:
 - `PUT /api/v1/config/audio` – Audio-Konfiguration aktualisieren
 - `GET /api/v1/config/rfid` – RFID-Konfiguration abrufen
 - `PUT /api/v1/config/rfid` – RFID-Konfiguration aktualisieren
+- `GET /api/v1/config/display` – Display-Konfiguration abrufen
+- `PUT /api/v1/config/display` – Display-Konfiguration aktualisieren
+- `GET /api/v1/config/display/element-types` – Verfügbare Display-Element-Typen (z.B. volume, sleep_timer, clock)
+- `GET /api/v1/config/general` – Allgemeine Einstellungen (Sprache, Theme, Device-ID, MQTT, Sleep-Timer etc.)
+- `PUT /api/v1/config/general` – Allgemeine Einstellungen aktualisieren
+- `POST /api/v1/config/logo` – Logo-Bild hochladen (multipart)
+- `DELETE /api/v1/config/logo` – Logo löschen
 
 **System & Health:**
 
 - `GET /api/v1/health` – Backend-Health
-- `GET /api/v1/system/status` – Gesamtsystem-Status (alle Services)
-- `POST /api/v1/system/restart` – Service-Neustart triggern (optional)
+- `GET /api/v1/system/status` – Gesamtsystem-Status (alle Services inkl. CPU/RAM wenn verfügbar)
+- `GET /api/v1/system/logs?service=<id>&tail=200` – Logs eines Service-Containers (backend, mqtt, audio, rfid, button, led, display, webui). Quelle: Host-Helper `GET /container-logs` oder Docker-API/Fallback `DATA_PATH/logs/<service>.log`. Response: `{ "service", "lines", "tail" }`.
+- `POST /api/v1/system/restart` – Alle Minabox-Container inkl. Host-Helper neustarten
+
+**Host-Operationen (Delegation an Host-Helper):**
+
+- `GET /api/v1/system/host-status` – Host-Status (Hostname, IP, RAM, CPU, Disk, Load); Backend delegiert an Host-Helper.
+- `GET /api/v1/system/audio-path` – Aktueller Audio-Pfad (vom Host).
+- `PUT /api/v1/system/audio-path` – Audio-Pfad setzen (Payload: z.B. `path`); Delegation an Host-Helper.
+- `POST /api/v1/system/move-audio` – Medien-Ordner verschieben (Quell-/Zielpfad); Delegation an Host-Helper.
+- `GET /api/v1/system/move-status` – Status der Verschiebung (laufend/idle, Fortschritt).
+- `POST /api/v1/system/reboot` – Raspberry Pi Neustart; Delegation an Host-Helper.
 
 ### 2.2 WebSocket
 
@@ -751,7 +771,7 @@ Der Backend loggt strukturiert (structlog, JSON) u.a.:
 - `track_upload_started` / `track_upload_success` / `track_upload_failed` mit Track-ID und Dateiname
 - `session_created` / `session_updated` mit Playlist/Track-Info
 
-Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen).
+Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen). Der Log-Abruf (`GET /api/v1/system/logs`) wird von der Admin-UI genutzt; die Logs stammen je Service aus Container stdout/stderr (via Host-Helper oder Docker-API) oder aus dem Fallback `DATA_PATH/logs/<service>.log`.
 
 ---
 

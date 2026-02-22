@@ -85,6 +85,10 @@ webui-service/
 │   │   └── admin/             # Admin-spezifische Komponenten
 │   │       ├── SystemStatus.tsx
 │   │       ├── ServiceStatus.tsx
+│   │       ├── ServiceLogsModal.tsx   # Container-Logs pro Service (Level/Zeit/Message/Data)
+│   │       ├── DisplayConfigPanel.tsx
+│   │       ├── LEDConfigPanel.tsx
+│   │       ├── ButtonConfigPanel.tsx
 │   │       └── ConfigForm.tsx
 │   ├── contexts/              # React Context für globalen State
 │   │   ├── AudioContext.tsx   # Audio-Status (WebSocket)
@@ -303,30 +307,44 @@ webui-service/
 3. **Audio-Einstellungen**
 4. **LED-Einstellungen**
 5. **Button-Einstellungen**
-6. **RFID-Einstellungen**
+6. **Display-Einstellungen**
+7. **RFID-Einstellungen**
 
 #### 4.4.1 System-Status-Tab
 
 **Features:**
 
 - **Service-Übersicht:**
-  - Liste aller Services (RFID, Audio, Button, LED, Backend) mit Status (Online, Offline, Error)
+  - Liste aller Services (backend, mqtt, audio, rfid, button, led, display, webui) mit Status (Online, Offline, Error)
+  - Optional: CPU- und RAM-Auslastung pro Container (wenn vom Backend geliefert)
   - Letzte Aktualisierung (Timestamp)
+  - Pro Service: **„Logs anzeigen“**-Button → öffnet Log-Modal für diesen Service
+- **Log-Anzeige (ServiceLogsModal):**
+  - Aufruf: `GET /api/v1/system/logs?service=<id>&tail=200`; Anzeige pro Service in einem Modal (Dialog).
+  - **Unterstützte Log-Formate:** Structlog (JSON) mit Level/Zeit/Message/Data; Python-Logging (LEVEL [logger] message); Nginx Access-Log (combined); Mosquitto (Unix-Timestamp: Message). Unbekannte Zeilen werden als eine Zeile (Fallback) angezeigt.
+  - **Darstellung:** Tabelle mit Spalten Level, Zeit, Message, Data. Message-Spalte breit; Data-Spalte als formatierte Struktur (Key-Value für flache Objekte, sonst Pretty-Print-JSON).
+  - **Optionen:** Auto-Refresh (Intervall), manueller Refresh.
+- **Host-Status:**
+  - Anzeige von Host-Infos (Hostname, IP, RAM, CPU, Disk, Load), sofern Backend `GET /api/v1/system/host-status` anbietet und die WebUI es nutzt.
 - **System-Informationen:**
-  - Raspberry Pi Model, CPU-Auslastung, RAM, Speicherplatz (optional)
-  - Uptime
+  - Uptime, Device-ID
 - **Actions:**
-  - "Services neu starten"-Button (optional, triggert `POST /api/v1/system/restart`)
+  - „Services neu starten“ (triggert `POST /api/v1/system/restart`)
+  - „Pi neustarten“ (triggert `POST /api/v1/system/reboot`, optional)
 
 **Komponenten:**
 
-- `SystemStatus` – Übersicht System-Info
-- `ServiceStatus` – Status-Karte pro Service
+- `SystemStatus` – Übersicht System-Info, Host-Status, Service-Liste
+- `ServiceStatus` – Status-Karte pro Service inkl. „Logs anzeigen“-Button
+- `ServiceLogsModal` – Modal mit Container-Logs (Level, Zeit, Message, Data; Parser für Structlog, Python, Nginx, Mosquitto)
 
 **API-Calls:**
 
-- `GET /api/v1/system/status` – Gesamtsystem-Status
-- `POST /api/v1/system/restart` – Service-Neustart (optional)
+- `GET /api/v1/system/status` – Gesamtsystem-Status (alle Services, ggf. CPU/RAM)
+- `GET /api/v1/system/logs?service=<id>&tail=200` – Logs eines Service-Containers
+- `GET /api/v1/system/host-status` – Host-Status (Hostname, IP, RAM, CPU, Disk)
+- `POST /api/v1/system/restart` – Service-Neustart
+- `POST /api/v1/system/reboot` – Pi-Neustart (optional)
 
 #### 4.4.2 Allgemeine Einstellungen
 
