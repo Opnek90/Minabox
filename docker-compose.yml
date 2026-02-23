@@ -119,6 +119,10 @@ services:
     container_name: minabox-host-helper
     restart: unless-stopped
     user: "0:0"   # run as root so docker socket is accessible for recreate-stack
+    pid: "host"   # share host PID namespace so systemctl (chroot /host) can talk to host systemd
+    cap_add:
+      - SYS_PTRACE   # nsenter attach to host process
+      - SYS_ADMIN    # setns(2) to enter host network namespace (WiFi scan/connect/hotspot)
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - HOST_HELPER_API_KEY=${HOST_HELPER_API_KEY:?HOST_HELPER_API_KEY must be set in .env}
@@ -129,6 +133,9 @@ services:
       - HOST_ETC_HOSTNAME=/host/etc/hostname
       - HOST_ROOT=/host
       - HOST_IP=${HOST_IP:-}
+      - WORKSPACE_PATH=/workspace
+      - DATA_PATH=/workspace/data
+      - AUDIO_STORAGE_PATH=/workspace/audio
     volumes:
       - .:/workspace:rw
       - /var/run/docker.sock:/var/run/docker.sock

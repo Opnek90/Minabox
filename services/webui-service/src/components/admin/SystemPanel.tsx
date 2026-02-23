@@ -1,0 +1,713 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Checkbox,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  Stack,
+  Switch,
+  TextField,
+  Typography,
+} from '@mui/material';
+import LockResetIcon from '@mui/icons-material/LockReset';
+import SaveIcon from '@mui/icons-material/Save';
+import UsbIcon from '@mui/icons-material/Usb';
+import WifiIcon from '@mui/icons-material/Wifi';
+import WifiOffIcon from '@mui/icons-material/WifiOff';
+import { useTranslation } from 'react-i18next';
+import { useToast } from '@/contexts/ToastContext';
+import {
+  systemApi,
+  type BoardLedsResponse,
+  type NetworkResponse,
+} from '@/api/system';
+
+export const SystemPanel: React.FC = () => {
+  const { t } = useTranslation('admin');
+  const { showSuccess, showError } = useToast();
+  const [boardLeds, setBoardLeds] = useState<BoardLedsResponse | null>(null);
+  const [sshStatus, setSshStatus] = useState<{ enabled: boolean; active: boolean } | null>(null);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordUser, setPasswordUser] = useState('pi');
+  const [passwordNew, setPasswordNew] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordConfirmDialogOpen, setPasswordConfirmDialogOpen] = useState(false);
+  const [wifiNetworks, setWifiNetworks] = useState<Array<{ ssid: string; signal: number }>>([]);
+  const [wifiScanning, setWifiScanning] = useState(false);
+  const [wifiConnectSsid, setWifiConnectSsid] = useState('');
+  const [wifiConnectPassword, setWifiConnectPassword] = useState('');
+  const [wifiConnecting, setWifiConnecting] = useState(false);
+  const [hotspotStatus, setHotspotStatus] = useState<{ active: boolean; ssid: string | null }>({ active: false, ssid: null });
+  const [hotspotInfo, setHotspotInfo] = useState<{ ssid: string; password: string } | null>(null);
+  const [hotspotLoading, setHotspotLoading] = useState(false);
+  const [network, setNetwork] = useState<NetworkResponse | null>(null);
+  const [networkMethod, setNetworkMethod] = useState<'dhcp' | 'manual'>('dhcp');
+  const [networkAddress, setNetworkAddress] = useState('');
+  const [networkNetmask, setNetworkNetmask] = useState('24');
+  const [networkGateway, setNetworkGateway] = useState('');
+  const [networkDns, setNetworkDns] = useState('');
+  const [networkSaving, setNetworkSaving] = useState(false);
+  const [hostname, setHostname] = useState<string | null>(null);
+  const [hostnameDialogOpen, setHostnameDialogOpen] = useState(false);
+  const [hostnameEdit, setHostnameEdit] = useState('');
+  const [hostnameSaving, setHostnameSaving] = useState(false);
+  const [usbDevices, setUsbDevices] = useState<Array<{ id: string; device: string; size: string; mountpoint: string | null; label: string | null }>>([]);
+  const [usbSelectedId, setUsbSelectedId] = useState<string | null>(null);
+  const [usbEntries, setUsbEntries] = useState<Array<{ path: string; name: string; type: string }>>([]);
+  const [usbSelectedPaths, setUsbSelectedPaths] = useState<string[]>([]);
+  const [usbLoading, setUsbLoading] = useState(false);
+  const [usbImporting, setUsbImporting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setError(null);
+    try {
+      const [leds, sshSt, hotspot, net, hostnameRes] = await Promise.all([
+        systemApi.getBoardLeds().catch(() => null),
+        systemApi.getSshStatus().catch(() => null),
+        systemApi.wifiHotspotStatus().catch(() => ({ active: false, ssid: null })),
+        systemApi.getNetwork().catch(() => null),
+        systemApi.getHostname().catch(() => null),
+      ]);
+      setBoardLeds(leds ?? null);
+      setSshStatus(sshSt ?? null);
+      setHotspotStatus(hotspot ?? { active: false, ssid: null });
+      if (net) {
+        setNetwork(net);
+        setNetworkMethod(net.method);
+        setNetworkAddress(net.address ?? '');
+        setNetworkNetmask(net.netmask ?? '24');
+        setNetworkGateway(net.gateway ?? '');
+        setNetworkDns(net.dns ?? '');
+      } else {
+        setNetwork(null);
+      }
+      setHostname(hostnameRes?.hostname ?? null);
+    } catch {
+      setError('Daten konnten nicht geladen werden');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleStealthChange = async (on: boolean) => {
+    try {
+      await systemApi.setBoardLeds(on);
+      const next = await systemApi.getBoardLeds();
+      setBoardLeds(next);
+    } catch {
+      showError(t('system.logs_unavailable'));
+    }
+  };
+
+  const handleOpenPasswordConfirm = () => {
+    if (passwordNew !== passwordConfirm || passwordNew.length < 8) return;
+    setPasswordConfirmDialogOpen(true);
+  };
+
+  const handleApplyPassword = async () => {
+    setPasswordConfirmDialogOpen(false);
+    setPasswordSaving(true);
+    setPasswordDialogOpen(false);
+    try {
+      await systemApi.setPassword(passwordUser, passwordNew);
+      setPasswordNew('');
+      setPasswordConfirm('');
+      showSuccess(t('system.password_apply'));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const handleSshToggle = async (enable: boolean) => {
+    try {
+      const next = await systemApi.setSshToggle(enable);
+      setSshStatus({ enabled: next.enabled, active: next.active });
+    } catch (err: unknown) {
+      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: unknown } }).response : undefined;
+      const data = ax && typeof ax === 'object' && 'data' in ax ? (ax as { data?: unknown }).data : undefined;
+      const d = data && typeof data === 'object' && data !== null && 'detail' in data ? (data as { detail: unknown }).detail : undefined;
+      let msg: string;
+      if (typeof d === 'string') msg = d;
+      else if (Array.isArray(d)) msg = d.map((x: { msg?: string }) => x?.msg ?? String(x)).filter(Boolean).join(' ') || t('system.ssh_toggle_failed');
+      else if (d && typeof d === 'object' && ('detail' in d || 'message' in d)) msg = String((d as { detail?: string; message?: string }).detail ?? (d as { message?: string }).message);
+      else msg = t('system.ssh_toggle_failed');
+      showError(msg);
+    }
+  };
+
+  const handleWifiScan = async () => {
+    // #region agent log
+    fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'handleWifiScan called', data: {}, timestamp: Date.now(), hypothesisId: 'H3' }) }).catch(() => {});
+    // #endregion
+    setWifiScanning(true);
+    try {
+      const data = await systemApi.wifiScan();
+      // #region agent log
+      fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'wifiScan response', data: { networksLength: data?.networks?.length ?? -1 }, timestamp: Date.now(), hypothesisId: 'H4,H5' }) }).catch(() => {});
+      // #endregion
+      setWifiNetworks(data.networks ?? []);
+    } catch (err) {
+      // #region agent log
+      fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'wifiScan error', data: { err: String(err) }, timestamp: Date.now(), hypothesisId: 'H4' }) }).catch(() => {});
+      // #endregion
+      setWifiNetworks([]);
+    } finally {
+      setWifiScanning(false);
+    }
+  };
+
+  const handleWifiConnect = async () => {
+    if (!wifiConnectSsid.trim()) return;
+    setWifiConnecting(true);
+    try {
+      await systemApi.wifiConnect(wifiConnectSsid.trim(), wifiConnectPassword);
+      showSuccess(t('system.wifi_connect'));
+    } catch (err: unknown) {
+      // #region agent log
+      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { detail?: string } } }).response : undefined;
+      fetch('http://localhost:7587/ingest/956f1dfb-30a2-4644-a364-2be2e1ac338d', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '771350' }, body: JSON.stringify({ sessionId: '771350', location: 'SystemPanel.tsx:handleWifiConnect', message: 'wifiConnect error', data: { status: ax?.status, detail: ax?.data?.detail }, timestamp: Date.now(), hypothesisId: 'H2,H3,H5' }) }).catch(() => {});
+      // #endregion
+      const detail = ax?.data?.detail;
+      showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
+    } finally {
+      setWifiConnecting(false);
+    }
+  };
+
+  const handleHotspotStart = async () => {
+    setHotspotLoading(true);
+    try {
+      const data = await systemApi.wifiHotspotStart();
+      setHotspotInfo({ ssid: data.ssid, password: data.password ?? '' });
+      setHotspotStatus({ active: true, ssid: data.ssid });
+      showSuccess(t('system.wifi_hotspot_start'));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    } finally {
+      setHotspotLoading(false);
+    }
+  };
+
+  const handleHotspotStop = async () => {
+    setHotspotLoading(true);
+    try {
+      await systemApi.wifiHotspotStop();
+      setHotspotInfo(null);
+      setHotspotStatus({ active: false, ssid: null });
+      showSuccess(t('system.wifi_hotspot_stop'));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    } finally {
+      setHotspotLoading(false);
+    }
+  };
+
+  const handleNetworkMethodChange = (method: 'dhcp' | 'manual') => {
+    setNetworkMethod(method);
+    if (method === 'manual' && network) {
+      setNetworkAddress(network.address ?? '');
+      setNetworkNetmask(network.netmask ?? '24');
+      setNetworkGateway(network.gateway ?? '');
+      setNetworkDns(network.dns ?? '');
+    }
+  };
+
+  const handleNetworkApply = async () => {
+    setNetworkSaving(true);
+    try {
+      await systemApi.setNetwork({
+        method: networkMethod,
+        address: networkMethod === 'manual' ? networkAddress.trim() || undefined : undefined,
+        netmask: networkMethod === 'manual' ? networkNetmask.trim() || undefined : undefined,
+        gateway: networkMethod === 'manual' ? networkGateway.trim() || undefined : undefined,
+        dns: networkMethod === 'manual' ? networkDns.trim() || undefined : undefined,
+      });
+      const next = await systemApi.getNetwork();
+      if (next) {
+        setNetwork(next);
+        setNetworkMethod(next.method);
+        setNetworkAddress(next.address ?? '');
+        setNetworkNetmask(next.netmask ?? '24');
+        setNetworkGateway(next.gateway ?? '');
+        setNetworkDns(next.dns ?? '');
+      }
+      showSuccess(t('system.network_apply'));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    } finally {
+      setNetworkSaving(false);
+    }
+  };
+
+  const handleOpenHostnameDialog = () => {
+    setHostnameEdit(hostname ?? '');
+    setHostnameDialogOpen(true);
+  };
+
+  const handleApplyHostname = async () => {
+    const name = hostnameEdit.trim().toLowerCase();
+    if (!name) return;
+    setHostnameSaving(true);
+    try {
+      await systemApi.setHostname(name);
+      const res = await systemApi.getHostname();
+      setHostname(res?.hostname ?? null);
+      setHostnameDialogOpen(false);
+      showSuccess(t('system.hostname_apply'));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    } finally {
+      setHostnameSaving(false);
+    }
+  };
+
+  const handleUsbLoadDevices = async () => {
+    setUsbLoading(true);
+    try {
+      const data = await systemApi.usbDevices();
+      setUsbDevices(data.devices ?? []);
+      setUsbSelectedId(null);
+      setUsbEntries([]);
+      setUsbSelectedPaths([]);
+    } catch {
+      setUsbDevices([]);
+    } finally {
+      setUsbLoading(false);
+    }
+  };
+
+  const handleUsbSelectDevice = async (id: string) => {
+    setUsbSelectedId(id);
+    setUsbEntries([]);
+    setUsbSelectedPaths([]);
+    try {
+      const data = await systemApi.usbFiles(id);
+      setUsbEntries(data.entries ?? []);
+    } catch {
+      setUsbEntries([]);
+    }
+  };
+
+  const handleUsbImport = async () => {
+    if (!usbSelectedId || usbSelectedPaths.length === 0) return;
+    setUsbImporting(true);
+    try {
+      const data = await systemApi.usbImport(usbSelectedId, usbSelectedPaths);
+      showSuccess(t('system.usb_import_success', { count: data.files_copied ?? 0 }));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    } finally {
+      setUsbImporting(false);
+    }
+  };
+
+  const handleUsbEject = async () => {
+    if (!usbSelectedId) return;
+    try {
+      await systemApi.usbEject(usbSelectedId);
+      showSuccess(t('system.usb_eject'));
+      handleUsbLoadDevices();
+    } catch {
+      showError(t('system.logs_unavailable'));
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <Box>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      {/* ── Hardware ─────────────────────────────────────────────────────────── */}
+      {boardLeds != null && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+            {t('system.hardware_title')}
+          </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={boardLeds.stealth}
+                onChange={(_, checked) => handleStealthChange(checked)}
+                color="primary"
+              />
+            }
+            label={t('system.stealth_mode')}
+          />
+          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+            {t('system.stealth_hint')}
+          </Typography>
+        </Box>
+      )}
+
+      {/* ── Sicherheit ───────────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          {t('system.security_title')}
+        </Typography>
+        {sshStatus != null && (
+          <>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={sshStatus.enabled || sshStatus.active}
+                  onChange={(_, checked) => handleSshToggle(checked)}
+                  color="primary"
+                />
+              }
+              label={t('system.ssh_toggle')}
+            />
+            <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
+              {t('system.ssh_toggle_hint')}
+            </Typography>
+          </>
+        )}
+        <Box display="flex" flexWrap="wrap" gap={1}>
+          <Button
+            startIcon={<LockResetIcon />}
+            size="small"
+            variant="outlined"
+            onClick={() => setPasswordDialogOpen(true)}
+          >
+            {t('system.password_change')}
+          </Button>
+        </Box>
+      </Box>
+
+      {/* ── WLAN ─────────────────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          {t('system.wifi')}
+        </Typography>
+        <Box display="flex" flexDirection="column" gap={1.5}>
+          <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<WifiIcon />}
+              onClick={handleWifiScan}
+              disabled={wifiScanning}
+            >
+              {t('system.wifi_scan')}
+            </Button>
+            {hotspotStatus.active ? (
+              <Button
+                size="small"
+                color="warning"
+                variant="outlined"
+                startIcon={<WifiOffIcon />}
+                onClick={handleHotspotStop}
+                disabled={hotspotLoading}
+              >
+                {t('system.wifi_hotspot_stop')}
+              </Button>
+            ) : (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<WifiIcon />}
+                onClick={handleHotspotStart}
+                disabled={hotspotLoading}
+              >
+                {t('system.wifi_hotspot_start')}
+              </Button>
+            )}
+          </Box>
+          {hotspotInfo && (
+            <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="body2">
+                SSID: <strong>{hotspotInfo.ssid}</strong> · Passwort: <strong>{hotspotInfo.password}</strong>
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {t('system.wifi_hotspot_connected')}
+              </Typography>
+            </Box>
+          )}
+          {wifiNetworks.length > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                {t('system.wifi_ssid')}
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center">
+                <TextField
+                  size="small"
+                  placeholder={t('system.wifi_ssid')}
+                  value={wifiConnectSsid}
+                  onChange={(e) => setWifiConnectSsid(e.target.value)}
+                  sx={{ minWidth: 180 }}
+                />
+                <TextField
+                  size="small"
+                  type="password"
+                  placeholder={t('system.wifi_password')}
+                  value={wifiConnectPassword}
+                  onChange={(e) => setWifiConnectPassword(e.target.value)}
+                  sx={{ minWidth: 140 }}
+                />
+                <Button size="small" variant="contained" onClick={handleWifiConnect} disabled={wifiConnecting || !wifiConnectSsid.trim()}>
+                  {t('system.wifi_connect')}
+                </Button>
+              </Stack>
+              <Box sx={{ mt: 1 }} component="ul" style={{ margin: 0, paddingLeft: 20 }}>
+                {wifiNetworks.slice(0, 15).map((n) => (
+                  <li key={n.ssid}>
+                    <Typography variant="body2" component="span" onClick={() => setWifiConnectSsid(n.ssid)} sx={{ cursor: 'pointer', textDecoration: 'underline' }}>
+                      {n.ssid}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" component="span"> ({n.signal}%)</Typography>
+                  </li>
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+      {/* ── Netzwerk (IP) ─────────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          {t('system.network_title')}
+        </Typography>
+        {network === null && !loading ? (
+          <Typography variant="body2" color="text.secondary">
+            {t('system.network_no_connection')}
+          </Typography>
+        ) : (
+          <Box display="flex" flexDirection="column" gap={1.5}>
+            <Typography variant="caption" color="text.secondary">{t('system.network_method_label')}</Typography>
+            <RadioGroup row value={networkMethod} onChange={(_, v) => handleNetworkMethodChange(v as 'dhcp' | 'manual')}>
+              <FormControlLabel value="dhcp" control={<Radio size="small" />} label={t('system.network_method_dhcp')} />
+              <FormControlLabel value="manual" control={<Radio size="small" />} label={t('system.network_method_manual')} />
+            </RadioGroup>
+            {networkMethod === 'manual' && (
+              <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" sx={{ mt: 0.5 }}>
+                <TextField
+                  size="small"
+                  label={t('system.network_address')}
+                  value={networkAddress}
+                  onChange={(e) => setNetworkAddress(e.target.value)}
+                  placeholder="192.168.1.10"
+                  sx={{ minWidth: 140 }}
+                />
+                <TextField
+                  size="small"
+                  label={t('system.network_netmask')}
+                  value={networkNetmask}
+                  onChange={(e) => setNetworkNetmask(e.target.value)}
+                  placeholder="24"
+                  sx={{ width: 72 }}
+                />
+                <TextField
+                  size="small"
+                  label={t('system.network_gateway')}
+                  value={networkGateway}
+                  onChange={(e) => setNetworkGateway(e.target.value)}
+                  placeholder="192.168.1.1"
+                  sx={{ minWidth: 120 }}
+                />
+                <TextField
+                  size="small"
+                  label={t('system.network_dns')}
+                  value={networkDns}
+                  onChange={(e) => setNetworkDns(e.target.value)}
+                  placeholder="192.168.1.1"
+                  sx={{ minWidth: 120 }}
+                />
+              </Stack>
+            )}
+            <Box display="flex" flexWrap="wrap" gap={1}>
+              <Button
+                startIcon={<SaveIcon />}
+                size="small"
+                variant="outlined"
+                onClick={handleNetworkApply}
+                disabled={networkSaving || network === null}
+              >
+                {t('system.network_apply')}
+              </Button>
+            </Box>
+          </Box>
+        )}
+      </Box>
+
+      {/* ── Hostname ─────────────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          {t('system.host_hostname')}
+        </Typography>
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+          {hostname != null && (
+            <Typography variant="body2" color="text.secondary">
+              {hostname}
+            </Typography>
+          )}
+          <Button size="small" variant="outlined" onClick={handleOpenHostnameDialog} disabled={hostnameSaving}>
+            {t('system.hostname_edit')}
+          </Button>
+        </Box>
+      </Box>
+
+      {/* ── USB Import ───────────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          {t('system.usb')}
+        </Typography>
+        <Box display="flex" flexDirection="column" gap={1.5}>
+          <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+            <Button size="small" variant="outlined" startIcon={<UsbIcon />} onClick={handleUsbLoadDevices} disabled={usbLoading}>
+              {t('system.usb_devices')}
+            </Button>
+          </Box>
+          {usbDevices.length > 0 && (
+            <>
+              <Box display="flex" flexWrap="wrap" gap={1}>
+                {usbDevices.map((d) => (
+                  <Chip
+                    key={d.id}
+                    label={`${d.id} ${d.size} ${d.label || ''}`.trim()}
+                    onClick={() => handleUsbSelectDevice(d.id)}
+                    color={usbSelectedId === d.id ? 'primary' : 'default'}
+                    variant={usbSelectedId === d.id ? 'filled' : 'outlined'}
+                  />
+                ))}
+              </Box>
+              {usbSelectedId && (
+                <>
+                  <Typography variant="caption" color="text.secondary">
+                    {t('system.usb_files')}
+                  </Typography>
+                  <Box display="flex" flexWrap="wrap" gap={0.5}>
+                    {usbEntries.map((e) => (
+                      <FormControlLabel
+                        key={e.path}
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={usbSelectedPaths.includes(e.path)}
+                            onChange={(_, checked) =>
+                              setUsbSelectedPaths((prev) =>
+                                checked ? [...prev, e.path] : prev.filter((p) => p !== e.path),
+                              )
+                            }
+                          />
+                        }
+                        label={e.name + (e.type === 'dir' ? ' (Ordner)' : '')}
+                      />
+                    ))}
+                  </Box>
+                  <Box display="flex" gap={1}>
+                    <Button size="small" variant="contained" onClick={handleUsbImport} disabled={usbImporting || usbSelectedPaths.length === 0}>
+                      {t('system.usb_import')}
+                    </Button>
+                    <Button size="small" variant="outlined" onClick={handleUsbEject}>
+                      {t('system.usb_eject')}
+                    </Button>
+                  </Box>
+                </>
+              )}
+            </>
+          )}
+        </Box>
+      </Box>
+
+      {/* ── Password Dialog ─────────────────────────────────────────────────── */}
+      <Dialog open={passwordDialogOpen} onClose={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
+        <DialogTitle>{t('system.password_change')}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            margin="dense"
+            label={t('system.password_user')}
+            value={passwordUser}
+            onChange={(e) => setPasswordUser(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+          <TextField
+            fullWidth
+            margin="dense"
+            type="password"
+            label={t('system.password_new')}
+            value={passwordNew}
+            onChange={(e) => setPasswordNew(e.target.value)}
+          />
+          <TextField
+            fullWidth
+            margin="dense"
+            type="password"
+            label={t('system.password_confirm')}
+            value={passwordConfirm}
+            onChange={(e) => setPasswordConfirm(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
+            {t('actions.cancel', { ns: 'common' })}
+          </Button>
+          <Button
+            onClick={handleOpenPasswordConfirm}
+            color="primary"
+            variant="contained"
+            disabled={passwordSaving || passwordNew.length < 8 || passwordNew !== passwordConfirm}
+          >
+            {t('system.password_apply')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={passwordConfirmDialogOpen} onClose={() => setPasswordConfirmDialogOpen(false)}>
+        <DialogTitle>{t('system.password_apply')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t('system.password_confirm_dialog')}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPasswordConfirmDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleApplyPassword} color="primary" variant="contained">
+            {t('actions.confirm', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Hostname Dialog ─────────────────────────────────────────────────── */}
+      <Dialog open={hostnameDialogOpen} onClose={() => setHostnameDialogOpen(false)}>
+        <DialogTitle>{t('system.hostname_dialog_title')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 1 }}>{t('system.hostname_reconnect_hint')}</DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            margin="dense"
+            label={t('system.host_hostname')}
+            value={hostnameEdit}
+            onChange={(e) => setHostnameEdit(e.target.value)}
+            placeholder="minabox"
+            inputProps={{ maxLength: 63 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHostnameDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleApplyHostname} color="primary" variant="contained" disabled={hostnameSaving || !hostnameEdit.trim()}>
+            {t('system.hostname_apply')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};

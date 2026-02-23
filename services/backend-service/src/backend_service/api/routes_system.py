@@ -186,46 +186,44 @@ async def system_status() -> dict:
     }
 
 
+def _debug_log(msg: str, data: dict) -> None:
+    # #region agent log
+    try:
+        import json
+        path = "/cursor-debug/debug-771350.log"
+        with open(path, "a") as f:
+            f.write(json.dumps({"sessionId": "771350", "location": "routes_system.py", "message": msg, "data": data, "timestamp": __import__("time").time() * 1000}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+    # #endregion
+
+
 async def _get_logs_via_host_helper(service: str, tail: int) -> str | None:
     """Fetch container logs via Host-Helper (has Docker socket). Returns None if not configured or failed."""
     api_key = _host_helper_api_key()
     container = CONTAINER_NAMES.get(service)
-    # #region agent log
-    try:
-        with open("/cursor-debug/debug.log", "a") as _f:
-            _f.write(__import__("json").dumps({"hypothesisId": "H1", "location": "routes_system:_get_logs_via_host_helper", "message": "entry", "data": {"service": service, "has_api_key": api_key is not None, "container": container}, "timestamp": __import__("time").time() * 1000}) + "\n")
-    except Exception:
-        pass
-    # #endregion
     if not api_key:
+        _debug_log("host_helper_logs_skip", {"reason": "no_api_key", "service": service, "hypothesisId": "H1,H3"})
         return None
     if not container:
+        _debug_log("host_helper_logs_skip", {"reason": "no_container", "service": service, "hypothesisId": "H1"})
         return None
+    url_base = _host_helper_url()
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.get(
-                f"{_host_helper_url()}/container-logs",
+                f"{url_base}/container-logs",
                 params={"container_name": container, "tail": min(tail, 500)},
                 headers={"X-Api-Key": api_key},
             )
-            # #region agent log
-            try:
-                with open("/cursor-debug/debug.log", "a") as _f:
-                    _f.write(__import__("json").dumps({"hypothesisId": "H2,H3,H4,H5", "location": "routes_system:host_helper_response", "message": "response", "data": {"status_code": r.status_code, "body_preview": (r.text or "")[:300]}, "timestamp": __import__("time").time() * 1000}) + "\n")
-            except Exception:
-                pass
-            # #endregion
             if r.status_code == 200:
                 data = r.json()
-                return data.get("lines") or ""
+                out = data.get("lines") or ""
+                _debug_log("host_helper_logs_ok", {"service": service, "status_code": 200, "hypothesisId": "H1,H3"})
+                return out
+            _debug_log("host_helper_logs_fail", {"service": service, "status_code": r.status_code, "url_base": url_base, "hypothesisId": "H1,H3"})
     except Exception as e:
-        # #region agent log
-        try:
-            with open("/cursor-debug/debug.log", "a") as _f:
-                _f.write(__import__("json").dumps({"hypothesisId": "H2", "location": "routes_system:host_helper_exception", "message": "exception", "data": {"error": str(e)}, "timestamp": __import__("time").time() * 1000}) + "\n")
-        except Exception:
-            pass
-        # #endregion
+        _debug_log("host_helper_logs_exception", {"service": service, "error": str(e), "url_base": url_base, "hypothesisId": "H1,H3"})
         logger.debug("host_helper_logs_failed", service=service, error=str(e))
     return None
 
@@ -257,35 +255,20 @@ async def _get_logs_via_docker(service: str, tail: int) -> str | None:
 async def get_service_logs(service: str, tail: int = 200) -> dict:
     if service not in SERVICE_IDS:
         raise HTTPException(status_code=400, detail="Invalid service")
-    # #region agent log
-    try:
-        with open("/cursor-debug/debug.log", "a") as _f:
-            _f.write(__import__("json").dumps({"hypothesisId": "H1", "location": "routes_system:get_service_logs", "message": "entry", "data": {"service": service, "has_api_key": _host_helper_api_key() is not None, "url": _host_helper_url()}, "timestamp": __import__("time").time() * 1000}) + "\n")
-    except Exception:
-        pass
-    # #endregion
+    _debug_log("get_service_logs_start", {"service": service, "tail": tail, "hypothesisId": "H1,H2"})
     content = await _get_logs_via_host_helper(service, tail)
     if content is None:
         content = await _get_logs_via_docker(service, tail)
-    # #region agent log
-    try:
-        with open("/cursor-debug/debug.log", "a") as _f:
-            _f.write(__import__("json").dumps({"hypothesisId": "H5", "location": "routes_system:get_service_logs", "message": "after_sources", "data": {"host_helper_ok": content is not None, "content_len": len(content) if content else 0}, "timestamp": __import__("time").time() * 1000}) + "\n")
-    except Exception:
-        pass
-    # #endregion
+        _debug_log("get_service_logs_docker_fallback", {"service": service, "got_content": content is not None, "hypothesisId": "H1,H2"})
     if content is not None:
+        _debug_log("get_service_logs_ok", {"service": service, "source": "host_helper_or_docker", "hypothesisId": "H1,H2"})
         return {"service": service, "lines": content, "tail": tail}
     data_path = os.environ.get("DATA_PATH", "/data")
     path = Path(data_path) / "logs" / f"{service}.log"
-    if not path.exists():
-        # #region agent log
-        try:
-            with open("/cursor-debug/debug.log", "a") as _f:
-                _f.write(__import__("json").dumps({"hypothesisId": "H5", "location": "routes_system:get_service_logs", "message": "raising_404", "data": {"service": service}, "timestamp": __import__("time").time() * 1000}) + "\n")
-        except Exception:
-            pass
-        # #endregion
+    path_exists = path.exists()
+    _debug_log("get_service_logs_file_fallback", {"service": service, "path": str(path), "path_exists": path_exists, "hypothesisId": "H1,H2"})
+    if not path_exists:
+        _debug_log("get_service_logs_404", {"service": service, "hypothesisId": "H2"})
         raise HTTPException(
             status_code=404,
             detail="Logs not available. Configure Host-Helper (HOST_HELPER_API_KEY) or mount Docker socket into backend.",
@@ -297,38 +280,6 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
     except Exception as e:
         logger.warning("logs_read_failed", service=service, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to read logs") from e
-
-
-def _restart_containers_sync() -> None:
-    try:
-        import docker
-        client = docker.from_env()
-        for name in CONTAINER_NAMES.values():
-            try:
-                container = client.containers.get(name)
-                container.restart()
-            except Exception as e:
-                logger.warning("restart_container_failed", container=name, error=str(e))
-        try:
-            client.containers.get("minabox-host-helper").restart()
-        except Exception:
-            pass
-    except Exception as e:
-        logger.warning("restart_containers_failed", error=str(e))
-        raise
-
-
-@router.post("/restart")
-async def restart_services() -> dict:
-    try:
-        await asyncio.to_thread(_restart_containers_sync)
-        return {"ok": True}
-    except Exception as e:
-        logger.error("restart_failed", error=str(e))
-        raise HTTPException(
-            status_code=503,
-            detail="Restart failed. Ensure Docker socket is mounted.",
-        ) from e
 
 
 @router.get("/health", response_model=HealthCheckResponse)

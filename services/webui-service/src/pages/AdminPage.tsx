@@ -10,6 +10,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import { PageShell } from '@/components/common/PageShell';
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
+import { SystemPanel } from '@/components/admin/SystemPanel';
+import { MaintenancePanel } from '@/components/admin/MaintenancePanel';
+import { BluetoothSection } from '@/components/admin/BluetoothSection';
 import { LEDConfigPanel } from '@/components/admin/LEDConfigPanel';
 import { ButtonConfigPanel } from '@/components/admin/ButtonConfigPanel';
 import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
@@ -59,7 +62,9 @@ export const AdminPage: React.FC = () => {
           },
         }}
       >
+        <Tab label={t('tabs.status')} />
         <Tab label={t('tabs.system')} />
+        <Tab label={t('tabs.maintenance')} />
         <Tab label={t('tabs.general')} />
         <Tab label={t('tabs.design')} />
         <Tab label={t('tabs.audio')} />
@@ -73,30 +78,37 @@ export const AdminPage: React.FC = () => {
         <SystemStatusPanel />
       </TabPanel>
       <TabPanel value={tab} index={1}>
+        <SystemPanel />
+      </TabPanel>
+      <TabPanel value={tab} index={2}>
+        <MaintenancePanel />
+      </TabPanel>
+      <TabPanel value={tab} index={3}>
         <Typography variant="h6" gutterBottom>{t('general.title')}</Typography>
         <GeneralSettingsForm />
       </TabPanel>
-      <TabPanel value={tab} index={2}>
+      <TabPanel value={tab} index={4}>
         <Typography variant="h6" gutterBottom>{t('design.title')}</Typography>
         <DesignSettingsForm />
       </TabPanel>
-      <TabPanel value={tab} index={3}>
+      <TabPanel value={tab} index={5}>
         <Typography variant="h6" gutterBottom>{t('audio.title')}</Typography>
         <AudioConfigForm />
+        <BluetoothSection />
       </TabPanel>
-      <TabPanel value={tab} index={4}>
+      <TabPanel value={tab} index={6}>
         <Typography variant="h6" gutterBottom>{t('leds.title')}</Typography>
         <LEDConfigPanel />
       </TabPanel>
-      <TabPanel value={tab} index={5}>
+      <TabPanel value={tab} index={7}>
         <Typography variant="h6" gutterBottom>{t('buttons.title')}</Typography>
         <ButtonConfigPanel />
       </TabPanel>
-      <TabPanel value={tab} index={6}>
+      <TabPanel value={tab} index={8}>
         <Typography variant="h6" gutterBottom>{t('display.title')}</Typography>
         <DisplayConfigPanel />
       </TabPanel>
-      <TabPanel value={tab} index={7}>
+      <TabPanel value={tab} index={9}>
         <Typography variant="h6" gutterBottom>{t('rfid.title')}</Typography>
         <RFIDConfigForm />
       </TabPanel>

@@ -205,10 +205,12 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
       const lines = (res.lines ?? '').split('\n').filter(Boolean);
       setLogsLines(lines);
     } catch (err: unknown) {
-      const detail =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
+      const res = err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { detail?: string } } }).response : undefined;
+      const status = res?.status;
+      const detail = res?.data?.detail;
+      // #region agent log
+      fetch('http://localhost:7587/ingest/956f1dfb-30a2-4644-a364-2be2e1ac338d', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '771350' }, body: JSON.stringify({ sessionId: '771350', location: 'ServiceLogsModal.tsx:fetchLogs', message: 'getLogs error', data: { status, detail: typeof detail === 'string' ? detail : undefined, serviceName }, timestamp: Date.now(), hypothesisId: 'H4,H5' }) }).catch(() => {});
+      // #endregion
       const fallback = t('system.logs_unavailable').replace('<service>', serviceName);
       setLogsError(detail && typeof detail === 'string' ? detail : fallback);
     } finally {

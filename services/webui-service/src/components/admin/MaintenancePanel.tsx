@@ -1,0 +1,503 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Checkbox,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  FormControlLabel,
+  TextField,
+  Typography,
+} from '@mui/material';
+import BackupIcon from '@mui/icons-material/Backup';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
+import ComputerIcon from '@mui/icons-material/Computer';
+import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import RestoreIcon from '@mui/icons-material/Restore';
+import { useTranslation } from 'react-i18next';
+import { useToast } from '@/contexts/ToastContext';
+import { systemApi, type VersionResponse } from '@/api/system';
+
+export const MaintenancePanel: React.FC = () => {
+  const { t } = useTranslation('admin');
+  const { showSuccess, showError } = useToast();
+  const [version, setVersion] = useState<VersionResponse | null>(null);
+  const [restartDialogOpen, setRestartDialogOpen] = useState(false);
+  const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
+  const [shutdownDialogOpen, setShutdownDialogOpen] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restorePending, setRestorePending] = useState(false);
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [updateOsDialogOpen, setUpdateOsDialogOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [updatingOs, setUpdatingOs] = useState(false);
+  const [dockerPruneDialogOpen, setDockerPruneDialogOpen] = useState(false);
+  const [dockerPrunePending, setDockerPrunePending] = useState(false);
+  const [updateOsLogOpen, setUpdateOsLogOpen] = useState(false);
+  const [updateOsLog, setUpdateOsLog] = useState('');
+  const [updateOsLogRunning, setUpdateOsLogRunning] = useState(false);
+  const [factoryResetDialogOpen, setFactoryResetDialogOpen] = useState(false);
+  const [factoryResetDeleteAudio, setFactoryResetDeleteAudio] = useState(false);
+  const [factoryResetConfirmText, setFactoryResetConfirmText] = useState('');
+  const [factoryResetPending, setFactoryResetPending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadVersion = useCallback(async () => {
+    setError(null);
+    try {
+      const ver = await systemApi.getVersion().catch(() => null);
+      setVersion(ver ?? null);
+    } catch {
+      setError('Version konnte nicht geladen werden');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadVersion();
+  }, [loadVersion]);
+
+  const fetchUpdateOsLog = useCallback(async () => {
+    try {
+      const data = await systemApi.getUpdateOsLog();
+      setUpdateOsLog(data.log ?? '');
+      setUpdateOsLogRunning(data.running ?? false);
+    } catch {
+      setUpdateOsLogRunning(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!updateOsLogOpen) return;
+    fetchUpdateOsLog();
+    const interval = setInterval(fetchUpdateOsLog, 2000);
+    return () => clearInterval(interval);
+  }, [updateOsLogOpen, fetchUpdateOsLog]);
+
+  const handleRestart = async () => {
+    setRestartDialogOpen(false);
+    try {
+      await systemApi.restart();
+    } catch {
+      /* restarting */
+    }
+  };
+
+  const handleReboot = async () => {
+    setRebootDialogOpen(false);
+    try {
+      await systemApi.rebootHost();
+    } catch {
+      /* connection drops */
+    }
+  };
+
+  const handleShutdown = async () => {
+    setShutdownDialogOpen(false);
+    try {
+      await systemApi.shutdownHost();
+    } catch {
+      /* connection drops */
+    }
+  };
+
+  const handleDownloadBackup = async () => {
+    try {
+      const blob = await systemApi.downloadBackup();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `minabox-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showSuccess(t('system.backup_restore_success'));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    if (!restoreFile) return;
+    setRestorePending(true);
+    setRestoreDialogOpen(false);
+    try {
+      await systemApi.restoreBackup(restoreFile);
+      setRestoreFile(null);
+      showSuccess(t('system.backup_restore_success'));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    } finally {
+      setRestorePending(false);
+    }
+  };
+
+  const handleUpdateMinabox = async () => {
+    setUpdateDialogOpen(false);
+    setUpdating(true);
+    try {
+      await systemApi.updateMinabox();
+      showSuccess(t('system.update_success'));
+      const ver = await systemApi.getVersion();
+      setVersion(ver ?? null);
+    } catch (err: unknown) {
+      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
+      const detail = ax?.data?.detail;
+      showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleUpdateOs = async () => {
+    setUpdateOsDialogOpen(false);
+    setUpdatingOs(true);
+    try {
+      await systemApi.updateOs();
+      showSuccess(t('system.update_os_success'));
+      setUpdateOsLogOpen(true);
+    } catch (err: unknown) {
+      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
+      const detail = ax?.data?.detail;
+      showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
+    } finally {
+      setUpdatingOs(false);
+    }
+  };
+
+  const handleDockerPrune = async () => {
+    setDockerPruneDialogOpen(false);
+    setDockerPrunePending(true);
+    try {
+      await systemApi.dockerPrune();
+      showSuccess(t('system.cleanup_success'));
+    } catch (err: unknown) {
+      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
+      const detail = ax?.data?.detail;
+      showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
+    } finally {
+      setDockerPrunePending(false);
+    }
+  };
+
+  const handleFactoryReset = async () => {
+    const confirmWord = t('system.factory_reset_confirm_word');
+    if (factoryResetConfirmText.trim() !== confirmWord) return;
+    setFactoryResetDialogOpen(false);
+    setFactoryResetConfirmText('');
+    setFactoryResetPending(true);
+    try {
+      await systemApi.factoryReset(factoryResetDeleteAudio);
+      showSuccess(t('system.factory_reset_success'));
+    } catch {
+      showError(t('system.logs_unavailable'));
+    } finally {
+      setFactoryResetPending(false);
+    }
+  };
+
+  const factoryResetConfirmValid = factoryResetConfirmText.trim() === t('system.factory_reset_confirm_word');
+
+  if (loading && !version) return null;
+
+  return (
+    <Box>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      {/* ── Sicherung ───────────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          {t('system.backup_title')}
+        </Typography>
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+          <Button
+            startIcon={<CloudDownloadIcon />}
+            onClick={handleDownloadBackup}
+            size="small"
+            variant="outlined"
+          >
+            {t('system.backup_download')}
+          </Button>
+          <Button
+            startIcon={<BackupIcon />}
+            onClick={() => setRestoreDialogOpen(true)}
+            size="small"
+            color="warning"
+            variant="outlined"
+            disabled={restorePending}
+          >
+            {t('system.backup_restore')}
+          </Button>
+          <Typography component="span" variant="caption" color="text.secondary">
+            {restoreFile ? restoreFile.name : t('system.backup_restore_select')}
+          </Typography>
+        </Box>
+      </Box>
+
+      {/* ── Wartung: Version, System-Update, Cleanup ─────────────────────────── */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          {t('system.maintenance_title')}
+        </Typography>
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+          <Typography variant="body2">
+            {t('system.version')}: {version?.current_version ?? version?.current_commit ?? '–'}
+          </Typography>
+          {version?.update_available && (
+            <Chip label={t('system.update_available')} color="primary" size="small" />
+          )}
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setUpdateOsDialogOpen(true)}
+            disabled={updatingOs}
+          >
+            {t('system.update_os')}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setDockerPruneDialogOpen(true)}
+            disabled={dockerPrunePending}
+          >
+            {t('system.cleanup')}
+          </Button>
+        </Box>
+      </Box>
+
+      {/* ── Neustart: Service, Pi, Herunterfahren ───────────────────────────── */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          {t('system.restart_group')}
+        </Typography>
+        <Box display="flex" flexWrap="wrap" gap={1}>
+          <Button
+            startIcon={<RestartAltIcon />}
+            onClick={() => setRestartDialogOpen(true)}
+            size="small"
+            color="warning"
+            variant="outlined"
+          >
+            {t('system.restart')}
+          </Button>
+          <Button
+            startIcon={<ComputerIcon />}
+            onClick={() => setRebootDialogOpen(true)}
+            size="small"
+            color="error"
+            variant="outlined"
+          >
+            {t('system.reboot')}
+          </Button>
+          <Button
+            startIcon={<PowerSettingsNewIcon />}
+            onClick={() => setShutdownDialogOpen(true)}
+            size="small"
+            color="error"
+            variant="outlined"
+          >
+            {t('system.shutdown')}
+          </Button>
+          <Button
+            startIcon={<RestoreIcon />}
+            onClick={() => { setFactoryResetDialogOpen(true); setFactoryResetConfirmText(''); }}
+            size="small"
+            color="error"
+            variant="outlined"
+            disabled={factoryResetPending}
+          >
+            {t('system.factory_reset')}
+          </Button>
+        </Box>
+      </Box>
+
+      {/* ── Restart Dialog ─────────────────────────────────────────────────── */}
+      <Dialog open={restartDialogOpen} onClose={() => setRestartDialogOpen(false)}>
+        <DialogTitle>{t('system.restart')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t('system.restart_confirm')}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRestartDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleRestart} color="warning" variant="contained">
+            {t('actions.confirm', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Reboot Dialog ───────────────────────────────────────────────────── */}
+      <Dialog open={rebootDialogOpen} onClose={() => setRebootDialogOpen(false)}>
+        <DialogTitle>{t('system.reboot')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t('system.reboot_confirm')}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRebootDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleReboot} color="error" variant="contained">
+            {t('actions.confirm', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Shutdown Dialog ────────────────────────────────────────────────── */}
+      <Dialog open={shutdownDialogOpen} onClose={() => setShutdownDialogOpen(false)}>
+        <DialogTitle>{t('system.shutdown')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t('system.shutdown_confirm')}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShutdownDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleShutdown} color="error" variant="contained">
+            {t('actions.confirm', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Factory Reset Dialog ───────────────────────────────────────────── */}
+      <Dialog open={factoryResetDialogOpen} onClose={() => { setFactoryResetDialogOpen(false); setFactoryResetConfirmText(''); }}>
+        <DialogTitle>{t('system.factory_reset')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>{t('system.factory_reset_warning')}</DialogContentText>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={factoryResetDeleteAudio}
+                onChange={(_, c) => setFactoryResetDeleteAudio(c)}
+                color="primary"
+              />
+            }
+            label={t('system.factory_reset_delete_audio')}
+            sx={{ display: 'block', mb: 2 }}
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            {t('system.factory_reset_type_prompt')}
+          </Typography>
+          <TextField
+            fullWidth
+            size="small"
+            value={factoryResetConfirmText}
+            onChange={(e) => setFactoryResetConfirmText(e.target.value)}
+            placeholder={t('system.factory_reset_confirm_word')}
+            autoComplete="off"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setFactoryResetDialogOpen(false); setFactoryResetConfirmText(''); }}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleFactoryReset} color="error" variant="contained" disabled={!factoryResetConfirmValid || factoryResetPending}>
+            {t('actions.confirm', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Restore Backup Dialog ──────────────────────────────────────────── */}
+      <Dialog open={restoreDialogOpen} onClose={() => { setRestoreDialogOpen(false); setRestoreFile(null); }}>
+        <DialogTitle>{t('system.backup_restore')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>{t('system.backup_restore_confirm')}</DialogContentText>
+          <Button variant="outlined" component="label" size="small" fullWidth>
+            {t('system.backup_restore_select')}
+            <input
+              type="file"
+              hidden
+              accept=".zip"
+              onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
+            />
+          </Button>
+          {restoreFile && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {restoreFile.name}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setRestoreDialogOpen(false); setRestoreFile(null); }}>
+            {t('actions.cancel', { ns: 'common' })}
+          </Button>
+          <Button onClick={handleRestoreBackup} color="warning" variant="contained" disabled={!restoreFile}>
+            {t('system.backup_restore')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Update Minabox Dialog ──────────────────────────────────────────── */}
+      <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)}>
+        <DialogTitle>{t('system.update_minabox')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t('system.update_minabox_confirm')}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUpdateDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleUpdateMinabox} color="primary" variant="contained">
+            {t('actions.confirm', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Update OS Dialog ───────────────────────────────────────────────── */}
+      <Dialog open={updateOsDialogOpen} onClose={() => setUpdateOsDialogOpen(false)}>
+        <DialogTitle>{t('system.update_os')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t('system.update_os_confirm')}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUpdateOsDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleUpdateOs} color="primary" variant="contained" disabled={updatingOs}>
+            {t('actions.confirm', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── OS Update Log Dialog ───────────────────────────────────────────── */}
+      <Dialog open={updateOsLogOpen} onClose={() => setUpdateOsLogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>{t('system.update_os_log_title')}</DialogTitle>
+        <DialogContent>
+          {updateOsLogRunning && (
+            <Typography variant="caption" color="primary" display="block" sx={{ mb: 1 }}>
+              {t('system.update_os_log_running')}
+            </Typography>
+          )}
+          <Box
+            component="pre"
+            sx={{
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'monospace',
+              fontSize: '0.75rem',
+              maxHeight: 400,
+              overflow: 'auto',
+              p: 1,
+              bgcolor: 'action.hover',
+              borderRadius: 1,
+            }}
+          >
+            {updateOsLog || t('system.update_os_log_empty')}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUpdateOsLogOpen(false)}>{t('actions.close', { ns: 'common' })}</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Cleanup (Docker Prune) Dialog ───────────────────────────────────── */}
+      <Dialog open={dockerPruneDialogOpen} onClose={() => setDockerPruneDialogOpen(false)}>
+        <DialogTitle>{t('system.cleanup')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t('system.cleanup_confirm')}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDockerPruneDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
+          <Button onClick={handleDockerPrune} color="primary" variant="contained" disabled={dockerPrunePending}>
+            {t('actions.confirm', { ns: 'common' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};

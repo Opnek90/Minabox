@@ -270,17 +270,6 @@ def show_areas(
         body_left = areas[1][:3] if len(areas) > 1 else []
         body_right = areas[2][:3] if len(areas) > 2 else []
 
-        # #region agent log
-        _log_path = "/home/pi/minabox/.cursor/debug-1de9b9.log"
-        import json as _json
-        def _dbg(payload):
-            try:
-                with open(_log_path, "a") as _f:
-                    _f.write(_json.dumps({"sessionId": "1de9b9", "location": "display_controller:show_areas", "message": "layout", "data": payload, "timestamp": __import__("time").time() * 1000}) + "\n")
-            except Exception:
-                pass
-        # #endregion
-
         # Gap below header / above body so content is not on the separator
         _SEP_Y = _HEADER_H + 2  # 2px below header row so line is clearly separated
         _BODY_TOP = _SEP_Y + 5  # 5px below separator so body content has space
@@ -290,7 +279,6 @@ def show_areas(
         n_header = len([i for i in header_items if isinstance(i, dict)])
         if n_header > 0:
             zone_w = w // n_header
-            _dbg({"hypothesisId": "A", "runId": "layout", "separator_y": _HEADER_H, "n_header": n_header, "zone_w": zone_w})
             for idx, item in enumerate(header_items):
                 if not isinstance(item, dict):
                     continue
@@ -305,7 +293,6 @@ def show_areas(
                         text_w = bbox[2] - bbox[0]
                     total_w = (_ICON_SIZE + _SLEEP_ICON_TEXT_GAP + text_w) if icon_img else text_w
                     hx = zone_x + (zone_w - total_w) // 2
-                    _dbg({"hypothesisId": "C", "runId": "layout", "header_item": "sleep_timer", "zone_x": zone_x, "zone_w": zone_w, "total_w": total_w, "hx": hx})
                     if icon_img is not None:
                         img.paste(icon_img, (hx, (_HEADER_H - _ICON_SIZE) // 2))
                         hx += _ICON_SIZE + _SLEEP_ICON_TEXT_GAP
@@ -329,7 +316,6 @@ def show_areas(
             slot_step = _SLOT_H + (_SLOT_GAP if n_slots > 1 else 0)
             block_h = n_slots * _SLOT_H + ((n_slots - 1) * _SLOT_GAP if n_slots > 1 else 0)
             start_y = _BODY_TOP + (_BODY_USABLE_H - block_h) // 2
-            _dbg({"hypothesisId": "B", "runId": "layout", "col": col_idx, "n_slots": n_slots, "block_h": block_h, "start_y": start_y, "body_top": _BODY_TOP})
             for slot_idx, item in enumerate(items):
                 slot_y = start_y + slot_idx * slot_step
                 if item.get("type") == "sleep_timer":

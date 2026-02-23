@@ -16,7 +16,7 @@ FROM python:3.13-slim
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl docker.io docker-compose && \
+    apt-get install -y --no-install-recommends curl coreutils docker.io docker-compose && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages

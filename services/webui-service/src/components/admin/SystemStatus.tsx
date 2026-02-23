@@ -10,20 +10,16 @@ import {
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ComputerIcon from '@mui/icons-material/Computer';
-import Dialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogTitle from '@mui/material/DialogTitle';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import MemoryIcon from '@mui/icons-material/Memory';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import RouterIcon from '@mui/icons-material/Router';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StorageIcon from '@mui/icons-material/Storage';
+import TerminalIcon from '@mui/icons-material/Terminal';
 import { useTranslation } from 'react-i18next';
 import { ServiceLogsModal } from './ServiceLogsModal';
+import { SyslogModal } from './SyslogModal';
 import { ServiceStatusCard } from './ServiceStatus';
 import { systemApi, type HostStatusResponse } from '@/api/system';
 import type { SystemStatus as SystemStatusType } from '@/types/api';
@@ -65,15 +61,14 @@ const StatTile: React.FC<StatTileProps> = ({ icon, label, value, title }) => (
   </Box>
 );
 
-// ── Main component ───────────────────────────────────────────────────────────
+// ── Main component (Status tab only) ───────────────────────────────────────────
 export const SystemStatusPanel: React.FC = () => {
   const { t } = useTranslation('admin');
   const [status, setStatus] = useState<SystemStatusType | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [restartDialogOpen, setRestartDialogOpen] = useState(false);
-  const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
+  const [syslogModalOpen, setSyslogModalOpen] = useState(false);
   const [logsModalService, setLogsModalService] = useState<string | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusResponse | null>(null);
 
@@ -107,21 +102,11 @@ export const SystemStatusPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, [loadStatus]);
 
-  const handleRestart = async () => {
-    setRestartDialogOpen(false);
-    try { await systemApi.restart(); } catch { /* restarting */ }
-  };
-
-  const handleReboot = async () => {
-    setRebootDialogOpen(false);
-    try { await systemApi.rebootHost(); } catch { /* connection drops */ }
-  };
-
-  const uptime = formatUptime(status?.uptime_seconds);
+  const uptimeSeconds = hostStatus?.uptime_seconds ?? status?.uptime_seconds ?? undefined;
+  const uptime = formatUptime(uptimeSeconds);
 
   return (
     <Box>
-      {/* ── Action bar ────────────────────────────────────────────────────── */}
       <Box
         display="flex"
         alignItems="center"
@@ -139,54 +124,19 @@ export const SystemStatusPanel: React.FC = () => {
           {t('refresh', { ns: 'common' })}
         </Button>
         <Button
-          startIcon={<RestartAltIcon />}
-          onClick={() => setRestartDialogOpen(true)}
+          startIcon={<TerminalIcon />}
+          onClick={() => setSyslogModalOpen(true)}
           size="small"
-          color="warning"
           variant="outlined"
         >
-          {t('system.restart')}
-        </Button>
-        <Button
-          startIcon={<ComputerIcon />}
-          onClick={() => setRebootDialogOpen(true)}
-          size="small"
-          color="error"
-          variant="outlined"
-        >
-          {t('system.reboot')}
+          {t('system.syslog')}
         </Button>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* ── Device info tiles ─────────────────────────────────────────────── */}
-      {status && (status.device_id || status.uptime_seconds != null) && (
-        <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
-          {status.device_id && (
-            <Grid item xs={12} sm={6} md={4}>
-              <StatTile
-                icon={<FingerprintIcon fontSize="small" />}
-                label={t('system.device_id')}
-                value={status.device_id}
-                title={status.device_id}
-              />
-            </Grid>
-          )}
-          {status.uptime_seconds != null && (
-            <Grid item xs={12} sm={6} md={4}>
-              <StatTile
-                icon={<AccessTimeIcon fontSize="small" />}
-                label={t('system.uptime')}
-                value={t('system.uptime_value', uptime)}
-              />
-            </Grid>
-          )}
-        </Grid>
-      )}
-
-      {/* ── Host tiles ────────────────────────────────────────────────────── */}
-      {hostStatus && (
+      {/* ── Host (incl. device_id, uptime) ─────────────────────────────────────── */}
+      {(hostStatus || status) && (
         <Box mb={2.5}>
           <Typography
             variant="subtitle2"
@@ -196,7 +146,27 @@ export const SystemStatusPanel: React.FC = () => {
             {t('system.host_title')}
           </Typography>
           <Grid container spacing={1.5}>
-            {hostStatus.hostname != null && (
+            {status?.device_id && (
+              <Grid item xs={12} sm={6} md={4}>
+                <StatTile
+                  icon={<FingerprintIcon fontSize="small" />}
+                  label={t('system.device_id')}
+                  value={status.device_id}
+                  title={status.device_id}
+                />
+              </Grid>
+            )}
+            {uptimeSeconds != null && (
+              <Grid item xs={12} sm={6} md={4}>
+                <StatTile
+                  icon={<AccessTimeIcon fontSize="small" />}
+                  label={t('system.uptime')}
+                  value={t('system.uptime_value', uptime)}
+                  title={hostStatus?.uptime_seconds != null ? t('system.uptime_host_hint') : undefined}
+                />
+              </Grid>
+            )}
+            {hostStatus?.hostname != null && (
               <Grid item xs={12} sm={6} md={4}>
                 <StatTile
                   icon={<ComputerIcon fontSize="small" />}
@@ -206,7 +176,7 @@ export const SystemStatusPanel: React.FC = () => {
                 />
               </Grid>
             )}
-            {hostStatus.ip != null && (
+            {hostStatus?.ip != null && (
               <Grid item xs={12} sm={6} md={4}>
                 <StatTile
                   icon={<RouterIcon fontSize="small" />}
@@ -215,25 +185,28 @@ export const SystemStatusPanel: React.FC = () => {
                 />
               </Grid>
             )}
-            {hostStatus.memory != null && (
+            {hostStatus?.memory != null && (
               <Grid item xs={12} sm={6} md={4}>
                 <StatTile
                   icon={<MemoryIcon fontSize="small" />}
                   label={t('system.host_memory')}
-                  value={`${hostStatus.memory.available_mb} / ${hostStatus.memory.total_mb} MB (${hostStatus.memory.percent_used}% ${t('system.host_used')})`}
+                  value={`${hostStatus.memory.total_mb - hostStatus.memory.available_mb} / ${hostStatus.memory.total_mb} MB (${hostStatus.memory.percent_used}% ${t('system.host_used')})`}
                 />
               </Grid>
             )}
-            {hostStatus.cpu != null && (
+            {hostStatus?.cpu != null && (
               <Grid item xs={12} sm={6} md={4}>
                 <StatTile
                   icon={<SpeedIcon fontSize="small" />}
                   label={t('system.host_cpu')}
-                  value={`${t('system.host_load_1m')}: ${hostStatus.cpu.load_1m.toFixed(2)}`}
+                  title={t('system.host_load_avg_hint')}
+                  value={hostStatus.cpu.load_5m != null && hostStatus.cpu.load_15m != null
+                    ? t('system.host_load_avg', { load_1m: hostStatus.cpu.load_1m.toFixed(2), load_5m: hostStatus.cpu.load_5m.toFixed(2), load_15m: hostStatus.cpu.load_15m.toFixed(2) })
+                    : `${t('system.host_load_1m')}: ${hostStatus.cpu.load_1m.toFixed(2)}`}
                 />
               </Grid>
             )}
-            {hostStatus.disk != null && (
+            {hostStatus?.disk != null && (
               <Grid item xs={12} sm={6} md={4}>
                 <StatTile
                   icon={<StorageIcon fontSize="small" />}
@@ -246,13 +219,13 @@ export const SystemStatusPanel: React.FC = () => {
         </Box>
       )}
 
-      {/* ── Services ──────────────────────────────────────────────────────── */}
+      {/* ── Docker Container Status (with Log) ────────────────────────────────── */}
       <Typography
         variant="subtitle2"
         color="text.secondary"
         sx={{ mb: 1.5, fontWeight: 600 }}
       >
-        {t('system.services')}
+        {t('system.container_status')}
       </Typography>
 
       {loading ? (
@@ -279,38 +252,7 @@ export const SystemStatusPanel: React.FC = () => {
         open={logsModalService !== null}
         onClose={() => setLogsModalService(null)}
       />
-
-      {/* ── Restart Dialog ────────────────────────────────────────────────── */}
-      <Dialog open={restartDialogOpen} onClose={() => setRestartDialogOpen(false)}>
-        <DialogTitle>{t('system.restart')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('system.restart_confirm')}</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRestartDialogOpen(false)}>
-            {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button onClick={handleRestart} color="warning" variant="contained">
-            {t('confirm', { ns: 'common' })}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ── Reboot Dialog ─────────────────────────────────────────────────── */}
-      <Dialog open={rebootDialogOpen} onClose={() => setRebootDialogOpen(false)}>
-        <DialogTitle>{t('system.reboot')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('system.reboot_confirm')}</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRebootDialogOpen(false)}>
-            {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button onClick={handleReboot} color="error" variant="contained">
-            {t('confirm', { ns: 'common' })}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <SyslogModal open={syslogModalOpen} onClose={() => setSyslogModalOpen(false)} />
     </Box>
   );
 };

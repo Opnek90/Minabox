@@ -33,6 +33,9 @@ def load_config() -> dict:
     host_etc_hostname = os.environ.get("HOST_ETC_HOSTNAME", "/host/etc/hostname")
     host_root = os.environ.get("HOST_ROOT", "")
     host_ip = os.environ.get("HOST_IP", "").strip() or None
+    workspace_path = os.environ.get("WORKSPACE_PATH", "/workspace")
+    data_path = os.environ.get("DATA_PATH", "").strip() or str(Path(workspace_path) / "data")
+    audio_storage_path = os.environ.get("AUDIO_STORAGE_PATH", "").strip() or str(Path(workspace_path) / "audio")
 
     return {
         "log_level": log_level,
@@ -44,6 +47,9 @@ def load_config() -> dict:
         "host_etc_hostname": host_etc_hostname,
         "host_root": host_root,
         "host_ip": host_ip,
+        "workspace_path": workspace_path,
+        "data_path": data_path,
+        "audio_storage_path": audio_storage_path,
     }
 
 

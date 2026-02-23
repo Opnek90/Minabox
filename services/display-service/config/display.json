@@ -46,6 +46,20 @@
       "enabled": true,
       "order": 1,
       "area": 0
+    },
+    {
+      "id": "repeat",
+      "type": "repeat",
+      "enabled": true,
+      "order": 6,
+      "area": 2
+    },
+    {
+      "id": "shuffle",
+      "type": "shuffle",
+      "enabled": true,
+      "order": 7,
+      "area": 2
     }
   ]
 }
