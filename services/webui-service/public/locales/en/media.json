@@ -1,14 +1,18 @@
 {
   "title": "Media Library",
+  "view_mode_card": "Card view",
+  "view_mode_list": "List view",
   "tabs": {
     "playlists": "Playlists",
     "tracks": "Tracks",
-    "streams": "Streams"
+    "streams": "Streams",
+    "podcasts": "Podcasts"
   },
   "playlists": {
     "title": "Playlists",
     "no_playlists": "No playlists yet",
     "create": "New Playlist",
+    "add_playlist": "Add Playlist",
     "play": "Play",
     "edit": "Edit Playlist",
     "delete": "Delete Playlist",
@@ -17,7 +21,8 @@
     "track_count": "{{count}} track",
     "track_count_plural": "{{count}} tracks",
     "track_count_label": "Tracks",
-    "upload_cover": "Upload Cover Image",
+    "upload_cover": "Upload cover image",
+    "clear_cover": "Clear cover",
     "fields": {
       "name": "Name",
       "name_placeholder": "Enter playlist name",
@@ -106,9 +111,17 @@
   },
   "streams": {
     "no_streams": "No streams",
+    "edit": "Edit Stream",
     "delete": "Delete Stream",
     "delete_confirm": "Really delete stream \"{{title}}\"?",
     "search_placeholder": "Search streams...",
+    "cover": "Cover",
+    "upload_cover": "Upload cover",
+    "remove_cover": "Remove cover",
+    "updated": "Stream updated",
+    "update_error": "Could not save stream",
+    "cover_removed": "Cover removed",
+    "cover_error": "Could not upload cover",
     "fields": {
       "title": "Title",
       "artist": "Artist",
@@ -119,5 +132,38 @@
       "desc": "Descending",
       "last_played": "Last played"
     }
+  },
+  "podcasts": {
+    "add": "Add Podcast",
+    "no_podcasts": "No podcasts",
+    "edit": "Edit Podcast",
+    "delete": "Delete Podcast",
+    "delete_confirm": "Really delete podcast \"{{title}}\" and all its episodes?",
+    "search_placeholder": "Search podcasts...",
+    "cover": "Cover",
+    "upload_cover": "Upload cover",
+    "remove_cover": "Remove cover",
+    "updated": "Podcast updated",
+    "update_error": "Could not save podcast",
+    "cover_removed": "Cover removed",
+    "cover_error": "Could not upload cover",
+    "fields": {
+      "title": "Title",
+      "description": "Description",
+      "last_fetched": "Last fetched",
+      "last_played": "Last played",
+      "rss_url": "RSS Feed URL"
+    },
+    "latest_episode": "Latest episode",
+    "last_played": "Last played",
+    "last_fetched_label": "Last fetched",
+    "sort": {
+      "asc": "Ascending",
+      "desc": "Descending"
+    },
+    "created": "Podcast added",
+    "deleted": "Podcast deleted",
+    "delete_error": "Could not delete podcast",
+    "create_error": "Could not add podcast"
   }
 }

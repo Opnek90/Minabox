@@ -83,6 +83,7 @@ class Stream(Base):
     title = Column(String(255), nullable=False)
     artist = Column(String(255), nullable=True)
     source_uri = Column(String(1024), nullable=False)
+    cover_art_url = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     last_played_at = Column(DateTime, nullable=True)
 
@@ -150,6 +151,7 @@ class Podcast(Base):
     description = Column(String(2000), nullable=True)
     cover_art_url = Column(String(512), nullable=True)
     last_fetched_at = Column(DateTime, nullable=True)
+    last_played_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     def __repr__(self) -> str:

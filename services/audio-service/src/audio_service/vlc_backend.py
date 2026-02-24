@@ -4,7 +4,10 @@ Uses python-vlc to provide audio playback functionality.
 """
 
 import asyncio
+import json
 import os
+import subprocess
+import time
 from pathlib import Path
 
 import structlog
@@ -20,6 +23,19 @@ from .exceptions import (
 )
 
 logger = structlog.get_logger(__name__)
+
+# #region agent log
+DEBUG_LOG_PATH = Path("/cursor-debug/debug-eb9057.log")
+
+
+def _agent_log(location: str, message: str, data: dict, hypothesis_id: str) -> None:
+    try:
+        payload = {"sessionId": "eb9057", "timestamp": int(time.time() * 1000), "location": location, "message": message, "data": data, "hypothesisId": hypothesis_id}
+        with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+# #endregion
 
 
 class VLCBackend(AudioBackend):
@@ -38,6 +54,7 @@ class VLCBackend(AudioBackend):
         self._config = config
         self._instance: vlc.Instance | None = None
         self._player: vlc.MediaPlayer | None = None
+        self._initialized = False
         self._pending_volume: int | None = None  # desired volume when VLC has no media (returns -1)
         self._current_track_id: str | None = None
         self._current_source_type: str | None = None
@@ -46,6 +63,26 @@ class VLCBackend(AudioBackend):
     def update_config(self, config: AudioConfig) -> None:
         """Update audio config at runtime (e.g. after hot-reload). Only the config reference is updated; VLC stays initialized."""
         self._config = config
+
+    async def reinitialize(self, config: AudioConfig) -> dict:
+        """Shutdown VLC, apply new config, and re-initialize (for device switch). Returns state to resume: {source_uri, position_ms, state}."""
+        snapshot = {}
+        if self._initialized and self._player is not None:
+            try:
+                status = await self.get_status()
+                snapshot = {
+                    "source_uri": status.source_uri,
+                    "position_ms": status.position_ms or 0,
+                    "state": status.state.value,
+                    "track_id": status.track_id,
+                    "source_type": status.source_type,
+                }
+            except Exception as e:
+                logger.warning("reinitialize_status_snapshot_failed", error=str(e))
+        await self.shutdown()
+        self._config = config
+        await self.initialize()
+        return snapshot
 
     async def initialize(self) -> None:
         """Initialize VLC instance and media player.
@@ -57,12 +94,8 @@ class VLCBackend(AudioBackend):
         logger.info("vlc_backend_initializing")
 
         try:
-            # AUTO-DETECT: If config is set to 'auto', detect best device
+            # AUTO: Use Pulse when PULSE_SERVER is set; otherwise default
             if self._config.output_device_type == OutputDeviceType.AUTO:
-                # Prefer PulseAudio when available — VLC's direct ALSA output
-                # pre-buffers ~1-2s of audio (hardcoded AOUT_MAX_PREPARE_TIME),
-                # causing a matching delay before volume changes are audible.
-                # PulseAudio applies per-stream volume with ~20-100ms latency.
                 pulse_server = os.environ.get("PULSE_SERVER")
                 if pulse_server:
                     logger.info(
@@ -70,27 +103,20 @@ class VLCBackend(AudioBackend):
                         pulse_server=pulse_server,
                     )
                     self._config.output_device_type = OutputDeviceType.PULSEAUDIO
+                    if not (self._config.output_device_name and self._config.output_device_name.strip()):
+                        self._config.output_device_name = ""
                 else:
-                    logger.info("audio_device_auto_detection_starting")
+                    logger.info("audio_device_no_pulse_using_default")
+                    self._config.output_device_type = OutputDeviceType.DEFAULT
+                    self._config.output_device_name = "default"
 
-                    from .audio_detector import AudioDeviceDetector
-
-                    detector = AudioDeviceDetector()
-                    best_device = await detector.get_best_device()
-
-                    if best_device:
-                        logger.info(
-                            "audio_device_auto_detected",
-                            card=best_device.card_name,
-                            device=best_device.alsa_device,
-                            name=best_device.name,
-                        )
-                        self._config.output_device_type = OutputDeviceType.ALSA
-                        self._config.output_device_name = best_device.alsa_device
-                    else:
-                        logger.warning("audio_device_auto_detection_failed_using_default")
-                        self._config.output_device_type = OutputDeviceType.DEFAULT
-                        self._config.output_device_name = "default"
+            # VLC pulse module has no device option; set Pulse default sink so VLC uses it
+            if (
+                self._config.output_device_type == OutputDeviceType.PULSEAUDIO
+                and self._config.output_device_name
+                and self._config.output_device_name.strip()
+            ):
+                self._set_pulse_default_sink(self._config.output_device_name.strip())
 
             # Create VLC instance with audio output configuration
             vlc_args = self._build_vlc_args()
@@ -151,23 +177,40 @@ class VLCBackend(AudioBackend):
             "--no-video",  # Audio only
         ]
 
-        # Configure audio output based on device type
-        if self._config.output_device_type == OutputDeviceType.ALSA:
-            args.extend(
-                [
-                    "--aout=alsa",
-                    f"--alsa-audio-device={self._config.output_device_name}",
-                ]
-            )
-        elif self._config.output_device_type == OutputDeviceType.PULSEAUDIO:
-            args.extend(
-                [
-                    "--aout=pulse",
-                ]
-            )
+        # Configure audio output: Pulse only (ALSA removed). VLC pulse module has no device
+        # option; default sink is set via pactl before creating the instance.
+        if self._config.output_device_type == OutputDeviceType.PULSEAUDIO:
+            args.append("--aout=pulse")
         # DEFAULT uses VLC's auto-detection
 
         return args
+
+    def _set_pulse_default_sink(self, sink_name: str) -> None:
+        """Set Pulse default sink so VLC (--aout=pulse) uses the configured device."""
+        if not os.environ.get("PULSE_SERVER"):
+            return
+        try:
+            result = subprocess.run(
+                ["pactl", "set-default-sink", sink_name],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env=os.environ.copy(),
+            )
+            if result.returncode == 0:
+                logger.info("pulse_default_sink_set", sink=sink_name)
+            else:
+                logger.warning(
+                    "pulse_set_default_sink_failed",
+                    sink=sink_name,
+                    stderr=(result.stderr or "").strip() or None,
+                )
+        except FileNotFoundError:
+            logger.warning("pulse_set_default_sink_pactl_not_found")
+        except subprocess.TimeoutExpired:
+            logger.warning("pulse_set_default_sink_timeout", sink=sink_name)
+        except Exception as e:
+            logger.warning("pulse_set_default_sink_error", sink=sink_name, error=str(e))
 
     async def shutdown(self) -> None:
         """Shutdown VLC backend gracefully."""
@@ -239,8 +282,22 @@ class VLCBackend(AudioBackend):
             if result == -1:
                 raise PlaybackError("VLC player.play() returned error")
 
-            # Wait for player to actually start
-            await self._wait_for_state(vlc.State.Playing, timeout_sec=5)
+            # Streams need longer to connect and buffer than local files
+            is_stream = source_uri.startswith(("http://", "https://", "rtsp://", "rtmp://"))
+            timeout_sec = 15.0 if is_stream else 5.0
+            try:
+                await self._wait_for_state(vlc.State.Playing, timeout_sec=timeout_sec)
+            except PlaybackError as e:
+                if "Timeout" in str(e) and self._player.get_state() == vlc.State.Stopped:
+                    logger.warning("play_first_attempt_timeout_retrying", source_uri=source_uri)
+                    self._player.stop()
+                    await asyncio.sleep(1.0)
+                    result = self._player.play()
+                    if result == -1:
+                        raise PlaybackError("VLC player.play() returned error on retry") from e
+                    await self._wait_for_state(vlc.State.Playing, timeout_sec=timeout_sec)
+                else:
+                    raise
 
             # Apply pending volume (set while no media was loaded)
             if self._pending_volume is not None:
@@ -279,6 +336,22 @@ class VLCBackend(AudioBackend):
             return
         # Local file: must exist
         path = Path(source_uri)
+        # #region agent log
+        exists = path.exists()
+        is_file = path.is_file() if exists else None
+        stat_info = {}
+        try:
+            s = path.stat()
+            stat_info = {"mode_oct": oct(s.st_mode), "uid": s.st_uid, "gid": s.st_gid}
+        except OSError as e:
+            stat_info = {"errno": e.errno, "strerror": str(e)}
+        _agent_log(
+            "vlc_backend.py:_validate_source",
+            "path check before exists",
+            {"source_uri": source_uri, "path_str": str(path), "exists": exists, "is_file": is_file, "stat": stat_info, "cwd": str(Path.cwd()), "process_uid": os.getuid(), "process_gid": os.getgid()},
+            "H1_H2_H3_H4",
+        )
+        # #endregion
         if not path.exists():
             raise FileNotFoundError(f"Audio file not found: {source_uri}")
 

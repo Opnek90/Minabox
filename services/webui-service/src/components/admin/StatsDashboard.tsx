@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -60,6 +60,11 @@ export const StatsDashboard: React.FC = () => {
       setLoading(false);
     }
   }, [fromDate, toDate]);
+
+  // Beim Tab-Statistik automatisch die letzten 14 Tage laden
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const maxMinutes =
     data?.minutes_per_day?.length &&
@@ -141,6 +146,13 @@ export const StatsDashboard: React.FC = () => {
                   {data.minutes_per_day.map((d: MinutesPerDayItem) => (
                     <Box key={d.date} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
                       {d.date.slice(5)}
+                    </Box>
+                  ))}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25, fontSize: '0.7rem', color: 'text.secondary' }}>
+                  {data.minutes_per_day.map((d: MinutesPerDayItem) => (
+                    <Box key={`min-${d.date}`} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
+                      {d.minutes > 0 ? `${Math.round(d.minutes)}` : '–'}
                     </Box>
                   ))}
                 </Box>

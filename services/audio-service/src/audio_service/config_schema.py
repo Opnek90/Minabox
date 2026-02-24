@@ -13,10 +13,10 @@ from pydantic import BaseModel, Field, PositiveInt, field_validator
 
 
 class OutputDeviceType(str, Enum):
-    """Audio output device types."""
+    """Audio output device types. ALSA deprecated; use PULSEAUDIO."""
 
     AUTO = "auto"
-    ALSA = "alsa"
+    ALSA = "alsa"  # Deprecated: migrated to PULSEAUDIO on load
     PULSEAUDIO = "pulseaudio"
     DEFAULT = "default"
 
@@ -26,11 +26,19 @@ class AudioConfig(BaseModel):
 
     output_device_type: OutputDeviceType = Field(
         default=OutputDeviceType.AUTO,
-        description="Audio output device type (auto, alsa, pulseaudio, default)",
+        description="Output type: auto, pulseaudio, default",
     )
     output_device_name: str = Field(
         default="auto",
-        description="Audio output device name (e.g., 'hw:0,0', 'default', 'auto')",
+        description="Pulse sink name or empty for default",
+    )
+    enabled_output_devices: list[str] = Field(
+        default_factory=list,
+        description="Pulse sink names allowed in device selector (empty = all)",
+    )
+    device_display_names: dict[str, str] = Field(
+        default_factory=dict,
+        description="Sink name -> custom display name (optional)",
     )
     max_volume: int = Field(
         default=70,

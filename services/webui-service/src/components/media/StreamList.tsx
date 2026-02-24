@@ -2,12 +2,17 @@ import React, { useState } from 'react';
 import {
   Box,
   Button,
+  Card,
+  CardActions,
+  CardContent,
+  CardMedia,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
   Divider,
+  Grid,
   IconButton,
   InputAdornment,
   List,
@@ -22,11 +27,15 @@ import {
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SearchIcon from '@mui/icons-material/Search';
 import StreamIcon from '@mui/icons-material/Stream';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
+import { StreamEditDialog } from '@/components/media/StreamEditDialog';
 import type { Stream } from '@/types/api';
 
 type SortKey = 'title' | 'artist' | 'last_played_at';
@@ -34,14 +43,17 @@ type SortKey = 'title' | 'artist' | 'last_played_at';
 interface StreamListProps {
   streams: Stream[];
   onDelete: (stream: Stream) => void;
+  onUpdate: (stream: Stream) => void;
 }
 
-export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete }) => {
+export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpdate }) => {
   const { t } = useTranslation('media');
   const [search, setSearch] = useState('');
   const [streamToDelete, setStreamToDelete] = useState<Stream | null>(null);
+  const [streamToEdit, setStreamToEdit] = useState<Stream | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
 
   const filtered = streams.filter((s) => {
     const q = search.toLowerCase();
@@ -90,6 +102,19 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete }) => 
   return (
     <Box>
       <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(_, v) => v && setViewMode(v)}
+          size="small"
+        >
+          <ToggleButton value="card" aria-label={t('view_mode_card')}>
+            <ViewModuleIcon />
+          </ToggleButton>
+          <ToggleButton value="list" aria-label={t('view_mode_list')}>
+            <ViewListIcon />
+          </ToggleButton>
+        </ToggleButtonGroup>
         <TextField
           placeholder={t('streams.search_placeholder')}
           value={search}
@@ -131,6 +156,56 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete }) => 
         </Box>
       </Box>
 
+      {viewMode === 'card' ? (
+        <Grid container spacing={2}>
+          {sorted.map((stream) => (
+            <Grid item xs={12} sm={6} md={4} key={stream.id}>
+              <Card
+                variant="outlined"
+                sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
+              >
+                {stream.cover_art_url && (
+                  <CardMedia
+                    component="img"
+                    height="120"
+                    image={stream.cover_art_url}
+                    alt={stream.title}
+                    sx={{ objectFit: 'cover' }}
+                  />
+                )}
+                <CardContent sx={{ pb: 0, flex: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
+                    <StreamIcon fontSize="small" color="primary" />
+                    {stream.title}
+                  </Typography>
+                  {stream.artist && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
+                      {stream.artist}
+                    </Typography>
+                  )}
+                </CardContent>
+                <CardActions sx={{ pt: 0 }}>
+                  <Tooltip title={t('tracks.play')}>
+                    <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}>
+                      <PlayArrowIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={t('streams.edit', { defaultValue: 'Bearbeiten' })}>
+                    <IconButton size="small" onClick={() => setStreamToEdit(stream)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={t('tracks.delete')}>
+                    <IconButton size="small" color="error" onClick={() => setStreamToDelete(stream)}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </CardActions>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
       <List dense>
         {sorted.map((stream, idx) => (
           <React.Fragment key={stream.id}>
@@ -147,6 +222,11 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete }) => 
                       <PlayArrowIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  <Tooltip title={t('streams.edit', { defaultValue: 'Bearbeiten' })}>
+                    <IconButton size="small" onClick={() => setStreamToEdit(stream)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title={t('tracks.delete')}>
                     <IconButton
                       size="small"
@@ -159,9 +239,18 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete }) => 
                 </Box>
               }
             >
-              <Box mr={1} color="text.secondary">
-                <StreamIcon fontSize="small" />
-              </Box>
+              {stream.cover_art_url ? (
+                <Box
+                  component="img"
+                  src={stream.cover_art_url}
+                  alt=""
+                  sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1 }}
+                />
+              ) : (
+                <Box mr={1} color="text.secondary">
+                  <StreamIcon fontSize="small" />
+                </Box>
+              )}
               <ListItemText
                 primary={stream.title}
                 secondary={
@@ -196,6 +285,7 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete }) => 
           </React.Fragment>
         ))}
       </List>
+      )}
 
       <Dialog open={!!streamToDelete} onClose={() => setStreamToDelete(null)}>
         <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
@@ -226,6 +316,16 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete }) => 
           </Button>
         </DialogActions>
       </Dialog>
+
+      <StreamEditDialog
+        open={!!streamToEdit}
+        stream={streamToEdit}
+        onClose={() => setStreamToEdit(null)}
+        onSuccess={(updated) => {
+          onUpdate(updated);
+          setStreamToEdit(null);
+        }}
+      />
     </Box>
   );
 };

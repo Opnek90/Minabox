@@ -34,6 +34,12 @@
     "created_at": "Erstellt am",
     "last_scanned": "Zuletzt gescannt"
   },
+  "drawer": {
+    "title": "Karte erkannt",
+    "loading": "Suche Tag…",
+    "assign_hint": "Dieser Karte ist noch kein Inhalt zugewiesen.",
+    "closes_in": "schließt in"
+  },
   "notification": {
     "recognized": "Tag erkannt: {{name}}",
     "unknown_tag": "Unbekannter Tag gescannt",

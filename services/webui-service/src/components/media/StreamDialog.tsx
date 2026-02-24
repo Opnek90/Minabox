@@ -12,6 +12,7 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Stream } from '@/types/api';
 import { streamsApi } from '@/api/streams';
 import { isValidUrl } from '@/utils/validators';
+import { CoverUploadField } from './CoverUploadField';
 
 interface StreamDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   const urlError = url && !isValidUrl(url) ? t('invalid_url', { ns: 'errors' }) : '';
@@ -35,11 +37,14 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
     if (!isValid) return;
     setLoading(true);
     try {
-      const stream = await streamsApi.create({
+      let stream = await streamsApi.create({
         title,
         artist: artist || null,
         source_uri: url,
       });
+      if (coverFile) {
+        stream = await streamsApi.uploadCover(stream.id, coverFile);
+      }
       onSuccess(stream);
       handleReset();
     } catch {
@@ -53,6 +58,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
     setUrl('');
     setTitle('');
     setArtist('');
+    setCoverFile(null);
   };
 
   const handleClose = () => {
@@ -64,6 +70,12 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('stream.title')}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
+        <CoverUploadField
+          displayUrl={coverFile ? URL.createObjectURL(coverFile) : null}
+          coverFile={coverFile}
+          onFileSelect={(file) => setCoverFile(file)}
+          onRemove={() => setCoverFile(null)}
+        />
         <TextField
           label={t('stream.url')}
           placeholder={t('stream.url_placeholder')}

@@ -938,6 +938,92 @@ async def bluetooth_pair(body: BluetoothPairBody) -> dict:
         raise HTTPException(status_code=503, detail="Host-Helper unreachable") from e
 
 
+@router.get("/bluetooth/paired")
+async def bluetooth_paired() -> dict:
+    """Return paired Bluetooth devices. Proxied to Host-Helper."""
+    url = _host_helper_url()
+    api_key = _host_helper_api_key()
+    if not api_key:
+        return {"devices": []}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(f"{url}/bluetooth/paired", headers={"X-Api-Key": api_key})
+            if r.status_code == 200:
+                return r.json()
+    except Exception as e:
+        logger.debug("host_helper_bluetooth_paired_failed", error=str(e))
+    return {"devices": []}
+
+
+@router.post("/bluetooth/connect")
+async def bluetooth_connect(body: BluetoothPairBody) -> dict:
+    """Connect to paired Bluetooth device. Proxied to Host-Helper."""
+    url = _host_helper_url()
+    api_key = _host_helper_api_key()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Host-Helper not configured")
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.post(
+                f"{url}/bluetooth/connect",
+                json={"address": body.address},
+                headers={"X-Api-Key": api_key},
+            )
+            if r.status_code >= 400:
+                detail = (r.json() or {}).get("detail", "Connect failed") if r.content else "Connect failed"
+                raise HTTPException(status_code=min(r.status_code, 502), detail=str(detail))
+            return r.json()
+    except httpx.RequestError as e:
+        logger.warning("host_helper_bluetooth_connect_failed", error=str(e))
+        raise HTTPException(status_code=503, detail="Host-Helper unreachable") from e
+
+
+@router.post("/bluetooth/disconnect")
+async def bluetooth_disconnect(body: BluetoothPairBody) -> dict:
+    """Disconnect Bluetooth device. Proxied to Host-Helper."""
+    url = _host_helper_url()
+    api_key = _host_helper_api_key()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Host-Helper not configured")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(
+                f"{url}/bluetooth/disconnect",
+                json={"address": body.address},
+                headers={"X-Api-Key": api_key},
+            )
+            if r.status_code >= 400:
+                detail = (r.json() or {}).get("detail", "Disconnect failed") if r.content else "Disconnect failed"
+                raise HTTPException(status_code=min(r.status_code, 502), detail=str(detail))
+            return r.json()
+    except httpx.RequestError as e:
+        logger.warning("host_helper_bluetooth_disconnect_failed", error=str(e))
+        raise HTTPException(status_code=503, detail="Host-Helper unreachable") from e
+
+
+@router.post("/bluetooth/remove")
+async def bluetooth_remove(body: BluetoothPairBody) -> dict:
+    """Remove (unpair) Bluetooth device. Proxied to Host-Helper."""
+    url = _host_helper_url()
+    api_key = _host_helper_api_key()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Host-Helper not configured")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(
+                f"{url}/bluetooth/remove",
+                json={"address": body.address},
+                headers={"X-Api-Key": api_key},
+            )
+            if r.status_code >= 400:
+                detail = (r.json() or {}).get("detail", "Remove failed") if r.content else "Remove failed"
+                raise HTTPException(status_code=min(r.status_code, 502), detail=str(detail))
+            return r.json()
+    except httpx.RequestError as e:
+        logger.warning("host_helper_bluetooth_remove_failed", error=str(e))
+        raise HTTPException(status_code=503, detail="Host-Helper unreachable") from e
+
+
 @router.get("/wifi/hotspot/status")
 async def wifi_hotspot_status() -> dict:
     """Hotspot active? Proxied to Host-Helper."""

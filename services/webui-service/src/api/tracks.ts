@@ -48,4 +48,18 @@ export const tracksApi = {
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`/tracks/${id}`);
   },
+
+  uploadCover: async (trackId: number, file: File): Promise<Track> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<Track>(`/tracks/${trackId}/cover`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  deleteCover: async (trackId: number): Promise<Track> => {
+    const response = await apiClient.delete<Track>(`/tracks/${trackId}/cover`);
+    return response.data;
+  },
 };

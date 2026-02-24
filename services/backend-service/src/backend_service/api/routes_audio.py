@@ -8,8 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import httpx
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -34,6 +35,9 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
+
+AUDIO_SERVICE_BASE = "http://audio:8003"
+AUDIO_SERVICE_TIMEOUT = 10.0
 
 # MQTT client and handlers will be injected at startup
 _mqtt_client: MQTTClient | None = None
@@ -150,6 +154,7 @@ async def play_audio(
         )
         if not episode:
             raise HTTPException(status_code=400, detail="Podcast has no episodes")
+        podcast.last_played_at = datetime.now(UTC)
         db.add(
             PlaybackEvent(
                 started_at=datetime.now(UTC),
@@ -390,3 +395,74 @@ async def set_shuffle_mode(command: ShuffleRequest) -> dict:
     session_manager.set_shuffle(command.shuffle)
     sess = session_manager.session
     return {"status": "ok", "shuffle": sess.shuffle if sess else False}
+
+
+# ── Audio output device (proxy to audio-service) ───────────────────────────
+
+@router.get("/devices")
+async def get_audio_devices(
+    enabled_only: bool = Query(False, description="Return only enabled devices"),
+) -> dict:
+    """List detected ALSA audio devices (proxied to audio-service)."""
+    try:
+        async with httpx.AsyncClient(timeout=AUDIO_SERVICE_TIMEOUT) as client:
+            r = await client.get(
+                f"{AUDIO_SERVICE_BASE}/api/v1/devices",
+                params={"enabled_only": enabled_only},
+            )
+            r.raise_for_status()
+            return r.json()
+    except httpx.TimeoutException:
+        logger.warning("audio_service_devices_timeout")
+        raise HTTPException(status_code=503, detail="Audio service timeout")
+    except httpx.HTTPStatusError as e:
+        logger.warning("audio_service_devices_error", status=e.response.status_code)
+        raise HTTPException(
+            status_code=502 if e.response.status_code >= 500 else 400,
+            detail=e.response.text or "Audio service error",
+        )
+    except Exception as e:
+        logger.warning("audio_service_devices_failed", error=str(e))
+        raise HTTPException(status_code=503, detail="Audio service unavailable")
+
+
+class SwitchDeviceRequest(BaseModel):
+    """Request body for POST /switch-device."""
+
+    alsa_device: str | None = Field(default=None, description="ALSA device to switch to")
+    direction: str | None = Field(default=None, description="'next' to cycle devices")
+
+
+@router.post("/switch-device")
+async def switch_audio_device(body: SwitchDeviceRequest) -> dict:
+    """Switch audio output device (proxied to audio-service)."""
+    if not body.alsa_device and body.direction != "next":
+        raise HTTPException(
+            status_code=400,
+            detail="Provide alsa_device or direction='next'",
+        )
+    payload = {}
+    if body.alsa_device:
+        payload["alsa_device"] = body.alsa_device
+    if body.direction:
+        payload["direction"] = body.direction
+    try:
+        async with httpx.AsyncClient(timeout=AUDIO_SERVICE_TIMEOUT) as client:
+            r = await client.post(
+                f"{AUDIO_SERVICE_BASE}/api/v1/switch-device",
+                json=payload,
+            )
+            r.raise_for_status()
+            return r.json()
+    except httpx.TimeoutException:
+        logger.warning("audio_service_switch_device_timeout")
+        raise HTTPException(status_code=503, detail="Audio service timeout")
+    except httpx.HTTPStatusError as e:
+        logger.warning("audio_service_switch_device_error", status=e.response.status_code)
+        raise HTTPException(
+            status_code=502 if e.response.status_code >= 500 else 400,
+            detail=e.response.text or "Audio service error",
+        )
+    except Exception as e:
+        logger.warning("audio_service_switch_device_failed", error=str(e))
+        raise HTTPException(status_code=503, detail="Audio service unavailable")

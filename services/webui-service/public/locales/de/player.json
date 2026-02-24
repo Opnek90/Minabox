@@ -11,6 +11,8 @@
   },
   "volume": "Lautstärke",
   "volume_label": "Lautstärke: {{value}}%",
+  "output_device": "Ausgabegerät",
+  "output_device_refresh": "Geräte aktualisieren",
   "progress": "Fortschritt",
   "playlist_info": "Track {{current}} von {{total}}",
   "playlist_name": "Playlist: {{name}}",

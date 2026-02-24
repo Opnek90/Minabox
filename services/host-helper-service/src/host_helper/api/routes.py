@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import os
 import shutil
@@ -1502,7 +1503,7 @@ async def set_system_password(
 
 @router.post("/system/docker-prune")
 async def docker_prune(_: None = Depends(_check_api_key)) -> dict:
-    """Run docker system prune -af on the host (Raspberry Pi OS) via nsenter."""
+    """Run docker system prune -f on the host (Raspberry Pi OS) via nsenter. Keeps tagged images and build cache."""
     cfg = get_config()
     host_root = cfg.get("host_root") or "/host"
     root_path = Path(host_root).resolve()
@@ -1516,7 +1517,7 @@ async def docker_prune(_: None = Depends(_check_api_key)) -> dict:
     # Run on host: /usr/bin/docker is the host's docker when we use -m (host mount namespace)
     cmd = [
         str(nsenter_bin), "-t", "1", "-n", "-m", "--",
-        "/usr/bin/docker", "system", "prune", "-af",
+        "/usr/bin/docker", "system", "prune", "-f",
     ]
     try:
         result = subprocess.run(
@@ -1891,24 +1892,12 @@ async def update_os_log(_: None = Depends(_check_api_key)) -> dict:
 
 # ── Bluetooth ─────────────────────────────────────────────────────────────
 
-def _run_bluetoothctl(args: list[str], timeout: int = 15) -> subprocess.CompletedProcess:
-    """Run bluetoothctl on host (chroot + host D-Bus)."""
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    bt = root_path / "usr/bin/bluetoothctl"
-    if not bt.exists():
-        raise HTTPException(status_code=503, detail="bluetoothctl not found on host")
-    env = os.environ.copy()
-    env["DBUS_SYSTEM_BUS_ADDRESS"] = f"unix:path={root_path}/var/run/dbus/system_bus_socket"
-    return subprocess.run(
-        ["chroot", str(root_path), "bluetoothctl"] + args,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=env,
-    )
+def _run_bluetoothctl_on_host(args: list[str], timeout: int = 15) -> subprocess.CompletedProcess:
+    """Run bluetoothctl on the host via nsenter (host mount + network) so it can open the Bluetooth mgmt socket."""
+    nsenter_bin = _nsenter_bin()
+    # /usr/bin/bluetoothctl is resolved in the host's mount namespace after nsenter
+    cmd = [str(nsenter_bin), "-t", "1", "-m", "-n", "--", "/usr/bin/bluetoothctl"] + args
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
 
 class BluetoothPairBody(BaseModel):
@@ -1917,25 +1906,64 @@ class BluetoothPairBody(BaseModel):
 
 @router.get("/bluetooth/scan")
 async def bluetooth_scan(_: None = Depends(_check_api_key)) -> dict:
-    """Scan for Bluetooth devices and return list (address, name)."""
+    """Scan for Bluetooth devices and return list (address, name). Runs on host via nsenter.
+    Keeps 'scan on' running in the background so BlueZ keeps discovering; after 12s we read
+    the device list and stop the scan. If we only ran scan on with a timeout, killing the client
+    would stop discovery before devices are listed.
+    """
+    # Ensure adapter is on (avoids NotReady when user only uses WebUI and never ran bluetoothctl on the host)
     try:
-        _run_bluetoothctl(["scan", "on"], timeout=2)
-    except (HTTPException, subprocess.TimeoutExpired):
+        _run_bluetoothctl_on_host(["power", "on"], timeout=5)
+    except Exception:
         pass
-    try:
-        r = _run_bluetoothctl(["devices"], timeout=10)
-    except HTTPException:
-        raise
-    except subprocess.TimeoutExpired:
-        return {"devices": []}
+    # Keep one bluetoothctl process alive so discovery stays active (client disconnect stops discovery on many setups)
+    nsenter_bin = _nsenter_bin()
+    cmd_bt = [str(nsenter_bin), "-t", "1", "-m", "-n", "--", "/usr/bin/bluetoothctl"]
+    proc = None
     devices: list[dict] = []
-    for line in (r.stdout or "").strip().splitlines():
-        if line.startswith("Device "):
-            parts = line[7:].strip().split(" ", 1)
-            addr = parts[0] if parts else ""
-            name = parts[1].strip() if len(parts) > 1 else ""
-            if addr:
-                devices.append({"address": addr, "name": name or None})
+    stdout_lines: list[str] = []
+
+    def read_stdout() -> None:
+        if proc is None or proc.stdout is None:
+            return
+        for line in proc.stdout:
+            stdout_lines.append(line.rstrip("\n\r"))
+
+    try:
+        proc = subprocess.Popen(
+            cmd_bt,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        reader = threading.Thread(target=read_stdout, daemon=True)
+        reader.start()
+        proc.stdin.write("power on\n")
+        proc.stdin.write("scan on\n")
+        proc.stdin.flush()
+        await asyncio.sleep(12)
+        proc.stdin.write("devices\n")
+        proc.stdin.write("scan off\n")
+        proc.stdin.write("quit\n")
+        proc.stdin.flush()
+        proc.stdin.close()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        reader.join(timeout=2)
+        for line in stdout_lines:
+            if line.startswith("Device "):
+                parts = line[7:].strip().split(" ", 1)
+                addr = parts[0] if parts else ""
+                name = parts[1].strip() if len(parts) > 1 else ""
+                if addr:
+                    devices.append({"address": addr, "name": name or None})
+    except FileNotFoundError:
+        return {"devices": []}
+    except Exception:
+        return {"devices": []}
     return {"devices": devices}
 
 
@@ -1948,13 +1976,135 @@ async def bluetooth_pair(
     addr = (body.address or "").strip()
     if not addr or ".." in addr:
         raise HTTPException(status_code=400, detail="Address required")
+    logger.info("bluetooth_pair_start", address=addr)
     try:
-        r = _run_bluetoothctl(["pair", addr], timeout=30)
+        r = _run_bluetoothctl_on_host(["pair", addr], timeout=30)
     except HTTPException:
         raise
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        logger.warning("bluetooth_pair_error", address=addr, error=type(e).__name__, msg=str(e))
+        raise HTTPException(status_code=503, detail="Bluetooth pairing unavailable or timed out")
     if r.returncode != 0:
-        raise HTTPException(status_code=400, detail=(r.stderr or r.stdout or "Pairing failed")[:500])
+        err = (r.stderr or r.stdout or "Pairing failed").strip()
+        logger.warning("bluetooth_pair_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
+        raise HTTPException(status_code=400, detail=err[:500])
+    # Trust so the device can connect automatically when in range
+    try:
+        _run_bluetoothctl_on_host(["trust", addr], timeout=10)
+    except Exception:
+        pass
+    logger.info("bluetooth_pair_ok", address=addr)
     return {"ok": True, "message": "Paired", "address": addr}
+
+
+@router.get("/bluetooth/paired")
+async def bluetooth_paired(_: None = Depends(_check_api_key)) -> dict:
+    """Return list of paired Bluetooth devices only (address, name, connected). No scan.
+    Filters by bluetoothctl info <addr> Paired: yes so discovered-but-not-paired devices are excluded."""
+    try:
+        r = _run_bluetoothctl_on_host(["devices"], timeout=10)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return {"devices": []}
+    candidates: list[tuple[str, str, bool]] = []
+    for line in (r.stdout or "").strip().splitlines():
+        if not line.startswith("Device "):
+            continue
+        rest = line[7:].strip()
+        parts = rest.split(" ", 1)
+        addr = parts[0] if parts else ""
+        if not addr:
+            continue
+        name_part = (parts[1].strip() if len(parts) > 1 else "").strip()
+        connected = "(connected)" in name_part
+        if connected:
+            name_part = name_part.replace("(connected)", "").strip()
+        name = name_part or None
+        candidates.append((addr, name or "", connected))
+    devices: list[dict] = []
+    for addr, name, connected in candidates:
+        try:
+            info_r = _run_bluetoothctl_on_host(["info", addr], timeout=5)
+            if info_r.returncode != 0:
+                continue
+            if "Paired: yes" not in (info_r.stdout or ""):
+                continue
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+        devices.append({"address": addr, "name": name or None, "connected": connected})
+    return {"devices": devices}
+
+
+class BluetoothAddressBody(BaseModel):
+    address: str
+
+
+@router.post("/bluetooth/connect")
+async def bluetooth_connect(
+    body: BluetoothAddressBody,
+    _: None = Depends(_check_api_key),
+) -> dict:
+    """Connect to a paired Bluetooth device by address."""
+    addr = (body.address or "").strip()
+    if not addr or ".." in addr:
+        raise HTTPException(status_code=400, detail="Address required")
+    logger.info("bluetooth_connect_start", address=addr)
+    try:
+        r = _run_bluetoothctl_on_host(["connect", addr], timeout=15)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        logger.warning("bluetooth_connect_error", address=addr, error=type(e).__name__, msg=str(e))
+        raise HTTPException(status_code=503, detail="Bluetooth connect unavailable or timed out")
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or "Connect failed").strip()
+        logger.warning("bluetooth_connect_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
+        raise HTTPException(status_code=400, detail=err[:500])
+    logger.info("bluetooth_connect_ok", address=addr)
+    return {"ok": True, "message": "Connected", "address": addr}
+
+
+@router.post("/bluetooth/disconnect")
+async def bluetooth_disconnect(
+    body: BluetoothAddressBody,
+    _: None = Depends(_check_api_key),
+) -> dict:
+    """Disconnect a Bluetooth device by address."""
+    addr = (body.address or "").strip()
+    if not addr or ".." in addr:
+        raise HTTPException(status_code=400, detail="Address required")
+    logger.info("bluetooth_disconnect_start", address=addr)
+    try:
+        r = _run_bluetoothctl_on_host(["disconnect", addr], timeout=10)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        logger.warning("bluetooth_disconnect_error", address=addr, error=type(e).__name__, msg=str(e))
+        raise HTTPException(status_code=503, detail="Bluetooth disconnect unavailable or timed out")
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or "Disconnect failed").strip()
+        logger.warning("bluetooth_disconnect_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
+        raise HTTPException(status_code=400, detail=err[:500])
+    logger.info("bluetooth_disconnect_ok", address=addr)
+    return {"ok": True, "message": "Disconnected", "address": addr}
+
+
+@router.post("/bluetooth/remove")
+async def bluetooth_remove(
+    body: BluetoothAddressBody,
+    _: None = Depends(_check_api_key),
+) -> dict:
+    """Remove (unpair) a Bluetooth device by address."""
+    addr = (body.address or "").strip()
+    if not addr or ".." in addr:
+        raise HTTPException(status_code=400, detail="Address required")
+    logger.info("bluetooth_remove_start", address=addr)
+    try:
+        r = _run_bluetoothctl_on_host(["remove", addr], timeout=10)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        logger.warning("bluetooth_remove_error", address=addr, error=type(e).__name__, msg=str(e))
+        raise HTTPException(status_code=503, detail="Bluetooth remove unavailable or timed out")
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or "Remove failed").strip()
+        logger.warning("bluetooth_remove_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
+        raise HTTPException(status_code=400, detail=err[:500])
+    logger.info("bluetooth_remove_ok", address=addr)
+    return {"ok": True, "message": "Removed", "address": addr}
 
 
 def _is_allowed_container_name(name: str) -> bool:

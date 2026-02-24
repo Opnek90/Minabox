@@ -64,6 +64,7 @@ _BUTTON_ACTIONS: list[str] = [
     "sleep_timer_toggle",
     "repeat_cycle",
     "shuffle_toggle",
+    "next_output_device",
 ]
 
 # All display element types (OLED display service).
@@ -117,6 +118,7 @@ def _general_settings_read() -> dict:
     bedtime_fade_interval_seconds = 30
     bedtime_fade_step_percent = 2.0
     allowed_usage_times: list[dict] = []
+    usage_times_enabled = False
     daily_limit_enabled = False
     daily_limit_minutes = 120
     if GENERAL_SETTINGS_PATH.exists():
@@ -127,6 +129,7 @@ def _general_settings_read() -> dict:
             bedtime_fade_duration_minutes = max(1, int(data.get("bedtime_fade_duration_minutes", 15)))
             bedtime_fade_interval_seconds = max(5, int(data.get("bedtime_fade_interval_seconds", 30)))
             bedtime_fade_step_percent = max(0.5, min(50.0, float(data.get("bedtime_fade_step_percent", 2.0))))
+            usage_times_enabled = bool(data.get("usage_times_enabled", False))
             daily_limit_enabled = bool(data.get("daily_limit_enabled", False))
             daily_limit_minutes = max(1, min(1440, int(data.get("daily_limit_minutes", 120))))
             raw_times = data.get("allowed_usage_times")
@@ -149,6 +152,7 @@ def _general_settings_read() -> dict:
         "bedtime_fade_duration_minutes": bedtime_fade_duration_minutes,
         "bedtime_fade_interval_seconds": bedtime_fade_interval_seconds,
         "bedtime_fade_step_percent": bedtime_fade_step_percent,
+        "usage_times_enabled": usage_times_enabled,
         "daily_limit_enabled": daily_limit_enabled,
         "daily_limit_minutes": daily_limit_minutes,
         "allowed_usage_times": allowed_usage_times,
@@ -184,7 +188,7 @@ async def update_general_config(body: dict) -> dict:
     allowed = {
         "minabox_device_id", "log_level", "mqtt_broker", "mqtt_port", "disable_gpio", "sleep_timer_minutes",
         "bedtime_fade_enabled", "bedtime_fade_duration_minutes", "bedtime_fade_interval_seconds", "bedtime_fade_step_percent",
-        "daily_limit_enabled", "daily_limit_minutes",
+        "usage_times_enabled", "daily_limit_enabled", "daily_limit_minutes",
         "allowed_usage_times",
     }
     data = {k: v for k, v in body.items() if k in allowed}
@@ -202,6 +206,8 @@ async def update_general_config(body: dict) -> dict:
         data["bedtime_fade_interval_seconds"] = max(5, int(data["bedtime_fade_interval_seconds"]))
     if "bedtime_fade_step_percent" in data:
         data["bedtime_fade_step_percent"] = max(0.5, min(50.0, float(data["bedtime_fade_step_percent"])))
+    if "usage_times_enabled" in data:
+        data["usage_times_enabled"] = bool(data["usage_times_enabled"])
     if "daily_limit_enabled" in data:
         data["daily_limit_enabled"] = bool(data["daily_limit_enabled"])
     if "daily_limit_minutes" in data:
@@ -261,19 +267,28 @@ async def get_audio_config() -> dict:
 
 @router.put("/audio")
 async def update_audio_config(body: dict) -> dict:
-    """Update audio service config."""
+    """Update audio service config. Merges body with existing config so partial updates (e.g. only max_volume from parent dashboard) do not wipe other keys like enabled_output_devices or device_display_names."""
     path = _config_path("audio")
     if not path or not path.exists():
         raise HTTPException(status_code=503, detail="Audio config not available")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        current: dict = {}
+        if path.exists():
+            try:
+                current = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(current, dict):
+                    current = {}
+            except (json.JSONDecodeError, OSError):
+                pass
+        merged = {**current, **body}
+        path.write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("audio", "config/reload")
             await _mqtt_client.publish(topic, {})
             logger.info("audio_config_reload_published", topic=topic)
-        return body
+        return merged
     except OSError as e:
         logger.error("config_write_failed", service="audio", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to write audio config") from e

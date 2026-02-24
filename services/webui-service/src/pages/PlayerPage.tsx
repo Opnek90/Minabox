@@ -7,15 +7,19 @@ import {
   Chip,
   Collapse,
   Fade,
+  FormControl,
   IconButton,
   List,
   ListItemButton,
+  MenuItem,
+  Select,
   Popover,
   Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -35,7 +39,13 @@ import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
-import type { AudioConfig, AudioSessionResponse, QueueItem, RepeatMode } from '@/types/api';
+import type {
+  AudioConfig,
+  AudioDeviceItem,
+  AudioSessionResponse,
+  QueueItem,
+  RepeatMode,
+} from '@/types/api';
 
 
 const SLEEP_PRESETS = [15, 30, 45, 60];
@@ -83,6 +93,7 @@ const BUTTON_ACTION_LABELS: Record<string, string> = {
   sleep_timer_toggle: '🌙 Sleep Timer',
   repeat_cycle:       '🔁 Repeat',
   shuffle_toggle:     '🔀 Shuffle',
+  next_output_device: '🔊 Next output device',
 };
 
 
@@ -107,9 +118,12 @@ export const PlayerPage: React.FC = () => {
   const [buttonFeedback, setButtonFeedback] = useState<string | null>(null);
   const buttonFeedbackTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [session, setSession] = useState<AudioSessionResponse | null>(null);
+  const [outputDevices, setOutputDevices] = useState<AudioDeviceItem[]>([]);
+  const [outputDevicesLoading, setOutputDevicesLoading] = useState(false);
 
   useEffect(() => {
     configApi.getAudio().then(setAudioConfig).catch(() => null);
+    audioApi.getDevices(true).then((r) => setOutputDevices(r.devices ?? [])).catch(() => setOutputDevices([]));
     audioApi.getSleepTimer().then((status) => {
       if (status.active && status.remaining_ms !== null) {
         startDisplayCountdown(status.remaining_ms);
@@ -373,6 +387,53 @@ export const PlayerPage: React.FC = () => {
             maxVolume={audioConfig?.max_volume ?? 100}
             onVolumeChange={handleVolumeChange}
           />
+
+          {/* Output device selector */}
+          <Box display="flex" alignItems="center" gap={0.5} sx={{ width: '100%', px: 0.5 }}>
+            <FormControl size="small" sx={{ minWidth: 140, flex: 1 }}>
+              <Select
+                value={audioConfig?.output_device_name ?? ''}
+                displayEmpty
+                renderValue={(v) => {
+                  const d = outputDevices.find((x) => x.alsa_device === v);
+                  return d ? d.name : (v || t('player.output_device', { defaultValue: 'Output device' }));
+                }}
+                onChange={(e) => {
+                  const v = e.target.value as string;
+                  if (!v) return;
+                  audioApi
+                    .switchDevice(v)
+                    .then(() => setAudioConfig((c) => (c ? { ...c, output_device_name: v } : c)))
+                    .catch(() => showError(t('player.output_device', { defaultValue: 'Could not switch device' })));
+                }}
+                disabled={outputDevicesLoading}
+                aria-label={t('player.output_device', { defaultValue: 'Output device' })}
+              >
+                {outputDevices.map((d) => (
+                  <MenuItem key={d.alsa_device} value={d.alsa_device}>
+                    {d.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Tooltip title={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  setOutputDevicesLoading(true);
+                  audioApi
+                    .getDevices(true)
+                    .then((r) => setOutputDevices(r.devices ?? []))
+                    .catch(() => setOutputDevices([]))
+                    .finally(() => setOutputDevicesLoading(false));
+                }}
+                disabled={outputDevicesLoading}
+                aria-label={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}
+              >
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
 
           {/* Repeat + Shuffle (icon buttons) and Up next (collapsible) */}
           {session && (

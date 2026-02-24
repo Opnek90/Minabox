@@ -11,6 +11,8 @@
   },
   "volume": "Volume",
   "volume_label": "Volume: {{value}}%",
+  "output_device": "Output device",
+  "output_device_refresh": "Refresh devices",
   "progress": "Progress",
   "playlist_info": "Track {{current}} of {{total}}",
   "playlist_name": "Playlist: {{name}}",

@@ -172,6 +172,7 @@ class StreamResponse(StreamBase):
     """Schema for stream API response."""
 
     id: int
+    cover_art_url: str | None = None
     created_at: datetime
     last_played_at: datetime | None = None
 
@@ -213,7 +214,10 @@ class PodcastResponse(PodcastBase):
 
     id: int
     last_fetched_at: datetime | None = None
+    last_played_at: datetime | None = None
     created_at: datetime
+    latest_episode_title: str | None = None
+    latest_episode_published_at: datetime | None = None
 
     class Config:
         from_attributes = True

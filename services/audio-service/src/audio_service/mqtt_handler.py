@@ -60,6 +60,7 @@ class MQTTMessageHandler:
         on_config_update: Callable[[AudioConfig], None] | None = None,
         on_config_reload: Callable[[], None] | None = None,
         on_config_get: Callable[[], None] | None = None,
+        on_switch_device: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         """Initialize MQTT message handler.
 
@@ -77,6 +78,7 @@ class MQTTMessageHandler:
             on_config_update: Callback for config update commands
             on_config_reload: Callback for config reload commands
             on_config_get: Callback for config get requests
+            on_switch_device: Callback for switch-device (payload: alsa_device?, direction?)
         """
         self._config = config
         self._on_play = on_play
@@ -91,6 +93,7 @@ class MQTTMessageHandler:
         self._on_config_update = on_config_update
         self._on_config_reload = on_config_reload
         self._on_config_get = on_config_get
+        self._on_switch_device = on_switch_device
 
     async def handle_message(self, topic: str, payload: str) -> None:
         """Handle incoming MQTT message.
@@ -174,6 +177,8 @@ class MQTTMessageHandler:
             await self._handle_config_reload()
         elif action == "config/get":
             await self._handle_config_get()
+        elif action == "switch-device":
+            await self._handle_switch_device(data)
         else:
             logger.warning("unknown_command", action=action)
 
@@ -278,3 +283,9 @@ class MQTTMessageHandler:
         logger.info("config_get_request_received")
         if self._on_config_get:
             await self._on_config_get()
+
+    async def _handle_switch_device(self, data: dict[str, Any]) -> None:
+        """Handle switch-device command (alsa_device or direction=next)."""
+        logger.info("switch_device_command_received", data=data)
+        if self._on_switch_device:
+            await self._on_switch_device(data)

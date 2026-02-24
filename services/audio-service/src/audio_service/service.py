@@ -15,7 +15,8 @@ import structlog
 
 from .audio_backend import AudioStatus
 from .config_manager import ConfigManager
-from .config_schema import AppConfig, AudioConfig
+from .audio_backend import PlaybackState
+from .config_schema import AppConfig, AudioConfig, OutputDeviceType
 from .mqtt_client import MQTTClient
 from .mqtt_handler import (
     MQTTMessageHandler,
@@ -64,6 +65,7 @@ class AudioService:
             on_config_update=self._handle_config_update,
             on_config_reload=self._handle_config_reload,
             on_config_get=self._handle_config_get,
+            on_switch_device=self._handle_switch_device,
         )
 
         # Service state
@@ -198,6 +200,7 @@ class AudioService:
             f"minabox/{device_id}/audio/config/update",
             f"minabox/{device_id}/audio/config/reload",
             f"minabox/{device_id}/audio/config/get",
+            f"minabox/{device_id}/audio/switch-device",
         ]
 
         for topic in topics:
@@ -408,11 +411,38 @@ class AudioService:
             await self._publish_config_response(success=False, error=str(exc))
 
     async def _handle_config_reload(self) -> None:
-        """Handle config reload command."""
+        """Handle config reload command. Re-initializes VLC if output device changed."""
         try:
+            old_config = self._config_manager.get_current_config()
             self._config_manager.reload_config()
             current = self._config_manager.get_current_config()
-            if current is not None:
+            if current is None:
+                await self._publish_config_response(success=True)
+                logger.info("config_reload_successful")
+                return
+
+            device_changed = (
+                old_config is None
+                or old_config.output_device_type != current.output_device_type
+                or old_config.output_device_name != current.output_device_name
+            )
+            if device_changed and self._vlc_backend._initialized:
+                snapshot = await self._vlc_backend.reinitialize(current)
+                if snapshot.get("source_uri") and snapshot.get("state") in (
+                    PlaybackState.PLAYING.value,
+                    PlaybackState.PAUSED.value,
+                ):
+                    self._vlc_backend.set_track_metadata(
+                        track_id=snapshot.get("track_id"),
+                        source_type=snapshot.get("source_type"),
+                    )
+                    await self._vlc_backend.play(
+                        source_uri=snapshot["source_uri"],
+                        start_position_ms=snapshot.get("position_ms", 0),
+                    )
+                    if snapshot.get("state") == PlaybackState.PAUSED.value:
+                        await self._vlc_backend.pause()
+            else:
                 self._vlc_backend.update_config(current)
             await self._publish_config_response(success=True)
             logger.info("config_reload_successful")
@@ -434,6 +464,19 @@ class AudioService:
         except Exception as exc:
             logger.error("config_get_failed", error=str(exc))
 
+    async def _handle_switch_device(self, data: dict) -> None:
+        """Handle switch-device command (MQTT)."""
+        try:
+            alsa_device = data.get("alsa_device")
+            direction = data.get("direction")
+            await self.switch_output_device(alsa_device=alsa_device, direction=direction)
+            await self._publish_status()
+        except ValueError as e:
+            logger.warning("switch_device_invalid", error=str(e))
+        except Exception as exc:
+            logger.error("switch_device_failed", error=str(exc))
+            await self._publish_error("switch_device_error", str(exc))
+
     # Public API for health checks
 
     def get_uptime(self) -> float:
@@ -450,4 +493,81 @@ class AudioService:
 
     async def get_audio_status(self) -> AudioStatus:
         """Get current audio status."""
+        return await self._vlc_backend.get_status()
+
+    async def get_audio_devices(self, enabled_only: bool = False) -> list[dict]:
+        """Get detected Pulse sinks, optionally filtered by enabled_output_devices."""
+        from .pulse_detector import PulseSinkDetector
+
+        detector = PulseSinkDetector()
+        sinks = await detector.detect_sinks()
+        config = self._get_audio_config()
+        enabled = getattr(config, "enabled_output_devices", None) or []
+        display_names = getattr(config, "device_display_names", None) or {}
+        if enabled_only and enabled:
+            allowed = set(enabled)
+            sinks = [s for s in sinks if s.sink_name in allowed]
+        out = []
+        seen_base_names: set[str] = set()
+        for s in sinks:
+            base_name = display_names.get(s.sink_name) or s.name
+            if base_name in seen_base_names:
+                name = f"{base_name} ({s.sink_name})"
+            else:
+                name = base_name
+                seen_base_names.add(base_name)
+            out.append({
+                "id": s.sink_name,
+                "name": name,
+                "card_name": s.description,
+                "alsa_device": s.sink_name,
+                "priority": s.priority,
+            })
+        return out
+
+    async def switch_output_device(
+        self,
+        alsa_device: str | None = None,
+        direction: str | None = None,
+    ) -> AudioStatus:
+        """Switch output device, re-init VLC, optionally resume. Returns new status."""
+        config = self._get_audio_config()
+        enabled_list = getattr(config, "enabled_output_devices", None) or []
+        devices = await self.get_audio_devices(enabled_only=bool(enabled_list))
+        if not devices:
+            raise ValueError("No audio devices available")
+
+        if direction == "next":
+            current = config.output_device_name
+            idx = next((i for i, d in enumerate(devices) if d["alsa_device"] == current), -1)
+            next_idx = (idx + 1) % len(devices)
+            target = devices[next_idx]["alsa_device"]
+        elif alsa_device:
+            allowed = {d["alsa_device"] for d in devices}
+            if alsa_device not in allowed:
+                raise ValueError(f"Device not available or not enabled: {alsa_device!r}")
+            target = alsa_device
+        else:
+            raise ValueError("Provide alsa_device or direction='next'")
+
+        new_config = config.model_copy(update={
+            "output_device_type": OutputDeviceType.PULSEAUDIO,
+            "output_device_name": target,
+        })
+        self._config_manager.update_config(new_config)
+        snapshot = await self._vlc_backend.reinitialize(new_config)
+        if snapshot.get("source_uri") and snapshot.get("state") in (
+            PlaybackState.PLAYING.value,
+            PlaybackState.PAUSED.value,
+        ):
+            self._vlc_backend.set_track_metadata(
+                track_id=snapshot.get("track_id"),
+                source_type=snapshot.get("source_type"),
+            )
+            await self._vlc_backend.play(
+                source_uri=snapshot["source_uri"],
+                start_position_ms=snapshot.get("position_ms", 0),
+            )
+            if snapshot.get("state") == PlaybackState.PAUSED.value:
+                await self._vlc_backend.pause()
         return await self._vlc_backend.get_status()

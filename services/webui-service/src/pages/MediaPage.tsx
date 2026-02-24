@@ -13,8 +13,10 @@ import {
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import LinkIcon from '@mui/icons-material/Link';
+import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
+import { CoverUploadField } from '@/components/media/CoverUploadField';
 import { PlaylistList } from '@/components/media/PlaylistList';
 import { RemoteTrackDialog } from '@/components/media/RemoteTrackDialog';
 import { PodcastDialog } from '@/components/media/PodcastDialog';
@@ -64,6 +66,7 @@ export const MediaPage: React.FC = () => {
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
+  const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -108,6 +111,7 @@ export const MediaPage: React.FC = () => {
       artist: track.artist ?? '',
       album: track.album ?? '',
     });
+    setEditCoverFile(null);
   };
 
   const handleStreamDelete = async (stream: Stream) => {
@@ -124,18 +128,38 @@ export const MediaPage: React.FC = () => {
     if (!editTrack) return;
     setEditSaving(true);
     try {
-      const updated = await tracksApi.update(editTrack.id, {
+      let updated = await tracksApi.update(editTrack.id, {
         title: editForm.title.trim() || editTrack.title,
         artist: editForm.artist.trim() || null,
         album: editForm.album.trim() || null,
       });
+      if (editCoverFile) {
+        updated = await tracksApi.uploadCover(editTrack.id, editCoverFile);
+      }
       setTracks((prev) => prev.map((tr) => (tr.id === updated.id ? updated : tr)));
       setEditTrack(null);
+      setEditCoverFile(null);
       showSuccess(t('tracks.updated'));
     } catch {
       showError(t('tracks.update_error'));
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleTrackEditRemoveCover = () => {
+    if (editCoverFile) {
+      setEditCoverFile(null);
+      return;
+    }
+    if (editTrack?.cover_art_url) {
+      tracksApi
+        .deleteCover(editTrack.id)
+        .then((updated) => {
+          setTracks((prev) => prev.map((tr) => (tr.id === updated.id ? updated : tr)));
+          setEditTrack(updated);
+        })
+        .catch(() => showError(t('tracks.update_error')));
     }
   };
 
@@ -177,9 +201,10 @@ export const MediaPage: React.FC = () => {
           <Button
             variant="contained"
             size="small"
+            startIcon={<PodcastsIcon />}
             onClick={() => setPodcastOpen(true)}
           >
-            {t('podcasts.add', { defaultValue: 'Add Podcast' })}
+            {t('podcasts.add')}
           </Button>
         ) : undefined
       }
@@ -198,7 +223,7 @@ export const MediaPage: React.FC = () => {
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />
         <Tab label={t('tabs.streams', { defaultValue: 'Streams' })} />
-        <Tab label={t('tabs.podcasts', { defaultValue: 'Podcasts' })} />
+        <Tab label={t('tabs.podcasts')} />
       </Tabs>
 
       <TabPanel value={tab} index={0}>
@@ -220,7 +245,11 @@ export const MediaPage: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tab} index={2}>
-        <StreamList streams={streams} onDelete={handleStreamDelete} />
+        <StreamList
+          streams={streams}
+          onDelete={handleStreamDelete}
+          onUpdate={(s) => setStreams((prev) => prev.map((x) => (x.id === s.id ? s : x)))}
+        />
       </TabPanel>
 
       <TabPanel value={tab} index={3}>
@@ -230,18 +259,29 @@ export const MediaPage: React.FC = () => {
             try {
               await podcastsApi.delete(podcast.id);
               setPodcasts((prev) => prev.filter((p) => p.id !== podcast.id));
-              showSuccess(t('podcasts.deleted', { defaultValue: 'Podcast deleted' }));
+              showSuccess(t('podcasts.deleted'));
             } catch {
-              showError(t('podcasts.delete_error', { defaultValue: 'Could not delete podcast' }));
+              showError(t('podcasts.delete_error'));
             }
           }}
+          onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
         />
       </TabPanel>
 
       {/* Track Edit Dialog */}
-      <Dialog open={!!editTrack} onClose={() => setEditTrack(null)} maxWidth="sm" fullWidth>
+      <Dialog open={!!editTrack} onClose={() => { setEditTrack(null); setEditCoverFile(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>{t('tracks.edit')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
+          <CoverUploadField
+            displayUrl={
+              editCoverFile
+                ? URL.createObjectURL(editCoverFile)
+                : editTrack?.cover_art_url ?? null
+            }
+            coverFile={editCoverFile}
+            onFileSelect={(file) => setEditCoverFile(file)}
+            onRemove={handleTrackEditRemoveCover}
+          />
           <TextField
             label={t('tracks.fields.title')}
             value={editForm.title}
@@ -319,7 +359,7 @@ export const MediaPage: React.FC = () => {
         onSuccess={(podcast) => {
           setPodcasts((prev) => [...prev, podcast]);
           setPodcastOpen(false);
-          showSuccess(t('podcasts.created', { defaultValue: 'Podcast added' }));
+          showSuccess(t('podcasts.created'));
         }}
       />
     </PageShell>

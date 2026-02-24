@@ -2,6 +2,7 @@
   "app_name": "Minabox",
   "dashboard": {
     "tabs": {
+      "overview": "Übersicht",
       "stats": "Statistik",
       "settings": "Kinderschutz"
     },
@@ -10,7 +11,17 @@
     "daily_limit_enabled": "Tageslimit aktiv",
     "daily_limit_minutes": "Minuten pro Tag",
     "minutes_today": "Heute gehört",
-    "remaining_minutes": "Noch verfügbar"
+    "minutes_total": "Gesamt gehört",
+    "remaining_minutes": "Noch verfügbar",
+    "tags_count": "RFID-Tags",
+    "tracks_count": "Tracks",
+    "streams_count": "Streams",
+    "podcasts_count": "Podcasts",
+    "playlists_count": "Playlists",
+    "reset_listening": "Zeiten zurücksetzen",
+    "reset_listening_confirm": "Heute gehört und Gesamt gehört wirklich auf 0 setzen? Alle Hörstatistiken gehen verloren.",
+    "reset_success": "Zeiten zurückgesetzt",
+    "reset_error": "Zurücksetzen fehlgeschlagen"
   },
   "navigation": {
     "player": "Wiedergabe",

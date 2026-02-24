@@ -131,6 +131,7 @@ export interface Stream {
   title: string;
   artist: string | null;
   source_uri: string;
+  cover_art_url: string | null;
   created_at: string;
   last_played_at: string | null;
 }
@@ -158,7 +159,10 @@ export interface Podcast {
   description: string | null;
   cover_art_url: string | null;
   last_fetched_at: string | null;
+  last_played_at: string | null;
   created_at: string;
+  latest_episode_title: string | null;
+  latest_episode_published_at: string | null;
 }
 
 export interface PodcastEpisode {
@@ -257,9 +261,23 @@ export interface SystemStatus {
 // Config: Audio
 // ============================================================================
 
+export interface AudioDeviceItem {
+  id: string;
+  name: string;
+  card_name: string;
+  alsa_device: string;
+  priority: number;
+}
+
+export interface AudioDevicesResponse {
+  devices: AudioDeviceItem[];
+}
+
 export interface AudioConfig {
   output_device_type: string;
   output_device_name: string;
+  enabled_output_devices?: string[];
+  device_display_names?: Record<string, string>;
   max_volume: number;
   default_volume: number;
   resume_on_startup?: boolean;
@@ -375,6 +393,7 @@ export interface GeneralConfig {
   bedtime_fade_interval_seconds: number;
   bedtime_fade_step_percent: number;
   allowed_usage_times: AllowedUsageTimeSlot[];
+  usage_times_enabled?: boolean;
   daily_limit_enabled?: boolean;
   daily_limit_minutes?: number;
 }
@@ -510,4 +529,16 @@ export interface UsageTodayResponse {
   minutes_today: number;
   daily_limit_enabled: boolean;
   daily_limit_minutes: number;
+}
+
+export interface OverviewResponse {
+  minutes_today: number;
+  minutes_total: number;
+  daily_limit_enabled: boolean;
+  daily_limit_minutes: number;
+  tags_count: number;
+  tracks_count: number;
+  streams_count: number;
+  podcasts_count: number;
+  playlists_count: number;
 }

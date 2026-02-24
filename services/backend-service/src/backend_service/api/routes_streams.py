@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
@@ -13,6 +16,9 @@ from backend_service.models.schemas import (
     StreamResponse,
     StreamUpdate,
 )
+
+STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
+COVERS_DIR = STATIC_DIR / "covers"
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -115,6 +121,67 @@ async def delete_stream(
                 }
             },
         )
+    cover_path = COVERS_DIR / f"stream_{stream_id}.jpg"
+    if cover_path.exists():
+        cover_path.unlink()
     db.delete(stream)
     db.commit()
     logger.info("api_delete_stream_completed", stream_id=stream_id)
+
+
+@router.post("/{stream_id}/cover", response_model=StreamResponse)
+async def upload_stream_cover(
+    stream_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> StreamResponse:
+    """Upload cover art for a stream."""
+    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+    if not stream:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": {
+                    "code": "STREAM_NOT_FOUND",
+                    "message": f"Stream {stream_id} not found",
+                    "details": {"stream_id": stream_id},
+                }
+            },
+        )
+    COVERS_DIR.mkdir(parents=True, exist_ok=True)
+    cover_path = COVERS_DIR / f"stream_{stream_id}.jpg"
+    content = await file.read()
+    cover_path.write_bytes(content)
+    stream.cover_art_url = f"/static/covers/stream_{stream_id}.jpg"
+    db.commit()
+    db.refresh(stream)
+    logger.info("stream_cover_uploaded", stream_id=stream_id)
+    return StreamResponse.model_validate(stream)
+
+
+@router.delete("/{stream_id}/cover", response_model=StreamResponse)
+async def delete_stream_cover(
+    stream_id: int,
+    db: Session = Depends(get_db),
+) -> StreamResponse:
+    """Remove cover art from a stream."""
+    stream = db.query(Stream).filter(Stream.id == stream_id).first()
+    if not stream:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": {
+                    "code": "STREAM_NOT_FOUND",
+                    "message": f"Stream {stream_id} not found",
+                    "details": {"stream_id": stream_id},
+                }
+            },
+        )
+    cover_path = COVERS_DIR / f"stream_{stream_id}.jpg"
+    if cover_path.exists():
+        cover_path.unlink()
+    stream.cover_art_url = None
+    db.commit()
+    db.refresh(stream)
+    logger.info("stream_cover_deleted", stream_id=stream_id)
+    return StreamResponse.model_validate(stream)

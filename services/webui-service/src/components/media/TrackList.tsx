@@ -3,6 +3,10 @@ import {
   Avatar,
   Box,
   Button,
+  Card,
+  CardActions,
+  CardContent,
+  CardMedia,
   Chip,
   Dialog,
   DialogActions,
@@ -10,6 +14,7 @@ import {
   DialogContentText,
   DialogTitle,
   Divider,
+  Grid,
   IconButton,
   InputAdornment,
   List,
@@ -30,6 +35,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import LinkIcon from '@mui/icons-material/Link';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SearchIcon from '@mui/icons-material/Search';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
 import type { Track } from '@/types/api';
@@ -61,6 +68,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
 
   const filtered = tracks.filter((tr) => {
     const q = search.toLowerCase();
@@ -115,6 +123,19 @@ export const TrackList: React.FC<TrackListProps> = ({
   return (
     <Box>
       <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(_, v) => v && setViewMode(v)}
+          size="small"
+        >
+          <ToggleButton value="card" aria-label={t('view_mode_card')}>
+            <ViewModuleIcon />
+          </ToggleButton>
+          <ToggleButton value="list" aria-label={t('view_mode_list')}>
+            <ViewListIcon />
+          </ToggleButton>
+        </ToggleButtonGroup>
         <TextField
           placeholder={t('track_selector.search_placeholder')}
           value={search}
@@ -170,11 +191,83 @@ export const TrackList: React.FC<TrackListProps> = ({
         </Box>
       </Box>
 
-      <List dense>
-        {sorted.map((track, idx) => (
-          <React.Fragment key={track.id}>
-            {idx > 0 && <Divider component="li" />}
-            <ListItem
+      {viewMode === 'card' ? (
+        <Grid container spacing={2}>
+          {sorted.map((track) => (
+            <Grid item xs={12} sm={6} md={4} key={track.id}>
+              <Card
+                variant="outlined"
+                sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
+              >
+                {track.cover_art_url && (
+                  <CardMedia
+                    component="img"
+                    height="120"
+                    image={track.cover_art_url}
+                    alt={track.title}
+                    sx={{ objectFit: 'cover' }}
+                  />
+                )}
+                <CardContent sx={{ pb: 0, flex: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
+                    {track.source_type === 'remote' ? (
+                      <LinkIcon fontSize="small" color="primary" />
+                    ) : (
+                      <AudiotrackIcon fontSize="small" color="primary" />
+                    )}
+                    {track.title}
+                  </Typography>
+                  {(track.artist || track.album) && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
+                      {[track.artist, track.album].filter(Boolean).join(' · ')}
+                    </Typography>
+                  )}
+                  {track.duration_ms != null && (
+                    <Chip
+                      label={formatTime(track.duration_ms)}
+                      size="small"
+                      variant="outlined"
+                      sx={{ mt: 1 }}
+                    />
+                  )}
+                </CardContent>
+                <CardActions sx={{ pt: 0 }}>
+                  {!selectionMode && (
+                    <>
+                      <Tooltip title={t('tracks.play')}>
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => audioApi.play({ track_id: track.id })}
+                        >
+                          <PlayArrowIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {onEdit && (
+                        <Tooltip title={t('tracks.edit')}>
+                          <IconButton size="small" onClick={() => onEdit(track)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      <Tooltip title={t('tracks.delete')}>
+                        <IconButton size="small" color="error" onClick={() => setTrackToDelete(track)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
+                </CardActions>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <List dense>
+          {sorted.map((track, idx) => (
+            <React.Fragment key={track.id}>
+              {idx > 0 && <Divider component="li" />}
+              <ListItem
               secondaryAction={
                 !selectionMode && (
                   <Box>
@@ -279,6 +372,7 @@ export const TrackList: React.FC<TrackListProps> = ({
           </React.Fragment>
         ))}
       </List>
+      )}
 
       {/* Delete Confirmation */}
       <Dialog open={!!trackToDelete} onClose={() => setTrackToDelete(null)}>

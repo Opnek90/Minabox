@@ -160,25 +160,26 @@ class MQTTHandlers:
             )
 
             # Load content and create session
-            tag_id = tag.id
+            tag_db_id = tag.id
             if tag.content_type == "playlist":
-                await self._handle_playlist_playback(session, tag.content_id, tag_id=tag_id)
+                await self._handle_playlist_playback(session, tag.content_id, tag_id=tag_db_id)
             elif tag.content_type == "track":
-                await self._handle_track_playback(session, tag.content_id, tag_id=tag_id)
+                await self._handle_track_playback(session, tag.content_id, tag_id=tag_db_id)
             elif tag.content_type == "stream":
-                await self._handle_stream_playback(session, tag.content_id, tag_id=tag_id)
+                await self._handle_stream_playback(session, tag.content_id, tag_id=tag_db_id)
             elif tag.content_type == "podcast":
-                await self._handle_podcast_playback(session, tag.content_id, tag_id=tag_id)
+                await self._handle_podcast_playback(session, tag.content_id, tag_id=tag_db_id)
 
-            # Broadcast to WebUI
+            # Broadcast to WebUI (tag_id = RFID UID string for display and lookup)
             if self.websocket_manager:
                 await self.websocket_manager.broadcast(
                     {
                         "type": "rfid_scanned",
                         "data": {
-                            "tag_id": tag_id,
+                            "tag_id": tag.tag_id,
                             "content_type": tag.content_type,
                             "content_name": tag.name,
+                            "content_id": tag.content_id,
                             "timestamp": datetime.now(UTC).isoformat(),
                         },
                     }
@@ -315,6 +316,7 @@ class MQTTHandlers:
             logger.warning("podcast_no_episodes", podcast_id=podcast_id)
             return
 
+        podcast.last_played_at = datetime.now(UTC)
         event = PlaybackEvent(
             started_at=datetime.now(UTC),
             content_type="podcast",
@@ -483,6 +485,15 @@ class MQTTHandlers:
                             session.commit()
                     except (ValueError, IndexError):
                         pass
+                elif isinstance(track_id_raw, str) and track_id_raw.startswith("podcast-"):
+                    try:
+                        podcast_id = int(track_id_raw.split("-", 1)[1], 10)
+                        podcast = session.query(Podcast).filter(Podcast.id == podcast_id).first()
+                        if podcast and payload.get("state") == "playing":
+                            podcast.last_played_at = datetime.now(UTC)
+                            session.commit()
+                    except (ValueError, IndexError):
+                        pass
                 else:
                     try:
                         tid = int(track_id_raw)
@@ -555,6 +566,8 @@ class MQTTHandlers:
             await self._handle_repeat_cycle()
         elif action == "shuffle_toggle":
             await self._handle_shuffle_toggle()
+        elif action == "next_output_device":
+            await self.mqtt_client.publish_audio_command("switch-device", {"direction": "next"})
 
         # Broadcast to WebUI (normalized action with underscores for consistent label lookup)
         if self.websocket_manager:
@@ -696,12 +709,15 @@ class MQTTHandlers:
 
     @staticmethod
     def _read_allowed_usage_times() -> list[dict[str, Any]]:
-        """Read allowed_usage_times from general_settings.json. Empty list = no restriction."""
+        """Read allowed_usage_times from general_settings.json. Empty list = no restriction.
+        When usage_times_enabled is False, returns [] (no restriction)."""
         data_path = os.environ.get("DATA_PATH", "/data")
         gs_path = Path(data_path) / "general_settings.json"
         try:
             if gs_path.exists():
                 data = json.loads(gs_path.read_text(encoding="utf-8"))
+                if not bool(data.get("usage_times_enabled", False)):
+                    return []
                 raw = data.get("allowed_usage_times")
                 if isinstance(raw, list) and raw:
                     return [

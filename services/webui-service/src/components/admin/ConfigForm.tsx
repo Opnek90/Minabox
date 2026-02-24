@@ -14,6 +14,8 @@ import {
   IconButton,
   InputLabel,
   LinearProgress,
+  List,
+  ListItemButton,
   MenuItem,
   Select,
   Slider,
@@ -33,10 +35,17 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { useFormState } from '@/hooks/useFormState';
+import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import { systemApi } from '@/api/system';
 import { useThemeContext, COLOR_PRESETS, type ColorPresetKey } from '@/contexts/ThemeContext';
-import type { AudioConfig, RFIDConfig, GeneralConfig, AllowedUsageTimeSlot } from '@/types/api';
+import type {
+  AudioConfig,
+  AudioDeviceItem,
+  RFIDConfig,
+  GeneralConfig,
+  AllowedUsageTimeSlot,
+} from '@/types/api';
 
 
 const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
@@ -52,12 +61,20 @@ const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
 // Audio Config Form
 // ============================================================================
 
+function isDeviceEnabled(device: AudioDeviceItem, enabledList: string[] | undefined): boolean {
+  const list = enabledList ?? [];
+  if (list.length === 0) return true;
+  return list.includes(device.alsa_device);
+}
+
 export const AudioConfigForm: React.FC = () => {
   const { t } = useTranslation('admin');
   const { showSuccess } = useToast();
   const { saving, error, setError, run } = useFormState();
   const [config, setConfig] = useState<AudioConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [devices, setDevices] = useState<AudioDeviceItem[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
 
   useEffect(() => {
     configApi
@@ -66,6 +83,48 @@ export const AudioConfigForm: React.FC = () => {
       .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!config) return;
+    setDevicesLoading(true);
+    audioApi
+      .getDevices(false)
+      .then((r) => setDevices(r.devices ?? []))
+      .catch(() => setDevices([]))
+      .finally(() => setDevicesLoading(false));
+  }, [config]);
+
+  const handleRefreshDevices = () => {
+    setDevicesLoading(true);
+    audioApi
+      .getDevices(false)
+      .then((r) => setDevices(r.devices ?? []))
+      .catch(() => setDevices([]))
+      .finally(() => setDevicesLoading(false));
+  };
+
+  const handleDeviceEnabledChange = (device: AudioDeviceItem, enabled: boolean) => {
+    if (!config) return;
+    const list = config.enabled_output_devices ?? [];
+    if (enabled) {
+      setConfig({
+        ...config,
+        enabled_output_devices: list.includes(device.alsa_device) ? list : [...list, device.alsa_device],
+      });
+    } else {
+      if (list.length === 0) {
+        setConfig({
+          ...config,
+          enabled_output_devices: devices.filter((d) => d.alsa_device !== device.alsa_device).map((d) => d.alsa_device),
+        });
+      } else {
+        setConfig({
+          ...config,
+          enabled_output_devices: list.filter((a) => a !== device.alsa_device),
+        });
+      }
+    }
+  };
 
   const handleSave = () =>
     run(async () => {
@@ -94,6 +153,80 @@ export const AudioConfigForm: React.FC = () => {
         size="small"
         fullWidth
       />
+      <Divider sx={{ my: 1 }} />
+      <Typography variant="subtitle2" color="text.secondary">
+        {t('audio.output_devices_section')}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+        {t('audio.output_devices_bluetooth_hint')}
+      </Typography>
+      <Button
+        variant="outlined"
+        size="small"
+        onClick={handleRefreshDevices}
+        disabled={devicesLoading}
+        sx={{ alignSelf: 'flex-start' }}
+      >
+        {devicesLoading ? '…' : t('audio.output_devices_refresh')}
+      </Button>
+      {devices.length === 0 && !devicesLoading ? (
+        <Typography variant="body2" color="text.secondary">
+          {t('audio.output_devices_empty')}
+        </Typography>
+      ) : (
+        <List dense sx={{ bgcolor: 'action.hover', borderRadius: 1 }}>
+          {devices.map((d) => {
+            const enabled = isDeviceEnabled(d, config.enabled_output_devices);
+            const isCurrent = config.output_device_name === d.alsa_device;
+            const displayNames = config.device_display_names ?? {};
+            const displayName = displayNames[d.alsa_device] ?? '';
+            return (
+              <ListItemButton
+                key={d.alsa_device}
+                dense
+                sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.5 }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        size="small"
+                        checked={enabled}
+                        onChange={(_, checked) => handleDeviceEnabledChange(d, checked)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    }
+                    label=""
+                  />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body2" noWrap title={d.name}>
+                      {d.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap title={d.alsa_device}>
+                      {d.card_name}
+                      {isCurrent && ` · ${t('audio.output_devices_current')}`}
+                    </Typography>
+                  </Box>
+                </Box>
+                <TextField
+                  size="small"
+                  placeholder={t('audio.device_display_name_placeholder')}
+                  value={displayName}
+                  onChange={(e) => {
+                    const next = { ...displayNames };
+                    const v = e.target.value.trim();
+                    if (v) next[d.alsa_device] = v;
+                    else delete next[d.alsa_device];
+                    setConfig((p) => p ? { ...p, device_display_names: next } : p);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{ ml: 4, maxWidth: 280 }}
+                />
+              </ListItemButton>
+            );
+          })}
+        </List>
+      )}
       {config.resume_on_startup !== undefined && (
         <FormControlLabel
           control={

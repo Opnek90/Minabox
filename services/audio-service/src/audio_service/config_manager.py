@@ -53,8 +53,17 @@ class ConfigManager:
         try:
             raw_text = self._config_path.read_text(encoding="utf-8")
             data = json.loads(raw_text)
+            # Migrate ALSA to Pulse on first load after update
+            migrated = False
+            if data.get("output_device_type") == "alsa":
+                data["output_device_type"] = "pulseaudio"
+                data["output_device_name"] = ""
+                migrated = True
+                logger.info("audio_config_migrated_alsa_to_pulse")
             config = AudioConfig.model_validate(data)
             self._current_config = config
+            if migrated:
+                self._save_config(config)
             logger.info(
                 "config_loaded",
                 path=str(self._config_path),

@@ -25,4 +25,18 @@ export const streamsApi = {
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`/streams/${id}`);
   },
+
+  uploadCover: async (streamId: number, file: File): Promise<Stream> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<Stream>(`/streams/${streamId}/cover`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  deleteCover: async (streamId: number): Promise<Stream> => {
+    const response = await apiClient.delete<Stream>(`/streams/${streamId}/cover`);
+    return response.data;
+  },
 };

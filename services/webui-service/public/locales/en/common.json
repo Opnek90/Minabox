@@ -2,6 +2,7 @@
   "app_name": "Minabox",
   "dashboard": {
     "tabs": {
+      "overview": "Overview",
       "stats": "Statistics",
       "settings": "Parental Controls"
     },
@@ -10,7 +11,17 @@
     "daily_limit_enabled": "Daily limit enabled",
     "daily_limit_minutes": "Minutes per day",
     "minutes_today": "Listened today",
-    "remaining_minutes": "Remaining"
+    "minutes_total": "Total listened",
+    "remaining_minutes": "Remaining",
+    "tags_count": "RFID tags",
+    "tracks_count": "Tracks",
+    "streams_count": "Streams",
+    "podcasts_count": "Podcasts",
+    "playlists_count": "Playlists",
+    "reset_listening": "Reset listening times",
+    "reset_listening_confirm": "Really reset \"Listened today\" and \"Total listened\" to 0? All listening statistics will be lost.",
+    "reset_success": "Listening times reset",
+    "reset_error": "Reset failed"
   },
   "navigation": {
     "player": "Player",

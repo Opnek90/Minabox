@@ -321,6 +321,43 @@ export const systemApi = {
     );
     return response.data;
   },
+
+  /** List paired Bluetooth devices. Requires Host-Helper. */
+  bluetoothPaired: async (): Promise<{
+    devices: Array<{ address: string; name: string | null; connected?: boolean }>;
+  }> => {
+    const response = await apiClient.get<{
+      devices: Array<{ address: string; name: string | null; connected?: boolean }>;
+    }>('/system/bluetooth/paired');
+    return response.data;
+  },
+
+  /** Connect to paired Bluetooth device. Requires Host-Helper. */
+  bluetoothConnect: async (address: string): Promise<{ ok: boolean; address?: string }> => {
+    const response = await apiClient.post<{ ok: boolean; address?: string }>(
+      '/system/bluetooth/connect',
+      { address },
+    );
+    return response.data;
+  },
+
+  /** Disconnect Bluetooth device. Requires Host-Helper. */
+  bluetoothDisconnect: async (address: string): Promise<{ ok: boolean; address?: string }> => {
+    const response = await apiClient.post<{ ok: boolean; address?: string }>(
+      '/system/bluetooth/disconnect',
+      { address },
+    );
+    return response.data;
+  },
+
+  /** Remove (unpair) Bluetooth device. Requires Host-Helper. */
+  bluetoothRemove: async (address: string): Promise<{ ok: boolean; address?: string }> => {
+    const response = await apiClient.post<{ ok: boolean; address?: string }>(
+      '/system/bluetooth/remove',
+      { address },
+    );
+    return response.data;
+  },
 };
 
 export interface UsbDevice {

@@ -19,7 +19,7 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install VLC and ALSA runtime dependencies
+# Install VLC, ALSA and Pulse/PipeWire CLI for sink discovery
 # Note: Debian Trixie only has 'vlc' (not vlc-nox)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     vlc \
@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vlc-plugin-access-extra \
     libasound2 \
     alsa-utils \
+    pulseaudio-utils \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

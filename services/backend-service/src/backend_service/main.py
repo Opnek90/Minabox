@@ -62,6 +62,17 @@ class BackendService:
         except Exception as exc:
             logger.warning("migration_failed", error=str(exc))
 
+        # Ensure audio storage path exists (fail fast if volume is not writable)
+        try:
+            Path(self.config.audio_storage_path).mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.warning(
+                "audio_storage_path_unusable",
+                path=self.config.audio_storage_path,
+                error=str(e),
+                hint="Ensure volume is mounted read-write and host path is writable (e.g. chown 1000:1000).",
+            )
+
         # Initialize MQTT client
         logger.info("initializing_mqtt_client")
         self._mqtt_client = MQTTClient(self.config)

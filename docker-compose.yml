@@ -184,6 +184,7 @@ services:
       - ./services/audio-service/state:/app/state
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio:ro
       - /run/user/1000/pulse:/run/user/1000/pulse:ro
+      - ./.cursor:/cursor-debug
     networks:
       - minabox-network
     depends_on:

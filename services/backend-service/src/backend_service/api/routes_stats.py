@@ -12,8 +12,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
-from backend_service.core.playback_stats import get_today_listened_minutes
-from backend_service.models.database import PlaybackEvent, Playlist, Tag
+from backend_service.core.playback_stats import get_today_listened_minutes, get_total_listened_minutes
+from backend_service.models.database import PlaybackEvent, Playlist, Podcast, Stream, Tag, Track
 
 router = APIRouter()
 
@@ -69,6 +69,58 @@ class UsageTodayResponse(BaseModel):
     minutes_today: float
     daily_limit_enabled: bool
     daily_limit_minutes: int
+
+
+class OverviewResponse(BaseModel):
+    """Dashboard overview: listening minutes and media counts."""
+    minutes_today: float
+    minutes_total: float
+    daily_limit_enabled: bool
+    daily_limit_minutes: int
+    tags_count: int
+    tracks_count: int
+    streams_count: int
+    podcasts_count: int
+    playlists_count: int
+
+
+@router.get(
+    "/overview",
+    response_model=OverviewResponse,
+    summary="Dashboard overview (minutes + counts)",
+)
+async def get_overview(db: Session = Depends(get_db)) -> OverviewResponse:
+    """Return listening minutes (today/total) and counts for tags, tracks, streams, podcasts, playlists."""
+    minutes_today = get_today_listened_minutes(db)
+    minutes_total = get_total_listened_minutes(db)
+    daily_limit_enabled, daily_limit_minutes = _read_daily_limit()
+    tags_count = db.query(Tag).count()
+    tracks_count = db.query(Track).count()
+    streams_count = db.query(Stream).count()
+    podcasts_count = db.query(Podcast).count()
+    playlists_count = db.query(Playlist).count()
+    return OverviewResponse(
+        minutes_today=round(minutes_today, 1),
+        minutes_total=round(minutes_total, 1),
+        daily_limit_enabled=daily_limit_enabled,
+        daily_limit_minutes=daily_limit_minutes,
+        tags_count=tags_count,
+        tracks_count=tracks_count,
+        streams_count=streams_count,
+        podcasts_count=podcasts_count,
+        playlists_count=playlists_count,
+    )
+
+
+@router.post(
+    "/reset",
+    status_code=204,
+    summary="Reset listening statistics (Parent Dashboard)",
+)
+async def reset_listening_stats(db: Session = Depends(get_db)) -> None:
+    """Delete all playback events. Heute gehört and Gesamt gehört become 0."""
+    db.query(PlaybackEvent).delete()
+    db.commit()
 
 
 @router.get(

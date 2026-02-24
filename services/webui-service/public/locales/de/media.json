@@ -1,14 +1,18 @@
 {
   "title": "Mediathek",
+  "view_mode_card": "Kartenansicht",
+  "view_mode_list": "Listenansicht",
   "tabs": {
     "playlists": "Playlists",
     "tracks": "Tracks",
-    "streams": "Streams"
+    "streams": "Streams",
+    "podcasts": "Podcasts"
   },
   "playlists": {
     "title": "Playlists",
     "no_playlists": "Noch keine Playlists vorhanden",
     "create": "Neue Playlist",
+    "add_playlist": "Playlist hinzufügen",
     "play": "Abspielen",
     "edit": "Playlist bearbeiten",
     "delete": "Playlist löschen",
@@ -18,6 +22,7 @@
     "track_count_plural": "{{count}} Tracks",
     "track_count_label": "Tracks",
     "upload_cover": "Cover-Bild hochladen",
+    "clear_cover": "Cover abwählen",
     "fields": {
       "name": "Name",
       "name_placeholder": "Playlist-Name eingeben",
@@ -106,9 +111,17 @@
   },
   "streams": {
     "no_streams": "Keine Streams",
+    "edit": "Stream bearbeiten",
     "delete": "Stream löschen",
     "delete_confirm": "Stream \"{{title}}\" wirklich löschen?",
     "search_placeholder": "Streams suchen...",
+    "cover": "Cover",
+    "upload_cover": "Cover hochladen",
+    "remove_cover": "Cover entfernen",
+    "updated": "Stream aktualisiert",
+    "update_error": "Stream konnte nicht gespeichert werden",
+    "cover_removed": "Cover entfernt",
+    "cover_error": "Cover konnte nicht hochgeladen werden",
     "fields": {
       "title": "Titel",
       "artist": "Künstler",
@@ -119,5 +132,38 @@
       "desc": "Absteigend",
       "last_played": "Zuletzt gespielt"
     }
+  },
+  "podcasts": {
+    "add": "Podcast hinzufügen",
+    "no_podcasts": "Keine Podcasts",
+    "edit": "Podcast bearbeiten",
+    "delete": "Podcast löschen",
+    "delete_confirm": "Podcast \"{{title}}\" und alle Folgen wirklich löschen?",
+    "search_placeholder": "Podcasts suchen...",
+    "cover": "Cover",
+    "upload_cover": "Cover hochladen",
+    "remove_cover": "Cover entfernen",
+    "updated": "Podcast aktualisiert",
+    "update_error": "Podcast konnte nicht gespeichert werden",
+    "cover_removed": "Cover entfernt",
+    "cover_error": "Cover konnte nicht hochgeladen werden",
+    "fields": {
+      "title": "Titel",
+      "description": "Beschreibung",
+      "last_fetched": "Zuletzt abgerufen",
+      "last_played": "Zuletzt gespielt",
+      "rss_url": "RSS-Feed-URL"
+    },
+    "latest_episode": "Neueste Folge",
+    "last_played": "Zuletzt gespielt",
+    "last_fetched_label": "Zuletzt abgerufen",
+    "sort": {
+      "asc": "Aufsteigend",
+      "desc": "Absteigend"
+    },
+    "created": "Podcast hinzugefügt",
+    "deleted": "Podcast gelöscht",
+    "delete_error": "Podcast konnte nicht gelöscht werden",
+    "create_error": "Podcast konnte nicht hinzugefügt werden"
   }
 }

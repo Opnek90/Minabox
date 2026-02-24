@@ -26,7 +26,7 @@
       "sw": null,
       "actions": {
         "short_press": "play_pause",
-        "long_press": "next",
+        "long_press": "next_output_device",
         "double_press": "sleep_timer_toggle"
       }
     }

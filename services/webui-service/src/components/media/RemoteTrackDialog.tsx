@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import type { Track } from '@/types/api';
 import { tracksApi } from '@/api/tracks';
+import { CoverUploadField } from './CoverUploadField';
 
 interface RemoteTrackDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
   const [artist, setArtist] = useState('');
   const [album, setAlbum] = useState('');
   const [sourceUri, setSourceUri] = useState('');
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   const isValid = title.trim() && sourceUri.trim();
@@ -37,13 +39,16 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
     if (!isValid) return;
     setLoading(true);
     try {
-      const track = await tracksApi.create({
+      let track = await tracksApi.create({
         title: title.trim(),
         artist: artist.trim() || null,
         album: album.trim() || null,
         source_type: 'remote',
         source_uri: sourceUri.trim(),
       });
+      if (coverFile) {
+        track = await tracksApi.uploadCover(track.id, coverFile);
+      }
       onSuccess(track);
       handleReset();
       onClose();
@@ -63,6 +68,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
     setArtist('');
     setAlbum('');
     setSourceUri('');
+    setCoverFile(null);
   };
 
   const handleClose = () => {
@@ -76,6 +82,12 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
         {t('tracks.add_remote', { defaultValue: 'Remote-Track hinzufügen' })}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
+        <CoverUploadField
+          displayUrl={coverFile ? URL.createObjectURL(coverFile) : null}
+          coverFile={coverFile}
+          onFileSelect={(file) => setCoverFile(file)}
+          onRemove={() => setCoverFile(null)}
+        />
         <TextField
           label={t('tracks.fields.title')}
           value={title}

@@ -12,18 +12,26 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  Divider,
   Grid,
   IconButton,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
-import ImageIcon from '@mui/icons-material/Image';
 import UploadIcon from '@mui/icons-material/Upload';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { useTranslation } from 'react-i18next';
@@ -31,6 +39,7 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Playlist, PlaylistDetail, Track } from '@/types/api';
 import { playlistsApi } from '@/api/playlists';
 import { audioApi } from '@/api/audio';
+import { CoverUploadField } from './CoverUploadField';
 import { PlaylistTracksDialog } from './PlaylistTracksDialog';
 
 
@@ -45,6 +54,7 @@ interface PlaylistListProps {
 interface PlaylistFormData {
   name: string;
   description: string;
+  coverFile: File | null;
 }
 
 
@@ -60,23 +70,44 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
-  const [formData, setFormData] = useState<PlaylistFormData>({ name: '', description: '' });
+  const [formData, setFormData] = useState<PlaylistFormData>({ name: '', description: '', coverFile: null });
   const [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(false);
   const [tracksDialogPlaylist, setTracksDialogPlaylist] = useState<PlaylistDetail | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [coverTargetId, setCoverTargetId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
 
   const handleOpenCreate = () => {
     setEditingPlaylist(null);
-    setFormData({ name: '', description: '' });
+    setFormData({ name: '', description: '', coverFile: null });
     setFormOpen(true);
   };
 
   const handleOpenEdit = (pl: Playlist) => {
     setEditingPlaylist(pl);
-    setFormData({ name: pl.name, description: pl.description ?? '' });
+    setFormData({ name: pl.name, description: pl.description ?? '', coverFile: null });
     setFormOpen(true);
+  };
+
+  const handleClearCoverInForm = () => {
+    setFormData((p) => ({ ...p, coverFile: null }));
+  };
+
+  const handleRemoveCoverInForm = () => {
+    if (formData.coverFile) {
+      setFormData((p) => ({ ...p, coverFile: null }));
+      return;
+    }
+    if (editingPlaylist?.cover_art_url) {
+      playlistsApi
+        .deleteCover(editingPlaylist.id)
+        .then((updated) => {
+          onUpdate(updated);
+          setEditingPlaylist(updated);
+        })
+        .catch(() => showError(t('playlists.cover_error', { defaultValue: 'Cover konnte nicht entfernt werden' })));
+    }
   };
 
   const handleSave = async () => {
@@ -84,10 +115,13 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     setLoading(true);
     try {
       if (editingPlaylist) {
-        const updated = await playlistsApi.update(editingPlaylist.id, {
+        let updated = await playlistsApi.update(editingPlaylist.id, {
           name: formData.name.trim(),
           description: formData.description.trim() || null,
         });
+        if (formData.coverFile) {
+          updated = await playlistsApi.uploadCover(editingPlaylist.id, formData.coverFile);
+        }
         onUpdate(updated);
         showSuccess(t('playlists.updated', { defaultValue: 'Playlist aktualisiert' }));
       } else {
@@ -95,7 +129,12 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           name: formData.name.trim(),
           description: formData.description.trim() || null,
         });
-        onCreate(created);
+        if (formData.coverFile) {
+          const withCover = await playlistsApi.uploadCover(created.id, formData.coverFile);
+          onCreate(withCover);
+        } else {
+          onCreate(created);
+        }
         showSuccess(t('playlists.created', { defaultValue: 'Playlist erstellt' }));
       }
       setFormOpen(false);
@@ -149,9 +188,22 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 
   return (
     <Box>
-      <Box display="flex" justifyContent="flex-end" mb={2}>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate}>
-          {t('playlists.create')}
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(_, v) => v && setViewMode(v)}
+          size="small"
+        >
+          <ToggleButton value="card" aria-label={t('view_mode_card')}>
+            <ViewModuleIcon />
+          </ToggleButton>
+          <ToggleButton value="list" aria-label={t('view_mode_list')}>
+            <ViewListIcon />
+          </ToggleButton>
+        </ToggleButtonGroup>
+        <Button variant="contained" startIcon={<PlaylistAddIcon />} onClick={handleOpenCreate}>
+          {t('playlists.add_playlist')}
         </Button>
       </Box>
 
@@ -159,6 +211,78 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         <Box display="flex" justifyContent="center" py={6}>
           <Typography color="text.secondary">{t('playlists.no_playlists')}</Typography>
         </Box>
+      ) : viewMode === 'list' ? (
+        <List dense>
+          {playlists.map((pl, idx) => (
+            <React.Fragment key={pl.id}>
+              {idx > 0 && <Divider component="li" />}
+              <ListItem
+                secondaryAction={
+                  <Box>
+                    <Tooltip title={t('playlists.play')}>
+                      <IconButton size="small" color="primary" onClick={() => handlePlay(pl)}>
+                        <PlayArrowIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('playlists.edit_tracks')}>
+                      <IconButton size="small" onClick={() => handleOpenTracksDialog(pl)}>
+                        <QueueMusicIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('playlists.upload_cover')}>
+                      <IconButton
+                        size="small"
+                        onClick={() => { setCoverTargetId(pl.id); coverInputRef.current?.click(); }}
+                      >
+                        <UploadIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('playlists.edit')}>
+                      <IconButton size="small" onClick={() => handleOpenEdit(pl)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('playlists.delete')}>
+                      <IconButton size="small" color="error" onClick={() => setDeleteTarget(pl)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                }
+              >
+                <ListItemAvatar sx={{ minWidth: 52 }}>
+                  {pl.cover_art_url ? (
+                    <Box
+                      component="img"
+                      src={pl.cover_art_url}
+                      alt=""
+                      sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1 }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 1,
+                        bgcolor: 'action.hover',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <PlaylistPlayIcon sx={{ color: 'text.disabled', fontSize: 24 }} />
+                    </Box>
+                  )}
+                </ListItemAvatar>
+                <ListItemText
+                  primary={pl.name}
+                  secondary={pl.description ?? (pl.tracks !== undefined ? `${pl.tracks.length} ${t('playlists.track_count_label')}` : null)}
+                  primaryTypographyProps={{ fontWeight: 600 }}
+                />
+              </ListItem>
+            </React.Fragment>
+          ))}
+        </List>
       ) : (
         <>
           <Grid container spacing={2}>
@@ -168,8 +292,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                   variant="outlined"
                   sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
                 >
-                  {/* Cover Art */}
-                  {pl.cover_art_url ? (
+                  {pl.cover_art_url && (
                     <CardMedia
                       component="img"
                       height="120"
@@ -177,21 +300,6 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                       alt={pl.name}
                       sx={{ objectFit: 'cover' }}
                     />
-                  ) : (
-                    <Box
-                      sx={{
-                        height: 80,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: 'action.hover',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => { setCoverTargetId(pl.id); coverInputRef.current?.click(); }}
-                      title={t('playlists.upload_cover')}
-                    >
-                      <ImageIcon sx={{ color: 'text.disabled', fontSize: 32 }} />
-                    </Box>
                   )}
 
                   <CardContent sx={{ pb: 0, flex: 1 }}>
@@ -264,19 +372,21 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
             ))}
           </Grid>
 
-          {/* Hidden cover file input */}
-          <input
-            ref={coverInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleCoverUpload(f);
-              e.target.value = '';
-            }}
-          />
         </>
+      )}
+
+      {playlists.length > 0 && (
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleCoverUpload(f);
+            e.target.value = '';
+          }}
+        />
       )}
 
       {/* Create / Edit Dialog */}
@@ -285,6 +395,16 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           {editingPlaylist ? t('playlists.edit') : t('playlists.create')}
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
+          <CoverUploadField
+            displayUrl={
+              formData.coverFile
+                ? URL.createObjectURL(formData.coverFile)
+                : editingPlaylist?.cover_art_url ?? null
+            }
+            coverFile={formData.coverFile}
+            onFileSelect={(file) => setFormData((p) => ({ ...p, coverFile: file }))}
+            onRemove={editingPlaylist ? handleRemoveCoverInForm : handleClearCoverInForm}
+          />
           <TextField
             label={t('playlists.fields.name')}
             placeholder={t('playlists.fields.name_placeholder')}

@@ -37,4 +37,18 @@ export const podcastsApi = {
     );
     return response.data;
   },
+
+  uploadCover: async (podcastId: number, file: File): Promise<Podcast> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<Podcast>(`/podcasts/${podcastId}/cover`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  deleteCover: async (podcastId: number): Promise<Podcast> => {
+    const response = await apiClient.delete<Podcast>(`/podcasts/${podcastId}/cover`);
+    return response.data;
+  },
 };

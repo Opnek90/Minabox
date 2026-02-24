@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Drawer,
   IconButton,
   Typography,
@@ -17,6 +18,13 @@ import { useWebSocket } from '@/contexts/WebSocketContext';
 import type { RFIDScannedMessage, Tag } from '@/types/api';
 import { tagsApi } from '@/api/tags';
 
+const AUTO_CLOSE_SEC = 5;
+
+/** Normalize tag id for comparison (UID string, case-insensitive, trim). */
+function normalizeTagId(id: string | number): string {
+  return String(id).trim().toLowerCase();
+}
+
 interface RfidScanDrawerProps {
   onAssignNew: (tagId: string) => void;
 }
@@ -30,31 +38,66 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
   const [scannedTagId, setScannedTagId] = useState<string | null>(null);
   const [existingTag, setExistingTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(AUTO_CLOSE_SEC);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const handleClose = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setOpen(false);
+    setScannedTagId(null);
+    setExistingTag(null);
+    setCountdown(AUTO_CLOSE_SEC);
+  }, []);
+
+  // Reagieren auf rfid_scanned: Drawer öffnen, Tag laden (ohne Countdown hier zu starten)
   useEffect(() => {
     if (lastMessage?.type !== 'rfid_scanned') return;
     const msg = lastMessage as RFIDScannedMessage;
-    const tagId = msg.data.tag_id;
-    setScannedTagId(tagId);
+    const rawTagId = msg.data.tag_id;
+    const tagIdStr = String(rawTagId).trim();
+    setScannedTagId(tagIdStr);
     setExistingTag(null);
+    setCountdown(AUTO_CLOSE_SEC);
     setOpen(true);
 
-    // Try to look up existing tag
     setLoading(true);
     tagsApi.getAll()
       .then((tags) => {
-        const found = tags.find((t) => t.tag_id === tagId) ?? null;
+        const normalized = normalizeTagId(rawTagId);
+        const found = tags.find((tag) => normalizeTagId(tag.tag_id) === normalized) ?? null;
         setExistingTag(found);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [lastMessage]);
 
-  const handleClose = () => {
-    setOpen(false);
-    setScannedTagId(null);
-    setExistingTag(null);
-  };
+  // Countdown nur von open abhängig – bleibt laufen, auch wenn lastMessage sich ändert (z. B. audio_status)
+  useEffect(() => {
+    if (!open) return;
+    setCountdown(AUTO_CLOSE_SEC);
+    timerRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          handleClose();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [open, handleClose]);
 
   const handleAssign = () => {
     if (!scannedTagId) return;
@@ -93,17 +136,47 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
         }}
       />
 
-      {/* Header */}
+      {/* Header with countdown */}
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
         <Box display="flex" alignItems="center" gap={1}>
           <NfcIcon color="primary" />
           <Typography variant="h6" fontWeight={700}>
-            {t('drawer.title', { defaultValue: 'Karte erkannt' })}
+            {t('drawer.title')}
           </Typography>
         </Box>
-        <IconButton size="small" onClick={handleClose}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+            <CircularProgress
+              variant="determinate"
+              value={(countdown / AUTO_CLOSE_SEC) * 100}
+              size={40}
+              thickness={3}
+              sx={{ color: 'primary.main' }}
+            />
+            <Box
+              sx={{
+                top: 0,
+                left: 0,
+                bottom: 0,
+                right: 0,
+                position: 'absolute',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Typography variant="caption" component="span" fontWeight={700} color="primary.main">
+                {countdown}
+              </Typography>
+            </Box>
+          </Box>
+          <Typography variant="caption" color="text.secondary">
+            {t('drawer.closes_in')}
+          </Typography>
+          <IconButton size="small" onClick={handleClose}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
       </Box>
 
       {/* Tag ID */}
@@ -113,7 +186,7 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
 
       {loading ? (
         <Typography variant="body2" color="text.secondary">
-          {t('drawer.loading', { defaultValue: 'Suche Tag…' })}
+          {t('drawer.loading')}
         </Typography>
       ) : existingTag ? (
         /* ── Known tag ──────────────────────────────────────────────── */
@@ -156,7 +229,7 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
             {t('notification.unknown_tag')}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {t('drawer.assign_hint', { defaultValue: 'Dieser Karte ist noch kein Inhalt zugewiesen.' })}
+            {t('drawer.assign_hint')}
           </Typography>
         </Box>
       )}

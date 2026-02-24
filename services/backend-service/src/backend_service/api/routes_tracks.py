@@ -132,7 +132,68 @@ async def create_track(
     db.refresh(track)
 
     logger.info("api_track_created", track_id=track.id, title=track.title)
-    return track
+    return TrackResponse.model_validate(track)
+
+
+@router.post("/{track_id}/cover", response_model=TrackResponse)
+async def upload_track_cover(
+    track_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> TrackResponse:
+    """Upload cover art for a track."""
+    track = db.query(Track).filter(Track.id == track_id).first()
+    if not track:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": {
+                    "code": "TRACK_NOT_FOUND",
+                    "message": f"Track {track_id} not found",
+                    "details": {"track_id": track_id},
+                }
+            },
+        )
+    COVERS_DIR.mkdir(parents=True, exist_ok=True)
+    # Use same naming as _extract_cover_art: track_{id}.jpg
+    cover_path = COVERS_DIR / f"track_{track_id}.jpg"
+    content = await file.read()
+    cover_path.write_bytes(content)
+    track.cover_art_url = f"/static/covers/track_{track_id}.jpg"
+    db.commit()
+    db.refresh(track)
+    logger.info("track_cover_uploaded", track_id=track_id)
+    return TrackResponse.model_validate(track)
+
+
+@router.delete("/{track_id}/cover", response_model=TrackResponse)
+async def delete_track_cover(
+    track_id: int,
+    db: Session = Depends(get_db),
+) -> TrackResponse:
+    """Remove cover art from a track."""
+    track = db.query(Track).filter(Track.id == track_id).first()
+    if not track:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": {
+                    "code": "TRACK_NOT_FOUND",
+                    "message": f"Track {track_id} not found",
+                    "details": {"track_id": track_id},
+                }
+            },
+        )
+    # Remove any existing cover (extract might have used .png)
+    for ext in (".jpg", ".png"):
+        p = COVERS_DIR / f"track_{track_id}{ext}"
+        if p.exists():
+            p.unlink()
+    track.cover_art_url = None
+    db.commit()
+    db.refresh(track)
+    logger.info("track_cover_deleted", track_id=track_id)
+    return TrackResponse.model_validate(track)
 
 
 @router.put("/{track_id}", response_model=TrackResponse)
@@ -262,6 +323,30 @@ async def upload_track(
         logger.info("api_upload_track_completed", track_id=track.id, title=track.title)
         return track
 
+    except OSError as e:
+        logger.error("api_upload_track_failed", error=str(e))
+        db.rollback()
+        if e.errno == 13:  # EACCES
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": {
+                        "code": "AUDIO_STORAGE_READONLY",
+                        "message": "Audio storage path is not writable. Ensure the volume is mounted read-write and the directory exists on the host (e.g. mkdir -p <AUDIO_FILES_PATH>/tracks && chown 1000:1000 <AUDIO_FILES_PATH>).",
+                        "details": {"path": config.audio_storage_path, "filename": file.filename},
+                    }
+                },
+            ) from e
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": {
+                    "code": "UPLOAD_FAILED",
+                    "message": f"Failed to upload track: {str(e)}",
+                    "details": {"filename": file.filename},
+                }
+            },
+        ) from e
     except Exception as e:
         logger.error("api_upload_track_failed", error=str(e))
         db.rollback()

@@ -34,6 +34,12 @@
     "created_at": "Created At",
     "last_scanned": "Last scanned"
   },
+  "drawer": {
+    "title": "Card detected",
+    "loading": "Looking up tag…",
+    "assign_hint": "No content assigned to this card yet.",
+    "closes_in": "closes in"
+  },
   "notification": {
     "recognized": "Tag recognized: {{name}}",
     "unknown_tag": "Unknown tag scanned",

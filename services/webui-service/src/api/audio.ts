@@ -1,5 +1,6 @@
 import apiClient from './client';
 import type {
+  AudioDevicesResponse,
   AudioSessionResponse,
   AudioStatus,
   PlayRequest,
@@ -63,5 +64,28 @@ export const audioApi = {
 
   setShuffle: async (shuffle: boolean): Promise<void> => {
     await apiClient.post('/audio/shuffle', { shuffle });
+  },
+
+  getDevices: async (enabledOnly = false): Promise<AudioDevicesResponse> => {
+    const response = await apiClient.get<AudioDevicesResponse>('/audio/devices', {
+      params: { enabled_only: enabledOnly },
+    });
+    return response.data;
+  },
+
+  switchDevice: async (alsaDevice: string): Promise<AudioStatus> => {
+    const response = await apiClient.post<{ status: AudioStatus; timestamp: string }>(
+      '/audio/switch-device',
+      { alsa_device: alsaDevice }
+    );
+    return response.data.status;
+  },
+
+  switchDeviceNext: async (): Promise<AudioStatus> => {
+    const response = await apiClient.post<{ status: AudioStatus; timestamp: string }>(
+      '/audio/switch-device',
+      { direction: 'next' }
+    );
+    return response.data.status;
   },
 };
