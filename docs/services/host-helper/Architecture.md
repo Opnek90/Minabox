@@ -41,8 +41,8 @@ Der Host-Helper stellt eine HTTP-API bereit (FastAPI). Alle Endpoints außer `GE
 
 ### Audio-Pfad
 
-- **`GET /audio-path`** – Aktueller konfigurierter Audio-Pfad (vom Host aus gelesen). Response: z.B. `{ "path": "/mnt/audio", ... }`.
-- **`POST /apply-audio-path`** – Audio-Pfad setzen. Request-Body: Zielpfad (z.B. `{ "path": "/media/usb0/music" }`). Validierung gegen Allowlist; Pfad wird in Host-Konfiguration geschrieben.
+- **`GET /audio-path`** – Liest `AUDIO_FILES_PATH` aus der `.env`-Datei. Response: `{ "audio_files_path": "/mnt/audio" }` oder `null`, wenn nicht gesetzt.
+- **`POST /apply-audio-path`** – Audio-Pfad setzen. Request-Body: `{ "audio_files_path": "/media/usb0/music" }`. Validierung gegen Allowlist; Wert wird in der Host-`.env` geschrieben (für nächsten Start).
 
 ### Verschiebung (Move)
 
@@ -63,11 +63,81 @@ Der Host-Helper stellt eine HTTP-API bereit (FastAPI). Alle Endpoints außer `GE
   - **Sicherheit:** Nur Container-Namen aus der Allowlist sind erlaubt (Präfix `minabox-`, alphanumerisch und Bindestriche). Path-Traversal und beliebige Namen werden abgelehnt (HTTP 400). API-Key erforderlich.
   - Das Backend ruft diesen Endpoint für die Admin-Log-Anzeige auf (`GET /api/v1/system/logs?service=...`), da der Host-Helper Zugriff auf die Docker-API hat; das Backend muss keinen Docker-Socket mounten.
 
+### WiFi & Hotspot
+
+- **`GET /wifi/scan`** – Verfügbare WLAN-Netzwerke (SSID, Signal). Nutzt Host-Netzwerk-Namespace (nmcli) damit wlan0 sichtbar ist.
+- **`POST /wifi/connect`** – Verbindung zu WLAN (Body: `ssid`, `password`).
+- **`POST /wifi/hotspot/start`** – Hotspot starten (Body optional: `ssid`, `password`; Default SSID: Minabox-Setup).
+- **`POST /wifi/hotspot/stop`** – Hotspot stoppen.
+- **`GET /wifi/hotspot/status`** – Ob Hotspot aktiv ist.
+
+### USB
+
+- **`GET /usb/devices`** – USB-Blockgeräte auflisten (lsblk, TRAN=usb): id, device, size, fstype, mountpoint, label.
+- **`GET /usb/{device_id}/files`** – Dateien/Ordner auf gemountetem USB-Gerät (device_id z.B. sda1). Bei Bedarf wird per udisksctl gemountet.
+- **`POST /usb/import`** – Ausgewählte Pfade von USB nach AUDIO_STORAGE_PATH kopieren (Body: `device_id`, `source_paths`).
+- **`POST /usb/eject`** – USB-Gerät unmounten und power-off (udisksctl).
+
+### Backup & Restore
+
+- **`GET /backup/download`** – ZIP erstellen: minabox.db, general_settings.json, static/, audio_state.json, LED/Button/Display-Config. Response: ZIP-Datei (Attachment).
+- **`POST /backup/restore`** – ZIP hochladen; Container stoppen, entpacken in Workspace, Container starten. Nur erlaubte Pfade (data/, services/*/state|config).
+
+### Host-System (erweitert)
+
+- **`GET /host-status`** – Host-Infos (hostname, ip, uptime_seconds, memory, cpu, disk) aus gemounteten Host-Pfaden (/host/proc, /host/etc/hostname).
+- **`POST /reboot`** – Host-Neustart (nsenter, /sbin/reboot).
+- **`POST /shutdown`** – Host herunterfahren (nsenter, /sbin/shutdown -h now).
+- **`POST /restart`** – Minabox-Container neustarten (nsenter, docker compose restart im Projektverzeichnis).
+
+### Zeit & Hostname
+
+- **`PUT /system/timezone`** – Zeitzone setzen (Body: `timezone`, z.B. Europe/Berlin; timedatectl im chroot).
+- **`GET /system/time-status`** – Zeitzone, NTP-Sync, lokale Zeit (timedatectl status).
+- **`GET /system/hostname`** – Aktueller Hostname (/host/etc/hostname).
+- **`PUT /system/hostname`** – Hostname setzen (hostnamectl), /etc/hosts anpassen.
+
+### Board-LEDs (Stealth)
+
+- **`GET /system/board-leds`** – Status Power-/Activity-LED (stealth on/off).
+- **`PUT /system/board-leds`** – Stealth-Modus setzen (Body: `stealth`). Schreibt sysfs und config.txt für Persistenz nach Reboot.
+
+### Netzwerk (IP-Konfiguration)
+
+- **`GET /system/network`** – Aktuelle IPv4-Konfiguration (DHCP/manual, address, gateway, dns) der aktiven Verbindung (nmcli).
+- **`PUT /system/network`** – IPv4 setzen (Body: `method` dhcp|manual, `address`, `netmask`, `gateway`, `dns`). Nutzt Host-Netzwerk-Namespace.
+
+### Passwort & SSH
+
+- **`POST /system/password`** – System-User-Passwort ändern (chpasswd im chroot; nur konfigurierter User, z.B. pi).
+- **`GET /system/ssh-status`** – SSH enabled/active (systemctl is-enabled/is-active ssh).
+- **`POST /system/ssh-toggle`** – SSH ein-/ausschalten (Body: `enable`).
+
+### Syslog & Docker
+
+- **`GET /syslog`** – Letzte N Zeilen Host-Syslog (journalctl -k oder -u docker) oder Fallback /var/log/syslog. Query: `n`, `source` (kernel|docker).
+- **`POST /system/docker-prune`** – Auf dem Host `docker system prune -f` ausführen (nsenter).
+
+### Factory Reset & Update
+
+- **`POST /system/factory-reset`** – DB löschen, general_settings zurücksetzen, optional Audio-Storage leeren, Hotspot starten, Container neustarten. Body optional: `delete_audio`.
+- **`POST /system/update-minabox`** – docker compose pull && up -d im Workspace.
+- **`GET /system/version`** – Aktueller Commit (git), ob Update verfügbar (origin/main ahead).
+- **`POST /system/update-os`** – apt-get update && upgrade auf dem Host im Hintergrund starten.
+- **`GET /system/update-os/log`** – Log und Laufstatus des OS-Updates.
+
+### Bluetooth
+
+- **`GET /bluetooth/scan`** – Bluetooth-Geräte scannen (bluetoothctl auf Host via nsenter; Scan ~12s).
+- **`POST /bluetooth/pair`** – Gerät paaren (Body: `address`). Anschließend trust.
+- **`GET /bluetooth/paired`** – Nur gepaarte Geräte (address, name, connected).
+- **`POST /bluetooth/connect`** – Verbinden (Body: `address`).
+- **`POST /bluetooth/disconnect`** – Trennen (Body: `address`).
+- **`POST /bluetooth/remove`** – Gerät entfernen (unpair) (Body: `address`).
+
 ### Geplant (später, optional)
 
-- Mounts auflisten (z.B. verfügbare Laufwerke/Partitionen)
-- Netz-Konfiguration (z.B. IP-Adresse ändern)
-- Passwort ändern (z.B. Root-/User-Passwort)
+- Mounts auflisten (z.B. verfügbare Laufwerke/Partitionen) – teilweise durch USB-API abgedeckt
 
 ---
 

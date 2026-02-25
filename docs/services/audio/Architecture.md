@@ -1,8 +1,8 @@
 # Audio-Service – Architecture
 
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Status**: Production Ready ✅  
-**Last Updated**: 2026-02-16
+**Last Updated**: 2026-02-25
 
 ## 1. Zweck & Verantwortung
 
@@ -13,7 +13,8 @@ Er erhält Steuerbefehle (z.B. `play`, `pause`, `stop`, `next`, `prev`, `set_vol
 
 - **Robuste Audio-Wiedergabe**: Abspielen von Audioinhalten (Dateien und Streams) über VLC (libVLC)
 - **Automatische Hardware-Erkennung**: Erkennung und Priorisierung verfügbarer Audio-Hardware (HATs, USB, onboard)
-- **Flexible Ausgabe**: Konfigurierbare Ausgabegeräte (ALSA, PulseAudio)
+- **Flexible Ausgabe**: Konfigurierbare Ausgabegeräte (PulseAudio empfohlen, ALSA deprecated; optional „auto“)
+- **Pulse-Geräteauswahl**: Mehrere Ausgabegeräte (enabled_output_devices) mit Anzeigenamen (device_display_names) für WebUI/Admin
 - **Wiedergabestatus-Verwaltung**: Verwaltung von Wiedergabestatus (playing/paused/stopped) und Lautstärke
 - **Kinderschutz**: Maximale Lautstärkebegrenzung (max_volume)
 - **Status-Interface**: Klares Status-Interface für Backend, WebUI, LED und andere Services
@@ -38,7 +39,7 @@ Er erhält Steuerbefehle (z.B. `play`, `pause`, `stop`, `next`, `prev`, `set_vol
 **Features**:
 - Vollständige VLC Media Player Kontrolle über python-vlc Bindings
 - Event-Handling für Playback-State-Changes (Playing, Paused, Stopped, EndReached, Error)
-- ALSA/PulseAudio Output-Konfiguration
+- PulseAudio- oder ALSA-Output-Konfiguration (PulseAudio bevorzugt)
 - Volume-Control mit Child-Protection Limits (max_volume)
 - Positionsabfrage für Status-Updates
 - Playlist-Navigation (next/prev mit interner Queue)
@@ -46,7 +47,7 @@ Er erhält Steuerbefehle (z.B. `play`, `pause`, `stop`, `next`, `prev`, `set_vol
 
 **Technische Details**:
 - Nutzt `vlc.Instance()` und `vlc.MediaPlayer()`
-- Konfigurierbare ALSA-Ausgabe: `--aout=alsa --alsa-audio-device=<device>`
+- PulseAudio: `--aout=pulse` (Standard); ALSA (deprecated): `--aout=alsa --alsa-audio-device=<device>`
 - Event-Callbacks via VLC Event Manager
 - Asynchrone Event-Verarbeitung
 
@@ -77,13 +78,25 @@ class AudioBackend(ABC):
 
 #### Audio Device Detector (`audio_detector.py`) - 162 LOC
 
-**Verantwortung**: Automatische Erkennung und Priorisierung von Audio-Hardware
+**Verantwortung**: Automatische Erkennung und Priorisierung von Audio-Hardware (ALSA)
 
 **Features**:
 - Erkennung aller verfügbaren ALSA-Audio-Geräte via `aplay -L`
 - Prioritätsbasiertes Ranking nach Hardware-Typ
 - Unterstützung für gängige Raspberry Pi Audio HATs
 - Fallback auf manuelle Konfiguration
+
+**Hinweis**: Bei `output_device_type = pulseaudio` wird optional der **PulseSinkDetector** genutzt (siehe unten).
+
+#### PulseSinkDetector (`pulse_detector.py`)
+
+**Verantwortung**: Erkennung verfügbarer PulseAudio-/PipeWire-Sinks für Geräteauswahl
+
+**Features**:
+- Läuft nur, wenn `PULSE_SERVER` gesetzt ist (z.B. Host-Pulse-Socket im Container)
+- Führt `pactl list sinks` aus und parst Sink-Namen/Description
+- Liefert Liste von Sinks für Config `enabled_output_devices` und Admin-UI (Geräteauswahl)
+- Priorität/Anzeigename optional aus Properties (node.nick, alsa.card_name)
 
 **Hardware-Priorisierung** (niedrigere Zahl = höhere Priorität):
 1. **WM8960 Audio HAT** (Waveshare/Seeed) - Priorität 1
@@ -213,11 +226,13 @@ class AudioBackend(ABC):
 - Atomic File-Writes
 - Default-Values
 
-**Config-Schema** (`config_schema.py`) - 122 LOC:
+**Config-Schema** (`config_schema.py`):
 ```python
 class AudioConfig(BaseModel):
-    output_device_type: Literal["alsa", "pulseaudio", "default"]
-    output_device_name: str  # "auto" oder ALSA-Device wie "plughw:CARD=..."
+    output_device_type: Literal["auto", "alsa", "pulseaudio", "default"]  # ALSA deprecated → PULSEAUDIO
+    output_device_name: str  # Pulse-Sink-Name oder "auto" / ALSA-Device
+    enabled_output_devices: list[str] = []  # Erlaubte Sinks für Geräteauswahl (leer = alle)
+    device_display_names: dict[str, str] = {}  # Sink-Name → Anzeigename (z.B. "Lautsprecher", "Headset")
     max_volume: int = Field(ge=0, le=100)  # Child protection
     default_volume: int = Field(ge=0, le=100)
 ```
@@ -462,8 +477,13 @@ minabox/<device-id>/audio/error
 
 ```json
 {
-  "output_device_type": "alsa",
-  "output_device_name": "auto",
+  "output_device_type": "pulseaudio",
+  "output_device_name": "alsa_output.platform-soc_sound.stereo-fallback",
+  "enabled_output_devices": ["alsa_output.platform-soc_sound.stereo-fallback", "alsa_output.usb-..."],
+  "device_display_names": {
+    "alsa_output.usb-...": "Headset",
+    "alsa_output.platform-soc_sound.stereo-fallback": "Lautsprecher"
+  },
   "max_volume": 70,
   "default_volume": 40
 }
@@ -472,14 +492,19 @@ minabox/<device-id>/audio/error
 **Felder**:
 
 - `output_device_type`: Audio-Output-Typ
-  - `"alsa"` - ALSA direkt (empfohlen für Raspberry Pi)
-  - `"pulseaudio"` - PulseAudio
+  - `"pulseaudio"` - PulseAudio (empfohlen)
+  - `"alsa"` - ALSA (deprecated; wird beim Laden ggf. auf pulseaudio migriert)
+  - `"auto"` - Automatische Erkennung (ALSA-basiert)
   - `"default"` - System-Default
 
 - `output_device_name`: Device-Identifier
-  - `"auto"` - **Automatische Erkennung** (empfohlen) ✨
-  - `"plughw:CARD=wm8960soundcard,DEV=0"` - Spezifisches ALSA-Device
+  - Bei PulseAudio: Pulse-Sink-Name (z.B. `alsa_output.platform-soc_sound.stereo-fallback`)
+  - `"auto"` - Automatische Erkennung (ALSA)
   - `"default"` - System-Default-Device
+
+- `enabled_output_devices`: Liste von Pulse-Sink-Namen, die in der Geräteauswahl (WebUI/Admin) angeboten werden. Leer = alle verfügbaren Sinks.
+
+- `device_display_names`: Map von Sink-Name → Anzeigename (z.B. „Lautsprecher“, „Headset“) für die WebUI.
 
 - `max_volume`: Maximale Lautstärke (0-100) für Kinderschutz
 
@@ -816,6 +841,6 @@ def set_volume(self, volume: int) -> None:
 
 ---
 
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Status**: ✅ Production Ready  
-**Last Updated**: 2026-02-16
+**Last Updated**: 2026-02-25

@@ -1,6 +1,6 @@
 {
   "output_device_type": "pulseaudio",
-  "output_device_name": "alsa_output.usb-Qualcomm_Dongle_MMX_230_wireless_DA780BA29921F9BB2200-02.analog-stereo",
+  "output_device_name": "alsa_output.platform-soc_sound.stereo-fallback",
   "enabled_output_devices": [
     "alsa_output.platform-soc_sound.stereo-fallback",
     "alsa_output.usb-Qualcomm_Dongle_MMX_230_wireless_DA780BA29921F9BB2200-02.analog-stereo"

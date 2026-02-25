@@ -55,18 +55,23 @@ webui-service/
 ├── src/
 │   ├── api/                    # Backend-API-Client
 │   │   ├── client.ts          # Axios-Instance mit Base-URL
-│   │   ├── tags.ts            # Tag-API-Calls
-│   │   ├── playlists.ts       # Playlist-API-Calls
-│   │   ├── tracks.ts          # Track-API-Calls
-│   │   ├── audio.ts           # Audio-Control-API-Calls
-│   │   ├── config.ts          # Config-API-Calls
-│   │   └── system.ts          # System-API-Calls
+│   │   ├── tags.ts
+│   │   ├── playlists.ts
+│   │   ├── tracks.ts
+│   │   ├── streams.ts         # Stream-API (GET/POST/PUT/DELETE /api/v1/streams)
+│   │   ├── podcasts.ts        # Podcast-API (CRUD, Episoden)
+│   │   ├── audio.ts
+│   │   ├── config.ts
+│   │   ├── stats.ts           # Stats-API (overview, usage-today, listening-summary)
+│   │   └── system.ts          # System/Host-API (host-status, logs, restart, WiFi, USB, Backup, Bluetooth, …)
 │   ├── components/            # Wiederverwendbare Komponenten
 │   │   ├── common/            # Generische Komponenten
 │   │   │   ├── Header.tsx
 │   │   │   ├── Navigation.tsx
 │   │   │   ├── LoadingSpinner.tsx
-│   │   │   └── ErrorBoundary.tsx
+│   │   │   ├── ErrorBoundary.tsx
+│   │   │   ├── CommandPalette.tsx   # Tastatur-Navigation (z.B. Strg+K)
+│   │   │   └── MiniPlayer.tsx       # Kompakter Player in der Leiste
 │   │   ├── player/            # Player-spezifische Komponenten
 │   │   │   ├── PlaybackControls.tsx
 │   │   │   ├── VolumeControl.tsx
@@ -76,20 +81,34 @@ webui-service/
 │   │   │   ├── TagList.tsx
 │   │   │   ├── TagCard.tsx
 │   │   │   ├── TagEditDialog.tsx
-│   │   │   └── LearnModeButton.tsx
+│   │   │   ├── LearnModeButton.tsx
+│   │   │   └── RfidScanDrawer.tsx  # Drawer bei RFID-Scan (Tag zuordnen / Info)
 │   │   ├── media/             # Media-spezifische Komponenten
 │   │   │   ├── PlaylistList.tsx
 │   │   │   ├── TrackList.tsx
 │   │   │   ├── UploadDialog.tsx
-│   │   │   └── StreamDialog.tsx
+│   │   │   ├── StreamDialog.tsx
+│   │   │   ├── StreamList.tsx
+│   │   │   ├── StreamEditDialog.tsx
+│   │   │   ├── PodcastList.tsx
+│   │   │   ├── PodcastDialog.tsx
+│   │   │   ├── PodcastEditDialog.tsx
+│   │   │   ├── RemoteTrackDialog.tsx
+│   │   │   └── CoverUploadField.tsx  # Cover-Upload für Playlist/Stream/Track
 │   │   └── admin/             # Admin-spezifische Komponenten
 │   │       ├── SystemStatus.tsx
+│   │       ├── SystemPanel.tsx
 │   │       ├── ServiceStatus.tsx
-│   │       ├── ServiceLogsModal.tsx   # Container-Logs pro Service (Level/Zeit/Message/Data)
+│   │       ├── ServiceLogsModal.tsx
+│   │       ├── SyslogModal.tsx         # Host-Syslog (kernel/docker)
+│   │       ├── MaintenancePanel.tsx    # Update, Factory Reset, Backup/Restore
+│   │       ├── StatsDashboard.tsx      # Parent Dashboard: Hörstatistik, Daily-Limit
+│   │       ├── BluetoothSection.tsx    # Bluetooth-Geräte scannen/paren/verbinden
 │   │       ├── DisplayConfigPanel.tsx
 │   │       ├── LEDConfigPanel.tsx
 │   │       ├── ButtonConfigPanel.tsx
-│   │       └── ConfigForm.tsx
+│   │       ├── ConfigForm.tsx
+│   │       └── ParentSettingsForm.tsx  # Daily-Limit, Kinderschutz (general_settings)
 │   ├── contexts/              # React Context für globalen State
 │   │   ├── AudioContext.tsx   # Audio-Status (WebSocket)
 │   │   ├── WebSocketContext.tsx
@@ -117,7 +136,9 @@ webui-service/
 │   │   ├── PlayerPage.tsx
 │   │   ├── RfidPage.tsx
 │   │   ├── MediaPage.tsx
-│   │   └── AdminPage.tsx
+│   │   ├── DashboardPage.tsx   # Parent Dashboard (Statistik, Daily-Limit, Einstellungen)
+│   │   ├── AdminPage.tsx
+│   │   └── KioskPage.tsx       # Vollbild-Kiosk-Modus (optional)
 │   ├── types/                 # TypeScript-Type-Definitionen
 │   │   ├── api.ts             # Backend-API-Response-Types
 │   │   ├── audio.ts
@@ -210,7 +231,9 @@ webui-service/
 
 **WebSocket-Events:**
 
-- `rfid_scanned_learning` → Zeigt Dialog mit gescanntem Tag
+- `rfid_scanned_learning` → Öffnet `RfidScanDrawer` (Tag zuordnen)
+- `rfid_scanned` → Optional: Drawer mit Info (welcher Content abgespielt wird)
+- `tag_not_found` → Snackbar mit Hinweis „Unbekannter Tag“ und Link zur RFID-Seite
 
 **API-Calls:**
 
@@ -226,9 +249,10 @@ webui-service/
 
 **Tabs/Sections:**
 
-1. **Playlists**
-2. **Tracks**
-3. **Streams** (optional separater Tab oder in Tracks integriert)
+1. **Playlists** – Erstellen, Bearbeiten, Tracks zuordnen; optional Cover-Upload (`CoverUploadField`)
+2. **Tracks** – Upload, Remote-Track hinzufügen (`RemoteTrackDialog`), Bearbeiten, Cover; Filter nach Quelle (File/Remote)
+3. **Streams** – Eigene Ressource: Stream-Liste (`StreamList`), Anlegen/Bearbeiten (`StreamDialog`, `StreamEditDialog`), Cover-Upload
+4. **Podcasts** – Podcast-Liste (`PodcastList`), Anlegen per RSS-URL (`PodcastDialog`), Bearbeiten (`PodcastEditDialog`), Episoden anzeigen und abspielen
 
 #### 4.3.1 Playlists-Tab
 
@@ -292,23 +316,51 @@ webui-service/
 
 - `GET /api/v1/tracks` – Liste aller Tracks
 - `POST /api/v1/tracks/upload` – Track hochladen (multipart/form-data)
-- `POST /api/v1/tracks` – Stream hinzufügen (JSON mit `source_type="stream"`)
+- `POST /api/v1/tracks` – Track anlegen (z.B. Remote-Track)
 - `PUT /api/v1/tracks/{track_id}` – Track bearbeiten
 - `DELETE /api/v1/tracks/{track_id}` – Track löschen
+- `GET /api/v1/streams`, `POST /api/v1/streams`, `PUT /api/v1/streams/{id}`, `DELETE /api/v1/streams/{id}` – Streams
+- `GET /api/v1/podcasts`, `POST /api/v1/podcasts`, `PUT /api/v1/podcasts/{id}`, `DELETE /api/v1/podcasts/{id}` – Podcasts; Episoden über Podcast-Detail
 
-### 4.4 Admin-Seite
+### 4.4 Dashboard-Seite (Parent Dashboard)
+
+**Route:** `/dashboard`
+
+**Features:**
+
+- **Übersicht:** Hörminuten heute/gesamt, Daily-Limit (aktiv/inaktiv, Minuten), Anzahl Tags/Playlists/Tracks/Streams/Podcasts
+- **Statistik:** `StatsDashboard` – Listening-Summary (minutes_per_day, top_tags, top_playlists, heatmap)
+- **Einstellungen:** `ParentSettingsForm` – Daily-Limit ein/aus, daily_limit_minutes (general_settings.json)
+
+**API-Calls:**
+
+- `GET /api/v1/stats/overview` – Übersicht
+- `GET /api/v1/stats/usage-today` – Heute + Limit
+- `GET /api/v1/stats/listening-summary` – Detaillierte Statistik
+- `GET /api/v1/config/general`, `PUT /api/v1/config/general` – Daily-Limit etc.
+
+### 4.5 Kiosk-Modus
+
+**Route:** `/kiosk` (optional)
+
+Vollbild-Ansicht für Anzeige/Steuerung (z.B. nur Player oder vereinfachte UI).
+
+### 4.6 Admin-Seite
 
 **Route:** `/admin`
 
 **Tabs/Sections:**
 
-1. **System-Status**
-2. **Allgemeine Einstellungen**
-3. **Audio-Einstellungen**
+1. **System-Status** – Service-Liste, Host-Status, Logs (`ServiceLogsModal`), Syslog (`SyslogModal`), Restart, Reboot
+2. **Allgemeine Einstellungen** – Sprache, Theme, Device-ID, MQTT, Sleep-Timer, etc. (config/general)
+3. **Audio-Einstellungen** – output_device_type/name, enabled_output_devices, device_display_names, max_volume, default_volume
 4. **LED-Einstellungen**
 5. **Button-Einstellungen**
 6. **Display-Einstellungen**
 7. **RFID-Einstellungen**
+8. **Wartung (Maintenance)** – `MaintenancePanel`: Update Minabox, Update OS, Factory Reset, Backup herunterladen, Backup wiederherstellen, Docker Prune
+9. **Bluetooth** – `BluetoothSection`: Geräte scannen, paaren, verbinden/trennen, entfernen
+10. **Eltern-Einstellungen** – Daily-Limit (ParentSettingsForm) oder in Dashboard integriert
 
 #### 4.4.1 System-Status-Tab
 
@@ -697,6 +749,8 @@ src/locales/
   }
 }
 ```
+
+**Navigation:** Einträge für Player, RFID, Mediathek, Dashboard, Admin, ggf. Kiosk. **Command-Palette** (z.B. Strg+K) für schnelle Navigation und Aktionen.
 
 **de/admin.json:**
 

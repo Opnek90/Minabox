@@ -50,11 +50,26 @@ Nicht-Ziele:
 - `GET /api/v1/tracks` – Liste aller Tracks
 - `GET /api/v1/tracks/{track_id}` – Track-Details
 - `POST /api/v1/tracks/upload` – Track hochladen (multipart/form-data)
-- `POST /api/v1/tracks` – Stream oder Track anlegen (JSON)
-  - Für Streams: `{ "title": "...", "artist": "...", "album": "...", "source_type": "stream", "source_uri": "https://..." }`
-  - Für manuelle File-Einträge: `{ "title": "...", "source_type": "file", "source_uri": "/mnt/audio/..." }`
+- `POST /api/v1/tracks` – Track anlegen (JSON, z.B. manuelle File-Einträge oder Remote-Tracks)
 - `PUT /api/v1/tracks/{track_id}` – Track-Metadaten bearbeiten
 - `DELETE /api/v1/tracks/{track_id}` – Track löschen (inkl. Datei bei source_type="file")
+
+**Streams (Webradio, eigene Ressource):**
+
+- `GET /api/v1/streams` – Liste aller Streams
+- `GET /api/v1/streams/{stream_id}` – Stream-Details
+- `POST /api/v1/streams` – Neuen Stream anlegen (title, artist, source_uri)
+- `PUT /api/v1/streams/{stream_id}` – Stream bearbeiten
+- `DELETE /api/v1/streams/{stream_id}` – Stream löschen
+
+**Podcasts:**
+
+- `GET /api/v1/podcasts` – Liste aller Podcasts (inkl. neueste Episode)
+- `GET /api/v1/podcasts/{podcast_id}` – Podcast-Details inkl. Episoden
+- `POST /api/v1/podcasts` – Podcast anlegen (RSS-URL, Titel, optional Cover-Upload)
+- `PUT /api/v1/podcasts/{podcast_id}` – Podcast bearbeiten
+- `DELETE /api/v1/podcasts/{podcast_id}` – Podcast löschen
+- Episoden werden per RSS-Fetch (podcast_fetcher) aktualisiert; Abspielen wie Tracks
 
 **Audio-Control:**
 
@@ -91,21 +106,42 @@ Nicht-Ziele:
 - `POST /api/v1/config/logo` – Logo-Bild hochladen (multipart)
 - `DELETE /api/v1/config/logo` – Logo löschen
 
+**Stats (Parent Dashboard / Nutzungsstatistik):**
+
+- `GET /api/v1/stats/overview` – Übersicht: Hörminuten heute/gesamt, Daily-Limit, Anzahl Tags/Playlists/Tracks/Streams/Podcasts
+- `GET /api/v1/stats/usage-today` – Heutige Hörminuten und Daily-Limit (daily_limit_enabled, daily_limit_minutes aus general_settings.json)
+- `GET /api/v1/stats/listening-summary` – Detaillierte Statistik: minutes_per_day, top_tags, top_playlists, heatmap (für Parent Dashboard)
+
 **System & Health:**
 
 - `GET /api/v1/health` – Backend-Health
 - `GET /api/v1/system/status` – Gesamtsystem-Status (alle Services inkl. CPU/RAM wenn verfügbar)
-- `GET /api/v1/system/logs?service=<id>&tail=200` – Logs eines Service-Containers (backend, mqtt, audio, rfid, button, led, display, webui). Quelle: Host-Helper `GET /container-logs` oder Docker-API/Fallback `DATA_PATH/logs/<service>.log`. Response: `{ "service", "lines", "tail" }`.
-- `POST /api/v1/system/restart` – Alle Minabox-Container inkl. Host-Helper neustarten
+- `GET /api/v1/system/logs?service=<id>&tail=200` – Logs eines Service-Containers (backend, mqtt, audio, rfid, button, led, display, webui). Quelle: Host-Helper `GET /container-logs` oder Docker-API/Fallback. Response: `{ "service", "lines", "tail" }`.
+- `POST /api/v1/system/restart` – Alle Minabox-Container neustarten (Delegation an Host-Helper `/restart`)
 
 **Host-Operationen (Delegation an Host-Helper):**
 
-- `GET /api/v1/system/host-status` – Host-Status (Hostname, IP, RAM, CPU, Disk, Load); Backend delegiert an Host-Helper.
-- `GET /api/v1/system/audio-path` – Aktueller Audio-Pfad (vom Host).
-- `PUT /api/v1/system/audio-path` – Audio-Pfad setzen (Payload: z.B. `path`); Delegation an Host-Helper.
-- `POST /api/v1/system/move-audio` – Medien-Ordner verschieben (Quell-/Zielpfad); Delegation an Host-Helper.
-- `GET /api/v1/system/move-status` – Status der Verschiebung (laufend/idle, Fortschritt).
-- `POST /api/v1/system/reboot` – Raspberry Pi Neustart; Delegation an Host-Helper.
+- `GET /api/v1/system/host-status` – Host-Status (Hostname, IP, RAM, CPU, Disk, Load)
+- `GET /api/v1/system/audio-path` – Aktueller Audio-Pfad (vom Host: AUDIO_FILES_PATH)
+- `PUT /api/v1/system/audio-path` – Audio-Pfad setzen (Payload: `path`); Host-Helper schreibt `.env`
+- `POST /api/v1/system/move-audio` – Medien-Ordner verschieben (source, destination)
+- `GET /api/v1/system/move-status` – Status der Verschiebung (idle | running | done | error, Fortschritt)
+- `POST /api/v1/system/reboot` – Host-Neustart
+- `POST /api/v1/system/shutdown` – Host herunterfahren
+- **WiFi:** `GET /api/v1/system/wifi/scan`, `POST /api/v1/system/wifi/connect`, `POST /api/v1/system/wifi/hotspot/start`, `POST /api/v1/system/wifi/hotspot/stop`, `GET /api/v1/system/wifi/hotspot/status`
+- **USB:** `GET /api/v1/system/usb/devices`, `GET /api/v1/system/usb/{device_id}/files`, `POST /api/v1/system/usb/import`, `POST /api/v1/system/usb/eject`
+- **Backup:** `GET /api/v1/system/backup/download` (ZIP), `POST /api/v1/system/backup/restore` (ZIP-Upload)
+- **Zeit:** `GET /api/v1/system/time-status`, `PUT /api/v1/system/timezone`
+- **Hostname:** `GET /api/v1/system/hostname`, `PUT /api/v1/system/hostname`
+- **Board-LEDs (Stealth):** `GET /api/v1/system/board-leds`, `PUT /api/v1/system/board-leds` (stealth: true/false)
+- **Netzwerk:** `GET /api/v1/system/network`, `PUT /api/v1/system/network` (DHCP/manual, address, gateway, dns)
+- **Passwort:** `POST /api/v1/system/password` (System-User z.B. pi)
+- **SSH:** `GET /api/v1/system/ssh-status`, `POST /api/v1/system/ssh-toggle`
+- **Factory Reset:** `POST /api/v1/system/factory-reset` (optional delete_audio)
+- **Update:** `POST /api/v1/system/update-minabox` (docker compose pull && up -d), `GET /api/v1/system/version` (Commit, update_available), `POST /api/v1/system/update-os`, `GET /api/v1/system/update-os/log`
+- **Syslog:** `GET /api/v1/system/syslog?n=200&source=kernel|docker`
+- **Docker:** `POST /api/v1/system/docker-prune`
+- **Bluetooth:** `GET /api/v1/system/bluetooth/scan`, `POST /api/v1/system/bluetooth/pair`, `GET /api/v1/system/bluetooth/paired`, `POST /api/v1/system/bluetooth/connect`, `POST /api/v1/system/bluetooth/disconnect`, `POST /api/v1/system/bluetooth/remove`
 
 ### 2.2 WebSocket
 
@@ -274,8 +310,8 @@ class Tag(Base):
     id = Column(Integer, primary_key=True)
     tag_id = Column(String, unique=True, nullable=False, index=True)  # z.B. "04A224BC19"
     name = Column(String, nullable=True)  # z.B. "Benjamin Blümchen"
-    content_type = Column(String, nullable=False)  # "playlist" | "track"
-    content_id = Column(Integer, nullable=False)  # Playlist-ID oder Track-ID
+    content_type = Column(String, nullable=False)  # "playlist" | "track" | "stream"
+    content_id = Column(Integer, nullable=False)  # Playlist-ID, Track-ID oder Stream-ID
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 ```
@@ -295,7 +331,24 @@ class Playlist(Base):
     tracks = relationship("PlaylistTrack", back_populates="playlist", cascade="all, delete-orphan")
 ```
 
-### 3.3 Tracks
+### 3.3 Streams
+
+```python
+class Stream(Base):
+    __tablename__ = "streams"
+    
+    id = Column(Integer, primary_key=True)
+    title = Column(String, nullable=False)
+    artist = Column(String, nullable=True)
+    source_uri = Column(String, nullable=False)
+    cover_art_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_played_at = Column(DateTime, nullable=True)
+```
+
+Streams sind eigenständige Webradio-/Stream-Einträge (nicht in Playlists). Tags können auf Streams verweisen (content_type="stream", content_id=stream_id).
+
+### 3.4 Tracks
 
 ```python
 class Track(Base):
@@ -306,12 +359,60 @@ class Track(Base):
     artist = Column(String, nullable=True)
     album = Column(String, nullable=True)
     duration_ms = Column(Integer, nullable=True)
-    source_type = Column(String, nullable=False)  # "file" | "stream"
+    source_type = Column(String, nullable=False)  # "file" | "remote"
     source_uri = Column(String, nullable=False)  # Pfad oder URL
+    cover_art_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_played_at = Column(DateTime, nullable=True)
+```
+
+### 3.5 Podcasts & Episoden
+
+```python
+class Podcast(Base):
+    __tablename__ = "podcasts"
+    
+    id = Column(Integer, primary_key=True)
+    title = Column(String, nullable=False)
+    feed_url = Column(String, nullable=False)
+    cover_art_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_fetched_at = Column(DateTime, nullable=True)
+
+class PodcastEpisode(Base):
+    __tablename__ = "podcast_episodes"
+    
+    id = Column(Integer, primary_key=True)
+    podcast_id = Column(Integer, ForeignKey("podcasts.id"), nullable=False)
+    title = Column(String, nullable=False)
+    source_uri = Column(String, nullable=False)  # Audio-URL
+    published_at = Column(DateTime, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 ```
 
-### 3.4 PlaylistTrack (M:N)
+Podcast-Episoden werden per **podcast_fetcher** (RSS-Fetch-Loop, z.B. täglich) aktualisiert. Abspielen erfolgt wie bei Tracks (source_uri an Audio-Service).
+
+### 3.6 PlaybackEvent (Statistik)
+
+```python
+class PlaybackEvent(Base):
+    __tablename__ = "playback_events"
+    
+    id = Column(Integer, primary_key=True)
+    started_at = Column(DateTime, nullable=False)
+    ended_at = Column(DateTime, nullable=True)
+    track_id = Column(Integer, ForeignKey("tracks.id"), nullable=True)
+    stream_id = Column(Integer, ForeignKey("streams.id"), nullable=True)
+    playlist_id = Column(Integer, ForeignKey("playlists.id"), nullable=True)
+    tag_id = Column(Integer, ForeignKey("tags.id"), nullable=True)
+    podcast_id = Column(Integer, ForeignKey("podcasts.id"), nullable=True)
+    content_type = Column(String(16), nullable=False)  # 'playlist' | 'track' | 'stream' | 'podcast'
+```
+
+Wird für **Stats API** (Parent Dashboard: Hörminuten, Top-Tags, Top-Playlists, Heatmap) und Daily-Limit (general_settings: daily_limit_enabled, daily_limit_minutes) genutzt.
+
+### 3.7 PlaylistTrack (M:N)
 
 ```python
 class PlaylistTrack(Base):
@@ -330,7 +431,11 @@ class PlaylistTrack(Base):
     )
 ```
 
-### 3.5 Alembic Migrations
+### 3.8 Playlist (Cover)
+
+Playlist hat optional `cover_art_url`; Stream und Track haben optional `cover_art_url`. Cover-Bilder werden unter `STATIC_DIR/covers/` gespeichert.
+
+### 3.9 Alembic Migrations
 
 Der Backend verwendet Alembic für Schema-Migrationen:
 
@@ -381,8 +486,11 @@ Ablauf:
 5. Falls `content_type == "track"`:
    - Lade Track-Details.
    - Erstelle Session mit einem Track.
-6. Sende `minabox/<device-id>/audio/play` mit Track-Daten (`source_type`, `source_uri`, `start_position_ms=0`) an Audio-Service.
-7. Pushe Event via WebSocket an WebUI:
+6. Falls `content_type == "stream"`:
+   - Lade Stream-Details (source_uri).
+   - Erstelle Session mit einem „virtuellen“ Track (Stream-URI).
+7. Sende `minabox/<device-id>/audio/play` mit Track-/Stream-Daten (`source_type`, `source_uri`, `start_position_ms=0`) an Audio-Service.
+8. Pushe Event via WebSocket an WebUI:
 
 ```json
 {
