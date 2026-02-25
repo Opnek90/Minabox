@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run i18n:merge-admin && tsc && vite build",
+    "i18n:merge-admin": "node scripts/merge-admin-locales.js",
+    "predev": "npm run i18n:merge-admin",
     "build:fast": "vite build",
     "build:check": "tsc --noEmit",
     "preview": "vite preview",

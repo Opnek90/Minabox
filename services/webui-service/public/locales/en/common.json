@@ -21,7 +21,10 @@
     "reset_listening": "Reset listening times",
     "reset_listening_confirm": "Really reset \"Listened today\" and \"Total listened\" to 0? All listening statistics will be lost.",
     "reset_success": "Listening times reset",
-    "reset_error": "Reset failed"
+    "reset_error": "Reset failed",
+    "settings_login_required": "To edit parental control settings, please sign in via Settings (Admin).",
+    "settings_login_hint": "If the Admin area is password-protected, these settings will load only after signing in there.",
+    "settings_load_failed": "Failed to load settings."
   },
   "navigation": {
     "player": "Player",

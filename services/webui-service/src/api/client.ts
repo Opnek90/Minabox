@@ -31,14 +31,24 @@ function delay(ms: number): Promise<void> {
 export const apiClient = axios.create({
   baseURL: '/api/v1',
   timeout: 15000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+let onUnauthorized: (() => void) | null = null;
+export function setOnUnauthorized(cb: (() => void) | null): void {
+  onUnauthorized = cb;
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
+    if (error.response?.status === 401 && onUnauthorized) {
+      onUnauthorized();
+    }
+
     const config = error.config as (InternalAxiosRequestConfig & { __retryCount?: number }) | undefined;
     const retryCount = config?.__retryCount ?? 0;
 

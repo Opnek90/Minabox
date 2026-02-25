@@ -1,0 +1,44 @@
+{
+  "leds": {
+    "title": "LED Settings",
+    "no_leds": "No LEDs configured",
+    "add_led": "Add LED",
+    "edit_led": "Edit LED",
+    "delete_led": "Remove LED",
+    "delete_confirm": "Do you really want to remove the LED \"{{name}}\"?",
+    "steps": {
+      "basics": "Basics",
+      "bindings": "Bindings"
+    },
+    "fields": {
+      "id": "ID",
+      "id_hint": "Unique ID, e.g. led_1",
+      "name": "Name",
+      "gpio": "GPIO Pin",
+      "gpio_hint": "GPIO pin number of the Raspberry Pi",
+      "bindings": "Bindings",
+      "actions": "Actions"
+    },
+    "bindings": {
+      "title": "State Bindings",
+      "description": "Define which pattern the LED shows for each system state.",
+      "none": "No bindings defined yet.",
+      "state": "State",
+      "pattern": "Pattern",
+      "add": "Add Binding",
+      "add_placeholder": "Select state…",
+      "patterns": {
+        "solid": "Solid",
+        "blink": "Blink",
+        "pulse": "Pulse",
+        "off": "Off"
+      },
+      "interval_ms": "Interval (ms)",
+      "duration_ms": "Duration (ms)",
+      "repeat": "Repeats (0 = infinite)"
+    },
+    "test_led": "Test",
+    "test_success": "LED test triggered",
+    "save_success": "LED settings saved"
+  }
+}

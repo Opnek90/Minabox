@@ -1,0 +1,21 @@
+{
+  "stats": {
+    "title": "Hörstatistiken",
+    "period": "Zeitraum",
+    "from": "Von",
+    "to": "Bis",
+    "load": "Laden",
+    "minutes_per_day": "Hördauer pro Tag (Min.)",
+    "top_tags": "Top 3 Tags",
+    "top_playlists": "Top 3 Playlists",
+    "heatmap": "Wann wird gehört? (Stunde × Wochentag)",
+    "weekday_0": "Mo",
+    "weekday_1": "Di",
+    "weekday_2": "Mi",
+    "weekday_3": "Do",
+    "weekday_4": "Fr",
+    "weekday_5": "Sa",
+    "weekday_6": "So",
+    "no_data": "Keine Daten für den gewählten Zeitraum."
+  }
+}

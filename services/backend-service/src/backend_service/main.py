@@ -20,8 +20,12 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from backend_service.api import api_router
+from backend_service.api.routes_auth import COOKIE_NAME
+from backend_service.core.auth import read_auth_settings, verify_session_token
 from backend_service.api.routes_audio import set_mqtt_client as set_audio_mqtt_client, set_mqtt_handlers as set_audio_mqtt_handlers
 from backend_service.api.routes_config import set_mqtt_client as set_config_mqtt_client
 from backend_service.api.routes_rfid import set_mqtt_client as set_rfid_mqtt_client
@@ -146,6 +150,35 @@ class BackendService:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+        # Web auth: require session cookie for protected API paths
+        @app.middleware("http")
+        async def web_auth_middleware(request: Request, call_next):
+            path = request.url.path
+            if not path.startswith("/api/v1/"):
+                return await call_next(request)
+            if path == "/api/v1/auth/config" or path == "/api/v1/auth/login" or path == "/api/v1/auth/logout":
+                return await call_next(request)
+            settings = read_auth_settings()
+            auth_enabled = bool((settings.get("web_password_hash") or "").strip())
+            if not auth_enabled:
+                return await call_next(request)
+            protected_areas = set(settings.get("protected_areas") or [])
+            if not protected_areas:
+                return await call_next(request)
+            area = None
+            if path.startswith("/api/v1/config") or path.startswith("/api/v1/system"):
+                area = "admin"
+            elif path.startswith("/api/v1/playlists") or path.startswith("/api/v1/tracks") or path.startswith("/api/v1/streams") or path.startswith("/api/v1/podcasts"):
+                area = "media"
+            elif path.startswith("/api/v1/stats"):
+                area = "dashboard"
+            if area is None or area not in protected_areas:
+                return await call_next(request)
+            token = request.cookies.get(COOKIE_NAME)
+            if not token or not verify_session_token(token):
+                return JSONResponse(status_code=401, content={"detail": "Authentication required"})
+            return await call_next(request)
 
         # Root-level health check (Framework standard: /health)
         @app.get("/health")

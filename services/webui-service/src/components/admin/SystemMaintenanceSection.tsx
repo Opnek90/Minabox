@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { systemApi, type VersionResponse } from '@/api/system';
 
-export const MaintenancePanel: React.FC = () => {
+export const SystemMaintenanceSection: React.FC = () => {
   const { t } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const [version, setVersion] = useState<VersionResponse | null>(null);
@@ -252,7 +252,18 @@ export const MaintenancePanel: React.FC = () => {
             {t('system.version')}: {version?.current_version ?? version?.current_commit ?? '–'}
           </Typography>
           {version?.update_available && (
-            <Chip label={t('system.update_available')} color="primary" size="small" />
+            <>
+              <Chip label={t('system.update_available')} color="primary" size="small" />
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                onClick={() => setUpdateDialogOpen(true)}
+                disabled={updating}
+              >
+                {t('system.update_minabox')}
+              </Button>
+            </>
           )}
           <Button
             size="small"

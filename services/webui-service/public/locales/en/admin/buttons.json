@@ -1,0 +1,60 @@
+{
+  "buttons": {
+    "title": "Button Settings",
+    "no_buttons": "No buttons configured",
+    "add_button": "Add Button",
+    "edit_button": "Edit Button",
+    "delete_button": "Remove Button",
+    "delete_confirm": "Do you really want to remove the button \"{{name}}\"?",
+    "steps": {
+      "basics": "Basics",
+      "actions": "Actions"
+    },
+    "fields": {
+      "id": "ID",
+      "id_hint": "Unique ID, e.g. btn_1",
+      "name": "Name",
+      "type": "Type",
+      "mode": "Mode",
+      "mode_hint": "Basic: one action. Advanced: different actions per event.",
+      "gpio": "GPIO Pin",
+      "gpio_hint": "GPIO pin number of the Raspberry Pi",
+      "clk": "CLK Pin",
+      "dt": "DT Pin",
+      "sw": "SW Pin",
+      "actions": "Actions"
+    },
+    "types": {
+      "push": "Push Button",
+      "rotary": "Rotary Encoder"
+    },
+    "modes": {
+      "basic": "Basic (single action)",
+      "advanced": "Advanced (per event)"
+    },
+    "actions": {
+      "title": "Actions",
+      "event": "Event",
+      "action": "Action",
+      "basic_hint": "Choose an action to trigger when the button is pressed.",
+      "advanced_hint": "Assign a separate action to each event.",
+      "events": {
+        "short_press": "Short Press",
+        "long_press": "Long Press",
+        "double_press": "Double Press",
+        "rotate_cw": "Rotate Right",
+        "rotate_ccw": "Rotate Left",
+        "press": "Press"
+      }
+    },
+    "test_button": "Test",
+    "test_modal": {
+      "title": "Button Test",
+      "description": "Press the button – detected events will appear here.",
+      "no_events": "No events yet...",
+      "event_log": "Event Log",
+      "close": "Close"
+    },
+    "save_success": "Button settings saved"
+  }
+}

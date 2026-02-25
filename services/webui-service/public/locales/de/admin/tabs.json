@@ -1,0 +1,18 @@
+{
+  "title": "Einstellungen",
+  "tabs": {
+    "status": "Status",
+    "system": "System",
+    "hardware": "Hardware",
+    "general": "Allgemein",
+    "design": "Design",
+    "child": "Kind",
+    "security": "Sicherheit",
+    "audio": "Audio",
+    "leds": "LEDs",
+    "buttons": "Buttons",
+    "display": "Display",
+    "rfid": "RFID",
+    "stats": "Statistiken"
+  }
+}

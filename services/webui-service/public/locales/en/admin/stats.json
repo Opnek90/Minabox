@@ -1,0 +1,21 @@
+{
+  "stats": {
+    "title": "Listening statistics",
+    "period": "Period",
+    "from": "From",
+    "to": "To",
+    "load": "Load",
+    "minutes_per_day": "Listening time per day (min)",
+    "top_tags": "Top 3 tags",
+    "top_playlists": "Top 3 playlists",
+    "heatmap": "When is listening? (hour × weekday)",
+    "weekday_0": "Mon",
+    "weekday_1": "Tue",
+    "weekday_2": "Wed",
+    "weekday_3": "Thu",
+    "weekday_4": "Fri",
+    "weekday_5": "Sat",
+    "weekday_6": "Sun",
+    "no_data": "No data for the selected period."
+  }
+}

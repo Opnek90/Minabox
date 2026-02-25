@@ -6,6 +6,7 @@ import { Navigation, DRAWER_WIDTH } from '@/components/common/Navigation';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { MiniPlayer } from '@/components/common/MiniPlayer';
+import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { RfidScanDrawer } from '@/components/rfid/RfidScanDrawer';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
@@ -140,9 +141,30 @@ const MainLayout: React.FC = () => {
                   />
                 }
               />
-              <Route path="/media" element={<MediaPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/admin" element={<AdminPage />} />
+              <Route
+                path="/media"
+                element={
+                  <ProtectedRoute path="/media">
+                    <MediaPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute path="/dashboard">
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute path="/admin">
+                    <AdminPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="*" element={<Navigate to="/player" replace />} />
             </Routes>
           </Suspense>

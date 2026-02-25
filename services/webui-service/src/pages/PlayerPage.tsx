@@ -168,13 +168,13 @@ export const PlayerPage: React.FC = () => {
       buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
     } else if (lastMessage.type === 'repeat_mode') {
       const data = lastMessage.data as { repeat_mode?: RepeatMode };
-      if (data?.repeat_mode) {
-        setSession((prev) => (prev ? { ...prev, repeat_mode: data.repeat_mode } : null));
+      if (data?.repeat_mode != null) {
+        setSession((prev) => (prev ? { ...prev, repeat_mode: data.repeat_mode! } : null));
       }
     } else if (lastMessage.type === 'shuffle_mode') {
       const data = lastMessage.data as { shuffle?: boolean };
       if (data?.shuffle !== undefined) {
-        setSession((prev) => (prev ? { ...prev, shuffle: data.shuffle } : null));
+        setSession((prev) => (prev ? { ...prev, shuffle: Boolean(data.shuffle) } : null));
       }
     }
   }, [lastMessage]); // eslint-disable-line react-hooks/exhaustive-deps

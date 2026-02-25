@@ -1,0 +1,37 @@
+{
+  "display": {
+    "title": "OLED Display",
+    "enabled": "Display enabled",
+    "i2c_bus": "I2C Bus",
+    "i2c_address": "I2C Address",
+    "font_size": "Font size",
+    "font_size_small": "Small",
+    "font_size_medium": "Medium",
+    "font_size_large": "Large",
+    "font": "Font",
+    "font_default": "Default",
+    "font_sans": "Sans",
+    "font_mono": "Mono",
+    "elements": "Display elements",
+    "elements_hint": "Enable elements, choose area (1=Header, 2=Left, 3=Right) and order.",
+    "active": "On",
+    "area": "Area",
+    "area_header": "Header",
+    "area_left": "Left",
+    "area_right": "Right",
+    "element_types": {
+      "volume": "Volume",
+      "sleep_timer": "Sleep Timer",
+      "mute": "Mute",
+      "play_state": "Playback state",
+      "clock": "Clock",
+      "error_state": "Error indicator",
+      "repeat": "Repeat (when All)",
+      "shuffle": "Shuffle (when on)"
+    },
+    "order": "Order",
+    "save_button": "Save",
+    "save_success": "Display settings saved",
+    "save_error": "Save failed"
+  }
+}

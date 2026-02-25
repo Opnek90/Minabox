@@ -1,0 +1,21 @@
+{
+  "rfid": {
+    "title": "RFID-Einstellungen",
+    "fields": {
+      "reader_type": "Leser-Typ",
+      "interface": "Schnittstelle",
+      "scan_interval_ms": "Scan-Intervall (ms)",
+      "duplicate_suppression_ms": "Duplikat-Unterdrückung (ms)"
+    },
+    "reader_types": {
+      "PN532": "PN532",
+      "Mock": "Mock (Simulation)"
+    },
+    "interfaces": {
+      "I2C": "I2C",
+      "SPI": "SPI",
+      "UART": "UART"
+    },
+    "save_success": "RFID-Einstellungen gespeichert"
+  }
+}

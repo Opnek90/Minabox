@@ -67,11 +67,13 @@ export const StatsDashboard: React.FC = () => {
   }, [load]);
 
   const maxMinutes =
-    data?.minutes_per_day?.length &&
-    Math.max(...data.minutes_per_day.map((d) => d.minutes), 1);
+    data?.minutes_per_day?.length
+      ? Math.max(...data.minutes_per_day.map((d) => d.minutes), 1)
+      : 1;
   const heatmapMax =
-    data?.heatmap?.length &&
-    Math.max(...data.heatmap.map((h) => h.minutes), 1);
+    data?.heatmap?.length
+      ? Math.max(...data.heatmap.map((h) => h.minutes), 1)
+      : 1;
 
   return (
     <Box sx={{ py: 2 }}>

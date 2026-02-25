@@ -421,6 +421,8 @@ export type WebSocketMessageType =
   | 'tag_not_found'
   | 'button_action'
   | 'sleep_timer_status'
+  | 'repeat_mode'
+  | 'shuffle_mode'
   | 'service_status'
   | 'system_status'
   | 'error';

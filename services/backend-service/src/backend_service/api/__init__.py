@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from backend_service.api import (
     routes_audio,
+    routes_auth,
     routes_config,
     routes_host,
     routes_playlists,
@@ -20,6 +21,7 @@ from backend_service.api import (
 api_router = APIRouter(prefix="/api/v1")
 
 # Include sub-routers
+api_router.include_router(routes_auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(routes_tags.router, prefix="/tags", tags=["Tags"])
 api_router.include_router(
     routes_playlists.router, prefix="/playlists", tags=["Playlists"]

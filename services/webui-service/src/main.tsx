@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { createTheme, CssBaseline, ThemeProvider } from '@mui/material';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { WebSocketProvider } from '@/contexts/WebSocketContext';
 import { ThemeContextProvider, useThemeContext } from '@/contexts/ThemeContext';
 import App from '@/App';
@@ -104,9 +105,11 @@ const ThemedApp: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <WebSocketProvider>
-        <App />
-      </WebSocketProvider>
+      <AuthProvider>
+        <WebSocketProvider>
+          <App />
+        </WebSocketProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 };
