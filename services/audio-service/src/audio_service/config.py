@@ -89,7 +89,7 @@ def load_app_config() -> AppConfig:
 
     app_config = AppConfig(env=env_config, audio=audio_config)
 
-    logger.info(
+    logger.debug(
         "config_loaded",
         mqtt_broker=app_config.env.mqtt_broker,
         mqtt_port=app_config.env.mqtt_port,

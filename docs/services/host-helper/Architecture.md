@@ -55,7 +55,7 @@ Der Host-Helper stellt eine HTTP-API bereit (FastAPI). Alle Endpoints außer `GE
 ### Host-System
 
 - **`POST /reboot`** – Host-Neustart (Raspberry Pi Reboot). Response: Bestätigung; Verbindung bricht danach ab.
-- **`GET /host-status`** – Host-Infos (Hostname, IP, RAM, CPU, Disk, Load). Liest von gemounteten Host-Pfaden (z.B. `/host/etc`, `/host/proc`). Response: JSON mit hostname, ip, memory, cpu, disk, load.
+- **`GET /host-status`** – Host-Infos (Hostname, IP, RAM, CPU, Disk, Load, Temperatur). Liest von gemounteten Host-Pfaden (z.B. `/host/etc`, `/host/proc`). Response: JSON mit hostname, ip, memory, cpu, disk, load, **temperature_celsius** (in °C, gelesen aus `/host/sys/class/thermal/thermal_zone0/temp` bzw. `/sys/class/thermal/thermal_zone0/temp` wenn kein Host-Root-Mount; Wert in Milligrad, umgerechnet in °C; bei Fehler oder fehlender Datei `null`).
 
 ### Container-Logs
 
@@ -85,7 +85,7 @@ Der Host-Helper stellt eine HTTP-API bereit (FastAPI). Alle Endpoints außer `GE
 
 ### Host-System (erweitert)
 
-- **`GET /host-status`** – Host-Infos (hostname, ip, uptime_seconds, memory, cpu, disk) aus gemounteten Host-Pfaden (/host/proc, /host/etc/hostname).
+- **`GET /host-status`** – Host-Infos (hostname, ip, uptime_seconds, memory, cpu, disk, **temperature_celsius**) aus gemounteten Host-Pfaden (/host/proc, /host/etc/hostname, /host/sys/class/thermal/thermal_zone0/temp für CPU-Temperatur).
 - **`POST /reboot`** – Host-Neustart (nsenter, /sbin/reboot).
 - **`POST /shutdown`** – Host herunterfahren (nsenter, /sbin/shutdown -h now).
 - **`POST /restart`** – Minabox-Container neustarten (nsenter, docker compose restart im Projektverzeichnis).

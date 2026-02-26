@@ -37,7 +37,7 @@ class MQTTClient:
         self._connected = False
         self._running = False
         self._message_handlers: dict[str, list[Callable]] = {}
-        logger.info(
+        logger.debug(
             "mqtt_client_initialized",
             broker=config.mqtt_broker,
             port=config.mqtt_port,
@@ -54,7 +54,7 @@ class MQTTClient:
         Raises:
             MQTTConnectionError: If connection fails after retries
         """
-        logger.info("mqtt_connecting", broker=self.config.mqtt_broker)
+        logger.debug("mqtt_connecting", broker=self.config.mqtt_broker)
 
         try:
             self.client = Client(
@@ -64,7 +64,7 @@ class MQTTClient:
             )
             await self.client.__aenter__()
             self._connected = True
-            logger.info("mqtt_connected_successfully")
+            logger.debug("mqtt_connected_successfully")
         except Exception as e:
             logger.error("mqtt_connection_failed", error=str(e))
             self._connected = False
@@ -73,11 +73,11 @@ class MQTTClient:
     async def disconnect(self) -> None:
         """Disconnect from MQTT broker."""
         if self.client and self._connected:
-            logger.info("mqtt_disconnecting")
+            logger.debug("mqtt_disconnecting")
             try:
                 await self.client.__aexit__(None, None, None)
                 self._connected = False
-                logger.info("mqtt_disconnected")
+                logger.debug("mqtt_disconnected")
             except Exception as e:
                 logger.error("mqtt_disconnect_error", error=str(e))
 
@@ -130,7 +130,7 @@ class MQTTClient:
             self._message_handlers[topic] = []
 
         self._message_handlers[topic].append(handler)
-        logger.info("mqtt_subscribed", topic=topic)
+        logger.debug("mqtt_subscribed", topic=topic)
 
     async def _handle_message(self, topic: str, payload: str) -> None:
         """Handle incoming MQTT message.
@@ -190,7 +190,7 @@ class MQTTClient:
     async def run(self) -> None:
         """Run the MQTT client message loop with automatic reconnection on broker restart."""
         self._running = True
-        logger.info("mqtt_listening_started")
+        logger.debug("mqtt_listening_started")
         reconnect_delay = 2.0
         while self._running:
             try:
@@ -200,7 +200,7 @@ class MQTTClient:
                 # Subscribe to all registered topics
                 for topic in self._message_handlers.keys():
                     await self.client.subscribe(topic)
-                    logger.info("mqtt_topic_subscribed", topic=topic)
+                    logger.debug("mqtt_topic_subscribed", topic=topic)
                 # Listen for messages
                 async for message in self.client.messages:
                     if not self._running:

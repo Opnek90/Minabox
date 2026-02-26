@@ -187,7 +187,7 @@ class MQTTMessageHandler:
         try:
             if "source_uri" in data:  # Full play command with source
                 command = PlayCommand(**data)
-                logger.info(
+                logger.debug(
                     "play_command_received",
                     track_id=command.track_id,
                     source_type=command.source_type,
@@ -195,7 +195,7 @@ class MQTTMessageHandler:
                 if self._on_play:
                     await self._on_play(command)
             else:  # Resume (empty payload or timestamp-only)
-                logger.info("play_resume_command_received")
+                logger.debug("play_resume_command_received")
                 if self._on_play:
                     await self._on_play(None)
         except ValidationError as e:
@@ -203,25 +203,25 @@ class MQTTMessageHandler:
 
     async def _handle_pause(self) -> None:
         """Handle pause command."""
-        logger.info("pause_command_received")
+        logger.debug("pause_command_received")
         if self._on_pause:
             await self._on_pause()
 
     async def _handle_stop(self) -> None:
         """Handle stop command."""
-        logger.info("stop_command_received")
+        logger.debug("stop_command_received")
         if self._on_stop:
             await self._on_stop()
 
     async def _handle_next(self) -> None:
         """Handle next command."""
-        logger.info("next_command_received")
+        logger.debug("next_command_received")
         if self._on_next:
             await self._on_next()
 
     async def _handle_prev(self) -> None:
         """Handle previous command."""
-        logger.info("prev_command_received")
+        logger.debug("prev_command_received")
         if self._on_prev:
             await self._on_prev()
 
@@ -239,7 +239,7 @@ class MQTTMessageHandler:
         """Handle volume up command."""
         try:
             command = VolumeStepCommand(**data) if data else VolumeStepCommand()
-            logger.info("volume_up_command_received", step=command.step)
+            logger.debug("volume_up_command_received", step=command.step)
             if self._on_volume_up:
                 await self._on_volume_up(command)
         except ValidationError as e:
@@ -249,7 +249,7 @@ class MQTTMessageHandler:
         """Handle volume down command."""
         try:
             command = VolumeStepCommand(**data) if data else VolumeStepCommand()
-            logger.info("volume_down_command_received", step=command.step)
+            logger.debug("volume_down_command_received", step=command.step)
             if self._on_volume_down:
                 await self._on_volume_down(command)
         except ValidationError as e:
@@ -257,7 +257,7 @@ class MQTTMessageHandler:
 
     async def _handle_mute_toggle(self) -> None:
         """Handle mute toggle command (mute ↔ unmute)."""
-        logger.info("mute_toggle_command_received")
+        logger.debug("mute_toggle_command_received")
         if self._on_mute_toggle:
             await self._on_mute_toggle()
 
@@ -265,7 +265,7 @@ class MQTTMessageHandler:
         """Handle config update command."""
         try:
             new_config = AudioConfig(**data)
-            logger.info("config_update_command_received")
+            logger.debug("config_update_command_received")
             if self._on_config_update:
                 await self._on_config_update(new_config)
         except ValidationError as e:
@@ -274,18 +274,18 @@ class MQTTMessageHandler:
 
     async def _handle_config_reload(self) -> None:
         """Handle config reload command."""
-        logger.info("config_reload_command_received")
+        logger.debug("config_reload_command_received")
         if self._on_config_reload:
             await self._on_config_reload()
 
     async def _handle_config_get(self) -> None:
         """Handle config get request."""
-        logger.info("config_get_request_received")
+        logger.debug("config_get_request_received")
         if self._on_config_get:
             await self._on_config_get()
 
     async def _handle_switch_device(self, data: dict[str, Any]) -> None:
         """Handle switch-device command (alsa_device or direction=next)."""
-        logger.info("switch_device_command_received", data=data)
+        logger.debug("switch_device_command_received", data=data)
         if self._on_switch_device:
             await self._on_switch_device(data)

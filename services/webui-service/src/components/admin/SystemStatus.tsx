@@ -3,9 +3,18 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   Grid,
   Skeleton,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Typography,
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -17,11 +26,12 @@ import RouterIcon from '@mui/icons-material/Router';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StorageIcon from '@mui/icons-material/Storage';
 import TerminalIcon from '@mui/icons-material/Terminal';
+import ThermostatIcon from '@mui/icons-material/Thermostat';
 import { useTranslation } from 'react-i18next';
 import { ServiceLogsModal } from './ServiceLogsModal';
 import { SyslogModal } from './SyslogModal';
 import { ServiceStatusCard } from './ServiceStatus';
-import { systemApi, type HostStatusResponse } from '@/api/system';
+import { systemApi, type HostStatusResponse, type TemperatureHistoryResponse } from '@/api/system';
 import type { SystemStatus as SystemStatusType } from '@/types/api';
 import { formatUptime } from '@/utils/formatTime';
 
@@ -31,20 +41,30 @@ interface StatTileProps {
   label: string;
   value: string;
   title?: string;
+  onClick?: () => void;
 }
 
-const StatTile: React.FC<StatTileProps> = ({ icon, label, value, title }) => (
+const StatTile: React.FC<StatTileProps> = ({ icon, label, value, title, onClick }) => (
   <Box
+    component={onClick ? 'button' : 'div'}
+    type={onClick ? 'button' : undefined}
+    onClick={onClick}
     sx={{
       display: 'flex',
       alignItems: 'center',
       gap: 1.5,
       p: 1.5,
+      m: 0,
       borderRadius: 2,
       bgcolor: 'background.paper',
       border: '1px solid',
       borderColor: 'divider',
       boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+      width: '100%',
+      textAlign: 'left',
+      font: 'inherit',
+      cursor: onClick ? 'pointer' : undefined,
+      '&:hover': onClick ? { bgcolor: 'action.hover' } : undefined,
     }}
   >
     <Box sx={{ color: 'primary.main', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
@@ -71,6 +91,8 @@ export const SystemStatusPanel: React.FC = () => {
   const [syslogModalOpen, setSyslogModalOpen] = useState(false);
   const [logsModalService, setLogsModalService] = useState<string | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusResponse | null>(null);
+  const [temperatureHistory, setTemperatureHistory] = useState<TemperatureHistoryResponse['readings']>([]);
+  const [temperatureHistoryDialogOpen, setTemperatureHistoryDialogOpen] = useState(false);
 
   const initialLoadRef = useRef(true);
   const loadStatus = useCallback(async () => {
@@ -82,12 +104,14 @@ export const SystemStatusPanel: React.FC = () => {
     }
     setError(null);
     try {
-      const [data, host] = await Promise.all([
+      const [data, host, history] = await Promise.all([
         systemApi.getStatus(),
         systemApi.getHostStatus().catch(() => null),
+        systemApi.getTemperatureHistory(24).then((r) => r.readings).catch(() => []),
       ]);
       setStatus(data);
       setHostStatus(host ?? null);
+      setTemperatureHistory(history ?? []);
     } catch {
       setError('Status konnte nicht geladen werden');
     } finally {
@@ -215,9 +239,57 @@ export const SystemStatusPanel: React.FC = () => {
                 />
               </Grid>
             )}
+            {hostStatus?.temperature_celsius != null && (
+              <Grid item xs={12} sm={6} md={4}>
+                <StatTile
+                  icon={<ThermostatIcon fontSize="small" />}
+                  label={t('system.host_temperature')}
+                  value={`${hostStatus.temperature_celsius.toFixed(1)} °C`}
+                  onClick={() => setTemperatureHistoryDialogOpen(true)}
+                />
+              </Grid>
+            )}
           </Grid>
         </Box>
       )}
+
+      {/* ── Temperature history dialog (opened by clicking temperature tile) ──── */}
+      <Dialog
+        open={temperatureHistoryDialogOpen}
+        onClose={() => setTemperatureHistoryDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>{t('system.temperature_history')}</DialogTitle>
+        <DialogContent>
+          <TableContainer sx={{ maxHeight: 360 }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t('system.temperature_time')}</TableCell>
+                  <TableCell align="right">°C</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {temperatureHistory.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={2} align="center" sx={{ py: 3 }}>
+                      {t('system.temperature_history_empty')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  [...temperatureHistory].reverse().map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{new Date(r.t).toLocaleString()}</TableCell>
+                      <TableCell align="right">{r.celsius.toFixed(1)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Docker Container Status (with Log) ────────────────────────────────── */}
       <Typography

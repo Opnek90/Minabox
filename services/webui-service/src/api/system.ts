@@ -28,6 +28,21 @@ export interface HostStatusResponse {
     used_gb: number;
     percent_used: number;
   } | null;
+  temperature_celsius?: number | null;
+}
+
+export interface SystemAlert {
+  code: string;
+  level: 'warning' | 'info' | 'error';
+  message: string;
+}
+
+export interface CurrentAlertResponse {
+  alert: SystemAlert | null;
+}
+
+export interface TemperatureHistoryResponse {
+  readings: Array<{ t: string; celsius: number }>;
 }
 
 export const systemApi = {
@@ -76,6 +91,20 @@ export const systemApi = {
 
   getHostStatus: async (): Promise<HostStatusResponse> => {
     const response = await apiClient.get<HostStatusResponse>('/system/host-status');
+    return response.data;
+  },
+
+  /** Current system alert (e.g. overheating) for the global bar. */
+  getCurrentAlert: async (): Promise<CurrentAlertResponse> => {
+    const response = await apiClient.get<CurrentAlertResponse>('/system/current-alert');
+    return response.data;
+  },
+
+  /** Temperature readings for the last N hours (default 24). */
+  getTemperatureHistory: async (hours = 24): Promise<TemperatureHistoryResponse> => {
+    const response = await apiClient.get<TemperatureHistoryResponse>('/system/temperature-history', {
+      params: { hours },
+    });
     return response.data;
   },
 

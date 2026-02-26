@@ -12,7 +12,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
-from backend_service.core.playback_stats import get_today_listened_minutes, get_total_listened_minutes
+from backend_service.core.playback_stats import (
+    get_today_listened_minutes,
+    get_total_listened_minutes,
+    minutes_for_event,
+)
 from backend_service.models.database import PlaybackEvent, Playlist, Podcast, Stream, Tag, Track
 
 router = APIRouter()
@@ -186,8 +190,7 @@ async def get_listening_summary(
     heatmap_grid: dict[tuple[int, int], float] = defaultdict(float)
 
     for e in events:
-        duration_sec = (e.ended_at - e.started_at).total_seconds()
-        minutes = duration_sec / 60.0
+        minutes = minutes_for_event(e)
         day_key = e.started_at.strftime("%Y-%m-%d")
         minutes_per_day[day_key] += minutes
         wd = e.started_at.weekday()

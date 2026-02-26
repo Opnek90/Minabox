@@ -425,6 +425,8 @@ export type WebSocketMessageType =
   | 'shuffle_mode'
   | 'service_status'
   | 'system_status'
+  | 'system_alert'
+  | 'system_alert_cleared'
   | 'error';
 
 export interface WebSocketMessage {

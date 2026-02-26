@@ -1,4 +1,7 @@
 {
+  "alerts": {
+    "temperature_high": "High system temperature – cool the device!"
+  },
   "app_name": "Minabox",
   "dashboard": {
     "tabs": {

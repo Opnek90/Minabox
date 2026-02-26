@@ -55,7 +55,7 @@ class LEDService:
 
     async def start(self) -> None:
         """Start the LED service."""
-        logger.info("led_service_starting")
+        logger.debug("led_service_starting")
         
         # Load initial LED configuration
         led_config = self.config_manager.load_config()
@@ -93,12 +93,12 @@ class LEDService:
         
         # Run server in background task
         asyncio.create_task(self._api_server.serve())
-        logger.info("api_server_started", port=8000)
+        logger.debug("api_server_started", port=8000)
 
     async def run(self) -> None:
         """Run the service until shutdown is requested."""
         await self._shutdown_event.wait()
-        logger.info("shutdown_requested")
+        logger.debug("shutdown_requested")
 
     async def stop(self) -> None:
         """Stop the LED service gracefully."""
@@ -107,7 +107,7 @@ class LEDService:
         # Stop API server
         if self._api_server:
             self._api_server.should_exit = True
-            logger.info("api_server_stopped")
+            logger.debug("api_server_stopped")
         
         # Stop MQTT client
         await self.mqtt_client.stop()
@@ -163,7 +163,7 @@ class LEDService:
             # Restore system_online state – device is still running
             asyncio.create_task(self.led_manager.apply_state("system_online"))
             
-            logger.info("config_hot_reload_success")
+            logger.debug("config_hot_reload_success")
         except Exception as exc:
             logger.error(
                 "config_hot_reload_failed",
@@ -184,7 +184,7 @@ class LEDService:
             # Restore system_online state – device is still running
             asyncio.create_task(self.led_manager.apply_state("system_online"))
             
-            logger.info("config_reload_success")
+            logger.debug("config_reload_success")
         except Exception as exc:
             logger.error(
                 "config_reload_failed",
@@ -230,7 +230,7 @@ async def main() -> None:
     # Setup logging
     setup_logging(config.env.log_level)
     
-    logger.info(
+    logger.debug(
         "service_initializing",
         device_id=config.env.minabox_device_id,
         log_level=config.env.log_level,
@@ -243,7 +243,7 @@ async def main() -> None:
     loop = asyncio.get_running_loop()
     
     def signal_handler(sig: signal.Signals) -> None:
-        logger.info("signal_received", signal=sig.name)
+        logger.debug("signal_received", signal=sig.name)
         service.request_shutdown()
     
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -271,7 +271,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("keyboard_interrupt")
+        logger.debug("keyboard_interrupt")
     except Exception:
         logger.exception("service_crashed")
         raise

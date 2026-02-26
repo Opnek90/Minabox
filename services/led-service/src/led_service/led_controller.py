@@ -37,6 +37,7 @@ class LEDController:
         self.config = config
         self._current_task: asyncio.Task[None] | None = None
         self._cancel_event = asyncio.Event()
+        self._current_logical_state: str | None = None  # skip re-apply when state unchanged
         self._gpio_available = False
         self._led = None
         
@@ -44,7 +45,7 @@ class LEDController:
         disable_gpio = os.getenv("DISABLE_GPIO", "false").lower() == "true"
         
         if disable_gpio:
-            logger.info(
+            logger.debug(
                 "gpio_disabled_dev_mode",
                 led_id=config.id,
                 led_name=config.name,
@@ -62,7 +63,7 @@ class LEDController:
             
             self._led = LED(config.gpio)
             self._gpio_available = True
-            logger.info(
+            logger.debug(
                 "led_initialized",
                 led_id=config.id,
                 led_name=config.name,
@@ -102,6 +103,10 @@ class LEDController:
                 logical_state=logical_state,
             )
             return
+
+        # Idempotent: skip if the same state is already applied (avoids log/cancel spam on periodic status)
+        if self._current_logical_state == logical_state:
+            return
         
         # Cancel any running pattern
         await self._cancel_current_pattern()
@@ -130,8 +135,9 @@ class LEDController:
             pattern: The pattern configuration to execute.
         """
         self._cancel_event.clear()
+        self._current_logical_state = logical_state
         
-        logger.info(
+        logger.debug(
             "pattern_started",
             led_id=self.config.id,
             led_name=self.config.name,
@@ -201,6 +207,7 @@ class LEDController:
                 except asyncio.CancelledError:
                     pass
             logger.debug("pattern_cancelled", led_id=self.config.id)
+        self._current_logical_state = None
 
     async def cleanup(self) -> None:
         """Clean up resources (cancel pattern, turn off LED)."""
@@ -227,7 +234,7 @@ class LEDController:
                 pin = Device.pin_factory.pin(self.config.gpio)
                 pin.function = "input"
                 pin.pull = "down"
-                logger.info(
+                logger.debug(
                     "led_pin_pulldown_applied",
                     led_id=self.config.id,
                     gpio=self.config.gpio,
@@ -241,7 +248,7 @@ class LEDController:
                     error=str(exc),
                     exc_info=True,
                 )
-        logger.info("led_cleanup", led_id=self.config.id)
+        logger.debug("led_cleanup", led_id=self.config.id)
 
 class LEDManager:
     """Manages all LEDs for the service."""
@@ -249,7 +256,7 @@ class LEDManager:
     def __init__(self) -> None:
         """Initialize the LED manager."""
         self._controllers: Dict[str, LEDController] = {}
-        logger.info("led_manager_initialized")
+        logger.debug("led_manager_initialized")
 
     def initialize_leds(self, led_configs: list[LEDConfig]) -> None:
         """Initialize LED controllers from configuration.
@@ -277,7 +284,7 @@ class LEDManager:
             controller = LEDController(config)
             self._controllers[config.id] = controller
         
-        logger.info("leds_initialized", count=len(self._controllers))
+        logger.debug("leds_initialized", count=len(self._controllers))
 
     async def apply_state(self, logical_state: str) -> None:
         """Apply a logical state to all LEDs that have bindings for it.
@@ -315,7 +322,7 @@ class LEDManager:
 
         # Trigger the first available binding state
         first_state = next(iter(bindings))
-        logger.info("test_led_triggered", led_id=led_id, state=first_state)
+        logger.debug("test_led_triggered", led_id=led_id, state=first_state)
         await controller.apply_pattern(first_state)
         return True
 
@@ -325,4 +332,4 @@ class LEDManager:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         self._controllers.clear()
-        logger.info("led_manager_cleanup")
+        logger.debug("led_manager_cleanup")

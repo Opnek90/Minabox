@@ -91,14 +91,14 @@ class VLCBackend(AudioBackend):
             VLCError: If VLC initialization fails
             OutputDeviceError: If audio output device is unavailable
         """
-        logger.info("vlc_backend_initializing")
+        logger.debug("vlc_backend_initializing")
 
         try:
             # AUTO: Use Pulse when PULSE_SERVER is set; otherwise default
             if self._config.output_device_type == OutputDeviceType.AUTO:
                 pulse_server = os.environ.get("PULSE_SERVER")
                 if pulse_server:
-                    logger.info(
+                    logger.debug(
                         "audio_device_using_pulseaudio",
                         pulse_server=pulse_server,
                     )
@@ -106,7 +106,7 @@ class VLCBackend(AudioBackend):
                     if not (self._config.output_device_name and self._config.output_device_name.strip()):
                         self._config.output_device_name = ""
                 else:
-                    logger.info("audio_device_no_pulse_using_default")
+                    logger.debug("audio_device_no_pulse_using_default")
                     self._config.output_device_type = OutputDeviceType.DEFAULT
                     self._config.output_device_name = "default"
 
@@ -156,7 +156,7 @@ class VLCBackend(AudioBackend):
 
             self._initialized = True
 
-            logger.info(
+            logger.debug(
                 "vlc_backend_initialized",
                 output_device=self._config.output_device_name,
                 initial_volume=initial_volume,
@@ -198,7 +198,7 @@ class VLCBackend(AudioBackend):
                 env=os.environ.copy(),
             )
             if result.returncode == 0:
-                logger.info("pulse_default_sink_set", sink=sink_name)
+                logger.debug("pulse_default_sink_set", sink=sink_name)
             else:
                 logger.warning(
                     "pulse_set_default_sink_failed",
@@ -214,7 +214,7 @@ class VLCBackend(AudioBackend):
 
     async def shutdown(self) -> None:
         """Shutdown VLC backend gracefully."""
-        logger.info("vlc_backend_shutting_down")
+        logger.debug("vlc_backend_shutting_down")
 
         try:
             if self._player is not None:
@@ -227,7 +227,7 @@ class VLCBackend(AudioBackend):
                 self._instance = None
 
             self._initialized = False
-            logger.info("vlc_backend_shutdown_complete")
+            logger.debug("vlc_backend_shutdown_complete")
 
         except Exception as e:
             logger.warning("vlc_backend_shutdown_error", error=str(e))
@@ -251,7 +251,7 @@ class VLCBackend(AudioBackend):
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
 
-        logger.info(
+        logger.debug(
             "play_started",
             source_uri=source_uri,
             start_position_ms=start_position_ms,
@@ -315,7 +315,7 @@ class VLCBackend(AudioBackend):
 
             self._current_source_uri = source_uri
 
-            logger.info("play_successful", source_uri=source_uri)
+            logger.debug("play_successful", source_uri=source_uri)
 
         except (FileNotFoundError, StreamUnreachableError):
             raise
@@ -388,11 +388,11 @@ class VLCBackend(AudioBackend):
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
 
-        logger.info("pause_requested")
+        logger.debug("pause_requested")
 
         try:
             self._player.pause()
-            logger.info("pause_successful")
+            logger.debug("pause_successful")
         except Exception as e:
             logger.error("pause_failed", error=str(e))
             raise PlaybackError(f"Pause failed: {e}") from e
@@ -402,12 +402,12 @@ class VLCBackend(AudioBackend):
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
 
-        logger.info("resume_requested")
+        logger.debug("resume_requested")
 
         try:
             if self._player.get_state() == vlc.State.Paused:
                 self._player.play()
-                logger.info("resume_successful")
+                logger.debug("resume_successful")
             else:
                 logger.warning("resume_ignored_not_paused")
         except Exception as e:
@@ -419,12 +419,12 @@ class VLCBackend(AudioBackend):
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
 
-        logger.info("stop_requested")
+        logger.debug("stop_requested")
 
         try:
             self._player.stop()
             self._current_source_uri = None
-            logger.info("stop_successful")
+            logger.debug("stop_successful")
         except Exception as e:
             logger.error("stop_failed", error=str(e))
             raise PlaybackError(f"Stop failed: {e}") from e

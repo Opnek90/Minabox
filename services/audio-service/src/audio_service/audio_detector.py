@@ -104,7 +104,7 @@ class AudioDeviceDetector:
             # Sort by priority (lower number first)
             devices.sort(key=lambda d: d.priority)
 
-            logger.info(
+            logger.debug(
                 "audio_devices_detected",
                 count=len(devices),
                 best=devices[0].card_name if devices else None,

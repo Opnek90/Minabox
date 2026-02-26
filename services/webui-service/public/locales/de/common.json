@@ -1,4 +1,7 @@
 {
+  "alerts": {
+    "temperature_high": "Hohe Systemtemperatur – Gerät kühlen!"
+  },
   "app_name": "Minabox",
   "dashboard": {
     "tabs": {

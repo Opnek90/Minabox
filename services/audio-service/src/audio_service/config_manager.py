@@ -59,12 +59,12 @@ class ConfigManager:
                 data["output_device_type"] = "pulseaudio"
                 data["output_device_name"] = ""
                 migrated = True
-                logger.info("audio_config_migrated_alsa_to_pulse")
+                logger.debug("audio_config_migrated_alsa_to_pulse")
             config = AudioConfig.model_validate(data)
             self._current_config = config
             if migrated:
                 self._save_config(config)
-            logger.info(
+            logger.debug(
                 "config_loaded",
                 path=str(self._config_path),
                 max_volume=config.max_volume,
@@ -87,11 +87,11 @@ class ConfigManager:
         """
         self._save_config(new_config)
         self._current_config = new_config
-        logger.info("config_updated", path=str(self._config_path))
+        logger.debug("config_updated", path=str(self._config_path))
 
     def reload_config(self) -> AudioConfig:
         """Reload the configuration from disk."""
-        logger.info("audio_config_reload_started")
+        logger.debug("audio_config_reload_started")
         return self.load_config()
 
     def _save_config(self, config: AudioConfig) -> None:

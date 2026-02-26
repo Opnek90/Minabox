@@ -105,7 +105,7 @@ class SessionManager:
     def __init__(self) -> None:
         """Initialize session manager."""
         self._session: PlaybackSession | None = None
-        logger.info("session_manager_initialized")
+        logger.debug("session_manager_initialized")
 
     @property
     def session(self) -> PlaybackSession | None:

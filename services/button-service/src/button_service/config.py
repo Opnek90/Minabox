@@ -89,7 +89,7 @@ def load_app_config() -> AppConfig:
 
     app_config = AppConfig(env=env_config, buttons=buttons_config)
 
-    logger.info(
+    logger.debug(
         "config_loaded",
         buttons_count=len(app_config.buttons.buttons),
         mqtt_broker=app_config.env.mqtt_broker,

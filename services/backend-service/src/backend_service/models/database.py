@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import (
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -33,6 +34,8 @@ class PlaybackEvent(Base):
     tag_id = Column(Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True)
     podcast_id = Column(Integer, ForeignKey("podcasts.id", ondelete="SET NULL"), nullable=True)
     content_type = Column(String(16), nullable=False)  # 'playlist', 'track', 'stream', 'podcast'
+    # Actual listened duration in ms (from position when event closed); used for stats instead of ended_at - started_at
+    listened_ms = Column(Integer, nullable=True)
 
 
 class Tag(Base):
@@ -180,3 +183,16 @@ class PodcastEpisode(Base):
 
     def __repr__(self) -> str:
         return f"<PodcastEpisode(id={self.id}, podcast_id={self.podcast_id}, title={self.title})>"
+
+
+class TemperatureReading(Base):
+    """One system temperature sample (e.g. Raspberry Pi CPU) for analytics."""
+
+    __tablename__ = "temperature_readings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recorded_at = Column(DateTime, nullable=False)
+    temperature_celsius = Column(Float, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<TemperatureReading(id={self.id}, recorded_at={self.recorded_at}, temperature_celsius={self.temperature_celsius})>"

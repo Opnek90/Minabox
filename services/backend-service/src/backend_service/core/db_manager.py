@@ -27,11 +27,11 @@ class DatabaseManager:
         self.database_path = Path(database_path)
         self.engine: Engine | None = None
         self.SessionLocal: sessionmaker | None = None
-        logger.info("db_manager_initialized", database_path=str(self.database_path))
+        logger.debug("db_manager_initialized", database_path=str(self.database_path))
 
     def connect(self) -> None:
         """Connect to database and create tables if needed."""
-        logger.info("db_connecting", path=str(self.database_path))
+        logger.debug("db_connecting", path=str(self.database_path))
 
         # Ensure database directory exists
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -67,7 +67,7 @@ class DatabaseManager:
         # One-time: migrate stream-type tracks to streams table, then remove from tracks
         self._migrate_stream_tracks_to_streams()
 
-        logger.info("db_connected_successfully", database_url=database_url)
+        logger.debug("db_connected_successfully", database_url=database_url)
 
     def _apply_column_migrations(self) -> None:
         """Add new nullable columns to existing tables (idempotent ALTER TABLE)."""
@@ -79,6 +79,7 @@ class DatabaseManager:
             ("playback_events", "podcast_id",   "INTEGER"),
             ("podcasts",       "last_played_at", "DATETIME"),
             ("streams",        "cover_art_url",  "VARCHAR(512)"),
+            ("playback_events", "listened_ms",   "INTEGER"),
         ]
         with self.engine.connect() as conn:
             for table, column, col_type in migrations:
@@ -89,7 +90,7 @@ class DatabaseManager:
                         )
                     )
                     conn.commit()
-                    logger.info("db_column_added", table=table, column=column)
+                    logger.debug("db_column_added", table=table, column=column)
                 except Exception:
                     # Column already exists – silently skip
                     pass
@@ -179,7 +180,7 @@ class DatabaseManager:
 
         This should be called on service startup to ensure DB schema is up-to-date.
         """
-        logger.info("db_running_migrations")
+        logger.debug("db_running_migrations")
         try:
             from alembic.config import Config
 
@@ -193,7 +194,7 @@ class DatabaseManager:
 
             # Run migrations
             command.upgrade(alembic_cfg, "head")
-            logger.info("db_migrations_completed")
+            logger.debug("db_migrations_completed")
         except Exception as e:
             logger.error("db_migrations_failed", error=str(e))
             raise

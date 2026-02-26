@@ -16,7 +16,7 @@ class WebSocketManager:
     def __init__(self) -> None:
         """Initialize WebSocket manager."""
         self.active_connections: list[WebSocket] = []
-        logger.info("websocket_manager_initialized")
+        logger.debug("websocket_manager_initialized")
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accept and register new WebSocket connection.
@@ -26,7 +26,7 @@ class WebSocketManager:
         """
         await websocket.accept()
         self.active_connections.append(websocket)
-        logger.info(
+        logger.debug(
             "websocket_client_connected", total_clients=len(self.active_connections)
         )
 
@@ -38,7 +38,7 @@ class WebSocketManager:
         """
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-        logger.info(
+        logger.debug(
             "websocket_client_disconnected", total_clients=len(self.active_connections)
         )
 
@@ -124,4 +124,4 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
-        logger.info("websocket_client_disconnected_normally")
+        logger.debug("websocket_client_disconnected_normally")

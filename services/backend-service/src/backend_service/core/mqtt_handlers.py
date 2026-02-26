@@ -48,6 +48,48 @@ def mark_deliberate_stop() -> None:
     _deliberate_stop = True
 
 
+def _close_open_playback_event(db_session: Session, status_data: dict[str, Any] | None = None) -> None:
+    """Close the latest open playback event; set listened_ms from status_data if present."""
+    open_event = (
+        db_session.query(PlaybackEvent)
+        .filter(PlaybackEvent.ended_at.is_(None))
+        .order_by(PlaybackEvent.started_at.desc())
+        .first()
+    )
+    if not open_event:
+        return
+    open_event.ended_at = datetime.now(UTC)
+    if status_data:
+        pos = status_data.get("position_ms")
+        dur = status_data.get("duration_ms")
+        if pos is not None and isinstance(pos, (int, float)):
+            ms = int(pos)
+            if dur is not None and isinstance(dur, (int, float)) and int(dur) > 0:
+                ms = min(ms, int(dur))
+            if ms >= 0:
+                open_event.listened_ms = ms
+    db_session.commit()
+
+
+def _create_playback_event_for_current_track(db_session: Session) -> bool:
+    """Create a new PlaybackEvent for session_manager's current track. Returns True if created."""
+    sess = session_manager.session
+    if not sess or not sess.current_track:
+        return False
+    track = sess.current_track
+    content_type = "playlist" if sess.playlist_id is not None else "track"
+    event = PlaybackEvent(
+        started_at=datetime.now(UTC),
+        content_type=content_type,
+        track_id=track.id,
+        playlist_id=sess.playlist_id,
+        tag_id=None,
+    )
+    db_session.add(event)
+    db_session.commit()
+    return True
+
+
 class MQTTHandlers:
     """Handles incoming MQTT messages and triggers appropriate actions."""
 
@@ -69,7 +111,7 @@ class MQTTHandlers:
         self._sleep_timer_start_time: float = 0.0
         self._sleep_timer_duration_ms: int = 0
         self._bedtime_fade_task: asyncio.Task | None = None
-        logger.info("mqtt_handlers_initialized")
+        logger.debug("mqtt_handlers_initialized")
 
     async def handle_rfid_tag_scanned(self, topic: str, data: dict[str, Any]) -> None:
         """Handle RFID tag scanned event (normal mode).
@@ -416,20 +458,12 @@ class MQTTHandlers:
                 _deliberate_stop = False
                 logger.info("auto_advance_skipped_deliberate_stop")
             else:
-                # Close open playback event so today_minutes includes this track; then check daily limit
+                # Close open playback event (with listened_ms from status); then check daily limit
                 daily_enabled, daily_minutes = self._read_daily_limit_settings()
                 if daily_enabled and _db_module.db_manager:
                     db_session = _db_module.db_manager.get_session()
                     try:
-                        open_event = (
-                            db_session.query(PlaybackEvent)
-                            .filter(PlaybackEvent.ended_at.is_(None))
-                            .order_by(PlaybackEvent.started_at.desc())
-                            .first()
-                        )
-                        if open_event:
-                            open_event.ended_at = datetime.now(UTC)
-                            db_session.commit()
+                        _close_open_playback_event(db_session, data)
                         today_min = get_today_listened_minutes(db_session)
                         if today_min >= daily_minutes:
                             logger.info("daily_limit_exceeded_fadeout")
@@ -440,33 +474,17 @@ class MQTTHandlers:
                 elif _db_module.db_manager:
                     db_session = _db_module.db_manager.get_session()
                     try:
-                        open_event = (
-                            db_session.query(PlaybackEvent)
-                            .filter(PlaybackEvent.ended_at.is_(None))
-                            .order_by(PlaybackEvent.started_at.desc())
-                            .first()
-                        )
-                        if open_event:
-                            open_event.ended_at = datetime.now(UTC)
-                            db_session.commit()
+                        _close_open_playback_event(db_session, data)
                     finally:
                         db_session.close()
                 logger.info("track_ended_naturally_auto_advancing")
                 await self._handle_next()
 
-        # Close latest playback event when entering stopped
+        # Close latest playback event when entering stopped (with listened_ms from status)
         if new_state == "stopped" and _db_module.db_manager:
             db_session = _db_module.db_manager.get_session()
             try:
-                open_event = (
-                    db_session.query(PlaybackEvent)
-                    .filter(PlaybackEvent.ended_at.is_(None))
-                    .order_by(PlaybackEvent.started_at.desc())
-                    .first()
-                )
-                if open_event:
-                    open_event.ended_at = datetime.now(UTC)
-                    db_session.commit()
+                _close_open_playback_event(db_session, data)
             finally:
                 db_session.close()
 
@@ -480,18 +498,26 @@ class MQTTHandlers:
                     try:
                         stream_id = int(track_id_raw.split("-", 1)[1], 10)
                         stream = session.query(Stream).filter(Stream.id == stream_id).first()
-                        if stream and payload.get("state") == "playing":
-                            stream.last_played_at = datetime.now(UTC)
-                            session.commit()
+                        if stream:
+                            payload["track_title"] = stream.title
+                            payload["track_artist"] = stream.artist
+                            payload["track_cover_art_url"] = getattr(stream, "cover_art_url", None)
+                            if payload.get("state") == "playing":
+                                stream.last_played_at = datetime.now(UTC)
+                                session.commit()
                     except (ValueError, IndexError):
                         pass
                 elif isinstance(track_id_raw, str) and track_id_raw.startswith("podcast-"):
                     try:
                         podcast_id = int(track_id_raw.split("-", 1)[1], 10)
                         podcast = session.query(Podcast).filter(Podcast.id == podcast_id).first()
-                        if podcast and payload.get("state") == "playing":
-                            podcast.last_played_at = datetime.now(UTC)
-                            session.commit()
+                        if podcast:
+                            payload["track_title"] = podcast.title
+                            payload["track_artist"] = None
+                            payload["track_cover_art_url"] = getattr(podcast, "cover_art_url", None)
+                            if payload.get("state") == "playing":
+                                podcast.last_played_at = datetime.now(UTC)
+                                session.commit()
                     except (ValueError, IndexError):
                         pass
                 else:
@@ -605,39 +631,77 @@ class MQTTHandlers:
                 )
 
     async def _handle_next(self) -> None:
-        """Handle next button; respects repeat one/all."""
+        """Handle next button; respects repeat one/all. Closes current event and creates one per track."""
         sess = session_manager.session
         if not sess or not sess.tracks:
             await self.mqtt_client.publish_audio_command("stop", {})
             return
-        repeat = sess.repeat_mode
-        if repeat == "all" and not sess.has_next:
-            sess.reset()
-            first = sess.current_track
-            if first:
+        # Close current playback event with listened_ms before switching (event per track)
+        if _db_module.db_manager:
+            db_session = _db_module.db_manager.get_session()
+            try:
+                _close_open_playback_event(db_session, self._audio_status_cache)
+                repeat = sess.repeat_mode
+                if repeat == "all" and not sess.has_next:
+                    sess.reset()
+                    first = sess.current_track
+                    if first:
+                        _create_playback_event_for_current_track(db_session)
+                        await self.mqtt_client.publish_audio_command(
+                            "play",
+                            {
+                                "track_id": str(first.id),
+                                "source_type": first.source_type,
+                                "source_uri": first.source_uri,
+                                "start_position_ms": 0,
+                            },
+                        )
+                    return
+                next_track = session_manager.next_track()
+                if next_track:
+                    _create_playback_event_for_current_track(db_session)
+                    await self.mqtt_client.publish_audio_command(
+                        "play",
+                        {
+                            "track_id": str(next_track.id),
+                            "source_type": next_track.source_type,
+                            "source_uri": next_track.source_uri,
+                            "start_position_ms": 0,
+                        },
+                    )
+                else:
+                    await self.mqtt_client.publish_audio_command("stop", {})
+            finally:
+                db_session.close()
+        else:
+            repeat = sess.repeat_mode
+            if repeat == "all" and not sess.has_next:
+                sess.reset()
+                first = sess.current_track
+                if first:
+                    await self.mqtt_client.publish_audio_command(
+                        "play",
+                        {
+                            "track_id": str(first.id),
+                            "source_type": first.source_type,
+                            "source_uri": first.source_uri,
+                            "start_position_ms": 0,
+                        },
+                    )
+                return
+            next_track = session_manager.next_track()
+            if next_track:
                 await self.mqtt_client.publish_audio_command(
                     "play",
                     {
-                        "track_id": str(first.id),
-                        "source_type": first.source_type,
-                        "source_uri": first.source_uri,
+                        "track_id": str(next_track.id),
+                        "source_type": next_track.source_type,
+                        "source_uri": next_track.source_uri,
                         "start_position_ms": 0,
                     },
                 )
-            return
-        next_track = session_manager.next_track()
-        if next_track:
-            await self.mqtt_client.publish_audio_command(
-                "play",
-                {
-                    "track_id": str(next_track.id),
-                    "source_type": next_track.source_type,
-                    "source_uri": next_track.source_uri,
-                    "start_position_ms": 0,
-                },
-            )
-        else:
-            await self.mqtt_client.publish_audio_command("stop", {})
+            else:
+                await self.mqtt_client.publish_audio_command("stop", {})
 
     async def _handle_repeat_cycle(self) -> None:
         """Cycle repeat mode: none <-> all."""
@@ -660,18 +724,37 @@ class MQTTHandlers:
             })
 
     async def _handle_prev(self) -> None:
-        """Handle previous button (audio service expects track_id as str)."""
-        prev_track = session_manager.prev_track()
-        if prev_track:
-            await self.mqtt_client.publish_audio_command(
-                "play",
-                {
-                    "track_id": str(prev_track.id),
-                    "source_type": prev_track.source_type,
-                    "source_uri": prev_track.source_uri,
-                    "start_position_ms": 0,
-                },
-            )
+        """Handle previous button (audio service expects track_id as str). Closes current event and creates one per track."""
+        if _db_module.db_manager:
+            db_session = _db_module.db_manager.get_session()
+            try:
+                _close_open_playback_event(db_session, self._audio_status_cache)
+                prev_track = session_manager.prev_track()
+                if prev_track:
+                    _create_playback_event_for_current_track(db_session)
+                    await self.mqtt_client.publish_audio_command(
+                        "play",
+                        {
+                            "track_id": str(prev_track.id),
+                            "source_type": prev_track.source_type,
+                            "source_uri": prev_track.source_uri,
+                            "start_position_ms": 0,
+                        },
+                    )
+            finally:
+                db_session.close()
+        else:
+            prev_track = session_manager.prev_track()
+            if prev_track:
+                await self.mqtt_client.publish_audio_command(
+                    "play",
+                    {
+                        "track_id": str(prev_track.id),
+                        "source_type": prev_track.source_type,
+                        "source_uri": prev_track.source_uri,
+                        "start_position_ms": 0,
+                    },
+                )
 
     # -------------------------------------------------------------------------
     # Sleep Timer

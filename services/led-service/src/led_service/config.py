@@ -89,7 +89,7 @@ def load_app_config() -> AppConfig:
 
     app_config = AppConfig(env=env_config, leds=leds_config)
 
-    logger.info(
+    logger.debug(
         "config_loaded",
         leds_count=len(app_config.leds.leds),
         mqtt_broker=app_config.env.mqtt_broker,

@@ -41,7 +41,7 @@ class ConfigManager:
         """
         config = _load_buttons_config(self._config_path)
         self._current_config = config
-        logger.info(
+        logger.debug(
             "config_loaded",
             path=str(self._config_path),
             buttons_count=len(config.buttons),
@@ -88,7 +88,7 @@ class ConfigManager:
 
         # Update internal state
         self._current_config = new_config
-        logger.info(
+        logger.debug(
             "config_updated",
             path=str(self._config_path),
             buttons_count=len(new_config.buttons),

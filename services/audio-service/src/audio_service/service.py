@@ -88,7 +88,7 @@ class AudioService:
 
     async def start(self) -> None:
         """Start the audio service (non-blocking)."""
-        logger.info("audio_service_starting")
+        logger.debug("audio_service_starting")
 
         try:
             # Load state
@@ -108,7 +108,7 @@ class AudioService:
                     audio_cfg.max_volume,
                 )
             initial_volume = max(initial_volume, 0)
-            logger.info("setting_service_initial_volume", volume=initial_volume)
+            logger.debug("setting_service_initial_volume", volume=initial_volume)
             await self._vlc_backend.set_volume(initial_volume)
 
             # Connect to MQTT
@@ -339,11 +339,11 @@ class AudioService:
 
     async def _handle_next(self) -> None:
         """Handle next command (backend decides next track)."""
-        logger.info("next_command_received_awaiting_backend")
+        logger.debug("next_command_received_awaiting_backend")
 
     async def _handle_prev(self) -> None:
         """Handle previous command (backend decides previous track)."""
-        logger.info("prev_command_received_awaiting_backend")
+        logger.debug("prev_command_received_awaiting_backend")
 
     async def _handle_set_volume(self, command: VolumeCommand) -> None:
         """Handle set volume command."""
@@ -389,12 +389,12 @@ class AudioService:
                 )
                 await self._vlc_backend.set_volume(volume)
                 self._muted = False
-                logger.info("mute_toggle_unmuted", volume=volume)
+                logger.debug("mute_toggle_unmuted", volume=volume)
             else:
                 self._volume_before_mute = await self._vlc_backend.get_volume()
                 await self._vlc_backend.set_volume(0)
                 self._muted = True
-                logger.info("mute_toggle_muted", volume_before=self._volume_before_mute)
+                logger.debug("mute_toggle_muted", volume_before=self._volume_before_mute)
             await self._publish_status()
         except Exception as exc:
             logger.error("mute_toggle_failed", error=str(exc))
@@ -405,7 +405,7 @@ class AudioService:
         try:
             self._config_manager.update_config(new_config)
             await self._publish_config_response(success=True)
-            logger.info("config_update_successful")
+            logger.debug("config_update_successful")
         except Exception as exc:
             logger.error("config_update_failed", error=str(exc))
             await self._publish_config_response(success=False, error=str(exc))
@@ -418,7 +418,7 @@ class AudioService:
             current = self._config_manager.get_current_config()
             if current is None:
                 await self._publish_config_response(success=True)
-                logger.info("config_reload_successful")
+                logger.debug("config_reload_successful")
                 return
 
             device_changed = (
@@ -445,7 +445,7 @@ class AudioService:
             else:
                 self._vlc_backend.update_config(current)
             await self._publish_config_response(success=True)
-            logger.info("config_reload_successful")
+            logger.debug("config_reload_successful")
         except Exception as exc:
             logger.error("config_reload_failed", error=str(exc))
             await self._publish_config_response(success=False, error=str(exc))
@@ -460,7 +460,7 @@ class AudioService:
                 config_dict = self._config.audio.model_dump()
             topic = self._config.get_mqtt_topic("audio", "config/response")
             await self._mqtt_client.publish(topic, config_dict)
-            logger.info("config_get_response_sent")
+            logger.debug("config_get_response_sent")
         except Exception as exc:
             logger.error("config_get_failed", error=str(exc))
 

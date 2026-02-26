@@ -52,7 +52,7 @@ class PulseSinkDetector:
                 return []
 
             sinks = self._parse_pactl_output(result.stdout or "")
-            logger.info("pulse_sinks_detected", count=len(sinks))
+            logger.debug("pulse_sinks_detected", count=len(sinks))
             return sinks
 
         except FileNotFoundError:

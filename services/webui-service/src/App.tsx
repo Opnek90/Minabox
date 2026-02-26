@@ -2,6 +2,7 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Alert, Box, Button, Snackbar, Toolbar, useMediaQuery, useTheme } from '@mui/material';
 import { Header } from '@/components/common/Header';
+import { SystemAlertBar } from '@/components/common/SystemAlertBar';
 import { Navigation, DRAWER_WIDTH } from '@/components/common/Navigation';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
@@ -107,8 +108,10 @@ const MainLayout: React.FC = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      <Header onMenuToggle={() => setDrawerOpen((p) => !p)} showMenuButton={isMobile} />
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+      <SystemAlertBar />
+      <Box sx={{ display: 'flex', flexGrow: 1 }}>
+        <Header onMenuToggle={() => setDrawerOpen((p) => !p)} showMenuButton={isMobile} />
 
       {isMobile ? (
         <Navigation variant="temporary" open={drawerOpen} onClose={() => setDrawerOpen(false)} />
@@ -178,6 +181,7 @@ const MainLayout: React.FC = () => {
 
       {/* tag_not_found Snackbar */}
       <RfidNotifications />
+      </Box>
     </Box>
   );
 };

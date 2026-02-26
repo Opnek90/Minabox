@@ -125,7 +125,10 @@ def fetch_and_store_episodes(session: Session, podcast: Podcast) -> int:
 
     podcast.last_fetched_at = datetime.now(UTC)
     session.commit()
-    logger.info("podcast_fetched", podcast_id=podcast.id, new_episodes=added)
+    if added > 0:
+        logger.info("podcast_fetched", podcast_id=podcast.id, new_episodes=added)
+    else:
+        logger.debug("podcast_fetched", podcast_id=podcast.id, new_episodes=0)
     return added
 
 

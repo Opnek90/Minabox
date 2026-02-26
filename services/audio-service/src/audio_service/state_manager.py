@@ -52,7 +52,7 @@ class StateManager:
             StateError: If state loading fails
         """
         if not self._state_file_path.exists():
-            logger.info(
+            logger.debug(
                 "state_file_not_found_using_default",
                 path=str(self._state_file_path),
             )
@@ -64,7 +64,7 @@ class StateManager:
 
             self._state = AudioState(**data)
 
-            logger.info(
+            logger.debug(
                 "state_loaded",
                 path=str(self._state_file_path),
                 last_track_id=self._state.last_track_id,
@@ -158,7 +158,7 @@ class StateManager:
         """Clear state (reset to default)."""
         self._state = AudioState()
         self.save(self._state)
-        logger.info("state_cleared")
+        logger.debug("state_cleared")
 
     def can_resume(self) -> bool:
         """Check if resume is possible (we have a last source to resume).

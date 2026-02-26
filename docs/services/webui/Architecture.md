@@ -71,6 +71,7 @@ webui-service/
 │   │   │   ├── LoadingSpinner.tsx
 │   │   │   ├── ErrorBoundary.tsx
 │   │   │   ├── CommandPalette.tsx   # Tastatur-Navigation (z.B. Strg+K)
+│   │   │   ├── SystemAlertBar.tsx   # Globaler Alert-Balken über dem Header (Überhitzung, später z.B. Update verfügbar)
 │   │   │   └── MiniPlayer.tsx       # Kompakter Player in der Leiste
 │   │   ├── player/            # Player-spezifische Komponenten
 │   │   │   ├── PlaybackControls.tsx

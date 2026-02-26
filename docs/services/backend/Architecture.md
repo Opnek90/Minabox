@@ -121,7 +121,9 @@ Nicht-Ziele:
 
 **Host-Operationen (Delegation an Host-Helper):**
 
-- `GET /api/v1/system/host-status` – Host-Status (Hostname, IP, RAM, CPU, Disk, Load)
+- `GET /api/v1/system/host-status` – Host-Status (Hostname, IP, RAM, CPU, Disk, Load, Temperatur)
+- `GET /api/v1/system/temperature-history?hours=24` – Temperaturverlauf (Zeitreihe aus DB, letzte N Stunden)
+- `GET /api/v1/system/current-alert` – Aktuell aktiver System-Alert (z.B. Überhitzung) für die WebUI-Bar
 - `GET /api/v1/system/audio-path` – Aktueller Audio-Pfad (vom Host: AUDIO_FILES_PATH)
 - `PUT /api/v1/system/audio-path` – Audio-Pfad setzen (Payload: `path`); Host-Helper schreibt `.env`
 - `POST /api/v1/system/move-audio` – Medien-Ordner verschieben (source, destination)
@@ -218,6 +220,28 @@ Service-Status:
     "state": "online",
     "timestamp": "2026-02-14T21:20:00Z"
   }
+}
+```
+
+System-Alert (z.B. Überhitzung; WebUI zeigt globale Alert-Bar):
+
+```json
+{
+  "type": "system_alert",
+  "data": {
+    "code": "temperature_high",
+    "level": "warning",
+    "message": "alerts.temperature_high"
+  }
+}
+```
+
+System-Alert gelöscht:
+
+```json
+{
+  "type": "system_alert_cleared",
+  "data": { "code": "temperature_high" }
 }
 ```
 
@@ -435,7 +459,23 @@ class PlaylistTrack(Base):
 
 Playlist hat optional `cover_art_url`; Stream und Track haben optional `cover_art_url`. Cover-Bilder werden unter `STATIC_DIR/covers/` gespeichert.
 
-### 3.9 Alembic Migrations
+### 3.9 TemperatureReadings (Systemtemperatur)
+
+Die Systemtemperatur des Raspberry Pi wird periodisch (z.B. alle 5 Minuten) vom Backend aus dem Host-Status (Host-Helper) gelesen und in der Tabelle `temperature_readings` gespeichert. Überhitzungswarnungen nutzen das bestehende MQTT-Topic `system/service-error` (LED/Display); die WebUI zeigt einen globalen Alert-Balken (SystemAlertBar) über dem Header.
+
+```python
+class TemperatureReading(Base):
+    __tablename__ = "temperature_readings"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recorded_at = Column(DateTime, nullable=False)  # UTC, timezone-aware
+    temperature_celsius = Column(Float, nullable=False)
+```
+
+- **Retention:** Einträge älter als z.B. 30 Tage werden vom Temperature-Log-Task gelöscht.
+- **Überhitzung:** Schwellwert in `general_settings.json` (`temperature_warning_celsius`, Default 80). Bei Überschreitung: Backend publiziert MQTT `minabox/<device-id>/system/service-error` (Payload z.B. `code: "temperature_high"`); LED/Display reagieren wie bei anderen System-Fehlern. Bei Unterschreiten: Backend publiziert `system/service-started`. Zusätzlich sendet das Backend WebSocket `system_alert` / `system_alert_cleared` an die WebUI; `GET /api/v1/system/current-alert` liefert den aktuellen Alert für Reload/Tab-Wechsel.
+
+### 3.10 Alembic Migrations
 
 Der Backend verwendet Alembic für Schema-Migrationen:
 
@@ -455,7 +495,7 @@ target_metadata = Base.metadata
 **Neue Migration erstellen:**
 
 ```bash
-alembic revision --autogenerate -m "Add cover_image to playlists"
+alembic revision --autogenerate -m "Add temperature_readings table"
 ```
 
 **Migrations anwenden:**

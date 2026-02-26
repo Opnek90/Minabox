@@ -915,6 +915,7 @@ def _read_host_status(cfg: dict) -> dict:
         "memory": None,
         "cpu": None,
         "disk": None,
+        "temperature_celsius": None,
     }
     host_proc = cfg.get("host_proc", "/host/proc")
     host_etc_hostname = cfg.get("host_etc_hostname", "/host/etc/hostname")
@@ -991,6 +992,19 @@ def _read_host_status(cfg: dict) -> dict:
             }
         except OSError:
             pass
+
+    # CPU/SoC temperature (e.g. Raspberry Pi thermal_zone0)
+    try:
+        if host_root:
+            temp_path = Path(host_root) / "sys" / "class" / "thermal" / "thermal_zone0" / "temp"
+        else:
+            temp_path = Path("/sys/class/thermal/thermal_zone0/temp")
+        if temp_path.exists():
+            value = temp_path.read_text(encoding="utf-8", errors="replace").strip()
+            if value:
+                out["temperature_celsius"] = round(int(value) / 1000, 1)
+    except (OSError, ValueError):
+        pass
 
     return out
 

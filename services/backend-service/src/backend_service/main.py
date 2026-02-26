@@ -37,6 +37,7 @@ from backend_service.core.db_manager import init_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
 from backend_service.core.podcast_fetcher import run_podcast_fetch_loop
+from backend_service.core.temperature_logger import run_temperature_log_loop
 
 logger = structlog.get_logger(__name__)
 
@@ -52,13 +53,14 @@ class BackendService:
         self._api_server: uvicorn.Server | None = None
         self._db = None
         self._podcast_fetch_task: asyncio.Task | None = None
+        self._temperature_log_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the backend service."""
         logger.info("backend_service_starting", version="0.1.0")
 
         # Initialize database
-        logger.info("initializing_database", path=self.config.database_path)
+        logger.debug("initializing_database", path=self.config.database_path)
         self._db = init_db(self.config.database_path)
 
         try:
@@ -78,7 +80,7 @@ class BackendService:
             )
 
         # Initialize MQTT client
-        logger.info("initializing_mqtt_client")
+        logger.debug("initializing_mqtt_client")
         self._mqtt_client = MQTTClient(self.config)
         await self._mqtt_client.connect()
 
@@ -116,6 +118,17 @@ class BackendService:
         # Start podcast RSS fetch loop (daily)
         self._podcast_fetch_task = asyncio.create_task(run_podcast_fetch_loop(self._db))
 
+        # Start temperature log loop (sample + overheating alert)
+        self._temperature_log_task = asyncio.create_task(
+            run_temperature_log_loop(
+                self._db,
+                self._mqtt_client,
+                self.config.device_id,
+                self.config.get_mqtt_topic,
+                ws_manager.broadcast,
+            )
+        )
+
         # Start FastAPI server
         await self._start_api_server()
 
@@ -132,7 +145,7 @@ class BackendService:
         )
         self._api_server = uvicorn.Server(uv_config)
         asyncio.create_task(self._api_server.serve())
-        logger.info("api_server_started", port=self.config.api_port)
+        logger.debug("api_server_started", port=self.config.api_port)
 
     def _create_app(self) -> FastAPI:
         """Create the FastAPI application."""
@@ -231,6 +244,14 @@ class BackendService:
             except asyncio.CancelledError:
                 pass
 
+        # Stop temperature log task
+        if self._temperature_log_task:
+            self._temperature_log_task.cancel()
+            try:
+                await self._temperature_log_task
+            except asyncio.CancelledError:
+                pass
+
         # Stop MQTT
         if self._mqtt_client:
             await self._mqtt_client.stop()
@@ -272,6 +293,9 @@ def setup_logging(log_level: str) -> None:
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=False,
     )
+    # Reduce noise from Alembic/SQLAlchemy (Context impl SQLiteImpl, Will assume non-transactional DDL)
+    for name in ("alembic.runtime.migration", "sqlalchemy.engine"):
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 async def main() -> None:
     """Main async entry point."""

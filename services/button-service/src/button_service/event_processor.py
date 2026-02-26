@@ -36,12 +36,12 @@ async def run_event_processor(
     
     Runs until shutdown_event is set (if provided) or the queue is closed.
     """
-    logger.info("event_processor_started", publish_raw_events=publish_raw_events)
+    logger.debug("event_processor_started", publish_raw_events=publish_raw_events)
     
     while True:
         try:
             if shutdown_event and shutdown_event.is_set():
-                logger.info("event_processor_shutdown_requested")
+                logger.debug("event_processor_shutdown_requested")
                 break
             
             # Wait for next event with short timeout to allow shutdown check
@@ -87,7 +87,7 @@ async def run_event_processor(
                 # (avoids extra hop via backend)
                 if action in ("volume_up", "volume_down"):
                     await mqtt_client.publish_audio_command(action, {})
-                logger.info(
+                logger.debug(
                     "action_triggered",
                     action=action,
                     source=event.source_id,
@@ -101,7 +101,7 @@ async def run_event_processor(
                 )
                 
         except asyncio.CancelledError:
-            logger.info("event_processor_cancelled")
+            logger.debug("event_processor_cancelled")
             break
         except Exception as exc:
             logger.error(
@@ -110,4 +110,4 @@ async def run_event_processor(
                 exc_info=True,
             )
     
-    logger.info("event_processor_stopped")
+    logger.debug("event_processor_stopped")

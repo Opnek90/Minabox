@@ -51,12 +51,12 @@ class GPIOInputManager:
                 if Device.pin_factory is not None:
                     Device.pin_factory.close()
                 Device.pin_factory = LGPIOFactory()
-                logger.info("gpio_pin_factory_set", factory="lgpio")
+                logger.debug("gpio_pin_factory_set", factory="lgpio")
             except Exception as exc:
                 logger.error("gpio_pin_factory_init_failed", factory="lgpio", error=str(exc))
                 raise GPIOInitError("Failed to initialize lgpio pin factory") from exc
 
-        logger.info("gpio_inputs_starting", buttons=len(self.config.buttons))
+        logger.debug("gpio_inputs_starting", buttons=len(self.config.buttons))
 
         for btn in self.config.buttons:
             try:
@@ -71,11 +71,11 @@ class GPIOInputManager:
                 )
                 raise GPIOInitError(f"Failed to initialize input device {btn.id}") from exc
 
-        logger.info("gpio_inputs_started", devices=len(self._devices))
+        logger.debug("gpio_inputs_started", devices=len(self._devices))
 
     def close(self) -> None:
         """Close all gpiozero devices."""
-        logger.info("gpio_inputs_stopping", devices=len(self._devices))
+        logger.debug("gpio_inputs_stopping", devices=len(self._devices))
         for dev in self._devices:
             close = getattr(dev, "close", None)
             if callable(close):
@@ -84,7 +84,7 @@ class GPIOInputManager:
                 except Exception as exc:
                     logger.warning("gpio_device_close_failed", error=str(exc), exc_info=True)
         self._devices.clear()
-        logger.info("gpio_inputs_stopped")
+        logger.debug("gpio_inputs_stopped")
 
     def _emit_threadsafe(self, event: RawButtonEvent) -> None:
         self.loop.call_soon_threadsafe(self.event_queue.put_nowait, event)
@@ -104,7 +104,7 @@ class GPIOInputManager:
             device.when_held = classifier.on_held
             device.when_released = classifier.on_released
             self._devices.append(device)
-            logger.info("gpio_push_button_initialized", button_id=btn.id, gpio=btn.gpio)
+            logger.debug("gpio_push_button_initialized", button_id=btn.id, gpio=btn.gpio)
             return
 
         if btn.type == "rotary":
@@ -130,7 +130,7 @@ class GPIOInputManager:
             switch.when_pressed = switch_emitter.on_pressed
 
             self._devices.extend([encoder, switch])
-            logger.info(
+            logger.debug(
                 "gpio_rotary_encoder_initialized",
                 encoder_id=btn.id,
                 clk=btn.clk,

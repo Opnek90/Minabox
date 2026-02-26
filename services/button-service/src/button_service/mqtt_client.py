@@ -84,7 +84,7 @@ class MQTTClient:
     )
     async def connect(self) -> None:
         """Connect to the MQTT broker with automatic retry."""
-        logger.info(
+        logger.debug(
             "mqtt_connecting",
             broker=self._config.env.mqtt_broker,
             port=self._config.env.mqtt_port,
@@ -102,7 +102,7 @@ class MQTTClient:
                 await self._client.subscribe(topic, qos=1)
                 logger.debug("mqtt_subscribed", topic=topic)
             
-            logger.info("mqtt_connected")
+            logger.debug("mqtt_connected")
             
         except MqttError as exc:
             logger.error(
@@ -118,7 +118,7 @@ class MQTTClient:
         if self._client:
             try:
                 await self._client.__aexit__(None, None, None)
-                logger.info("mqtt_disconnected")
+                logger.debug("mqtt_disconnected")
             except Exception as exc:
                 logger.warning("mqtt_disconnect_error", error=str(exc))
             finally:
@@ -127,7 +127,7 @@ class MQTTClient:
     async def run(self) -> None:
         """Run the MQTT client message loop with automatic reconnection on broker restart."""
         self._running = True
-        logger.info("mqtt_client_running")
+        logger.debug("mqtt_client_running")
         reconnect_delay = 2.0
         while self._running:
             try:
@@ -166,7 +166,7 @@ class MQTTClient:
 
     async def stop(self) -> None:
         """Stop the MQTT client message loop."""
-        logger.info("mqtt_client_stopping")
+        logger.debug("mqtt_client_stopping")
         self._running = False
 
     async def publish(self, topic: str, payload: dict, qos: int = 1, retain: bool = False) -> None:
@@ -216,7 +216,7 @@ class MQTTClient:
         }
         
         await self.publish(topic, payload, qos=1, retain=False)
-        logger.info(
+        logger.debug(
             "action_published",
             action=action,
             source=source,
@@ -272,7 +272,7 @@ class MQTTClient:
         Args:
             payload: The new button configuration as JSON.
         """
-        logger.info("config_update_received")
+        logger.debug("config_update_received")
         
         try:
             # Parse JSON
@@ -297,7 +297,7 @@ class MQTTClient:
 
     async def _handle_config_reload(self) -> None:
         """Handle config/reload message."""
-        logger.info("config_reload_received")
+        logger.debug("config_reload_received")
         
         try:
             self._on_config_reload()
@@ -316,7 +316,7 @@ class MQTTClient:
         This sends the current button configuration via config/response.
         Note: Full implementation would fetch current config from ConfigManager.
         """
-        logger.info("config_get_received")
+        logger.debug("config_get_received")
         # For now, just acknowledge - full implementation would fetch current config
         await self._send_config_response(success=True, error=None)
 

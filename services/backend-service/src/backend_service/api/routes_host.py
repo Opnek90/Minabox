@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
 import structlog
-from fastapi import APIRouter, HTTPException, UploadFile, File, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Body
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from backend_service.config import get_config
+from backend_service.core.db_manager import get_db
+from backend_service.models.database import TemperatureReading
+from backend_service.core.temperature_logger import get_current_alert
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -108,7 +113,36 @@ async def get_host_status() -> dict:
                 return r.json()
     except Exception as e:
         logger.debug("host_helper_host_status_failed", error=str(e))
-    return {"hostname": None, "ip": None, "uptime_seconds": None, "memory": None, "cpu": None, "disk": None}
+    return {"hostname": None, "ip": None, "uptime_seconds": None, "memory": None, "cpu": None, "disk": None, "temperature_celsius": None}
+
+
+@router.get("/temperature-history")
+async def get_temperature_history(
+    hours: int = Query(default=24, ge=1, le=720),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return temperature readings for the last N hours (default 24)."""
+    since = datetime.now(UTC) - timedelta(hours=hours)
+    rows = (
+        db.query(TemperatureReading)
+        .filter(TemperatureReading.recorded_at >= since)
+        .order_by(TemperatureReading.recorded_at)
+        .all()
+    )
+    readings = [
+        {"t": r.recorded_at.isoformat(), "celsius": round(r.temperature_celsius, 1)}
+        for r in rows
+    ]
+    return {"readings": readings}
+
+
+@router.get("/current-alert")
+async def get_current_system_alert() -> dict:
+    """Return the currently active system alert (e.g. overheating) for the WebUI bar."""
+    alert = get_current_alert()
+    if alert is None:
+        return {"alert": None}
+    return {"alert": alert}
 
 
 @router.get("/audio-path")

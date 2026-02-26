@@ -75,7 +75,7 @@ class AudioServiceRunner:
 
     async def start(self) -> None:
         """Start the audio service and API server."""
-        logger.info("audio_service_starting")
+        logger.debug("audio_service_starting")
 
         # Set service reference for legacy API routes
         routes.set_service(self._service)
@@ -99,7 +99,7 @@ class AudioServiceRunner:
         )
         self._api_server = uvicorn.Server(uvicorn_config)
         asyncio.create_task(self._api_server.serve())
-        logger.info("api_server_started", port=self.config.env.audio_service_port)
+        logger.debug("api_server_started", port=self.config.env.audio_service_port)
 
     async def run(self) -> None:
         """Run the service until shutdown is requested."""
@@ -113,7 +113,7 @@ class AudioServiceRunner:
         # Stop API server
         if self._api_server:
             self._api_server.should_exit = True
-            logger.info("api_server_stopped")
+            logger.debug("api_server_stopped")
 
         # Shutdown the audio service
         await self._service.shutdown()
@@ -150,7 +150,7 @@ async def main() -> None:
     config = load_app_config()
     setup_logging(config.env.log_level)
 
-    logger.info(
+    logger.debug(
         "service_initializing",
         device_id=config.env.minabox_device_id,
         log_level=config.env.log_level,
@@ -160,7 +160,7 @@ async def main() -> None:
     loop = asyncio.get_running_loop()
 
     def signal_handler(sig: int) -> None:
-        logger.info("signal_received", signal=sig)
+        logger.debug("signal_received", signal=sig)
         service.request_shutdown()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -186,7 +186,7 @@ def run() -> None:
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("keyboard_interrupt")
+        logger.debug("keyboard_interrupt")
     except Exception:
         logger.exception("service_crashed")
         raise
