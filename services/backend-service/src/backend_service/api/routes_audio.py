@@ -100,6 +100,18 @@ def _build_play_payload(
     }
 
 
+@router.get("/status")
+async def get_audio_status() -> dict:
+    """Return the last known audio status from the in-memory cache.
+
+    Used by the WebUI Player page on mount so it renders immediately
+    without waiting for the next WebSocket broadcast.
+    """
+    if not _last_audio_status:
+        return {"state": "stopped"}
+    return dict(_last_audio_status)
+
+
 @router.post("/play")
 async def play_audio(
     command: AudioPlayCommand,
@@ -397,7 +409,7 @@ async def set_shuffle_mode(command: ShuffleRequest) -> dict:
     return {"status": "ok", "shuffle": sess.shuffle if sess else False}
 
 
-# ── Audio output device (proxy to audio-service) ───────────────────────────
+# ── Audio output device (proxy to audio-service) ────────────────────────────────────────
 
 @router.get("/devices")
 async def get_audio_devices(
