@@ -104,8 +104,21 @@ class LEDController:
             )
             return
 
-        # Idempotent: skip if the same state is already applied (avoids log/cancel spam on periodic status)
-        if self._current_logical_state == logical_state:
+        # Idempotent: skip only if the same state is actively running (avoids
+        # cancel/restart spam for periodic status messages). One-shot patterns
+        # (solid, blink with repeat) finish their task quickly; once the task
+        # is done _current_logical_state is cleared so the state can be
+        # re-triggered (e.g. rfid_scanned on every new scan).
+        if (
+            self._current_logical_state == logical_state
+            and self._current_task is not None
+            and not self._current_task.done()
+        ):
+            logger.debug(
+                "pattern_skipped_idempotent",
+                led_id=self.config.id,
+                logical_state=logical_state,
+            )
             return
         
         # Cancel any running pattern
@@ -137,8 +150,8 @@ class LEDController:
         self._cancel_event.clear()
         self._current_logical_state = logical_state
         
-        logger.debug(
-            "pattern_started",
+        logger.info(
+            "led_state_changed",
             led_id=self.config.id,
             led_name=self.config.name,
             logical_state=logical_state,
@@ -194,6 +207,20 @@ class LEDController:
                 f"Unknown pattern type '{pattern.pattern_type}' for LED '{self.config.name}'"
             )
 
+        # When the task finishes on its own (one-shot patterns), clear the
+        # state so the same logical state can be triggered again later.
+        def _on_task_done(task: asyncio.Task) -> None:
+            if not task.cancelled() and task.exception() is None:
+                self._current_logical_state = None
+                self._current_task = None
+                logger.debug(
+                    "pattern_completed",
+                    led_id=self.config.id,
+                    logical_state=logical_state,
+                )
+
+        self._current_task.add_done_callback(_on_task_done)
+
     async def _cancel_current_pattern(self) -> None:
         """Cancel the currently running pattern if any."""
         if self._current_task and not self._current_task.done():
@@ -207,7 +234,9 @@ class LEDController:
                 except asyncio.CancelledError:
                     pass
             logger.debug("pattern_cancelled", led_id=self.config.id)
+        # Always reset state – even if the task already finished on its own
         self._current_logical_state = None
+        self._current_task = None
 
     async def cleanup(self) -> None:
         """Clean up resources (cancel pattern, turn off LED)."""
