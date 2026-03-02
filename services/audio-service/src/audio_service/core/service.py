@@ -153,7 +153,7 @@ class AudioService:
             # Publish online status
             await self._publish_system_event("service-started")
 
-            logger.info("audio_service_started")
+            # Note: audio_service_started is logged by AudioServiceRunner.start()
 
         except Exception as exc:
             logger.error("audio_service_start_failed", error=str(exc))

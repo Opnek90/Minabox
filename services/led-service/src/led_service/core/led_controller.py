@@ -25,6 +25,12 @@ from .led_patterns import (
 
 logger = structlog.get_logger(__name__)
 
+# Pattern types that represent persistent states (LED stays as-is after task finishes).
+# These must NOT clear _current_logical_state so subsequent identical events are
+# correctly suppressed by the idempotency check in apply_pattern().
+_PERSISTENT_PATTERN_TYPES = frozenset({"solid", "off"})
+
+
 class LEDController:
     """Controls a single physical LED and its pattern execution."""
 
@@ -207,16 +213,24 @@ class LEDController:
                 f"Unknown pattern type '{pattern.pattern_type}' for LED '{self.config.name}'"
             )
 
-        # When the task finishes on its own (one-shot patterns), clear the
-        # state so the same logical state can be triggered again later.
+        # When a one-shot (non-persistent) pattern finishes on its own, clear the
+        # state so the same logical state can be re-triggered later
+        # (e.g. rfid_scanned on every new scan).
+        # Persistent patterns (solid, off) intentionally keep _current_logical_state
+        # set so that repeated identical events (e.g. system_online heartbeats) are
+        # correctly suppressed by the idempotency check in apply_pattern().
+        _pattern_type = pattern.pattern_type
+
         def _on_task_done(task: asyncio.Task) -> None:
             if not task.cancelled() and task.exception() is None:
-                self._current_logical_state = None
-                self._current_task = None
+                if _pattern_type not in _PERSISTENT_PATTERN_TYPES:
+                    self._current_logical_state = None
+                    self._current_task = None
                 logger.debug(
                     "pattern_completed",
                     led_id=self.config.id,
                     logical_state=logical_state,
+                    persistent=_pattern_type in _PERSISTENT_PATTERN_TYPES,
                 )
 
         self._current_task.add_done_callback(_on_task_done)
@@ -278,6 +292,7 @@ class LEDController:
                     exc_info=True,
                 )
         logger.debug("led_cleanup", led_id=self.config.id)
+
 
 class LEDManager:
     """Manages all LEDs for the service."""
