@@ -10,6 +10,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from time import time
+from typing import Any
 
 import structlog
 
@@ -27,6 +28,28 @@ from .mqtt_handler import (
 from .state_manager import StateManager
 
 logger = structlog.get_logger(__name__)
+
+
+def _status_fingerprint(
+    status: AudioStatus,
+    muted: bool,
+    multiple_output_devices: bool,
+    bluetooth_sink_available: bool,
+) -> tuple[Any, ...]:
+    """Return a tuple of the fields that matter for LED / UI state changes.
+
+    Intentionally excludes position_ms and timestamp so a playing track
+    does not trigger a publish every 2 seconds.
+    """
+    return (
+        status.state,
+        status.track_id,
+        status.source_uri,
+        status.volume,
+        muted,
+        multiple_output_devices,
+        bluetooth_sink_available,
+    )
 
 
 class AudioService:
@@ -74,6 +97,9 @@ class AudioService:
         self._status_publish_task: asyncio.Task | None = None
         self._mqtt_task: asyncio.Task | None = None
         self._running = False
+
+        # Last-published fingerprint for change detection in the periodic loop
+        self._last_published_fingerprint: tuple[Any, ...] | None = None
 
     @property
     def mqtt_client(self) -> MQTTClient:
@@ -206,18 +232,31 @@ class AudioService:
             await self._mqtt_client.subscribe(topic)
 
     async def _status_publish_loop(self) -> None:
-        """Periodically publish audio status to MQTT."""
+        """Periodically publish audio status to MQTT – only on state changes.
+
+        The loop still ticks every 2 seconds so that state transitions
+        (e.g. a track ending naturally) are picked up quickly.  However,
+        the actual MQTT publish is skipped when the relevant fields have not
+        changed since the last publish, eliminating heartbeat spam.
+        """
         while self._running:
             try:
                 await asyncio.sleep(2.0)
-                await self._publish_status()
+                await self._publish_status(force=False)
             except asyncio.CancelledError:
                 break
             except Exception as exc:
                 logger.error("status_publish_loop_error", error=str(exc))
 
-    async def _publish_status(self) -> None:
-        """Publish current audio status to MQTT."""
+    async def _publish_status(self, *, force: bool = True) -> None:
+        """Publish current audio status to MQTT.
+
+        Args:
+            force: When True (default) always publish – used by command
+                   handlers so that immediate feedback is never suppressed.
+                   When False the publish is skipped if the fingerprint of
+                   relevant fields matches the last published value.
+        """
         try:
             status = await self._vlc_backend.get_status()
 
@@ -235,6 +274,14 @@ class AudioService:
             except Exception as exc:
                 logger.warning("audio_status_devices_failed", error=str(exc))
 
+            fingerprint = _status_fingerprint(
+                status, self._muted, multiple_output_devices, bluetooth_sink_available
+            )
+
+            if not force and fingerprint == self._last_published_fingerprint:
+                logger.debug("audio_status_unchanged_skipping_publish")
+                return
+
             payload = {
                 "state": status.state.value,
                 "track_id": status.track_id,
@@ -251,6 +298,7 @@ class AudioService:
 
             topic = self._config.get_mqtt_topic("audio", "status")
             await self._mqtt_client.publish(topic, payload, retain=True)
+            self._last_published_fingerprint = fingerprint
 
         except Exception as exc:
             logger.error("publish_status_failed", error=str(exc))
