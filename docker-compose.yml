@@ -62,8 +62,8 @@ services:
   # =================================
   backend:
     build:
-      context: ./services/backend-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: backend-service/Dockerfile
     container_name: minabox-backend
     restart: unless-stopped
     ports:
@@ -163,8 +163,8 @@ services:
   # =================================
   audio:
     build:
-      context: ./services/audio-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: audio-service/Dockerfile
     container_name: minabox-audio
     restart: unless-stopped
     ports:
@@ -206,8 +206,8 @@ services:
   # =================================
   rfid:
     build:
-      context: ./services/rfid-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: rfid-service/Dockerfile
     container_name: minabox-rfid
     restart: unless-stopped
     ports:
@@ -240,8 +240,8 @@ services:
   # =================================
   button:
     build:
-      context: ./services/button-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: button-service/Dockerfile
     container_name: minabox-button
     restart: unless-stopped
     ports:
@@ -281,8 +281,8 @@ services:
   # =================================
   led:
     build:
-      context: ./services/led-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: led-service/Dockerfile
     container_name: minabox-led
     restart: unless-stopped
     ports:
@@ -318,8 +318,8 @@ services:
   # =================================
   display:
     build:
-      context: ./services/display-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: display-service/Dockerfile
     container_name: minabox-display
     restart: unless-stopped
     ports:

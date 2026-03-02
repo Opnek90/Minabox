@@ -25,9 +25,11 @@ RUN git clone --depth 1 https://github.com/joan2937/lg /tmp/lg \
     && cd / \
     && rm -rf /tmp/lg
 
-# App dependencies (pip install lgpio compiles against /usr/local liblgpio)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install shared-lib first, then service requirements (context: ./services)
+COPY shared-lib ./shared-lib
+COPY button-service/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir ./shared-lib && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime
 FROM python:3.13-slim
@@ -45,8 +47,9 @@ RUN ldconfig
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-COPY src/ ./src/
-COPY config/ ./config/
+# Copy application code (paths relative to context ./services)
+COPY button-service/src/ ./src/
+COPY button-service/config/ ./config/
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD curl -f http://localhost:8000/health || exit 1

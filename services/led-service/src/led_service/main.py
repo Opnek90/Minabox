@@ -22,9 +22,8 @@ from .api.routes import create_app
 from .config import load_app_config
 from .config_manager import ConfigManager
 from .config_schema import AppConfig, LEDServiceConfig
-from .led_controller import LEDManager
-from .mqtt_client import MQTTClient
-from .state_manager import StateManager
+from .core import LEDManager, StateManager
+from .infrastructure import MQTTClient
 
 logger = structlog.get_logger(__name__)
 

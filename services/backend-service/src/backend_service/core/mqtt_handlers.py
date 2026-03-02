@@ -6,7 +6,7 @@ import asyncio
 import json
 import os
 import time
-from datetime import UTC, datetime, time as dt_time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +16,15 @@ from sqlalchemy.orm import Session
 import backend_service.core.db_manager as _db_module
 from backend_service.core.playback_stats import get_today_listened_minutes
 from backend_service.core.session_manager import session_manager
+from backend_service.core.sleep_settings import (
+    read_bedtime_fade_settings,
+    read_sleep_timer_minutes,
+)
+from backend_service.core.usage_limits import (
+    is_within_allowed_usage_time,
+    read_allowed_usage_times,
+    read_daily_limit_settings,
+)
 from backend_service.exceptions import ContentNotFoundError
 from backend_service.models.database import (
     PlaybackEvent,
@@ -139,6 +148,15 @@ class MQTTHandlers:
 
             if not tag:
                 logger.warning("tag_not_found", tag_id=tag_id)
+                # Publish unknown-tag so LED service (and other subscribers) can react
+                unknown_tag_topic = self.mqtt_client.config.get_mqtt_topic("rfid", "unknown-tag")
+                await self.mqtt_client.publish(
+                    unknown_tag_topic,
+                    {
+                        "tag_id": tag_id,
+                        "timestamp": datetime.now(UTC).isoformat(),
+                    },
+                )
                 if self.websocket_manager:
                     await self.websocket_manager.broadcast(
                         {
@@ -153,8 +171,8 @@ class MQTTHandlers:
 
             # Check allowed usage times (parental control)
             now = datetime.now(UTC)
-            slots = self._read_allowed_usage_times()
-            if slots and not self._is_within_allowed_usage_time(now, slots):
+            slots = read_allowed_usage_times()
+            if slots and not is_within_allowed_usage_time(now, slots):
                 logger.info("tag_scanned_outside_allowed_time", tag_id=tag_id)
                 usage_denied_topic = self.mqtt_client.config.get_mqtt_topic("led", "usage-denied")
                 await self.mqtt_client.publish(
@@ -171,7 +189,7 @@ class MQTTHandlers:
                 return
 
             # Check daily limit (parental control)
-            daily_enabled, daily_minutes = self._read_daily_limit_settings()
+            daily_enabled, daily_minutes = read_daily_limit_settings()
             if daily_enabled:
                 today_min = get_today_listened_minutes(session)
                 if today_min >= daily_minutes:
@@ -459,7 +477,7 @@ class MQTTHandlers:
                 logger.info("auto_advance_skipped_deliberate_stop")
             else:
                 # Close open playback event (with listened_ms from status); then check daily limit
-                daily_enabled, daily_minutes = self._read_daily_limit_settings()
+                daily_enabled, daily_minutes = read_daily_limit_settings()
                 if daily_enabled and _db_module.db_manager:
                     db_session = _db_module.db_manager.get_session()
                     try:
@@ -760,105 +778,10 @@ class MQTTHandlers:
     # Sleep Timer
     # -------------------------------------------------------------------------
 
-    @staticmethod
-    def _read_sleep_timer_minutes() -> int:
-        """Read sleep_timer_minutes from general_settings.json (default 30)."""
-        data_path = os.environ.get("DATA_PATH", "/data")
-        gs_path = Path(data_path) / "general_settings.json"
-        try:
-            if gs_path.exists():
-                data = json.loads(gs_path.read_text(encoding="utf-8"))
-                return max(1, int(data.get("sleep_timer_minutes", 30)))
-        except (OSError, ValueError, json.JSONDecodeError):
-            pass
-        return 30
-
-    @staticmethod
-    def _read_bedtime_fade_settings() -> tuple[bool, int, int, float]:
-        """Read bedtime fade from general_settings.json. Returns (enabled, duration_min, interval_sec, step_pct)."""
-        data_path = os.environ.get("DATA_PATH", "/data")
-        gs_path = Path(data_path) / "general_settings.json"
-        try:
-            if gs_path.exists():
-                data = json.loads(gs_path.read_text(encoding="utf-8"))
-                enabled = bool(data.get("bedtime_fade_enabled", False))
-                duration = max(1, int(data.get("bedtime_fade_duration_minutes", 15)))
-                interval = max(5, int(data.get("bedtime_fade_interval_seconds", 30)))
-                step = max(0.5, min(50.0, float(data.get("bedtime_fade_step_percent", 2.0))))
-                return (enabled, duration, interval, step)
-        except (OSError, ValueError, json.JSONDecodeError, TypeError):
-            pass
-        return (False, 15, 30, 2.0)
-
-    @staticmethod
-    def _read_allowed_usage_times() -> list[dict[str, Any]]:
-        """Read allowed_usage_times from general_settings.json. Empty list = no restriction.
-        When usage_times_enabled is False, returns [] (no restriction)."""
-        data_path = os.environ.get("DATA_PATH", "/data")
-        gs_path = Path(data_path) / "general_settings.json"
-        try:
-            if gs_path.exists():
-                data = json.loads(gs_path.read_text(encoding="utf-8"))
-                if not bool(data.get("usage_times_enabled", False)):
-                    return []
-                raw = data.get("allowed_usage_times")
-                if isinstance(raw, list) and raw:
-                    return [
-                        {"weekday": int(x.get("weekday", 0)), "start": str(x.get("start", "07:00")), "end": str(x.get("end", "19:00"))}
-                        for x in raw
-                        if isinstance(x, dict) and 0 <= x.get("weekday", 0) <= 6
-                    ]
-        except (OSError, json.JSONDecodeError, ValueError, TypeError):
-            pass
-        return []
-
-    @staticmethod
-    def _is_within_allowed_usage_time(now: datetime, slots: list[dict[str, Any]]) -> bool:
-        """Return True if now falls within any allowed slot. Empty slots = always allowed."""
-        if not slots:
-            return True
-        try:
-            t = now.time()
-            wd = now.weekday()  # 0=Monday, 6=Sunday
-            for s in slots:
-                if s.get("weekday") != wd:
-                    continue
-                start_s = s.get("start", "07:00")
-                end_s = s.get("end", "19:00")
-                if len(start_s) >= 5 and len(end_s) >= 5:
-                    start_parts = start_s.split(":")
-                    end_parts = end_s.split(":")
-                    start_t = dt_time(int(start_parts[0], 10), int(start_parts[1], 10))
-                    end_t = dt_time(int(end_parts[0], 10), int(end_parts[1], 10))
-                    if start_t <= end_t:
-                        if start_t <= t <= end_t:
-                            return True
-                    else:
-                        if t >= start_t or t <= end_t:
-                            return True
-        except (ValueError, IndexError, TypeError):
-            pass
-        return False
-
-    @staticmethod
-    def _read_daily_limit_settings() -> tuple[bool, int]:
-        """Read daily_limit_enabled and daily_limit_minutes from general_settings.json."""
-        data_path = os.environ.get("DATA_PATH", "/data")
-        gs_path = Path(data_path) / "general_settings.json"
-        try:
-            if gs_path.exists():
-                data = json.loads(gs_path.read_text(encoding="utf-8"))
-                enabled = bool(data.get("daily_limit_enabled", False))
-                minutes = max(1, min(1440, int(data.get("daily_limit_minutes", 120))))
-                return (enabled, minutes)
-        except (OSError, ValueError, json.JSONDecodeError, TypeError):
-            pass
-        return (False, 120)
-
     async def _trigger_daily_limit_fade(self) -> None:
         """Run bedtime-style fade then stop (when daily limit exceeded)."""
         self._cancel_bedtime_fade()
-        enabled, duration_min, interval_sec, step_pct = self._read_bedtime_fade_settings()
+        enabled, duration_min, interval_sec, step_pct = read_bedtime_fade_settings()
         if not enabled:
             mark_deliberate_stop()
             await self.mqtt_client.publish_audio_command("stop", {})
@@ -910,7 +833,7 @@ class MQTTHandlers:
             self._sleep_timer_coroutine(minutes)
         )
         # Start bedtime fade if enabled
-        enabled, duration_min, interval_sec, step_pct = self._read_bedtime_fade_settings()
+        enabled, duration_min, interval_sec, step_pct = read_bedtime_fade_settings()
         if enabled:
             try:
                 vol = self._audio_status_cache.get("volume")
@@ -939,7 +862,7 @@ class MQTTHandlers:
         if self._sleep_timer_task and not self._sleep_timer_task.done():
             await self.cancel_sleep_timer()
         else:
-            minutes = self._read_sleep_timer_minutes()
+            minutes = read_sleep_timer_minutes()
             await self.start_sleep_timer(minutes)
 
     async def _bedtime_fade_coroutine(

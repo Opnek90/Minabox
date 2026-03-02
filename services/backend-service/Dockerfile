@@ -1,4 +1,5 @@
 # Stage 1: Build dependencies
+# Build context must be ./services (parent of backend-service) so shared-lib is available
 FROM python:3.13-slim AS builder
 
 WORKDIR /app
@@ -9,9 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python packages
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install shared-lib first (minabox-shared), then backend requirements
+COPY shared-lib ./shared-lib
+COPY backend-service/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir ./shared-lib && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime
 FROM python:3.13-slim
@@ -30,11 +33,11 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Set Python path
 ENV PYTHONPATH=/app/src
 
-# Copy application code
-COPY src/ ./src/
-COPY config/ ./config/
-COPY alembic/ ./alembic/
-COPY alembic.ini .
+# Copy application code (paths relative to context ./services)
+COPY backend-service/src/ ./src/
+COPY backend-service/config/ ./config/
+COPY backend-service/alembic/ ./alembic/
+COPY backend-service/alembic.ini .
 
 # Create directories for data and audio
 RUN mkdir -p /data /mnt/audio/tracks

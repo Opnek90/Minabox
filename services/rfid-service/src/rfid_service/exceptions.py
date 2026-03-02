@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from shared_lib.exceptions import MinaboxError
 
-class MinaboxRFIDError(Exception):
+
+class MinaboxRFIDError(MinaboxError):
     """Base exception for all RFID service errors."""
 
 
@@ -25,7 +27,3 @@ class ReadTimeoutError(HardwareError):
 
 class ProtocolError(HardwareError):
     """Unexpected or invalid response from the reader."""
-
-
-class ConfigError(MinaboxRFIDError):
-    """Configuration loading or validation failed."""

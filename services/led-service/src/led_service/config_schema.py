@@ -4,6 +4,8 @@ from typing import Dict, List, Literal
 
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 
+from shared_lib.config import EnvConfigBase
+
 PatternType = Literal["solid", "blink", "pulse", "off"]
 
 class LEDPattern(BaseModel):
@@ -69,23 +71,9 @@ class LEDServiceConfig(BaseModel):
         description="Configured LEDs for this device.",
     )
 
-class EnvConfig(BaseModel):
-    """Environment-based configuration shared across Minabox services."""
+class EnvConfig(EnvConfigBase):
+    """Environment-based configuration for the LED service (extends shared base)."""
 
-    mqtt_broker: str = Field(
-        min_length=1,
-        description="Hostname of the MQTT broker (e.g. 'mqtt').",
-    )
-    mqtt_port: PositiveInt = Field(
-        description="Port of the MQTT broker (e.g. 1883).",
-    )
-    minabox_device_id: str = Field(
-        min_length=1,
-        description="Device ID used in MQTT topics (e.g. 'box1').",
-    )
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        description="Global log level for this service.",
-    )
 
 class AppConfig(BaseModel):
     """Combined configuration for the LED service.

@@ -21,7 +21,7 @@ from fastapi import FastAPI, HTTPException
 from .api import routes
 from .config import load_app_config
 from .config_schema import AppConfig
-from .service import AudioService
+from .core import AudioService
 
 logger = structlog.get_logger(__name__)
 

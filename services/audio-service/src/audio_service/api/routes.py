@@ -11,7 +11,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..audio_backend import AudioStatus
+from ..infrastructure.audio_backend import AudioStatus
 
 logger = structlog.get_logger(__name__)
 

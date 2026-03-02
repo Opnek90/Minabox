@@ -169,6 +169,17 @@ htmlcov/
 # services/*/config/*.json
 # Kommentiere die obige Zeile ein, falls Configs Secrets enthalten
 
+# =================================
+# Service State & Tool Caches
+# =================================
+# Laufzeit-State-Dateien (z.B. letzte Wiedergabeposition)
+state/
+services/*-service/state/
+
+# Ruff Linter Cache
+.ruff_cache/
+services/*-service/.ruff_cache/
+
 # Python
 __pycache__/
 *.py[cod]

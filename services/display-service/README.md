@@ -22,3 +22,5 @@ I2C OLED (SSD1306 128x64) status display service for Minabox. Layout: **header**
 ## Run
 
 Part of the Minabox stack via `docker compose up`. Requires I2C enabled (`raspi-config` → Interface Options → I2C).
+
+**Scripts:** `scripts/generate_icon_assets.py` – generates or updates icon assets from a source (run from service root if needed).

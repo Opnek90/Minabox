@@ -2,7 +2,7 @@
   "leds": [
     {
       "id": "led_5",
-      "name": "Power-LED",
+      "name": "Blau",
       "gpio": 17,
       "bindings": {
         "system_online": {
@@ -13,41 +13,60 @@
     },
     {
       "id": "led_6",
-      "name": "Status-LED",
+      "name": "Rot",
       "gpio": 27,
       "bindings": {
-        "audio_playing": {
-          "pattern_type": "solid",
-          "duration_ms": 0
+        "system_error": {
+          "pattern_type": "pulse",
+          "duration_ms": 250
         },
-        "audio_stopped": {
-          "pattern_type": "off",
+        "rfid_unknown_tag": {
+          "pattern_type": "blink",
           "duration_ms": 500,
           "interval_ms": 500,
-          "repeat": 0
+          "repeat": 3
         },
-        "audio_paused": {
-          "pattern_type": "off",
-          "duration_ms": 200,
-          "repeat": 0
+        "backend_unreachable": {
+          "pattern_type": "solid",
+          "duration_ms": 0
         }
       }
     },
     {
       "id": "led_7",
-      "name": "RFID-LED",
+      "name": "Grün",
       "gpio": 22,
       "bindings": {
-        "rfid_scanned": {
-          "pattern_type": "pulse",
-          "duration_ms": 400,
-          "repeat": 3
+        "audio_playing": {
+          "pattern_type": "solid",
+          "duration_ms": 0
         },
+        "audio_paused": {
+          "pattern_type": "off",
+          "duration_ms": 0
+        },
+        "audio_stopped": {
+          "pattern_type": "off",
+          "duration_ms": 0
+        }
+      }
+    },
+    {
+      "id": "led_8",
+      "name": "Gelb",
+      "gpio": 23,
+      "bindings": {
         "button_pressed": {
           "pattern_type": "blink",
           "duration_ms": 500,
-          "interval_ms": 500,
-          "repeat": 1
+          "repeat": 1,
+          "interval_ms": 500
+        },
+        "rfid_scanned": {
+          "pattern_type": "blink",
+          "duration_ms": 500,
+          "repeat": 1,
+          "interval_ms": 500
         }
       }
     }

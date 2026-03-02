@@ -11,7 +11,7 @@ from fastapi import FastAPI
 import structlog
 
 from ..config_schema import AppConfig
-from ..mqtt_client import MQTTClient
+from ..infrastructure import MQTTClient
 
 
 logger = structlog.get_logger(__name__)

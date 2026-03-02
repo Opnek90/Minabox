@@ -10,8 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfreetype6-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install shared-lib first, then service requirements (context: ./services)
+COPY shared-lib ./shared-lib
+COPY display-service/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir ./shared-lib && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime
 FROM python:3.13-slim
@@ -29,8 +32,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-COPY src/ ./src/
-COPY config/ ./config/
+# Copy application code (paths relative to context ./services)
+COPY display-service/src/ ./src/
+COPY display-service/config/ ./config/
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD curl -f http://localhost:8000/health || exit 1

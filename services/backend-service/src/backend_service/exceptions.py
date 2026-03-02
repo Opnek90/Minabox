@@ -4,10 +4,12 @@ All custom exceptions inherit from MinaboxBackendError to allow
 catching service-specific errors separately from standard Python exceptions.
 """
 
-
 from __future__ import annotations
 
-class MinaboxBackendError(Exception):
+from shared_lib.exceptions import MinaboxError
+
+
+class MinaboxBackendError(MinaboxError):
     """Base exception for all backend service errors."""
 
     pass

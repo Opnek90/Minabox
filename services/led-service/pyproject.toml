@@ -15,6 +15,7 @@ dependencies = [
     "structlog>=25.4.0,<25.5.0",
     "tenacity>=9.0.0,<10.0.0",
     "gpiozero>=2.0.1,<2.1.0",
+    "minabox-shared @ file:../shared-lib",
 ]
 
 [project.scripts]

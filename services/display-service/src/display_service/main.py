@@ -16,9 +16,8 @@ from .api.routes import create_app
 from .config import load_app_config
 from .config_manager import ConfigManager
 from .config_schema import AppConfig, DisplayServiceConfig
-from .display_controller import clear, init as display_init, is_available, show_areas
-from .mqtt_client import MQTTClient
-from .state_manager import StateManager
+from .core import StateManager
+from .infrastructure import MQTTClient, clear, init as display_init, is_available, show_areas
 
 logger = structlog.get_logger(__name__)
 

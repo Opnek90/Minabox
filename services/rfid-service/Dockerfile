@@ -11,9 +11,11 @@ RUN apt-get update && \
         python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Install packages
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install shared-lib first, then service requirements (context: ./services)
+COPY shared-lib ./shared-lib
+COPY rfid-service/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir ./shared-lib && \
+    pip install --no-cache-dir -r requirements.txt
 
 
 # Runtime Image
@@ -35,9 +37,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # **PYTHONPATH setzen**
 ENV PYTHONPATH=/app/src
 
-# Copy source code
-COPY src/ ./src/
-COPY config/ ./config/
+# Copy application code (paths relative to context ./services)
+COPY rfid-service/src/ ./src/
+COPY rfid-service/config/ ./config/
 
 # Non-root user
 RUN useradd -m -u 1000 minabox && \

@@ -9,8 +9,7 @@ from fastapi import FastAPI
 
 from ..config_manager import ConfigManager
 from ..config_schema import AppConfig
-from ..display_controller import is_available
-from ..mqtt_client import MQTTClient
+from ..infrastructure import MQTTClient, is_available
 
 logger = structlog.get_logger(__name__)
 

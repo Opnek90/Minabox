@@ -19,10 +19,8 @@ import uvicorn
 from .api.routes import create_app
 from .config import load_app_config
 from .config_schema import AppConfig
-from .hardware import create_reader
-from .hardware.reader_interface import RFIDReader
-from .mqtt_client import MQTTClient
-from .rfid_manager import RFIDManager
+from .core import RFIDManager
+from .infrastructure import MQTTClient, RFIDReader, create_reader
 
 logger = structlog.get_logger(__name__)
 

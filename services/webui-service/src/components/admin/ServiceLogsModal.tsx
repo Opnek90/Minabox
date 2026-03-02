@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import {
   Alert,
   Box,
@@ -20,7 +20,7 @@ import {
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from 'react-i18next';
-import { systemApi } from '@/api/system';
+import { useServiceLogs } from '@/hooks/useServiceLogs';
 
 /** Strip ANSI escape sequences (colors/formatting) so terminal output is readable in the UI. */
 function stripAnsi(text: string): string {
@@ -121,8 +121,6 @@ function levelColor(level: string): ChipColor {
   }
 }
 
-const AUTO_REFRESH_INTERVAL_MS = 5_000;
-
 /** Format log timestamp for display: UTC ISO strings are shown in user's local time. */
 function formatLogTimestamp(ts: string): string {
   if (!ts || ts === '–') return ts || '–';
@@ -191,44 +189,14 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation('admin');
-  const [logsLines, setLogsLines] = useState<string[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logsError, setLogsError] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-
-  const fetchLogs = useCallback(async () => {
-    if (!serviceName) return;
-    setLogsLoading(true);
-    setLogsError(null);
-    try {
-      const res = await systemApi.getLogs(serviceName, 200);
-      const lines = (res.lines ?? '').split('\n').filter(Boolean);
-      setLogsLines(lines);
-    } catch (err: unknown) {
-      const res = err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { detail?: string } } }).response : undefined;
-      const status = res?.status;
-      const detail = res?.data?.detail;
-      // #region agent log
-      fetch('http://localhost:7587/ingest/956f1dfb-30a2-4644-a364-2be2e1ac338d', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '771350' }, body: JSON.stringify({ sessionId: '771350', location: 'ServiceLogsModal.tsx:fetchLogs', message: 'getLogs error', data: { status, detail: typeof detail === 'string' ? detail : undefined, serviceName }, timestamp: Date.now(), hypothesisId: 'H4,H5' }) }).catch(() => {});
-      // #endregion
-      const fallback = t('system.logs_unavailable').replace('<service>', serviceName);
-      setLogsError(detail && typeof detail === 'string' ? detail : fallback);
-    } finally {
-      setLogsLoading(false);
-    }
-  }, [serviceName, t]);
-
-  useEffect(() => {
-    if (open && serviceName) fetchLogs();
-  }, [open, serviceName, fetchLogs]);
-
-  useEffect(() => {
-    if (!open || !autoRefresh || !serviceName) return;
-    const interval = setInterval(fetchLogs, AUTO_REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [open, autoRefresh, serviceName, fetchLogs]);
-
-  const displayLines = [...logsLines].reverse();
+  const {
+    displayLines,
+    loading: logsLoading,
+    error: logsError,
+    autoRefresh,
+    setAutoRefresh,
+    refresh,
+  } = useServiceLogs(serviceName, open);
 
   return (
     <Dialog
@@ -261,7 +229,7 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
           <Button
             size="small"
             startIcon={<RefreshIcon />}
-            onClick={fetchLogs}
+            onClick={() => void refresh()}
             disabled={logsLoading}
           >
             {t('refresh', { ns: 'common' })}
@@ -270,7 +238,7 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
       </DialogTitle>
       <DialogContent dividers sx={{ p: 0, bgcolor: 'grey.50', display: 'flex', flexDirection: 'column' }}>
         <TableContainer sx={{ flex: 1, minHeight: 320, overflow: 'auto' }}>
-          {logsLoading && logsLines.length === 0 && (
+          {logsLoading && displayLines.length === 0 && (
             <Box sx={{ p: 2 }}>
               <Typography variant="body2" color="text.secondary">
                 {t('system.logs_loading')}

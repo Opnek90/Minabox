@@ -58,10 +58,9 @@ services/                # Technische Services (Implementierungen)
   led-service/
   button-service/
   host-helper-service/   # Optional: systemnahe Aktionen, nur vom Backend angesprochen
-
-shared/                  # Gemeinsame Libraries/Module (DRY)
+  shared-lib/            # Gemeinsame Config/Exceptions/MQTT-Basis (Paket: minabox-shared, Import: shared_lib)
 infrastructure/          # Infrastruktur-Konfigurationen (Mosquitto-Config, Monitoring, CI/CD)
-install/                 # Installations-/Setup-Skripte und Anleitungen
+scripts/                 # Hilfsskripte (dev-tools.sh, setup-folders.sh, test_display.py)
 ```
 
 **Hinweise:**
@@ -73,6 +72,7 @@ install/                 # Installations-/Setup-Skripte und Anleitungen
 - `docs/services/backend/Architecture.md` deckt sowohl die REST-API als auch die Datenbankschicht ab, da der Backend-Service beide Verantwortlichkeiten innehat.
 - Alle Architecture.md-Dateien für die Hauptservices (RFID, Audio, Backend, WebUI, LED, Button) sind bereits vorhanden und beschreiben Aufgaben, Schnittstellen und Konfigurationsmodelle.
 - Der **Host-Helper-Service** (optional) kapselt systemnahe Aktionen auf dem Host (z.B. Dateien verschieben); er wird nur intern vom Backend angesprochen und ist nicht nach außen exponiert. Siehe `docs/services/host-helper/Architecture.md`.
+- **Gemeinsame Python-Bausteine** (Config, Exceptions, MQTT-Basis) liegen in `services/shared-lib` (Paket **minabox-shared**, Import **shared_lib**). Siehe `services/shared-lib/README.md`.
 
 ---
 
@@ -152,6 +152,8 @@ pip install pre-commit
 pre-commit install
 ```
 
+Optional: `./scripts/dev-tools.sh install` installiert die Hooks; `./scripts/dev-tools.sh format` formatiert den Code, `./scripts/dev-tools.sh check` führt Linting und Type-Check aus.
+
 ### 3.3 Type-Hints
 
 Alle Funktionen müssen Type-Hints haben:
@@ -191,8 +193,6 @@ service-name/                   # z.B. rfid-service/, audio-service/
 ├── tests/
 │   ├── unit/
 │   └── integration/
-├── docs/
-│   └── README.md
 ├── config/
 │   └── service.json           # Service-spezifische Config
 ├── Dockerfile
@@ -202,7 +202,7 @@ service-name/                   # z.B. rfid-service/, audio-service/
 └── README.md
 ```
 
-**Hinweis:** Einzelne Services können ein lokales `docker-compose.yml` für isolierte Entwicklung/Tests haben. Für den produktiven Betrieb wird aber **nur** das zentrale `docker-compose.yml` im Root verwendet.
+**Hinweise:** Die Architektur-Dokumentation liegt zentral unter `docs/services/<bereich>/Architecture.md`. Einzelne Services können ein lokales `docker-compose.yml` für isolierte Entwicklung/Tests haben; optional ein `scripts/`-Ordner für Build- oder Hilfsskripte (z. B. Icon-Generierung, Locale-Merge). Für den produktiven Betrieb wird aber **nur** das zentrale `docker-compose.yml` im Root verwendet.
 
 ### 4.2 Namenskonventionen
 
@@ -854,7 +854,7 @@ Jeder Service definiert ein eigenes Schema (`config_schema.py`) und einen `Confi
 
 ## 14. Best Practices
 
-- **DRY (Don't Repeat Yourself)** – Gemeinsam genutzte Funktionalität nach `shared/`  
+- **DRY (Don't Repeat Yourself)** – Gemeinsam genutzte Funktionalität (Config, Exceptions, MQTT-Basis) in `services/shared-lib` (minabox-shared)  
 - **SOLID-Prinzipien** – insbesondere Single Responsibility & Dependency Inversion  
 - **12-Factor-App** – für Konfiguration, Logs, Disposability, etc.  
 - **Semantic Versioning** – für APIs und Service-Releases  

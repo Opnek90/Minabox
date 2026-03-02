@@ -9,9 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python packages
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install shared-lib first, then service requirements (context: ./services)
+COPY shared-lib ./shared-lib
+COPY audio-service/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir ./shared-lib && \
+    pip install --no-cache-dir -r requirements.txt
 
 
 # Stage 2: Runtime
@@ -39,9 +41,9 @@ ENV VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application code
-COPY src/ ./src/
-COPY config/ ./config/
+# Copy application code (paths relative to context ./services)
+COPY audio-service/src/ ./src/
+COPY audio-service/config/ ./config/
 
 # Create state directory
 RUN mkdir -p ./state

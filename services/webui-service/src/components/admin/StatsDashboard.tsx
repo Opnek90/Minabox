@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import {
   Box,
   Button,
@@ -9,24 +9,8 @@ import {
   Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { statsApi } from '@/api/stats';
-import type {
-  HeatmapItem,
-  ListeningSummaryResponse,
-  MinutesPerDayItem,
-  TopPlaylistItem,
-  TopTagItem,
-} from '@/types/api';
-
-function getDefaultDates(): { from: string; to: string } {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - 13);
-  return {
-    from: start.toISOString().slice(0, 10),
-    to: end.toISOString().slice(0, 10),
-  };
-}
+import type { HeatmapItem, MinutesPerDayItem, TopPlaylistItem, TopTagItem } from '@/types/api';
+import { useStatsDashboard } from '@/hooks/useStatsDashboard';
 
 const WEEKDAY_KEYS = [
   'weekday_0',
@@ -40,40 +24,18 @@ const WEEKDAY_KEYS = [
 
 export const StatsDashboard: React.FC = () => {
   const { t } = useTranslation('admin');
-  const defaults = getDefaultDates();
-  const [fromDate, setFromDate] = useState(defaults.from);
-  const [toDate, setToDate] = useState(defaults.to);
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<ListeningSummaryResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await statsApi.getListeningSummary(fromDate, toDate);
-      setData(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [fromDate, toDate]);
-
-  // Beim Tab-Statistik automatisch die letzten 14 Tage laden
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const maxMinutes =
-    data?.minutes_per_day?.length
-      ? Math.max(...data.minutes_per_day.map((d) => d.minutes), 1)
-      : 1;
-  const heatmapMax =
-    data?.heatmap?.length
-      ? Math.max(...data.heatmap.map((h) => h.minutes), 1)
-      : 1;
+  const {
+    fromDate,
+    toDate,
+    setFromDate,
+    setToDate,
+    loading,
+    error,
+    data,
+    maxMinutes,
+    heatmapMax,
+    load,
+  } = useStatsDashboard();
 
   return (
     <Box sx={{ py: 2 }}>

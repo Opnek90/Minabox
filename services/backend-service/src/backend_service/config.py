@@ -9,19 +9,16 @@ from typing import Final
 
 import structlog
 
-from backend_service.config_schema import AppConfig, BackendServiceConfig, EnvConfig
+from shared_lib.config import load_env, load_json_config
+from shared_lib.exceptions import ConfigError
 
+from backend_service.config_schema import AppConfig, BackendServiceConfig, EnvConfig
 
 logger = structlog.get_logger(__name__)
 
 SERVICE_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 CONFIG_DIR: Final[Path] = SERVICE_ROOT / "config"
 BACKEND_CONFIG_PATH: Final[Path] = CONFIG_DIR / "backend.json"
-
-
-class ConfigError(Exception):
-    """Raised when configuration cannot be loaded or validated."""
-    pass
 
 
 def _general_settings_path() -> Path:
@@ -31,50 +28,25 @@ def _general_settings_path() -> Path:
 
 
 def _load_env_config() -> EnvConfig:
-    """Load required environment variables into an EnvConfig.
-
-    Fails fast with a clear error message if any required variable is missing.
-    Optional: overrides from /data/general_settings.json if present.
-    """
-    required_keys = ("MQTT_BROKER", "MQTT_PORT", "MINABOX_DEVICE_ID", "LOG_LEVEL")
-
-    missing = [key for key in required_keys if key not in os.environ]
-    if missing:
-        raise ConfigError(
-            f"Missing required environment variables: {', '.join(sorted(missing))}"
-        )
-
-    mqtt_broker = os.environ["MQTT_BROKER"]
-    mqtt_port_raw = os.environ["MQTT_PORT"]
-    device_id = os.environ["MINABOX_DEVICE_ID"]
-    log_level = os.environ["LOG_LEVEL"].upper()
-
-    # Optional overrides from general_settings.json (takes effect after restart)
+    """Load required env and optional overrides from general_settings.json."""
+    base = load_env()
     gs_path = _general_settings_path()
     if gs_path.exists():
         try:
             data = json.loads(gs_path.read_text(encoding="utf-8"))
             if "mqtt_broker" in data:
-                mqtt_broker = str(data["mqtt_broker"])
+                base["mqtt_broker"] = str(data["mqtt_broker"])
             if "mqtt_port" in data:
-                mqtt_port_raw = str(data["mqtt_port"])
+                base["mqtt_port"] = int(data["mqtt_port"])
             if "minabox_device_id" in data:
-                device_id = str(data["minabox_device_id"])
+                base["minabox_device_id"] = str(data["minabox_device_id"])
             if "log_level" in data:
-                log_level = str(data["log_level"]).upper()
+                base["log_level"] = str(data["log_level"]).upper()
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("general_settings_load_failed", path=str(gs_path), error=str(e))
 
-    try:
-        mqtt_port = int(mqtt_port_raw)
-    except ValueError as exc:
-        raise ConfigError(f"MQTT_PORT must be an integer, got '{mqtt_port_raw}'") from exc
-
     return EnvConfig(
-        mqtt_broker=mqtt_broker,
-        mqtt_port=mqtt_port,
-        minabox_device_id=device_id,
-        log_level=log_level,
+        **base,
         api_port=int(os.environ.get("API_PORT", "8080")),
         ws_enabled=os.environ.get("WS_ENABLED", "true").lower() in ("true", "1"),
         database_path=os.environ.get("DATABASE_PATH", "/data/minabox.db"),
@@ -84,21 +56,12 @@ def _load_env_config() -> EnvConfig:
 
 def _load_backend_config(path: Path = BACKEND_CONFIG_PATH) -> BackendServiceConfig:
     """Load and validate the backend service configuration from JSON."""
-    if not path.exists():
-        logger.warning("backend_config_not_found_using_defaults", path=str(path))
-        return BackendServiceConfig()
-
-    try:
-        raw_text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise ConfigError(f"Failed to read backend configuration file: {path}") from exc
-
-    try:
-        data = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        raise ConfigError(f"Invalid JSON in backend configuration file: {path}") from exc
-
-    return BackendServiceConfig.model_validate(data)
+    return load_json_config(
+        path,
+        BackendServiceConfig,
+        create_if_missing=True,
+        default_factory=BackendServiceConfig,
+    )
 
 
 def load_app_config() -> AppConfig:

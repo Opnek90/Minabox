@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
+from shared_lib.exceptions import MinaboxError
 
-class MinaboxDisplayError(Exception):
+
+class MinaboxDisplayError(MinaboxError):
     """Base exception for display service errors."""
-
-
-class ConfigError(MinaboxDisplayError):
-    """Raised when configuration cannot be loaded or validated."""
 
 
 class DisplayHardwareError(MinaboxDisplayError):

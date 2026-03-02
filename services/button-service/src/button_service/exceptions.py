@@ -4,10 +4,12 @@ All custom exceptions inherit from MinaboxButtonError to allow catching
 service-specific errors separately from standard Python exceptions.
 """
 
-
 from __future__ import annotations
 
-class MinaboxButtonError(Exception):
+from shared_lib.exceptions import MinaboxError
+
+
+class MinaboxButtonError(MinaboxError):
     """Base exception for all button service errors."""
     pass
 

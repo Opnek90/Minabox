@@ -6,6 +6,8 @@ from typing import List, Literal
 
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 
+from shared_lib.config import EnvConfigBase
+
 DisplayElementType = Literal["volume", "sleep_timer", "mute", "play_state", "clock", "error_state", "repeat", "shuffle", "bluetooth"]
 DisplayArea = Literal[0, 1, 2]  # 0=header (full width), 1=left column, 2=right column
 DisplayFontSize = Literal["small", "medium", "large"]
@@ -53,23 +55,8 @@ class DisplayServiceConfig(BaseModel):
     )
 
 
-class EnvConfig(BaseModel):
-    """Environment-based configuration shared across Minabox services."""
-
-    mqtt_broker: str = Field(
-        min_length=1,
-        description="Hostname of the MQTT broker (e.g. 'mqtt').",
-    )
-    mqtt_port: PositiveInt = Field(
-        description="Port of the MQTT broker (e.g. 1883).",
-    )
-    minabox_device_id: str = Field(
-        min_length=1,
-        description="Device ID used in MQTT topics (e.g. 'box1').",
-    )
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        description="Global log level for this service.",
-    )
+class EnvConfig(EnvConfigBase):
+    """Environment-based configuration for the display service (extends shared base)."""
 
 
 class AppConfig(BaseModel):

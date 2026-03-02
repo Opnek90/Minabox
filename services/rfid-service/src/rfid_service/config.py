@@ -1,81 +1,29 @@
 from __future__ import annotations
 
-import json
-import os
 from pathlib import Path
 from typing import Final
 
 import structlog
 
-from .config_schema import AppConfig, EnvConfig, RFIDServiceConfig
+from shared_lib.config import load_env, load_json_config
 
+from .config_schema import AppConfig, EnvConfig, RFIDServiceConfig
 
 logger = structlog.get_logger(__name__)
 
-# services/rfid-service/src/rfid_service/config.py
-# -> parents[0] = rfid_service
-# -> parents[1] = src
-# -> parents[2] = rfid-service (service root)
 SERVICE_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 CONFIG_DIR: Final[Path] = SERVICE_ROOT / "config"
 RFID_CONFIG_PATH: Final[Path] = CONFIG_DIR / "rfid.json"
 
 
-class ConfigError(Exception):
-    """Raised when configuration cannot be loaded or validated."""
-    pass
-
-
 def _load_env_config() -> EnvConfig:
-    """Load required environment variables into an EnvConfig.
-
-    Fails fast with a clear error message if any required variable is missing.
-    """
-    required_keys = ("MQTT_BROKER", "MQTT_PORT", "MINABOX_DEVICE_ID", "LOG_LEVEL")
-
-    missing = [key for key in required_keys if key not in os.environ]
-    if missing:
-        raise ConfigError(
-            f"Missing required environment variables: {', '.join(sorted(missing))}"
-        )
-
-    mqtt_broker = os.environ["MQTT_BROKER"]
-    mqtt_port_raw = os.environ["MQTT_PORT"]
-    device_id = os.environ["MINABOX_DEVICE_ID"]
-    log_level = os.environ["LOG_LEVEL"].upper()
-
-    try:
-        mqtt_port = int(mqtt_port_raw)
-    except ValueError as exc:
-        raise ConfigError(f"MQTT_PORT must be an integer, got '{mqtt_port_raw}'") from exc
-
-    return EnvConfig(
-        mqtt_broker=mqtt_broker,
-        mqtt_port=mqtt_port,
-        minabox_device_id=device_id,
-        log_level=log_level,
-    )
+    """Load required environment variables into an EnvConfig."""
+    return EnvConfig(**load_env())
 
 
 def _load_rfid_config(path: Path = RFID_CONFIG_PATH) -> RFIDServiceConfig:
-    """Load and validate the RFID service configuration from JSON.
-
-    The structure must match RFIDServiceConfig as defined in config_schema.py.
-    """
-    if not path.exists():
-        raise ConfigError(f"RFID configuration file not found: {path}")
-
-    try:
-        raw_text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise ConfigError(f"Failed to read RFID configuration file: {path}") from exc
-
-    try:
-        data = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        raise ConfigError(f"Invalid JSON in RFID configuration file: {path}") from exc
-
-    return RFIDServiceConfig.model_validate(data)
+    """Load and validate the RFID service configuration from JSON."""
+    return load_json_config(path, RFIDServiceConfig)
 
 
 def load_app_config() -> AppConfig:

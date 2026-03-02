@@ -16,8 +16,8 @@ class TestLEDRequest(BaseModel):
     led_id: str
 
 from ..config_schema import AppConfig
-from ..led_controller import LEDManager
-from ..mqtt_client import MQTTClient
+from ..core import LEDManager
+from ..infrastructure import MQTTClient
 
 
 logger = structlog.get_logger(__name__)

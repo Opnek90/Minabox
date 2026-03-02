@@ -22,10 +22,10 @@ from .config import load_app_config
 from .config_manager import ConfigManager
 from .config_schema import AppConfig, ButtonServiceConfig
 from .core.events import RawButtonEvent
+from .core.event_processor import run_event_processor
 from .core.gpio_input_manager import GPIOInputManager
-from .event_processor import run_event_processor
 from .exceptions import GPIOInitError
-from .mqtt_client import MQTTClient
+from .infrastructure import MQTTClient
 
 logger = structlog.get_logger(__name__)
 

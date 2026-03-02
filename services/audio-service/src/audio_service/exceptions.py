@@ -4,10 +4,12 @@ All custom exceptions inherit from MinaboxAudioError to allow
 catching service-specific errors separately from standard Python exceptions.
 """
 
-
 from __future__ import annotations
 
-class MinaboxAudioError(Exception):
+from shared_lib.exceptions import MinaboxError
+
+
+class MinaboxAudioError(MinaboxError):
     """Base exception for all audio service errors."""
 
     pass

@@ -11,6 +11,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, PositiveInt, field_validator
 
+from shared_lib.config import EnvConfigBase
+
 
 class OutputDeviceType(str, Enum):
     """Audio output device types. ALSA deprecated; use PULSEAUDIO."""
@@ -63,23 +65,9 @@ class AudioConfig(BaseModel):
         return v
 
 
-class EnvConfig(BaseModel):
-    """Environment-based configuration shared across Minabox services."""
+class EnvConfig(EnvConfigBase):
+    """Environment-based configuration for the audio service (extends shared base)."""
 
-    mqtt_broker: str = Field(
-        min_length=1,
-        description="Hostname of the MQTT broker (e.g. 'mqtt').",
-    )
-    mqtt_port: PositiveInt = Field(
-        description="Port of the MQTT broker (e.g. 1883).",
-    )
-    minabox_device_id: str = Field(
-        min_length=1,
-        description="Device ID used in MQTT topics (e.g. 'box1').",
-    )
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        description="Global log level for this service.",
-    )
     audio_service_host: str = Field(
         default="0.0.0.0",
         description="FastAPI host binding.",

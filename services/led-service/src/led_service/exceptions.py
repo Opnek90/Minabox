@@ -4,10 +4,12 @@ All custom exceptions inherit from MinaboxLEDError to allow catching
 service-specific errors separately from standard Python exceptions.
 """
 
-
 from __future__ import annotations
 
-class MinaboxLEDError(Exception):
+from shared_lib.exceptions import MinaboxError
+
+
+class MinaboxLEDError(MinaboxError):
     """Base exception for all LED service errors."""
     pass
 
