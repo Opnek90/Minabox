@@ -319,7 +319,7 @@ export interface ButtonConfig {
 // Config: Display (OLED)
 // ============================================================================
 
-export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state' | 'repeat' | 'shuffle';
+export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state' | 'repeat' | 'shuffle' | 'bluetooth';
 
 /** Area on the OLED: 0 = header (full width), 1 = left column, 2 = right column */
 export type DisplayArea = 0 | 1 | 2;

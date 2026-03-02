@@ -27,7 +27,8 @@
       "clock": "Clock",
       "error_state": "Error indicator",
       "repeat": "Repeat (when All)",
-      "shuffle": "Shuffle (when on)"
+      "shuffle": "Shuffle (when on)",
+      "bluetooth": "Bluetooth (switch available)"
     },
     "order": "Order",
     "save_button": "Save",

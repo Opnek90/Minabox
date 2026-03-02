@@ -222,6 +222,20 @@ class AudioService:
         try:
             status = await self._vlc_backend.get_status()
 
+            # Device availability for display "switch possible" / Bluetooth icon
+            multiple_output_devices = False
+            bluetooth_sink_available = False
+            try:
+                config = self._get_audio_config()
+                enabled_list = getattr(config, "enabled_output_devices", None) or []
+                devices = await self.get_audio_devices(enabled_only=bool(enabled_list))
+                multiple_output_devices = len(devices) >= 2
+                bluetooth_sink_available = any(
+                    (d.get("alsa_device") or "").startswith("bluez_") for d in devices
+                )
+            except Exception as exc:
+                logger.warning("audio_status_devices_failed", error=str(exc))
+
             payload = {
                 "state": status.state.value,
                 "track_id": status.track_id,
@@ -231,6 +245,8 @@ class AudioService:
                 "duration_ms": status.duration_ms,
                 "volume": status.volume,
                 "muted": self._muted,
+                "multiple_output_devices": multiple_output_devices,
+                "bluetooth_sink_available": bluetooth_sink_available,
                 "timestamp": datetime.now(UTC).isoformat(),
             }
 

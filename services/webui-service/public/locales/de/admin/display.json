@@ -27,7 +27,8 @@
       "clock": "Uhrzeit",
       "error_state": "Fehler-Anzeige",
       "repeat": "Repeat (wenn Alle)",
-      "shuffle": "Shuffle (wenn an)"
+      "shuffle": "Shuffle (wenn an)",
+      "bluetooth": "Bluetooth (Wechsel möglich)"
     },
     "order": "Reihenfolge",
     "save_button": "Speichern",

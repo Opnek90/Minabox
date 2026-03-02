@@ -77,6 +77,12 @@ _ICON_SHUFFLE = [
     (6, 8), (5, 9), (4, 10), (3, 11), (2, 12), (3, 13), (4, 12), (5, 11), (6, 10),
     (5, 9), (4, 10), (3, 11), (4, 12), (5, 11),
 ]
+# Bluetooth: vertical bar + two triangles (classic B shape)
+_ICON_BLUETOOTH = [
+    (7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6), (7, 7), (7, 8), (7, 9), (7, 10), (7, 11), (7, 12), (7, 13), (7, 14),
+    (8, 3), (8, 4), (9, 4), (9, 5), (10, 5), (10, 6), (11, 6), (11, 7), (12, 7), (12, 8), (13, 8), (13, 9), (14, 9), (14, 10),
+    (8, 11), (8, 12), (9, 11), (9, 12), (10, 10), (10, 11), (11, 9), (11, 10), (12, 8), (12, 9), (13, 7), (13, 8), (14, 6), (14, 7),
+]
 
 
 def init(i2c_bus: int, i2c_address: int) -> bool:
@@ -171,6 +177,7 @@ def _icon_image_from_pixels(icon_name: str) -> Any:
         else _ICON_MOON if icon_name == "sleep_timer"
         else _ICON_REPEAT if icon_name == "repeat"
         else _ICON_SHUFFLE if icon_name == "shuffle"
+        else _ICON_BLUETOOTH if icon_name == "bluetooth"
         else []
     )
     img = Image.new("1", (_ICON_SIZE, _ICON_SIZE), 0)

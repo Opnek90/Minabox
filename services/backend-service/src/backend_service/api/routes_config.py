@@ -78,6 +78,7 @@ _DISPLAY_ELEMENT_TYPES: list[str] = [
     "error_state",
     "repeat",
     "shuffle",
+    "bluetooth",
 ]
 
 

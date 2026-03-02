@@ -19,6 +19,8 @@ class StateManager:
             "state": "stopped",
             "volume": 0,
             "muted": False,
+            "multiple_output_devices": False,
+            "bluetooth_sink_available": False,
         }
         self._sleep_timer: dict[str, Any] = {"active": False, "remaining_ms": None}
         self._session: dict[str, Any] = {"repeat_mode": "none", "shuffle": False}
@@ -34,6 +36,8 @@ class StateManager:
             self._audio["state"] = data.get("state", "stopped")
             self._audio["volume"] = int(data.get("volume", 0))
             self._audio["muted"] = bool(data.get("muted", False))
+            self._audio["multiple_output_devices"] = data.get("multiple_output_devices", False)
+            self._audio["bluetooth_sink_available"] = data.get("bluetooth_sink_available", False)
         except (json.JSONDecodeError, UnicodeDecodeError, TypeError) as exc:
             logger.warning("audio_status_parse_failed", error=str(exc))
 

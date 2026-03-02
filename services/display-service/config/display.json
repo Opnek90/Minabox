@@ -60,6 +60,13 @@
       "enabled": true,
       "order": 7,
       "area": 2
+    },
+    {
+      "id": "bluetooth",
+      "type": "bluetooth",
+      "enabled": true,
+      "order": 8,
+      "area": 2
     }
   ]
 }

@@ -195,6 +195,9 @@ class DisplayService:
                 elif el.type == "shuffle":
                     if session.get("shuffle"):
                         result[area_idx].append({"type": "icon", "value": "shuffle"})
+                elif el.type == "bluetooth":
+                    if audio.get("bluetooth_sink_available") and audio.get("multiple_output_devices"):
+                        result[area_idx].append({"type": "icon", "value": "bluetooth"})
         return result
 
     async def _render_loop(self) -> None:
