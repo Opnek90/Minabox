@@ -44,15 +44,12 @@ def create_app(
         
         Returns service status and basic statistics.
         """
-        mqtt_connected = mqtt_client._client is not None and mqtt_client._running
-        buttons_count = get_buttons_count()
-        
         return {
             "status": "healthy",
             "service": "button",
             "device_id": config.env.minabox_device_id,
-            "buttons_configured": buttons_count,
-            "mqtt_connected": mqtt_connected,
+            "buttons_configured": get_buttons_count(),
+            "mqtt_connected": mqtt_client.is_connected,
             "mqtt_broker": config.env.mqtt_broker,
             "mqtt_port": config.env.mqtt_port,
         }

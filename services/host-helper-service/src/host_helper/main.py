@@ -10,7 +10,9 @@ import uvicorn
 from fastapi import FastAPI
 
 from host_helper.api.routes import router, set_config
-from host_helper.config import load_config, ConfigError
+from shared_lib.exceptions import ConfigError
+
+from host_helper.config import load_config
 
 logger = structlog.get_logger(__name__)
 

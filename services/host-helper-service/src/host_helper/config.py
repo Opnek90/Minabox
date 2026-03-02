@@ -7,11 +7,9 @@ from pathlib import Path
 
 import structlog
 
+from shared_lib.exceptions import ConfigError
+
 logger = structlog.get_logger(__name__)
-
-
-class ConfigError(Exception):
-    """Raised when configuration cannot be loaded."""
 
 
 def _get_required_env(key: str) -> str:

@@ -39,6 +39,11 @@ class MQTTClient:
             f"{prefix}/display/config/reload",
         ]
 
+    @property
+    def is_connected(self) -> bool:
+        """True if MQTT client is connected and running."""
+        return self._client is not None and self._running
+
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=2, min=2, max=60),

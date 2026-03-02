@@ -58,6 +58,11 @@ class MQTTClient:
         self._running = False
         self._topics = self._build_subscription_topics()
 
+    @property
+    def is_connected(self) -> bool:
+        """True if MQTT client is connected and running."""
+        return self._client is not None and self._running
+
     def _build_subscription_topics(self) -> list[str]:
         """Build list of MQTT topics to subscribe to.
         

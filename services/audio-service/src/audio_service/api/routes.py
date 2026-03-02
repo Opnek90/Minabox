@@ -8,99 +8,66 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, FastAPI, HTTPException, Query
 
-from ..infrastructure.audio_backend import AudioStatus
+from ..config_schema import AppConfig
+from ..core import AudioService
+from ..models import (
+    DeviceItem,
+    DevicesResponse,
+    HealthResponse,
+    StatusResponse,
+    SwitchDeviceBody,
+)
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-# Global reference to service (will be set by main.py)
-_service = None
+# Global reference to service (set by create_app for route handlers)
+_service: AudioService | None = None
 
 
-def set_service(service) -> None:
-    """Set global service reference for route handlers.
-
-    Args:
-        service: AudioService instance
-    """
+def set_service(service: AudioService | None) -> None:
+    """Set global service reference for route handlers."""
     global _service
     _service = service
 
 
-class HealthResponse(BaseModel):
-    """Health check response schema."""
+def create_app(service: AudioService, config: AppConfig) -> FastAPI:
+    """Create FastAPI application with health at root and API routes under /api/v1."""
+    app = FastAPI(
+        title="Minabox Audio Service",
+        description="VLC-based audio player with MQTT control",
+        version="0.1.0",
+    )
 
-    status: str
-    service: str
-    uptime_seconds: float
-    mqtt_connected: bool
-    vlc_initialized: bool
-    timestamp: str
+    set_service(service)
 
+    @app.get("/health", response_model=HealthResponse)
+    async def health_check() -> HealthResponse:
+        """Health check endpoint."""
+        if service is None:
+            raise HTTPException(status_code=503, detail="Service not initialized")
+        try:
+            uptime = service.get_uptime()
+            mqtt_connected = service.is_mqtt_connected()
+            vlc_initialized = service.is_vlc_initialized()
+            status = "healthy" if (mqtt_connected and vlc_initialized) else "degraded"
+            return HealthResponse(
+                status=status,
+                service="audio",
+                uptime_seconds=uptime,
+                mqtt_connected=mqtt_connected,
+                vlc_initialized=vlc_initialized,
+                timestamp=datetime.now(UTC).isoformat(),
+            )
+        except Exception as e:
+            logger.error("health_check_failed", error=str(e))
+            raise HTTPException(status_code=500, detail=str(e))
 
-class StatusResponse(BaseModel):
-    """Audio status response schema."""
-
-    status: AudioStatus
-    timestamp: str
-
-
-class DeviceItem(BaseModel):
-    """Single detected audio device."""
-
-    id: str
-    name: str
-    card_name: str
-    alsa_device: str
-    priority: int
-
-
-class DevicesResponse(BaseModel):
-    """List of detected audio devices."""
-
-    devices: list[DeviceItem]
-
-
-class SwitchDeviceBody(BaseModel):
-    """Request body for POST /switch-device."""
-
-    alsa_device: str | None = Field(default=None, description="Pulse sink name to switch to")
-    direction: str | None = Field(default=None, description="'next' to cycle to next enabled device")
-
-
-@router.get("/health", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
-    """Health check endpoint.
-
-    Returns:
-        HealthResponse with service health information
-    """
-    if _service is None:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-
-    try:
-        uptime = _service.get_uptime()
-        mqtt_connected = _service.is_mqtt_connected()
-        vlc_initialized = _service.is_vlc_initialized()
-
-        status = "healthy" if (mqtt_connected and vlc_initialized) else "degraded"
-
-        return HealthResponse(
-            status=status,
-            service="audio",
-            uptime_seconds=uptime,
-            mqtt_connected=mqtt_connected,
-            vlc_initialized=vlc_initialized,
-            timestamp=datetime.now(UTC).isoformat(),
-        )
-
-    except Exception as e:
-        logger.error("health_check_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+    app.include_router(router, prefix="/api/v1")
+    return app
 
 
 @router.get("/status", response_model=StatusResponse)

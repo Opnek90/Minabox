@@ -12,57 +12,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from typing import Dict
-
 import structlog
 import uvicorn
-from fastapi import FastAPI, HTTPException
-
-from .api import routes
+from .api.routes import create_app
 from .config import load_app_config
 from .config_schema import AppConfig
 from .core import AudioService
 
 logger = structlog.get_logger(__name__)
 
-def create_app(service: AudioService, config: AppConfig) -> FastAPI:
-    """Create FastAPI application with health endpoint at root level.
-
-    Args:
-        service: AudioService instance.
-        config: Application configuration.
-
-    Returns:
-        FastAPI application instance.
-    """
-    app = FastAPI(
-        title="Minabox Audio Service",
-        description="VLC-based audio player with MQTT control",
-        version="0.1.0",
-    )
-
-    @app.get("/health")
-    async def health_check() -> Dict[str, object]:
-        """Health check endpoint."""
-        mqtt_connected = service.is_mqtt_connected()
-        vlc_initialized = service.is_vlc_initialized()
-        status = "healthy" if (mqtt_connected and vlc_initialized) else "degraded"
-
-        return {
-            "status": status,
-            "service": "audio",
-            "device_id": config.env.minabox_device_id,
-            "uptime_seconds": service.get_uptime(),
-            "mqtt_connected": mqtt_connected,
-            "vlc_initialized": vlc_initialized,
-            "mqtt_broker": config.env.mqtt_broker,
-            "mqtt_port": config.env.mqtt_port,
-        }
-
-    # Include additional API routes under /api/v1
-    app.include_router(routes.router, prefix="/api/v1")
-
-    return app
 
 class AudioServiceRunner:
     """Top-level service runner following the standard service pattern."""
@@ -76,9 +34,6 @@ class AudioServiceRunner:
     async def start(self) -> None:
         """Start the audio service and API server."""
         logger.debug("audio_service_starting")
-
-        # Set service reference for legacy API routes
-        routes.set_service(self._service)
 
         # Start the audio service (MQTT, VLC, etc.)
         await self._service.start()

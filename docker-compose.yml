@@ -114,8 +114,8 @@ services:
   # =================================
   host-helper:
     build:
-      context: ./services/host-helper-service
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: host-helper-service/Dockerfile
     container_name: minabox-host-helper
     restart: unless-stopped
     user: "0:0"   # run as root so docker socket is accessible for recreate-stack

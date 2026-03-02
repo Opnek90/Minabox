@@ -204,6 +204,10 @@ service-name/                   # z.B. rfid-service/, audio-service/
 
 **Hinweise:** Die Architektur-Dokumentation liegt zentral unter `docs/services/<bereich>/Architecture.md`. Einzelne Services können ein lokales `docker-compose.yml` für isolierte Entwicklung/Tests haben; optional ein `scripts/`-Ordner für Build- oder Hilfsskripte (z. B. Icon-Generierung, Locale-Merge). Für den produktiven Betrieb wird aber **nur** das zentrale `docker-compose.yml` im Root verwendet.
 
+**MQTT-Client-Platzierung:** Die MQTT-Client-Implementierung gehört in der Regel unter **`infrastructure/`** (z. B. `infrastructure/mqtt_client.py`), da es sich um Transport-/Kommunikationsschicht handelt. Beim Backend-Service darf MQTT ausnahmsweise unter **`core/`** liegen, wenn er stark in die Business-Logik (Handlers, Session) eingebunden ist; neue Services sollten `infrastructure/` bevorzugen.
+
+**Abweichungen von der Standard-Struktur:** Der **Backend-Service** baut die FastAPI-App in einer eigenen **`app_factory.py`** und setzt den API-Router aus mehreren `routes_*.py` in `api/__init__.py` zusammen (kein einzelnes `create_app` in `api/routes.py`). Der **Host-Helper-Service** hält bewusst eine schlanke Config (nur `config.py`, env-basiert, optional ohne `config_schema`/`config_manager`) und nutzt **shared-lib** für Exceptions und ggf. Env-Loading.
+
 ### 4.2 Namenskonventionen
 
 - **Services (Ordner):** `lower-kebab-case` – z.B. `rfid-service`, `audio-service`  
@@ -548,20 +552,26 @@ services:
 
 ### 7.4 Health-Checks
 
-Jeder Service exponiert `/health`:
+Jeder Service exponiert `/health` (am Root, nicht unter `/api/v1`).
+
+**Health-Status-Semantik:**
+
+- **`healthy`** – Service läuft, alle relevanten Abhängigkeiten (z. B. MQTT, DB) sind verbunden.
+- **`degraded`** – Service läuft, aber eine Abhängigkeit fehlt oder ist eingeschränkt (z. B. MQTT verbunden, VLC nicht initialisiert).
+- **`unhealthy`** – Service oder kritische Abhängigkeit ist nicht nutzbar (z. B. DB oder MQTT down).
+
+Services sollen einen dieser Werte zurückgeben; einheitliche Felder (z. B. `status`, `service`, `device_id`, `mqtt_connected`) sind in der shared-lib als `BaseHealthResponse` / `build_health_body` vorgegeben. Für Health-Handler nur öffentliche APIs nutzen (z. B. `mqtt_client.is_connected`), keine privaten Attribute (`_client`, `_running`).
+
+Beispiel:
 
 ```python
-from fastapi import FastAPI
-
-app = FastAPI()
-
 @app.get("/health")
 async def health_check():
     return {
         "status": "healthy",
         "service": "rfid",
-        "uptime": get_uptime(),
-        "mqtt_connected": mqtt_client.is_connected()
+        "device_id": config.env.minabox_device_id,
+        "mqtt_connected": mqtt_client.is_connected,
     }
 ```
 
