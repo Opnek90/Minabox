@@ -16,10 +16,18 @@ class WebSocketManager:
     def __init__(self) -> None:
         """Initialize WebSocket manager."""
         self.active_connections: list[WebSocket] = []
+        self._last_audio_status_payload: dict[str, Any] | None = None
         logger.debug("websocket_manager_initialized")
+
+    def set_last_audio_status_payload(self, payload: dict[str, Any]) -> None:
+        """Store the last enriched audio_status payload for new-client greeting."""
+        self._last_audio_status_payload = payload
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accept and register new WebSocket connection.
+
+        Immediately sends the last known audio_status so the Player page
+        renders without waiting for the next MQTT broadcast cycle.
 
         Args:
             websocket: WebSocket connection
@@ -29,6 +37,17 @@ class WebSocketManager:
         logger.debug(
             "websocket_client_connected", total_clients=len(self.active_connections)
         )
+        if self._last_audio_status_payload is not None:
+            try:
+                greeting = {
+                    "type": "audio_status",
+                    "data": self._last_audio_status_payload,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+                await websocket.send_json(greeting)
+                logger.debug("websocket_initial_audio_status_sent")
+            except Exception as e:
+                logger.warning("websocket_initial_audio_status_failed", error=str(e))
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove WebSocket connection.

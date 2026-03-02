@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { audioApi } from '@/api/audio';
 import type { AudioStatus } from '@/types/api';
 
 const TICK_MS = 1000;
@@ -9,6 +10,22 @@ export const useAudioStatus = (): AudioStatus | null => {
   const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(null);
   const interpolatedRef = useRef<AudioStatus | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const initialFetchDone = useRef(false);
+
+  // Fallback: fetch current status via REST on mount so the Player page
+  // renders immediately even when no MQTT event has been received yet.
+  useEffect(() => {
+    if (initialFetchDone.current) return;
+    initialFetchDone.current = true;
+    audioApi.getStatus().then((data) => {
+      setAudioStatus((prev) => {
+        // Don't overwrite if a WS message already arrived first
+        if (prev !== null) return prev;
+        interpolatedRef.current = data;
+        return data;
+      });
+    }).catch(() => null);
+  }, []);
 
   // Update from WebSocket
   useEffect(() => {

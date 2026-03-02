@@ -571,6 +571,10 @@ class MQTTHandlers:
             except (TypeError, ValueError, AttributeError):
                 pass
 
+        # Cache enriched payload in WebSocket manager for new-client greeting
+        if self.websocket_manager:
+            self.websocket_manager.set_last_audio_status_payload(payload)
+
         # Broadcast to WebUI
         if self.websocket_manager:
             await self.websocket_manager.broadcast(
