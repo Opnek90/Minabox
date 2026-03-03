@@ -13,11 +13,9 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  Divider,
   Grid,
   IconButton,
   InputAdornment,
-  List,
   ListItem,
   ListItemAvatar,
   ListItemText,
@@ -38,6 +36,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
+import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { audioApi } from '@/api/audio';
 import type { Track } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
@@ -53,6 +52,20 @@ interface TrackListProps {
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
 }
+
+
+// Sub-components for VirtuosoGrid
+const gridComponents = {
+  List: React.forwardRef<HTMLDivElement>((props, ref) => (
+    <Grid container spacing={2} {...props} ref={ref} />
+  )),
+  Item: ({ children, ...props }: any) => (
+    <Grid item xs={12} sm={6} md={4} {...props}>
+      {children}
+    </Grid>
+  )
+};
+gridComponents.List.displayName = 'GridList';
 
 
 export const TrackList: React.FC<TrackListProps> = ({
@@ -120,9 +133,187 @@ export const TrackList: React.FC<TrackListProps> = ({
     );
   }
 
+  // Row renderer for standard list view
+  const renderListItem = (index: number, track: Track) => (
+    <ListItem
+      key={track.id}
+      divider={index < sorted.length - 1}
+      secondaryAction={
+        !selectionMode && (
+          <Box>
+            <Tooltip title={t('tracks.play')}>
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => audioApi.play({ track_id: track.id })}
+              >
+                <PlayArrowIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            {onEdit && (
+              <Tooltip title={t('tracks.edit')}>
+                <IconButton size="small" onClick={() => onEdit(track)}>
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title={t('tracks.delete')}>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => setTrackToDelete(track)}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )
+      }
+      sx={
+        selectionMode
+          ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }
+          : undefined
+      }
+      onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
+    >
+      <ListItemAvatar sx={{ minWidth: 44 }}>
+        {track.cover_art_url ? (
+          <Avatar
+            src={track.cover_art_url}
+            variant="rounded"
+            sx={{ width: 40, height: 40 }}
+          >
+            <AudiotrackIcon />
+          </Avatar>
+        ) : (
+          <Avatar variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'action.selected' }}>
+            {track.source_type === 'remote' ? (
+              <LinkIcon fontSize="small" />
+            ) : (
+              <AudiotrackIcon fontSize="small" />
+            )}
+          </Avatar>
+        )}
+      </ListItemAvatar>
+      <ListItemText
+        primary={track.title}
+        secondary={
+          <Box
+            component="span"
+            display="flex"
+            gap={1}
+            alignItems="center"
+            flexWrap="wrap"
+          >
+            {track.artist && (
+              <Typography component="span" variant="caption">
+                {track.artist}
+              </Typography>
+            )}
+            {track.album && (
+              <Typography component="span" variant="caption" color="text.disabled">
+                · {track.album}
+              </Typography>
+            )}
+            {track.duration_ms != null && (
+              <Chip
+                label={formatTime(track.duration_ms)}
+                size="small"
+                variant="outlined"
+                sx={{ height: 18, fontSize: '0.65rem' }}
+              />
+            )}
+            {track.last_played_at && (
+              <Typography component="span" variant="caption" color="text.disabled">
+                ·{' '}
+                {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+                  -Math.round(
+                    (Date.now() - new Date(track.last_played_at).getTime()) /
+                      3_600_000
+                  ),
+                  'hour'
+                )}
+              </Typography>
+            )}
+          </Box>
+        }
+      />
+    </ListItem>
+  );
+
+  // Item renderer for grid view
+  const renderGridItem = (index: number, track: Track) => (
+    <Box sx={{ p: 1, height: '100%' }}>
+      <Card
+        variant="outlined"
+        sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
+      >
+        {track.cover_art_url && (
+          <CardMedia
+            component="img"
+            height="120"
+            image={track.cover_art_url}
+            alt={track.title}
+            sx={{ objectFit: 'cover' }}
+          />
+        )}
+        <CardContent sx={{ pb: 0, flex: 1 }}>
+          <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
+            {track.source_type === 'remote' ? (
+              <LinkIcon fontSize="small" color="primary" />
+            ) : (
+              <AudiotrackIcon fontSize="small" color="primary" />
+            )}
+            {track.title}
+          </Typography>
+          {(track.artist || track.album) && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
+              {[track.artist, track.album].filter(Boolean).join(' · ')}
+            </Typography>
+          )}
+          {track.duration_ms != null && (
+            <Chip
+              label={formatTime(track.duration_ms)}
+              size="small"
+              variant="outlined"
+              sx={{ mt: 1 }}
+            />
+          )}
+        </CardContent>
+        <CardActions sx={{ pt: 0 }}>
+          {!selectionMode && (
+            <>
+              <Tooltip title={t('tracks.play')}>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => audioApi.play({ track_id: track.id })}
+                >
+                  <PlayArrowIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              {onEdit && (
+                <Tooltip title={t('tracks.edit')}>
+                  <IconButton size="small" onClick={() => onEdit(track)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title={t('tracks.delete')}>
+                <IconButton size="small" color="error" onClick={() => setTrackToDelete(track)}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+        </CardActions>
+      </Card>
+    </Box>
+  );
+
   return (
-    <Box>
-      <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
+    <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', flexDirection: 'column' }}>
+      <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center" flexShrink={0}>
         <ToggleButtonGroup
           value={viewMode}
           exclusive
@@ -191,188 +382,22 @@ export const TrackList: React.FC<TrackListProps> = ({
         </Box>
       </Box>
 
-      {viewMode === 'card' ? (
-        <Grid container spacing={2}>
-          {sorted.map((track) => (
-            <Grid item xs={12} sm={6} md={4} key={track.id}>
-              <Card
-                variant="outlined"
-                sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
-              >
-                {track.cover_art_url && (
-                  <CardMedia
-                    component="img"
-                    height="120"
-                    image={track.cover_art_url}
-                    alt={track.title}
-                    sx={{ objectFit: 'cover' }}
-                  />
-                )}
-                <CardContent sx={{ pb: 0, flex: 1 }}>
-                  <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
-                    {track.source_type === 'remote' ? (
-                      <LinkIcon fontSize="small" color="primary" />
-                    ) : (
-                      <AudiotrackIcon fontSize="small" color="primary" />
-                    )}
-                    {track.title}
-                  </Typography>
-                  {(track.artist || track.album) && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
-                      {[track.artist, track.album].filter(Boolean).join(' · ')}
-                    </Typography>
-                  )}
-                  {track.duration_ms != null && (
-                    <Chip
-                      label={formatTime(track.duration_ms)}
-                      size="small"
-                      variant="outlined"
-                      sx={{ mt: 1 }}
-                    />
-                  )}
-                </CardContent>
-                <CardActions sx={{ pt: 0 }}>
-                  {!selectionMode && (
-                    <>
-                      <Tooltip title={t('tracks.play')}>
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => audioApi.play({ track_id: track.id })}
-                        >
-                          <PlayArrowIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      {onEdit && (
-                        <Tooltip title={t('tracks.edit')}>
-                          <IconButton size="small" onClick={() => onEdit(track)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      <Tooltip title={t('tracks.delete')}>
-                        <IconButton size="small" color="error" onClick={() => setTrackToDelete(track)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </>
-                  )}
-                </CardActions>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      ) : (
-        <List dense>
-          {sorted.map((track, idx) => (
-            <React.Fragment key={track.id}>
-              {idx > 0 && <Divider component="li" />}
-              <ListItem
-              secondaryAction={
-                !selectionMode && (
-                  <Box>
-                    <Tooltip title={t('tracks.play')}>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => audioApi.play({ track_id: track.id })}
-                      >
-                        <PlayArrowIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    {onEdit && (
-                      <Tooltip title={t('tracks.edit')}>
-                        <IconButton size="small" onClick={() => onEdit(track)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                    <Tooltip title={t('tracks.delete')}>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => setTrackToDelete(track)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                )
-              }
-              sx={
-                selectionMode
-                  ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }
-                  : undefined
-              }
-              onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
-            >
-              <ListItemAvatar sx={{ minWidth: 44 }}>
-                {track.cover_art_url ? (
-                  <Avatar
-                    src={track.cover_art_url}
-                    variant="rounded"
-                    sx={{ width: 40, height: 40 }}
-                  >
-                    <AudiotrackIcon />
-                  </Avatar>
-                ) : (
-                  <Avatar variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'action.selected' }}>
-                    {track.source_type === 'remote' ? (
-                      <LinkIcon fontSize="small" />
-                    ) : (
-                      <AudiotrackIcon fontSize="small" />
-                    )}
-                  </Avatar>
-                )}
-              </ListItemAvatar>
-              <ListItemText
-                primary={track.title}
-                secondary={
-                  <Box
-                    component="span"
-                    display="flex"
-                    gap={1}
-                    alignItems="center"
-                    flexWrap="wrap"
-                  >
-                    {track.artist && (
-                      <Typography component="span" variant="caption">
-                        {track.artist}
-                      </Typography>
-                    )}
-                    {track.album && (
-                      <Typography component="span" variant="caption" color="text.disabled">
-                        · {track.album}
-                      </Typography>
-                    )}
-                    {track.duration_ms != null && (
-                      <Chip
-                        label={formatTime(track.duration_ms)}
-                        size="small"
-                        variant="outlined"
-                        sx={{ height: 18, fontSize: '0.65rem' }}
-                      />
-                    )}
-                    {track.last_played_at && (
-                      <Typography component="span" variant="caption" color="text.disabled">
-                        ·{' '}
-                        {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                          -Math.round(
-                            (Date.now() - new Date(track.last_played_at).getTime()) /
-                              3_600_000
-                          ),
-                          'hour'
-                        )}
-                      </Typography>
-                    )}
-                  </Box>
-                }
-              />
-            </ListItem>
-          </React.Fragment>
-        ))}
-      </List>
-      )}
+      <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+        {viewMode === 'card' ? (
+          <VirtuosoGrid
+            style={{ height: '100%' }}
+            data={sorted}
+            components={gridComponents as any}
+            itemContent={renderGridItem}
+          />
+        ) : (
+          <Virtuoso
+            style={{ height: '100%' }}
+            data={sorted}
+            itemContent={renderListItem}
+          />
+        )}
+      </Box>
 
       {/* Delete Confirmation */}
       <Dialog open={!!trackToDelete} onClose={() => setTrackToDelete(null)}>
