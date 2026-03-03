@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 # Seconds to ignore the same tag_id after we started playback (avoids double-play when tag is scanned twice in quick succession)
-TAG_SCAN_COOLDOWN_SEC = 4.0
+TAG_SCAN_COOLDOWN_SEC = 5.0
 
 # Last audio status (updated by handle_audio_status); used by routes_audio for play-after-pause
 _last_audio_status: dict[str, Any] = {}
@@ -125,6 +125,10 @@ class MQTTHandlers:
         self._sleep_timer_start_time: float = 0.0
         self._sleep_timer_duration_ms: int = 0
         self._bedtime_fade_task: asyncio.Task | None = None
+        
+        # Debounce tracking for tags to prevent restart flutter
+        self._last_played_tag_id: str | None = None
+        self._last_played_tag_time: float = 0.0
         logger.debug("mqtt_handlers_initialized")
 
     async def handle_rfid_tag_scanned(self, topic: str, data: dict[str, Any]) -> None:
@@ -140,6 +144,8 @@ class MQTTHandlers:
             return
 
         now_sec = time.time()
+        
+        # 1. Standard cooldown check
         if now_sec < self._tag_scan_cooldown_until.get(tag_id, 0):
             logger.info(
                 "rfid_tag_scan_ignored_cooldown",
@@ -147,6 +153,22 @@ class MQTTHandlers:
                 cooldown_sec=TAG_SCAN_COOLDOWN_SEC,
             )
             return
+
+        # 2. Strict double-play prevention: If we are already playing THIS EXACT TAG
+        # and it was started less than 15 seconds ago, ignore it completely.
+        # This prevents the stream from constantly restarting if a child jiggles the tag.
+        current_state = self._audio_status_cache.get("state")
+        if current_state == "playing" and self._last_played_tag_id == tag_id:
+            time_since_start = now_sec - self._last_played_tag_time
+            if time_since_start < 15.0:
+                logger.info(
+                    "rfid_tag_scan_ignored_already_playing",
+                    tag_id=tag_id,
+                    time_since_start=time_since_start
+                )
+                # Extend the cooldown a bit to absorb the flutter
+                self._tag_scan_cooldown_until[tag_id] = now_sec + 2.0
+                return
 
         logger.info("rfid_tag_scanned_received", tag_id=tag_id)
 
@@ -233,13 +255,17 @@ class MQTTHandlers:
                 content_id=tag.content_id,
             )
 
+            # Update debouncing variables
+            self._last_played_tag_id = tag_id
+            self._last_played_tag_time = now_sec
+            
             # Cooldown: ignore same tag for a short time to avoid double-play when tag is scanned twice in quick succession
-            self._tag_scan_cooldown_until[tag_id] = time.time() + TAG_SCAN_COOLDOWN_SEC
+            self._tag_scan_cooldown_until[tag_id] = now_sec + TAG_SCAN_COOLDOWN_SEC
             # Prune expired entries to avoid unbounded dict growth
             self._tag_scan_cooldown_until = {
                 tid: until
                 for tid, until in self._tag_scan_cooldown_until.items()
-                if until > time.time()
+                if until > now_sec
             }
 
             # Load content and create session
@@ -475,9 +501,14 @@ class MQTTHandlers:
 
     async def handle_rfid_tag_removed(self, topic: str, data: dict[str, Any]) -> None:
         """Handle RFID tag removed: optionally stop playback when tag is taken off reader."""
+        # Clean up our debounce tracking so if it is intentionally placed down again, it plays
+        tag_id = data.get("tag_id", "")
+        if self._last_played_tag_id == tag_id:
+            self._last_played_tag_id = None
+            
         if not read_stop_playback_on_tag_remove():
             return
-        tag_id = data.get("tag_id", "")
+            
         logger.info("rfid_tag_removed_stopping_playback", tag_id=tag_id)
         mark_deliberate_stop()
         await self.mqtt_client.publish_audio_command("stop", {})
