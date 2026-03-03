@@ -19,6 +19,7 @@ import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
 import { ChildSettingsForm } from '@/components/admin/ChildSettingsForm';
 import {
   AudioConfigForm,
+  ControlSettingsForm,
   DesignSettingsForm,
   GeneralSettingsForm,
   RFIDConfigForm,
@@ -68,6 +69,7 @@ export const AdminPage: React.FC = () => {
         <Tab label={t('tabs.system')} />
         <Tab label={t('tabs.hardware')} />
         <Tab label={t('tabs.general')} />
+        <Tab label={t('tabs.control')} />
         <Tab label={t('tabs.design')} />
         <Tab label={t('tabs.child')} />
         <Tab label={t('tabs.security')} />
@@ -128,13 +130,17 @@ export const AdminPage: React.FC = () => {
         <GeneralSettingsForm />
       </TabPanel>
       <TabPanel value={tab} index={4}>
+        <Typography variant="h6" gutterBottom>{t('control.title')}</Typography>
+        <ControlSettingsForm />
+      </TabPanel>
+      <TabPanel value={tab} index={5}>
         <Typography variant="h6" gutterBottom>{t('design.title')}</Typography>
         <DesignSettingsForm />
       </TabPanel>
-      <TabPanel value={tab} index={5}>
+      <TabPanel value={tab} index={6}>
         <ChildSettingsForm />
       </TabPanel>
-      <TabPanel value={tab} index={6}>
+      <TabPanel value={tab} index={7}>
         <SecurityPanel />
       </TabPanel>
     </PageShell>

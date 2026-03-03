@@ -274,6 +274,11 @@
     },
     "save_success": "RFID settings saved"
   },
+  "control": {
+    "title": "Control",
+    "section_rfid": "RFID",
+    "stop_playback_on_tag_remove": "Stop playback when tag removed"
+  },
   "stats": {
     "title": "Listening statistics",
     "period": "Period",

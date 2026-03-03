@@ -425,6 +425,7 @@ export interface GeneralConfig {
   usage_times_enabled?: boolean;
   daily_limit_enabled?: boolean;
   daily_limit_minutes?: number;
+  stop_playback_on_tag_remove?: boolean;
 }
 
 export interface SleepTimerStatus {

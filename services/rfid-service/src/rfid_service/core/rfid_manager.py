@@ -22,11 +22,17 @@ logger = structlog.get_logger(__name__)
 class RFIDManager:
     """Manages RFID scanning, operating modes, and event publishing.
 
+    Event semantics:
+    - tag-scanned: A tag was newly placed on the reader (transition from no tag
+      or different tag to this tag). No repeat events while the same tag stays on.
+    - tag-removed: The reader no longer detects a tag (previously present tag
+      was removed).
+
     Responsibilities:
     - Continuous tag scanning loop
     - Mode switching (normal, learning)
-    - Duplicate suppression
-    - Tag removal detection
+    - Duplicate suppression (same tag re-scanned after quick remove/re-place)
+    - Tag presence tracking (no repeat tag-scanned while tag remains on reader)
     - MQTT event publishing
     """
 
@@ -113,9 +119,14 @@ class RFIDManager:
         )
 
     async def _handle_tag_detected(self, tag_uid: str) -> None:
-        """Handle a detected tag (with duplicate suppression)."""
+        """Handle a detected tag. Emit tag-scanned only when tag is newly placed."""
         now = time.time()
         suppression_window = self._config.rfid.reader.duplicate_suppression_ms / 1000.0
+
+        # Tag still on reader – do not publish tag-scanned again (same presence)
+        if tag_uid == self._current_tag:
+            self._last_scan_time[tag_uid] = now  # keep timestamp for remove/re-place suppression
+            return
 
         if tag_uid in self._last_scan_time:
             time_since_last = now - self._last_scan_time[tag_uid]
@@ -136,14 +147,14 @@ class RFIDManager:
             await self._publish_tag_scanned(tag_uid)
 
     async def _handle_no_tag(self) -> None:
-        """Handle no tag detected (check for tag removal)."""
+        """Handle no tag detected: publish tag-removed if a tag was previously present."""
         if self._current_tag is not None:
             removed_tag = self._current_tag
             self._current_tag = None
             await self._publish_tag_removed(removed_tag)
 
     async def _publish_tag_scanned(self, tag_uid: str) -> None:
-        """Publish tag-scanned event (normal mode)."""
+        """Publish tag-scanned: tag was newly placed on reader (normal mode)."""
         event = TagScannedEvent(
             tag_id=tag_uid,
             reader_id=self._reader.reader_id,
@@ -171,7 +182,7 @@ class RFIDManager:
         logger.info("tag_scanned", tag_id=tag_uid, mode="learning")
 
     async def _publish_tag_removed(self, tag_uid: str) -> None:
-        """Publish tag-removed event."""
+        """Publish tag-removed: reader no longer detects the tag."""
         event = TagRemovedEvent(
             tag_id=tag_uid,
             reader_id=self._reader.reader_id,

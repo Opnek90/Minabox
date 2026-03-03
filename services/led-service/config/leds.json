@@ -24,11 +24,16 @@
           "pattern_type": "blink",
           "duration_ms": 500,
           "interval_ms": 500,
-          "repeat": 3
+          "repeat": 1
         },
         "backend_unreachable": {
           "pattern_type": "solid",
           "duration_ms": 0
+        },
+        "usage_denied": {
+          "pattern_type": "pulse",
+          "duration_ms": 200,
+          "repeat": 1
         }
       }
     },
