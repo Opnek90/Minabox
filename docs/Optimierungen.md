@@ -1,34 +1,40 @@
-# Optimierungsvorschläge für das Minabox WebUI
+# Optimierungsvorschläge & Robustheit (Chuck-Norris-Proof)
 
-Diese Datei dokumentiert potenzielle Verbesserungen und Architektur-Optimierungen für das WebUI-Frontend des Minabox-Projekts.
+Diese Datei dokumentiert potenzielle Verbesserungen, Architektur-Optimierungen und vor allem Maßnahmen zur maximalen Ausfallsicherheit ("Robustheit") des Minabox-Projekts. Das Ziel ist es, das System so stabil zu machen, dass es den rauen Kinderzimmer-Alltag problemlos übersteht.
 
-## 1. Performance: WebSocket State Management
-**Aktuelles Problem:** 
-Im `WebSocketContext` wird `lastMessage` als State gespeichert und im Context-Provider bereitgestellt. Jedes Mal, wenn eine neue WebSocket-Nachricht eingeht, ändert sich das Context-Objekt. Das führt dazu, dass **alle** Komponenten, die `useWebSocket()` verwenden (z.B. für `isConnected`), bei jeder einzelnen Nachricht komplett neu gerendert werden, selbst wenn sie die Nachricht gar nicht benötigen.
-**Lösung:**
-* **Pub/Sub-Muster (Event Emitter):** Entferne `lastMessage` aus dem React-Context. Nutze stattdessen ein Event-Emitter-Pattern (z.B. `mitt` oder native `EventTarget`), bei dem sich Komponenten gezielt auf bestimmte Nachrichten-Typen subscriben können (`useWebSocketEvent('tag_not_found', callback)`).
-* **Zustand:** Alternativ kann eine leichtgewichtige State-Library wie `zustand` eingesetzt werden, die ein "Selektieren" von States ohne Re-Rendering des gesamten Baums ermöglicht.
+## 1. System & Hardware (Chuck-Norris-Proofing)
 
-## 2. Datenbeschaffung (Data Fetching) & Caching
-**Aktuelles Problem:**
-Die API-Calls im `api/`-Ordner (`audio.ts`, `system.ts`, etc.) deuten darauf hin, dass asynchrone Daten klassisch via `useEffect` und lokalem State (`useState`) in den Komponenten geladen werden. Dies erfordert viel Boilerplate-Code für Loading/Error-States und ist anfällig für Race-Conditions.
-**Lösung:**
-* **React Query (@tanstack/react-query) oder SWR:** Die Einführung einer dieser Bibliotheken reduziert den Boilerplate-Code drastisch. Es bietet out-of-the-box Caching, automatisches Re-Fetching (z.B. Window-Focus), Optimistic Updates und vereinfacht das State-Management für asynchrone Daten enorm.
+### RFID & I2C Ausfallsicherheit
+- [ ] **I2C Bus Auto-Recovery:** Der PN532 am I2C-Bus kann sich bei statischer Aufladung oder Wackelkontakten aufhängen. Der `rfid_service` sollte einen hängenden I2C-Bus erkennen (z.B. Timeout beim Lesen) und den Bus oder den Sensor automatisch reinitialisieren, anstatt abzustürzen.
+- [ ] **Reader Watchdog:** Wenn der RFID-Reader für X Minuten keine Lebenszeichen mehr sendet, sollte ein Health-Check fehlschlagen und Docker den Container automatisch über `restart: unless-stopped` neu starten.
 
-## 3. PWA (Progressive Web App) & Build-Optimierungen
-**Aktuelles Problem:**
-Das WebUI ist eine klassische SPA (Single Page Application). Da die Minabox oft über Smartphones oder Tablets im Heimnetzwerk gesteuert wird, fehlt die Möglichkeit, die App nativ wie eine echte App auf dem Homescreen zu installieren.
-**Lösung:**
-* **vite-plugin-pwa:** Füge dieses Plugin in der `vite.config.ts` hinzu, um einen Service Worker und ein Web-App-Manifest zu generieren. Dadurch lässt sich das WebUI auf iOS/Android als App installieren, die im Vollbildmodus ohne Browser-UI läuft.
-* **Kompression:** Da die Minabox (vermutlich ein Raspberry Pi o.ä.) begrenzte Ressourcen hat, kann das `vite-plugin-compression` (Brotli/Gzip) genutzt werden, um die ausgelieferten Bundles vorab zu verkleinern und das Backend (z.B. NGINX) zu entlasten.
+### Audio & Playback Langlebigkeit
+- [x] **Audio-Popping unterdrücken:** Deaktivierung von `suspend-on-idle` für PipeWire/PulseAudio via Docker-Umgebungsvariablen umgesetzt.
+- [x] **RFID-Bouncing (Flatter-Schutz):** Serverseitiger Debounce (15s) und Playback-Intent-Tracking eingebaut, um das Verschlucken bei schnellem Auflegen/Abziehen zu verhindern.
+- [ ] **Stream Auto-Reconnect:** Wenn ein Internet-Stream (z.B. Webradio) abbricht (WLAN-Loch), sollte der `audio_service` versuchen, den Stream automatisch wiederherzustellen (mit exponentiellem Backoff), anstatt stumm zu bleiben.
+- [ ] **Lautstärke-Limiter auf OS-Ebene:** Hard-Limit der maximalen ALSA-Lautstärke im Dockerfile oder via `amixer`, damit Fehler im Code (oder böse MQTT-Befehle) nicht die Boxen zerstören oder Gehörschäden verursachen.
 
-## 4. MUI Bundle Size und Rendering
-**Aktuelles Problem:**
-In der `vite.config.ts` sind `manualChunks` für MUI konfiguriert, was gut ist. Allerdings kann die exzessive Nutzung von MUI-Komponenten in großen Listen (z.B. Media-Listen, Tracks) zu Performance-Engpässen führen.
-**Lösung:**
-* **Virtualisierung:** Falls die Listen für Tracks oder Verzeichnisse sehr lang werden können, sollte `react-virtuoso` oder `@tanstack/react-virtual` eingesetzt werden, um nur die sichtbaren Elemente im DOM zu rendern.
-* **Memoization:** Achte bei komplexen MUI-Komponenten auf den gezielten Einsatz von `React.memo` sowie `useMemo` und `useCallback` für Event-Handler, die an Child-Komponenten weitergereicht werden.
+### Datenbank & Zustand (SQLite)
+- [ ] **SQLite WAL Mode:** Die SQLite-Datenbank muss im WAL-Modus (`PRAGMA journal_mode=WAL;`) betrieben werden. Aktuell können konkurrierende Lese-/Schreibzugriffe (z.B. von WebUI und RFID-Scanning gleichzeitig) zu `database is locked` Fehlern führen.
+- [ ] **Transaktions-Timeouts:** Kürzere Timeouts für DB-Transaktionen einstellen, um Deadlocks zu vermeiden.
 
-## 5. Tooling & Maintenance
-* **ESLint Update:** Das Projekt nutzt aktuell `eslint ^8.57.0`. Ein Upgrade auf ESLint 9 (mit dem neuen Flat Config Format) bereitet das Projekt auf die Zukunft vor, da v8 sein End-of-Life erreicht.
-* **React 19 Readiness:** React 18.3.1 ist bereits installiert, was hervorragend ist (es bereitet auf React 19 vor). Perspektivisch können Features wie der React Compiler (React 19) ausprobiert werden, was manuelles Memoizing (`useMemo`/`useCallback`) größtenteils überflüssig machen würde.
+### OS & SD-Karten-Schutz
+- [ ] **Log-Rotation & tmpfs:** Aktuell schreiben alle Services potenziell viel Output. Docker-Logs sollten via `daemon.json` stark begrenzt werden (`max-size: "10m"`, `max-file: "3"`). 
+- [ ] **Read-Only RootFS (Optional):** Für maximale Robustheit sollte das Host-System (Raspberry Pi OS) als Read-Only konfiguriert werden, mit OverlayFS für `/var/log` und `/data`. So kann die Box jederzeit einfach vom Strom gezogen werden (Stecker raus), ohne dass das Dateisystem oder die DB korrumpiert.
+- [ ] **Zustandsspeicherung im RAM:** Der `audio_status.json` wird potenziell sekündlich geschrieben. Dies sollte in ein In-Memory-Laufwerk (`tmpfs` Docker-Volume) ausgelagert werden, um die SD-Karte nicht in wenigen Monaten kaputtzuschreiben.
+
+## 2. WebUI & Frontend-Optimierungen
+
+### Performance: WebSocket State Management
+- [ ] **Pub/Sub-Muster:** Aktuell wird jede WebSocket-Nachricht im globalen React Context gespeichert. Das zwingt alle UI-Komponenten zu einem Re-Render. Stattdessen einen Event-Emitter (z.B. `mitt` oder `zustand`) nutzen, bei dem sich Komponenten gezielt subscriben können (`useWebSocketEvent('audio_status', callback)`).
+
+### Datenbeschaffung (Data Fetching)
+- [ ] **React Query / SWR:** Anstatt `useEffect` und lokales Loading-State-Handling zu nutzen, sollte `@tanstack/react-query` für REST-Calls genutzt werden (Caching, Error-Handling, Auto-Refetching).
+
+### PWA & App-Erlebnis
+- [ ] **PWA (Progressive Web App):** Integration von `vite-plugin-pwa`, damit Eltern das UI wie eine native App (ohne Browser-Adressleiste) auf dem Homescreen installieren können.
+- [ ] **Verbindungsabbruch-Screen:** Wenn die Box offline geht (z.B. ausgeschaltet wird), sollte das WebUI sofort einen netten "Box ist offline"-Screen anzeigen, statt in unendlichen Loading-States zu hängen.
+
+### Code-Qualität & Maintenance
+- [ ] **ESLint Update:** Upgrade von v8 auf v9 (Flat Config), da v8 EOL ist.
+- [ ] **React 19 Readiness:** Vorbereitung der Code-Basis für React 19 (z.B. Ersetzen von manuellen `useMemo` durch den React Compiler, falls anwendbar).
