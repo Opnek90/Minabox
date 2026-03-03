@@ -129,6 +129,9 @@ class MQTTHandlers:
         # Debounce tracking for tags to prevent restart flutter
         self._last_played_tag_id: str | None = None
         self._last_played_tag_time: float = 0.0
+        
+        # Track active playback intent (to prevent unwanted auto-advance loops)
+        self._playback_intent_active: bool = False
         logger.debug("mqtt_handlers_initialized")
 
     async def handle_rfid_tag_scanned(self, topic: str, data: dict[str, Any]) -> None:
@@ -258,6 +261,7 @@ class MQTTHandlers:
             # Update debouncing variables
             self._last_played_tag_id = tag_id
             self._last_played_tag_time = now_sec
+            self._playback_intent_active = True
             
             # Cooldown: ignore same tag for a short time to avoid double-play when tag is scanned twice in quick succession
             self._tag_scan_cooldown_until[tag_id] = now_sec + TAG_SCAN_COOLDOWN_SEC
@@ -384,6 +388,10 @@ class MQTTHandlers:
             logger.error("stream_not_found", stream_id=stream_id)
             raise ContentNotFoundError(f"Stream {stream_id} not found")
 
+        # Clear session manager for streams
+        if session_manager.session:
+            session_manager.session.reset()
+            
         event = PlaybackEvent(
             started_at=datetime.now(UTC),
             content_type="stream",
@@ -434,6 +442,10 @@ class MQTTHandlers:
         )
         session.add(event)
         session.commit()
+
+        # Podcasts are also effectively single tracks / streams at the moment
+        if session_manager.session:
+            session_manager.session.reset()
 
         await self.mqtt_client.publish_audio_command(
             "play",
@@ -501,8 +513,9 @@ class MQTTHandlers:
 
     async def handle_rfid_tag_removed(self, topic: str, data: dict[str, Any]) -> None:
         """Handle RFID tag removed: optionally stop playback when tag is taken off reader."""
-        # Clean up our debounce tracking so if it is intentionally placed down again, it plays
         tag_id = data.get("tag_id", "")
+        
+        # Clean up our debounce tracking so if it is intentionally placed down again, it plays
         if self._last_played_tag_id == tag_id:
             self._last_played_tag_id = None
             
@@ -510,7 +523,10 @@ class MQTTHandlers:
             return
             
         logger.info("rfid_tag_removed_stopping_playback", tag_id=tag_id)
+        
+        # Mark deliberate stop and clear playback intent so auto-advance doesn't fight it
         mark_deliberate_stop()
+        self._playback_intent_active = False
         await self.mqtt_client.publish_audio_command("stop", {})
 
     async def handle_audio_status(self, topic: str, data: dict[str, Any]) -> None:
@@ -535,7 +551,11 @@ class MQTTHandlers:
 
         # Auto-advance playlist when a track ends naturally (playing → stopped)
         if prev_state == "playing" and new_state == "stopped":
-            if _deliberate_stop:
+            # Extra safety check: if we don't have an active playback intent, do NOT auto-advance.
+            # This prevents infinite auto-advance loops when VLC fails to load a stream or aborts immediately.
+            if not self._playback_intent_active:
+                logger.info("auto_advance_skipped_no_playback_intent")
+            elif _deliberate_stop:
                 _deliberate_stop = False
                 logger.info("auto_advance_skipped_deliberate_stop")
             else:
@@ -558,8 +578,18 @@ class MQTTHandlers:
                         _close_open_playback_event(db_session, data)
                     finally:
                         db_session.close()
-                logger.info("track_ended_naturally_auto_advancing")
-                await self._handle_next()
+                
+                # Check if this is a stream. Streams don't have a "next" track in session manager.
+                # If a stream ends, it's just over (e.g. connection dropped).
+                track_id_raw = data.get("track_id")
+                is_stream = isinstance(track_id_raw, str) and (track_id_raw.startswith("stream-") or track_id_raw.startswith("podcast-"))
+                
+                if is_stream:
+                    logger.info("stream_ended_no_auto_advance", track_id=track_id_raw)
+                    self._playback_intent_active = False
+                else:
+                    logger.info("track_ended_naturally_auto_advancing")
+                    await self._handle_next()
 
         # Close latest playback event when entering stopped (with listened_ms from status)
         if new_state == "stopped" and _db_module.db_manager:
@@ -658,6 +688,8 @@ class MQTTHandlers:
         action_from_topic = topic.split("/")[-1]
         action = action_from_topic.replace("-", "_")
         logger.info("button_action_received", action=action, data=data)
+        
+        self._playback_intent_active = True
 
         # Handle different button actions
         if action == "play_pause":
@@ -697,6 +729,7 @@ class MQTTHandlers:
         current_state = self._audio_status_cache.get("state", "stopped")
 
         if current_state == "playing":
+            self._playback_intent_active = False
             await self.mqtt_client.publish_audio_command("pause", {})
         elif current_state == "paused":
             # Resume from paused position (empty payload = audio service resumes with last_position_ms)
@@ -719,6 +752,7 @@ class MQTTHandlers:
         """Handle next button; respects repeat one/all. Closes current event and creates one per track."""
         sess = session_manager.session
         if not sess or not sess.tracks:
+            self._playback_intent_active = False
             await self.mqtt_client.publish_audio_command("stop", {})
             return
         # Close current playback event with listened_ms before switching (event per track)
@@ -755,6 +789,7 @@ class MQTTHandlers:
                         },
                     )
                 else:
+                    self._playback_intent_active = False
                     await self.mqtt_client.publish_audio_command("stop", {})
             finally:
                 db_session.close()
@@ -786,6 +821,7 @@ class MQTTHandlers:
                     },
                 )
             else:
+                self._playback_intent_active = False
                 await self.mqtt_client.publish_audio_command("stop", {})
 
     async def _handle_repeat_cycle(self) -> None:
@@ -851,6 +887,7 @@ class MQTTHandlers:
         enabled, duration_min, interval_sec, step_pct = read_bedtime_fade_settings()
         if not enabled:
             mark_deliberate_stop()
+            self._playback_intent_active = False
             await self.mqtt_client.publish_audio_command("stop", {})
             return
         try:
@@ -871,6 +908,7 @@ class MQTTHandlers:
         finally:
             self._bedtime_fade_task = None
         mark_deliberate_stop()
+        self._playback_intent_active = False
         await self.mqtt_client.publish_audio_command("stop", {})
 
     def get_sleep_timer_status(self) -> dict[str, Any]:
@@ -968,6 +1006,7 @@ class MQTTHandlers:
             await asyncio.sleep(minutes * 60)
             # Timer fired naturally — stop playback
             mark_deliberate_stop()
+            self._playback_intent_active = False
             await self.mqtt_client.publish_audio_command("stop", {})
             logger.info("sleep_timer_fired", minutes=minutes)
         except asyncio.CancelledError:
