@@ -9,6 +9,8 @@ from pathlib import Path
 import httpx
 import structlog
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from shared_lib.logging import setup_structlog
+from shared_lib.mqtt import get_mqtt_topic
 
 from backend_service.config import get_config
 
@@ -241,6 +243,20 @@ async def update_general_config(body: dict) -> dict:
     # Return current display values (saved values overlay)
     out = _general_settings_read()
     out.update(data)
+
+    # Live-update log level in this process and broadcast to other services
+    if "log_level" in data:
+        setup_structlog(
+            data["log_level"],
+            silence_loggers=["alembic.runtime.migration", "sqlalchemy.engine"],
+        )
+    if _mqtt_client is not None:
+        config = get_config()
+        topic = get_mqtt_topic(config.env.minabox_device_id, "config", "general")
+        payload = {"log_level": data.get("log_level", out.get("log_level", "INFO"))}
+        await _mqtt_client.publish(topic, payload, qos=1, retain=True)
+        logger.debug("config_general_published", topic=topic)
+
     return out
 
 # Mapping: API segment -> (subdir, filename)

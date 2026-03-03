@@ -17,6 +17,7 @@ import signal
 
 import structlog
 import uvicorn
+from shared_lib.logging import setup_structlog
 
 from .api.routes import create_app
 from .config import load_app_config
@@ -192,42 +193,13 @@ class LEDService:
             )
             raise
 
-def setup_logging(log_level: str) -> None:
-    """Set up structured logging with the appropriate renderer.
-    
-    Args:
-        log_level: Log level string (DEBUG, INFO, WARNING, ERROR, CRITICAL).
-    """
-    log_level_int = getattr(logging, log_level, logging.INFO)
-    
-    # Choose renderer based on log level
-    if log_level == "DEBUG":
-        # Development: Human-readable console format
-        renderer = structlog.dev.ConsoleRenderer()
-    else:
-        # Production: Structured JSON format
-        renderer = structlog.processors.JSONRenderer()
-    
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            renderer,
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level_int),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=False,
-    )
-
 async def main() -> None:
     """Main async entry point."""
     # Load configuration
     config = load_app_config()
     
     # Setup logging
-    setup_logging(config.env.log_level)
+    setup_structlog(config.env.log_level)
     
     logger.debug(
         "service_initializing",

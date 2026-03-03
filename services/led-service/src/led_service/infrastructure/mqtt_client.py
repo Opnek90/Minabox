@@ -23,6 +23,8 @@ from tenacity import (
     retry_if_exception_type,
 )
 
+from shared_lib.logging import setup_structlog
+
 from ..config_schema import LEDServiceConfig
 from ..exceptions import MinaboxLEDError
 
@@ -99,6 +101,7 @@ class MQTTClient:
             f"{prefix}/led/config/update",
             f"{prefix}/led/config/reload",
             f"{prefix}/led/config/get",
+            f"{prefix}/config/general",
         ]
 
     @retry(
@@ -172,6 +175,17 @@ class MQTTClient:
                         await self._handle_config_reload()
                     elif topic.endswith("/led/config/get"):
                         await self._handle_config_get()
+                    elif topic.endswith("/config/general"):
+                        try:
+                            data = json.loads(payload.decode("utf-8"))
+                            level = (data.get("log_level") or "INFO").upper()
+                            if level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+                                setup_structlog(level)
+                                logger.info("log_level_applied", log_level=level)
+                            else:
+                                logger.warning("invalid_log_level", log_level=level)
+                        except (json.JSONDecodeError, TypeError) as exc:
+                            logger.warning("config_general_parse_failed", error=str(exc))
                     else:
                         # Regular message - pass to callback
                         try:

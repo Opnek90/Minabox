@@ -235,7 +235,7 @@ export const LEDConfigPanel: React.FC = () => {
                           <IconButton
                             size="small"
                             color="warning"
-                            disabled={testingLedId !== null || Object.keys(led.bindings).length === 0}
+                            disabled={testingLedId !== null}
                             onClick={() => handleTestLed(led)}
                           >
                             {testingLedId === led.id ? (

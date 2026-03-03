@@ -11,6 +11,7 @@ from datetime import datetime
 import httpx
 import structlog
 import uvicorn
+from shared_lib.logging import setup_structlog
 
 from .api.routes import create_app
 from .config import load_app_config
@@ -338,29 +339,9 @@ class DisplayService:
                 logger.debug("session_poll_error", error=str(exc))
 
 
-def setup_logging(log_level: str) -> None:
-    log_level_int = getattr(logging, log_level, logging.INFO)
-    if log_level == "DEBUG":
-        renderer = structlog.dev.ConsoleRenderer()
-    else:
-        renderer = structlog.processors.JSONRenderer()
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            renderer,
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level_int),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=False,
-    )
-
-
 async def main() -> None:
     config = load_app_config()
-    setup_logging(config.env.log_level)
+    setup_structlog(config.env.log_level)
     logger.info(
         "service_initializing",
         device_id=config.env.minabox_device_id,

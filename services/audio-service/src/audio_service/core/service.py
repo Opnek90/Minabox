@@ -226,6 +226,7 @@ class AudioService:
             f"minabox/{device_id}/audio/config/reload",
             f"minabox/{device_id}/audio/config/get",
             f"minabox/{device_id}/audio/switch-device",
+            f"minabox/{device_id}/config/general",
         ]
 
         for topic in topics:

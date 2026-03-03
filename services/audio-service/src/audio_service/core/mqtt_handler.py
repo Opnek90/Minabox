@@ -11,6 +11,7 @@ from typing import Any
 
 import structlog
 from pydantic import BaseModel, ValidationError
+from shared_lib.logging import setup_structlog
 
 from ..config_schema import AppConfig, AudioConfig
 from ..exceptions import ConfigUpdateError
@@ -109,9 +110,12 @@ class MQTTMessageHandler:
         )
 
         try:
+            # General config (log_level) is on topic .../config/general, not under .../audio/...
+            if topic.endswith("/config/general"):
+                await self._handle_config_general(payload)
+                return
             # Parse action from topic
             action = self._extract_action(topic)
-
             # Route to appropriate handler
             await self._route_command(action, payload)
 
@@ -283,6 +287,19 @@ class MQTTMessageHandler:
         logger.debug("config_get_request_received")
         if self._on_config_get:
             await self._on_config_get()
+
+    async def _handle_config_general(self, payload: str) -> None:
+        """Handle config/general (e.g. log_level from Admin UI)."""
+        try:
+            data = json.loads(payload) if payload else {}
+            level = (data.get("log_level") or "INFO").upper()
+            if level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+                setup_structlog(level)
+                logger.info("log_level_applied", log_level=level)
+            else:
+                logger.warning("invalid_log_level", log_level=level)
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.warning("config_general_parse_failed", error=str(exc))
 
     async def _handle_switch_device(self, data: dict[str, Any]) -> None:
         """Handle switch-device command (alsa_device or direction=next)."""

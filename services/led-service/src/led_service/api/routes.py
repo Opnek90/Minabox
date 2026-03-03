@@ -46,15 +46,15 @@ def create_app(
     
     @app.post("/test")
     async def test_led(body: TestLEDRequest) -> Dict[str, object]:
-        """Trigger an LED's first binding pattern for testing.
+        """Run a fixed 5-second blink on the LED for testing.
 
-        Returns 404 if the LED is not found or has no bindings.
+        Returns 404 if the LED is not found or not available (e.g. no GPIO).
         """
         success = await led_manager.test_led(body.led_id)
         if not success:
             raise HTTPException(
                 status_code=404,
-                detail=f"LED '{body.led_id}' not found or has no bindings",
+                detail=f"LED '{body.led_id}' not found or test unavailable",
             )
         return {"led_id": body.led_id, "tested": True}
 

@@ -293,6 +293,56 @@ class LEDController:
                 )
         logger.debug("led_cleanup", led_id=self.config.id)
 
+    async def run_test_blink(self, duration_sec: float = 5.0) -> bool:
+        """Run a fixed blink pattern for testing (e.g. 5 seconds), independent of bindings.
+
+        Does not set _current_logical_state so normal state handling is unaffected.
+        Returns True if the LED is available and test was started, False otherwise.
+
+        Args:
+            duration_sec: Total blink duration in seconds.
+        """
+        if not self._gpio_available:
+            logger.debug(
+                "test_blink_skipped_no_hardware",
+                led_id=self.config.id,
+            )
+            return False
+
+        await self._cancel_current_pattern()
+        self._cancel_event.clear()
+
+        # 500 ms on/off = 1 cycle per second; repeat = duration in seconds
+        interval_ms = 500
+        repeat = max(1, int(duration_sec))
+        logger.debug(
+            "test_blink_started",
+            led_id=self.config.id,
+            led_name=self.config.name,
+            duration_sec=duration_sec,
+        )
+        task = asyncio.create_task(
+            run_blink_pattern(
+                self._led,
+                interval_ms,
+                repeat,
+                self.config.id,
+                self._cancel_event,
+            )
+        )
+        self._current_task = task
+
+        def _on_done(_t: asyncio.Task) -> None:
+            self._current_task = None
+
+        task.add_done_callback(_on_done)
+        try:
+            await task
+        finally:
+            self._current_task = None
+        logger.debug("test_blink_finished", led_id=self.config.id)
+        return True
+
 
 class LEDManager:
     """Manages all LEDs for the service."""
@@ -346,10 +396,10 @@ class LEDManager:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def test_led(self, led_id: str) -> bool:
-        """Flash an LED briefly for testing.
+        """Run a fixed 5-second blink on the LED for testing.
 
-        Uses the first available binding to trigger the LED's pattern.
-        Returns True if the LED was found and triggered, False otherwise.
+        Does not use bindings; the LED blinks for 5 seconds regardless of
+        configured patterns. Returns True if the LED was found and test ran.
 
         Args:
             led_id: The LED ID to test.
@@ -359,16 +409,7 @@ class LEDManager:
             logger.warning("test_led_not_found", led_id=led_id)
             return False
 
-        bindings = controller.config.bindings
-        if not bindings:
-            logger.warning("test_led_no_bindings", led_id=led_id)
-            return False
-
-        # Trigger the first available binding state
-        first_state = next(iter(bindings))
-        logger.debug("test_led_triggered", led_id=led_id, state=first_state)
-        await controller.apply_pattern(first_state)
-        return True
+        return await controller.run_test_blink(duration_sec=5.0)
 
     async def cleanup(self) -> None:
         """Clean up all LED controllers."""
