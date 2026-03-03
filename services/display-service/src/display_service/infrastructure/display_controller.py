@@ -4,17 +4,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
 
 logger = structlog.get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Assets
-# ---------------------------------------------------------------------------
-_ASSETS_ICONS: Path = Path(__file__).resolve().parent.parent / "assets" / "icons"
 
 # ---------------------------------------------------------------------------
 # Theme – single source of truth for all layout & visual constants
@@ -29,22 +24,21 @@ class Theme:
     # Header
     header_h: int = 16
 
-    # Separator line
-    sep_padding_top: int = 1    # gap between last header pixel and separator line
-    sep_padding_bottom: int = 3 # gap between separator line and first body pixel
+    # Separator
+    sep_padding_top: int = 1     # px gap between header content and separator line
+    sep_padding_bottom: int = 3  # px gap between separator line and body content
 
     # Body columns
-    col_w: int = 64             # each column is half the display width
-    col_padding_x: int = 4      # left/right inner padding inside each column
-    col_padding_y: int = 3      # top/bottom inner padding inside each column
+    col_w: int = 64              # each column is half the display
+    col_padding_x: int = 4       # inner horizontal padding per column
 
-    # Slots
+    # Slots inside columns
     slot_h: int = 16
-    slot_gap: int = 5           # vertical gap between slots when >1 item per column
+    slot_gap: int = 5            # vertical gap between slots when >1 item
 
     # Icons
-    icon_size: int = 14         # render icons at 14x14 for a cleaner look
-    sleep_icon_text_gap: int = 3
+    icon_size: int = 14          # drawn into an icon_size x icon_size canvas
+    sleep_icon_text_gap: int = 3 # px between moon icon and minutes text
 
     # Font sizes (TTF pixel height)
     font_sizes: Dict[str, int] = field(default_factory=lambda: {
@@ -53,7 +47,7 @@ class Theme:
         "large": 14,
     })
 
-    # TTF font paths (tried in order)
+    # TTF font search paths
     font_paths: List[str] = field(default_factory=lambda: [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
@@ -76,6 +70,178 @@ class Theme:
 
 _DEFAULT_THEME = Theme()
 
+
+# ---------------------------------------------------------------------------
+# Icon renderer – draws each icon into a fresh mode-‘1’ PIL Image
+# ---------------------------------------------------------------------------
+
+class IconRenderer:
+    """Draws vector icons using PIL ImageDraw primitives.
+
+    All coordinates are normalised to a 0–1 unit square and then scaled
+    to the requested pixel size, so every icon looks sharp at any size.
+    """
+
+    def __init__(self, size: int) -> None:
+        self._size = size
+
+    def render(self, name: str) -> Optional[Any]:
+        """Return a mode-‘1’ PIL Image for *name*, or None if unknown."""
+        fn = getattr(self, f"_icon_{name}", None)
+        if fn is None:
+            logger.debug("icon_unknown", icon=name)
+            return None
+        try:
+            from PIL import Image, ImageDraw
+            img = Image.new("1", (self._size, self._size), 0)
+            draw = ImageDraw.Draw(img)
+            fn(img, draw, self._size)
+            return img
+        except Exception as exc:
+            logger.warning("icon_render_failed", icon=name, error=str(exc))
+            return None
+
+    # ------------------------------------------------------------------
+    # Coordinate helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _s(v: float, size: int) -> int:
+        """Scale a 0–1 float coordinate to pixel space."""
+        return round(v * (size - 1))
+
+    @classmethod
+    def _xy(cls, x: float, y: float, size: int) -> Tuple[int, int]:
+        return cls._s(x, size), cls._s(y, size)
+
+    @classmethod
+    def _box(cls, x0: float, y0: float, x1: float, y1: float, size: int) -> Tuple[int, int, int, int]:
+        return cls._s(x0, size), cls._s(y0, size), cls._s(x1, size), cls._s(y1, size)
+
+    # ------------------------------------------------------------------
+    # Icons
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _icon_play(cls, img: Any, draw: Any, s: int) -> None:
+        """Solid right-pointing triangle."""
+        draw.polygon([
+            cls._xy(0.15, 0.08, s),
+            cls._xy(0.15, 0.92, s),
+            cls._xy(0.88, 0.50, s),
+        ], fill=1)
+
+    @classmethod
+    def _icon_pause(cls, img: Any, draw: Any, s: int) -> None:
+        """Two solid vertical bars."""
+        draw.rectangle(cls._box(0.15, 0.10, 0.38, 0.90, s), fill=1)
+        draw.rectangle(cls._box(0.62, 0.10, 0.85, 0.90, s), fill=1)
+
+    @classmethod
+    def _icon_stop(cls, img: Any, draw: Any, s: int) -> None:
+        """Solid square."""
+        draw.rectangle(cls._box(0.15, 0.15, 0.85, 0.85, s), fill=1)
+
+    @classmethod
+    def _icon_mute(cls, img: Any, draw: Any, s: int) -> None:
+        """Speaker cone + diagonal slash."""
+        # Speaker body
+        draw.polygon([
+            cls._xy(0.08, 0.35, s),
+            cls._xy(0.08, 0.65, s),
+            cls._xy(0.30, 0.65, s),
+            cls._xy(0.50, 0.85, s),
+            cls._xy(0.50, 0.15, s),
+            cls._xy(0.30, 0.35, s),
+        ], fill=1)
+        # Diagonal slash (thick line top-right → bottom-left)
+        lw = max(2, s // 7)
+        draw.line([
+            cls._xy(0.55, 0.10, s),
+            cls._xy(0.95, 0.90, s),
+        ], fill=1, width=lw)
+
+    @classmethod
+    def _icon_moon(cls, img: Any, draw: Any, s: int) -> None:
+        """Crescent moon: filled circle minus offset circle."""
+        draw.ellipse(cls._box(0.10, 0.05, 0.90, 0.95, s), fill=1)
+        # Cut out the bright side to form the crescent
+        draw.ellipse(cls._box(0.28, 0.00, 1.05, 0.75, s), fill=0)
+
+    # sleep_timer uses the moon icon
+    @classmethod
+    def _icon_sleep_timer(cls, img: Any, draw: Any, s: int) -> None:
+        cls._icon_moon(img, draw, s)
+
+    @classmethod
+    def _icon_error(cls, img: Any, draw: Any, s: int) -> None:
+        """Exclamation mark inside a circle."""
+        lw = max(1, s // 10)
+        draw.ellipse(cls._box(0.05, 0.05, 0.95, 0.95, s), outline=1, width=lw)
+        # Stem
+        draw.rectangle(cls._box(0.42, 0.22, 0.58, 0.60, s), fill=1)
+        # Dot
+        draw.rectangle(cls._box(0.42, 0.68, 0.58, 0.80, s), fill=1)
+
+    @classmethod
+    def _icon_repeat(cls, img: Any, draw: Any, s: int) -> None:
+        """Two curved arrows forming a loop."""
+        lw = max(1, s // 8)
+        # Top arc: left → right
+        draw.arc(cls._box(0.10, 0.15, 0.90, 0.85, s), start=200, end=340, fill=1, width=lw)
+        # Bottom arc: right → left
+        draw.arc(cls._box(0.10, 0.15, 0.90, 0.85, s), start=20, end=160, fill=1, width=lw)
+        # Arrowhead top-right
+        draw.polygon([
+            cls._xy(0.82, 0.15, s),
+            cls._xy(0.95, 0.28, s),
+            cls._xy(0.72, 0.28, s),
+        ], fill=1)
+        # Arrowhead bottom-left
+        draw.polygon([
+            cls._xy(0.18, 0.85, s),
+            cls._xy(0.05, 0.72, s),
+            cls._xy(0.28, 0.72, s),
+        ], fill=1)
+
+    @classmethod
+    def _icon_shuffle(cls, img: Any, draw: Any, s: int) -> None:
+        """Two crossing diagonal arrows."""
+        lw = max(1, s // 8)
+        # Arrow 1: top-left → bottom-right
+        draw.line([cls._xy(0.10, 0.20, s), cls._xy(0.90, 0.80, s)], fill=1, width=lw)
+        # Arrow 2: bottom-left → top-right
+        draw.line([cls._xy(0.10, 0.80, s), cls._xy(0.90, 0.20, s)], fill=1, width=lw)
+        # Arrowhead: top-right (arrow 1)
+        draw.polygon([
+            cls._xy(0.90, 0.20, s),
+            cls._xy(0.72, 0.20, s),
+            cls._xy(0.90, 0.38, s),
+        ], fill=1)
+        # Arrowhead: bottom-right (arrow 2)
+        draw.polygon([
+            cls._xy(0.90, 0.80, s),
+            cls._xy(0.72, 0.80, s),
+            cls._xy(0.90, 0.62, s),
+        ], fill=1)
+
+    @classmethod
+    def _icon_bluetooth(cls, img: Any, draw: Any, s: int) -> None:
+        """Classic Bluetooth ᛒ shape."""
+        lw = max(1, s // 8)
+        cx = cls._s(0.46, s)
+        # Vertical bar
+        draw.line([(cx, cls._s(0.08, s)), (cx, cls._s(0.92, s))], fill=1, width=lw)
+        # Upper-right arm (down)
+        draw.line([cls._xy(0.46, 0.08, s), cls._xy(0.85, 0.38, s)], fill=1, width=lw)
+        # Upper-right arm (back to centre)
+        draw.line([cls._xy(0.85, 0.38, s), cls._xy(0.46, 0.50, s)], fill=1, width=lw)
+        # Lower-right arm (down)
+        draw.line([cls._xy(0.46, 0.50, s), cls._xy(0.85, 0.62, s)], fill=1, width=lw)
+        # Lower-right arm (back to bottom)
+        draw.line([cls._xy(0.85, 0.62, s), cls._xy(0.46, 0.92, s)], fill=1, width=lw)
+
+
 # ---------------------------------------------------------------------------
 # DisplayRenderer
 # ---------------------------------------------------------------------------
@@ -83,8 +249,9 @@ _DEFAULT_THEME = Theme()
 class DisplayRenderer:
     """Stateful renderer for a single SSD1306 OLED device.
 
-    Holds font and icon caches to avoid repeated disk I/O.
-    Public interface mirrors the legacy free-function API.
+    Caches fonts and rendered icon images to avoid re-computation on every frame.
+    The public interface (init / clear / show_lines / show_areas / is_available)
+    is identical to the previous free-function API.
     """
 
     def __init__(self, device: Any, theme: Theme = _DEFAULT_THEME) -> None:
@@ -92,13 +259,13 @@ class DisplayRenderer:
         self._theme = theme
         self._font_cache: Dict[str, Any] = {}
         self._icon_cache: Dict[str, Any] = {}
+        self._icon_renderer = IconRenderer(theme.icon_size)
 
     # ------------------------------------------------------------------
-    # Public API
+    # Public methods
     # ------------------------------------------------------------------
 
     def clear(self) -> None:
-        """Fill the display with black."""
         try:
             from luma.core.render import canvas
             with canvas(self._device) as draw:
@@ -110,23 +277,26 @@ class DisplayRenderer:
         """Legacy single-column text renderer (up to 4 lines)."""
         try:
             from luma.core.render import canvas
-            line_height = 14
-            max_chars = 20
-            display_lines = [s[:max_chars] for s in lines[:4]]
+            display_lines = [s[:20] for s in lines[:4]]
             with canvas(self._device) as draw:
                 for i, text in enumerate(display_lines):
                     if text:
-                        draw.text((0, i * line_height), text, fill="white")
+                        draw.text((0, i * 14), text, fill="white")
         except Exception as exc:
             logger.warning("display_show_failed", error=str(exc))
 
-    def render(self, areas: List[List[dict]], font_size: str = "medium", font: str = "default") -> None:
+    def render(
+        self,
+        areas: List[List[dict]],
+        font_size: str = "medium",
+        font: str = "default",
+    ) -> None:
         """Render header (areas[0]) + left column (areas[1]) + right column (areas[2]).
 
-        Each item dict:
-          {'type': 'text',        'value': '...'}
-          {'type': 'icon',        'value': 'play'|'pause'|'stop'|'mute'|...}
-          {'type': 'sleep_timer', 'minutes': N}
+        Item dict shapes:
+          {"type": "text",        "value": "..."}
+          {"type": "icon",        "value": "play"|"pause"|"stop"|"mute"|...}
+          {"type": "sleep_timer", "minutes": N}
         """
         t = self._theme
         pil_font = self._get_font(font_size, font)
@@ -154,24 +324,25 @@ class DisplayRenderer:
     # Layout: header
     # ------------------------------------------------------------------
 
-    def _render_header(self, img: Any, draw: Any, items: List[dict], pil_font: Any) -> None:
+    def _render_header(
+        self, img: Any, draw: Any, items: List[dict], pil_font: Any
+    ) -> None:
         t = self._theme
         items = [i for i in items if isinstance(i, dict)]
         n = len(items)
-        if n == 0:
+        if not n:
             return
         zone_w = t.width // n
         for idx, item in enumerate(items):
-            zone_x = idx * zone_w
             self._render_item_in_slot(
                 img, draw, item,
-                x=zone_x, y=0,
+                x=idx * zone_w, y=0,
                 slot_w=zone_w, slot_h=t.header_h,
                 pil_font=pil_font,
             )
 
     # ------------------------------------------------------------------
-    # Layout: separator line
+    # Layout: separator
     # ------------------------------------------------------------------
 
     def _render_separator(self, draw: Any) -> None:
@@ -193,159 +364,132 @@ class DisplayRenderer:
         t = self._theme
         items = [i for i in items if isinstance(i, dict)]
         n = len(items)
-        if n == 0:
+        if not n:
             return
 
         slot_step = t.slot_h + (t.slot_gap if n > 1 else 0)
-        block_h = n * t.slot_h + ((n - 1) * t.slot_gap if n > 1 else 0)
-        # Vertically center the block within the usable body area
-        start_y = t.body_top + max(0, (t.body_h - block_h) // 2)
+        block_h   = n * t.slot_h + ((n - 1) * t.slot_gap if n > 1 else 0)
+        start_y   = t.body_top + max(0, (t.body_h - block_h) // 2)
+        usable_w  = t.col_w - 2 * t.col_padding_x
 
-        usable_w = t.col_w - 2 * t.col_padding_x
-
-        for slot_idx, item in enumerate(items):
-            slot_y = start_y + slot_idx * slot_step
+        for idx, item in enumerate(items):
             self._render_item_in_slot(
                 img, draw, item,
                 x=col_x + t.col_padding_x,
-                y=slot_y,
+                y=start_y + idx * slot_step,
                 slot_w=usable_w,
                 slot_h=t.slot_h,
                 pil_font=pil_font,
             )
 
     # ------------------------------------------------------------------
-    # Item rendering – dispatches by type
+    # Item dispatch
     # ------------------------------------------------------------------
 
     def _render_item_in_slot(
         self,
-        img: Any,
-        draw: Any,
-        item: dict,
-        x: int,
-        y: int,
-        slot_w: int,
-        slot_h: int,
-        pil_font: Any,
-    ) -> None:
-        item_type = item.get("type", "")
-        if item_type == "icon":
-            self._render_icon_item(img, draw, item.get("value", ""), x, y, slot_w, slot_h, pil_font)
-        elif item_type == "sleep_timer":
-            self._render_sleep_timer_item(img, draw, item.get("minutes", 0), x, y, slot_w, slot_h, pil_font)
-        elif item_type == "text":
-            self._render_text_item(draw, item.get("value", ""), x, y, slot_w, slot_h, pil_font)
-
-    def _render_icon_item(
-        self,
-        img: Any,
-        draw: Any,
-        icon_name: str,
+        img: Any, draw: Any, item: dict,
         x: int, y: int,
         slot_w: int, slot_h: int,
         pil_font: Any,
     ) -> None:
-        t = self._theme
+        t = item.get("type", "")
+        if t == "icon":
+            self._render_icon(img, draw, item.get("value", ""), x, y, slot_w, slot_h, pil_font)
+        elif t == "sleep_timer":
+            self._render_sleep_timer(img, draw, item.get("minutes", 0), x, y, slot_w, slot_h, pil_font)
+        elif t == "text":
+            self._render_text(draw, item.get("value", ""), x, y, slot_w, slot_h, pil_font)
+
+    # ------------------------------------------------------------------
+    # Item renderers
+    # ------------------------------------------------------------------
+
+    def _render_icon(
+        self,
+        img: Any, draw: Any, icon_name: str,
+        x: int, y: int, slot_w: int, slot_h: int,
+        pil_font: Any,
+    ) -> None:
+        sz = self._theme.icon_size
         icon_img = self._get_icon(icon_name)
         if icon_img is not None:
-            ix = x + (slot_w - t.icon_size) // 2
-            iy = y + (slot_h - t.icon_size) // 2
-            img.paste(icon_img, (ix, iy))
+            img.paste(icon_img, (x + (slot_w - sz) // 2, y + (slot_h - sz) // 2))
         else:
-            # Graceful text fallback: show abbreviated icon name
-            fallback = icon_name[:3].upper() if icon_name else "?"
-            self._render_text_item(draw, fallback, x, y, slot_w, slot_h, pil_font)
+            # Should not happen with known icons, but keeps things resilient
+            self._render_text(draw, icon_name[:3].upper(), x, y, slot_w, slot_h, pil_font)
 
-    def _render_sleep_timer_item(
+    def _render_sleep_timer(
         self,
-        img: Any,
-        draw: Any,
-        minutes: int,
-        x: int, y: int,
-        slot_w: int, slot_h: int,
+        img: Any, draw: Any, minutes: int,
+        x: int, y: int, slot_w: int, slot_h: int,
         pil_font: Any,
     ) -> None:
         t = self._theme
         icon_img = self._get_icon("sleep_timer")
         text = f"{minutes}m"
+        tw, th = self._measure_text(draw, text, pil_font)
+        icon_part = (t.icon_size + t.sleep_icon_text_gap) if icon_img else 0
+        total_w   = icon_part + tw
+        sx        = x + max(0, (slot_w - total_w) // 2)
+        cy        = y + slot_h // 2
 
-        text_w, text_h = self._measure_text(draw, text, pil_font)
-        icon_part_w = (t.icon_size + t.sleep_icon_text_gap) if icon_img is not None else 0
-        total_w = icon_part_w + text_w
+        if icon_img:
+            img.paste(icon_img, (sx, cy - t.icon_size // 2))
+            sx += icon_part
+        if text:
+            ty = cy - th // 2
+            if pil_font:
+                draw.text((sx, ty), text, fill="white", font=pil_font)
+            else:
+                draw.text((sx, ty), text, fill="white")
 
-        start_x = x + max(0, (slot_w - total_w) // 2)
-        center_y = y + slot_h // 2
-
-        if icon_img is not None:
-            iy = center_y - t.icon_size // 2
-            img.paste(icon_img, (start_x, iy))
-            start_x += icon_part_w
-
-        if text and pil_font is not None:
-            ty = center_y - text_h // 2
-            draw.text((start_x, ty), text, fill="white", font=pil_font)
-        elif text:
-            draw.text((start_x, center_y - 5), text, fill="white")
-
-    def _render_text_item(
+    def _render_text(
         self,
-        draw: Any,
-        text: str,
-        x: int, y: int,
-        slot_w: int, slot_h: int,
+        draw: Any, text: str,
+        x: int, y: int, slot_w: int, slot_h: int,
         pil_font: Any,
     ) -> None:
         if not text:
             return
         text = text[:10]
-        if pil_font is not None:
-            tw, th = self._measure_text(draw, text, pil_font)
-            tx = x + (slot_w - tw) // 2
-            ty = y + (slot_h - th) // 2
+        tw, th = self._measure_text(draw, text, pil_font)
+        tx = x + (slot_w - tw) // 2
+        ty = y + (slot_h - th) // 2
+        if pil_font:
             draw.text((tx, ty), text, fill="white", font=pil_font)
         else:
-            # PIL default font fallback
-            tw = len(text) * 6
-            tx = x + (slot_w - tw) // 2
-            ty = y + (slot_h - 10) // 2
             draw.text((tx, ty), text, fill="white")
 
     # ------------------------------------------------------------------
-    # Helpers: font & icon loading
+    # Font helpers
     # ------------------------------------------------------------------
 
-    def _measure_text(self, draw: Any, text: str, font: Any) -> tuple:
-        """Return (width, height) of text with the given font."""
+    def _measure_text(self, draw: Any, text: str, font: Any) -> Tuple[int, int]:
+        if not text:
+            return 0, 0
         if font is None:
             return len(text) * 6, 10
         try:
-            bbox = draw.textbbox((0, 0), text, font=font)
-            return bbox[2] - bbox[0], bbox[3] - bbox[1]
+            bb = draw.textbbox((0, 0), text, font=font)
+            return bb[2] - bb[0], bb[3] - bb[1]
         except Exception:
             return len(text) * 6, 10
 
     def _get_font(self, font_size: str = "medium", font: str = "default") -> Any:
-        """Return a cached PIL ImageFont."""
-        cache_key = f"{font_size}:{font}"
-        if cache_key in self._font_cache:
-            return self._font_cache[cache_key]
-
-        result = self._load_font(font_size, font)
-        self._font_cache[cache_key] = result
-        return result
+        key = f"{font_size}:{font}"
+        if key not in self._font_cache:
+            self._font_cache[key] = self._load_font(font_size, font)
+        return self._font_cache[key]
 
     def _load_font(self, font_size: str, font: str) -> Any:
         try:
             from PIL import ImageFont
         except ImportError:
             return None
-
         size = self._theme.font_sizes.get(font_size, 12)
-
         if font == "default":
             return ImageFont.load_default()
-
         want_mono = font == "mono"
         for path in self._theme.font_paths:
             if not os.path.isfile(path):
@@ -356,50 +500,27 @@ class DisplayRenderer:
                 return ImageFont.truetype(path, size)
             except Exception:
                 continue
-
         return ImageFont.load_default()
 
-    def _get_icon(self, icon_name: str) -> Any:
-        """Return a cached icon_size x icon_size mode-'1' PIL Image, or None."""
-        if icon_name in self._icon_cache:
-            return self._icon_cache[icon_name]
+    # ------------------------------------------------------------------
+    # Icon helpers
+    # ------------------------------------------------------------------
 
-        img = self._load_icon(icon_name)
-        self._icon_cache[icon_name] = img
-        return img
-
-    def _load_icon(self, icon_name: str) -> Optional[Any]:
-        """Load icon PNG from assets. Returns None if unavailable."""
-        try:
-            from PIL import Image
-        except ImportError:
-            return None
-
-        filename = "icon_moon.png" if icon_name == "sleep_timer" else f"icon_{icon_name}.png"
-        path = _ASSETS_ICONS / filename
-        if not path.is_file():
-            logger.debug("icon_not_found", icon=icon_name, path=str(path))
-            return None
-        try:
-            size = self._theme.icon_size
-            im = Image.open(path).convert("1")
-            if im.size != (size, size):
-                im = im.resize((size, size), Image.Resampling.LANCZOS)
-            return im
-        except Exception as exc:
-            logger.debug("icon_load_failed", icon=icon_name, path=str(path), error=str(exc))
-            return None
+    def _get_icon(self, name: str) -> Any:
+        if name not in self._icon_cache:
+            self._icon_cache[name] = self._icon_renderer.render(name)
+        return self._icon_cache[name]
 
 
 # ---------------------------------------------------------------------------
-# Module-level device & renderer (singleton)
+# Module-level singleton
 # ---------------------------------------------------------------------------
 
 _renderer: Optional[DisplayRenderer] = None
 
 
 # ---------------------------------------------------------------------------
-# Public API  (unchanged from original – main.py imports these)
+# Public API  – identical to original free-function interface
 # ---------------------------------------------------------------------------
 
 def init(i2c_bus: int, i2c_address: int) -> bool:
@@ -417,23 +538,17 @@ def init(i2c_bus: int, i2c_address: int) -> bool:
         logger.info("display_initialized", bus=i2c_bus, address=i2c_address)
         return True
     except Exception as exc:
-        logger.warning(
-            "display_init_failed",
-            bus=i2c_bus,
-            address=i2c_address,
-            error=str(exc),
-        )
+        logger.warning("display_init_failed", bus=i2c_bus, address=i2c_address, error=str(exc))
         return False
 
 
 def clear() -> None:
-    """Clear the display."""
     if _renderer is not None:
         _renderer.clear()
 
 
 def show_lines(lines: List[str]) -> None:
-    """Render up to 4 lines of text (legacy single-column). No-op if display not available."""
+    """Legacy single-column text renderer. No-op if display unavailable."""
     if _renderer is not None:
         _renderer.show_lines(lines)
 
@@ -443,7 +558,7 @@ def show_areas(
     font_size: str = "medium",
     font: str = "default",
 ) -> None:
-    """Render header (areas[0]) full width + 2 columns (areas[1], areas[2])."""
+    """Render header (areas[0]) + left column (areas[1]) + right column (areas[2])."""
     if _renderer is not None:
         _renderer.render(areas, font_size=font_size, font=font)
 
