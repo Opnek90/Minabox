@@ -43,6 +43,7 @@
   "notification": {
     "recognized": "Tag erkannt: {{name}}",
     "unknown_tag": "Unbekannter Tag gescannt",
+    "usage_denied": "Nutzungszeit außerhalb der erlaubten Zeiten oder Limit erreicht",
     "assign_now": "Jetzt zuordnen",
     "unknown": "Unbekannt"
   },
