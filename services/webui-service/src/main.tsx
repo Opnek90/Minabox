@@ -2,11 +2,25 @@ import React, { useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { createTheme, CssBaseline, ThemeProvider } from '@mui/material';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { WebSocketProvider } from '@/contexts/WebSocketContext';
 import { ThemeContextProvider, useThemeContext } from '@/contexts/ThemeContext';
 import App from '@/App';
 import '@/i18n';
+
+// ============================================================================
+// Setup React Query Client
+// ============================================================================
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: true,
+      retry: 2,
+      staleTime: 5 * 60 * 1000, // Data stays fresh for 5 minutes by default
+    },
+  },
+});
 
 // ============================================================================
 // Themed wrapper – reads ThemeContext and builds the MUI theme dynamically
@@ -123,10 +137,12 @@ if (!rootElement) throw new Error('Root element not found');
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <ThemeContextProvider>
-        <ThemedApp />
-      </ThemeContextProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ThemeContextProvider>
+          <ThemedApp />
+        </ThemeContextProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   </React.StrictMode>
 );
