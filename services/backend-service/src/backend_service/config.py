@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from typing import Final
 
 import structlog
 
-from shared_lib.config import load_env, load_json_config
+from shared_lib.config import load_env, load_general_settings, load_json_config
 from shared_lib.exceptions import ConfigError
 
 from backend_service.config_schema import AppConfig, BackendServiceConfig, EnvConfig
@@ -31,19 +30,16 @@ def _load_env_config() -> EnvConfig:
     """Load required env and optional overrides from general_settings.json."""
     base = load_env()
     gs_path = _general_settings_path()
-    if gs_path.exists():
-        try:
-            data = json.loads(gs_path.read_text(encoding="utf-8"))
-            if "mqtt_broker" in data:
-                base["mqtt_broker"] = str(data["mqtt_broker"])
-            if "mqtt_port" in data:
-                base["mqtt_port"] = int(data["mqtt_port"])
-            if "minabox_device_id" in data:
-                base["minabox_device_id"] = str(data["minabox_device_id"])
-            if "log_level" in data:
-                base["log_level"] = str(data["log_level"]).upper()
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning("general_settings_load_failed", path=str(gs_path), error=str(e))
+    data = load_general_settings(gs_path)
+    if data:
+        if "mqtt_broker" in data:
+            base["mqtt_broker"] = str(data["mqtt_broker"])
+        if "mqtt_port" in data:
+            base["mqtt_port"] = int(data["mqtt_port"])
+        if "minabox_device_id" in data:
+            base["minabox_device_id"] = str(data["minabox_device_id"])
+        if "log_level" in data:
+            base["log_level"] = str(data["log_level"]).upper()
 
     return EnvConfig(
         **base,

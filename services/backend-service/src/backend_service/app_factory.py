@@ -7,11 +7,12 @@ The `main.py` module is kept as a thin runtime entrypoint.
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 from pathlib import Path
 
 import structlog
+from shared_lib.logging import setup_structlog
+from shared_lib.mqtt import get_mqtt_topic
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -117,6 +118,16 @@ class BackendService:
         set_config_mqtt_client(self._mqtt_client)
         set_rfid_mqtt_client(self._mqtt_client)
         set_system_mqtt_client(self._mqtt_client)
+
+        # Publish current general config (e.g. log_level) as retained so other services get it on subscribe
+        topic = get_mqtt_topic(self.config.env.minabox_device_id, "config", "general")
+        await self._mqtt_client.publish(
+            topic,
+            {"log_level": self.config.env.log_level},
+            qos=1,
+            retain=True,
+        )
+        logger.debug("config_general_published_retained", topic=topic)
 
         # Start MQTT listening task
         self._mqtt_task = asyncio.create_task(self._mqtt_client.run())
@@ -292,29 +303,5 @@ class BackendService:
         self._shutdown_event.set()
 
 
-def setup_logging(log_level: str) -> None:
-    """Set up structured logging (Framework.md: DEBUG = Console, INFO+ = JSON)."""
-    log_level_int = getattr(logging, log_level, logging.INFO)
-    if log_level == "DEBUG":
-        renderer = structlog.dev.ConsoleRenderer()
-    else:
-        renderer = structlog.processors.JSONRenderer()
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            renderer,
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level_int),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=False,
-    )
-    # Reduce noise from Alembic/SQLAlchemy (Context impl SQLiteImpl, Will assume non-transactional DDL)
-    for name in ("alembic.runtime.migration", "sqlalchemy.engine"):
-        logging.getLogger(name).setLevel(logging.WARNING)
-
-
-__all__ = ["BackendService", "setup_logging"]
+__all__ = ["BackendService", "setup_structlog"]
 

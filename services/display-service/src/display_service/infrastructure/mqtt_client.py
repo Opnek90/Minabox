@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Callable
 
 import structlog
 from aiomqtt import Client, MqttError
+from shared_lib.logging import setup_structlog
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 if TYPE_CHECKING:
@@ -37,6 +38,7 @@ class MQTTClient:
             f"{prefix}/audio/error",
             f"{prefix}/system/service-error",
             f"{prefix}/display/config/reload",
+            f"{prefix}/config/general",
         ]
 
     @property
@@ -98,6 +100,17 @@ class MQTTClient:
                             self._on_config_reload()
                         except Exception as exc:
                             logger.error("config_reload_failed", error=str(exc), exc_info=True)
+                    elif topic.endswith("/config/general"):
+                        try:
+                            data = json.loads(payload.decode("utf-8"))
+                            level = (data.get("log_level") or "INFO").upper()
+                            if level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+                                setup_structlog(level)
+                                logger.info("log_level_applied", log_level=level)
+                            else:
+                                logger.warning("invalid_log_level", log_level=level)
+                        except (json.JSONDecodeError, TypeError) as exc:
+                            logger.warning("config_general_parse_failed", error=str(exc))
                     else:
                         try:
                             self._on_message(topic, payload)

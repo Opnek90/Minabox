@@ -23,6 +23,8 @@ from tenacity import (
     retry_if_exception_type,
 )
 
+from shared_lib.logging import setup_structlog
+
 from ..config_schema import ButtonServiceConfig
 from ..exceptions import MinaboxButtonError
 
@@ -74,12 +76,13 @@ class MQTTClient:
         """
         device_id = self._config.env.minabox_device_id
         prefix = f"minabox/{device_id}/button"
-        
+        base = f"minabox/{device_id}"
         return [
             # Config API
             f"{prefix}/config/update",
             f"{prefix}/config/reload",
             f"{prefix}/config/get",
+            f"{base}/config/general",
         ]
 
     @retry(
@@ -153,6 +156,17 @@ class MQTTClient:
                         await self._handle_config_reload()
                     elif topic.endswith("/button/config/get"):
                         await self._handle_config_get()
+                    elif topic.endswith("/config/general"):
+                        try:
+                            data = json.loads(payload.decode("utf-8"))
+                            level = (data.get("log_level") or "INFO").upper()
+                            if level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+                                setup_structlog(level)
+                                logger.info("log_level_applied", log_level=level)
+                            else:
+                                logger.warning("invalid_log_level", log_level=level)
+                        except (json.JSONDecodeError, TypeError) as exc:
+                            logger.warning("config_general_parse_failed", error=str(exc))
                     else:
                         logger.warning("mqtt_unknown_topic", topic=topic)
             except asyncio.CancelledError:

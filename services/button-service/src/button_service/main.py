@@ -16,6 +16,7 @@ import signal
 
 import structlog
 import uvicorn
+from shared_lib.logging import setup_structlog
 
 from .api.routes import create_app
 from .config import load_app_config
@@ -235,30 +236,10 @@ class ButtonService:
             )
             self._gpio_manager = None
 
-def setup_logging(log_level: str) -> None:
-    """Set up structured logging (Framework.md: DEBUG = Console, INFO+ = JSON)."""
-    log_level_int = getattr(logging, log_level, logging.INFO)
-    if log_level == "DEBUG":
-        renderer = structlog.dev.ConsoleRenderer()
-    else:
-        renderer = structlog.processors.JSONRenderer()
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            renderer,
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(log_level_int),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=False,
-    )
-
 async def main() -> None:
     """Main async entry point."""
     config = load_app_config()
-    setup_logging(config.env.log_level)
+    setup_structlog(config.env.log_level)
 
     logger.debug(
         "service_initializing",

@@ -21,6 +21,8 @@ from tenacity import (
     retry_if_exception_type,
 )
 
+from shared_lib.logging import setup_structlog
+
 from ..exceptions import MinaboxRFIDError
 
 if TYPE_CHECKING:
@@ -55,6 +57,7 @@ class MQTTClient:
         """Build list of MQTT topics to subscribe to."""
         return [
             f"{self._topic_prefix}/cmd/set-mode",
+            f"minabox/{self._device_id}/config/general",
         ]
 
     @retry(
@@ -122,6 +125,17 @@ class MQTTClient:
 
                     if topic.endswith("/rfid/cmd/set-mode"):
                         self._handle_set_mode(payload)
+                    elif topic.endswith("/config/general"):
+                        try:
+                            data = json.loads(payload.decode("utf-8"))
+                            level = (data.get("log_level") or "INFO").upper()
+                            if level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+                                setup_structlog(level)
+                                logger.info("log_level_applied", log_level=level)
+                            else:
+                                logger.warning("invalid_log_level", log_level=level)
+                        except (json.JSONDecodeError, TypeError) as exc:
+                            logger.warning("config_general_parse_failed", error=str(exc))
                     else:
                         logger.warning("mqtt_unknown_topic", topic=topic)
             except asyncio.CancelledError:
