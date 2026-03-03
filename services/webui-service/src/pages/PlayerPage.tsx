@@ -29,6 +29,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TrackInfo } from '@/components/player/TrackInfo';
 import { PlaybackControls } from '@/components/player/PlaybackControls';
 import { ProgressBar } from '@/components/player/ProgressBar';
@@ -40,9 +41,6 @@ import { useWebSocket } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type {
-  AudioConfig,
-  AudioDeviceItem,
-  AudioSessionResponse,
   QueueItem,
   RepeatMode,
 } from '@/types/api';
@@ -103,11 +101,11 @@ export const PlayerPage: React.FC = () => {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const audioStatus = useAudioStatus();
-  const { lastMessage } = useWebSocket();
-  const [actionLoading, setActionLoading] = useState(false);
+  const { sleepTimerStatus, isConnected } = useWebSocket();
   const [error, setError] = useState<string | null>(null);
-  const [audioConfig, setAudioConfig] = useState<AudioConfig | null>(null);
+  
   const [optimisticVolume, setOptimisticVolume] = useState<number | null>(null);
   const optimisticTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -117,19 +115,41 @@ export const PlayerPage: React.FC = () => {
 
   const [buttonFeedback, setButtonFeedback] = useState<string | null>(null);
   const buttonFeedbackTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [session, setSession] = useState<AudioSessionResponse | null>(null);
-  const [outputDevices, setOutputDevices] = useState<AudioDeviceItem[]>([]);
-  const [outputDevicesLoading, setOutputDevicesLoading] = useState(false);
 
+  // Queries
+  const { data: audioConfig } = useQuery({
+    queryKey: ['config', 'audio'],
+    queryFn: configApi.getAudio,
+    enabled: isConnected,
+  });
+
+  const { data: outputDevicesData, isFetching: outputDevicesLoading, refetch: refetchDevices } = useQuery({
+    queryKey: ['audio', 'devices'],
+    queryFn: () => audioApi.getDevices(true),
+    enabled: isConnected,
+  });
+  
+  const outputDevices = outputDevicesData?.devices ?? [];
+
+  // Session query - auto refetch when playing state changes
+  const isPlaying = audioStatus?.state === 'playing' || audioStatus?.state === 'paused';
+  const { data: session } = useQuery({
+    queryKey: ['audio', 'session'],
+    queryFn: audioApi.getSession,
+    enabled: isConnected && isPlaying,
+    staleTime: 10000,
+  });
+
+  // Init Sleep Timer countdown from initial fetch or ws
   useEffect(() => {
-    configApi.getAudio().then(setAudioConfig).catch(() => null);
-    audioApi.getDevices(true).then((r) => setOutputDevices(r.devices ?? [])).catch(() => setOutputDevices([]));
-    audioApi.getSleepTimer().then((status) => {
-      if (status.active && status.remaining_ms !== null) {
-        startDisplayCountdown(status.remaining_ms);
-      }
-    }).catch(() => null);
-  }, []);
+    if (isConnected) {
+      audioApi.getSleepTimer().then((status) => {
+        if (status.active && status.remaining_ms !== null) {
+          startDisplayCountdown(status.remaining_ms);
+        }
+      }).catch(() => null);
+    }
+  }, [isConnected]);
 
   useEffect(() => {
     return () => {
@@ -150,43 +170,58 @@ export const PlayerPage: React.FC = () => {
     }
   }, [audioStatus?.volume, optimisticVolume]);
 
+  // Handle WebSocket updates
   useEffect(() => {
-    if (!lastMessage) return;
-    if (lastMessage.type === 'sleep_timer_status') {
-      const status = lastMessage.data as { active: boolean; remaining_ms: number | null };
-      if (status.active && status.remaining_ms !== null) {
-        startDisplayCountdown(status.remaining_ms);
+    if (sleepTimerStatus) {
+      if (sleepTimerStatus.active && sleepTimerStatus.remaining_ms !== null) {
+        startDisplayCountdown(sleepTimerStatus.remaining_ms);
       } else {
         stopDisplayCountdown();
       }
-    } else if (lastMessage.type === 'button_action') {
-      const action = (lastMessage.data as { action?: string }).action ?? '';
-      const actionKey = action.replace(/-/g, '_');
-      const label = BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action;
-      setButtonFeedback(label);
-      if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
-      buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
-    } else if (lastMessage.type === 'repeat_mode') {
-      const data = lastMessage.data as { repeat_mode?: RepeatMode };
-      if (data?.repeat_mode != null) {
-        setSession((prev) => (prev ? { ...prev, repeat_mode: data.repeat_mode! } : null));
-      }
-    } else if (lastMessage.type === 'shuffle_mode') {
-      const data = lastMessage.data as { shuffle?: boolean };
-      if (data?.shuffle !== undefined) {
-        setSession((prev) => (prev ? { ...prev, shuffle: Boolean(data.shuffle) } : null));
-      }
     }
-  }, [lastMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sleepTimerStatus]);
 
-  // Keep session in sync: refetch when playing (so queue/repeat stay visible); clear when stopped and no track
+  // Hook into generic messages for feedback via custom event
   useEffect(() => {
-    if (audioStatus?.state === 'playing' || audioStatus?.state === 'paused') {
-      audioApi.getSession().then((s) => setSession(s)).catch(() => setSession(null));
-    } else if (audioStatus?.state === 'stopped' && !audioStatus?.track_id) {
-      setSession(null);
+    const handleWsMessage = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const lastMessage = customEvent.detail;
+      
+      if (lastMessage.type === 'button_action') {
+        const action = (lastMessage.data as { action?: string }).action ?? '';
+        const actionKey = action.replace(/-/g, '_');
+        const label = BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action;
+        setButtonFeedback(label);
+        if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
+        buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
+      } else if (lastMessage.type === 'repeat_mode') {
+        const data = lastMessage.data as { repeat_mode?: RepeatMode };
+        if (data?.repeat_mode != null) {
+          queryClient.setQueryData(['audio', 'session'], (old: any) => 
+            old ? { ...old, repeat_mode: data.repeat_mode } : old
+          );
+        }
+      } else if (lastMessage.type === 'shuffle_mode') {
+        const data = lastMessage.data as { shuffle?: boolean };
+        if (data?.shuffle !== undefined) {
+          queryClient.setQueryData(['audio', 'session'], (old: any) => 
+            old ? { ...old, shuffle: Boolean(data.shuffle) } : old
+          );
+        }
+      }
+    };
+
+    // Need to use the global event target we set up in Context
+    window.addEventListener('ws_message', handleWsMessage);
+    return () => window.removeEventListener('ws_message', handleWsMessage);
+  }, [queryClient]);
+
+  // Clear session cache when stopped
+  useEffect(() => {
+    if (audioStatus?.state === 'stopped' && !audioStatus?.track_id) {
+      queryClient.setQueryData(['audio', 'session'], null);
     }
-  }, [audioStatus?.state, audioStatus?.track_id]);
+  }, [audioStatus?.state, audioStatus?.track_id, queryClient]);
 
   const startDisplayCountdown = (initialMs: number) => {
     if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
@@ -209,17 +244,63 @@ export const PlayerPage: React.FC = () => {
     setSleepRemainingMs(null);
   };
 
+  // Mutations
+  const playMutation = useMutation({ mutationFn: audioApi.play });
+  const pauseMutation = useMutation({ mutationFn: audioApi.pause });
+  const stopMutation = useMutation({ mutationFn: audioApi.stop });
+  const nextMutation = useMutation({ mutationFn: audioApi.next });
+  const prevMutation = useMutation({ mutationFn: audioApi.previous });
+  
+  const volumeMutation = useMutation({ 
+    mutationFn: audioApi.setVolume,
+    onError: (err) => setError(err instanceof Error ? err.message : 'Error') 
+  });
+  
+  const startSleepTimerMutation = useMutation({
+    mutationFn: audioApi.startSleepTimer,
+    onError: () => showError(t('sleep_timer.error', { defaultValue: 'Sleep Timer konnte nicht gesetzt werden' }))
+  });
+
+  const cancelSleepTimerMutation = useMutation({
+    mutationFn: audioApi.cancelSleepTimer,
+    onError: () => showError(t('sleep_timer.cancel_error', { defaultValue: 'Sleep Timer konnte nicht abgebrochen werden' }))
+  });
+
+  const switchDeviceMutation = useMutation({
+    mutationFn: audioApi.switchDevice,
+    onSuccess: (_, variables) => {
+      queryClient.setQueryData(['config', 'audio'], (old: any) => 
+        old ? { ...old, output_device_name: variables } : old
+      );
+    },
+    onError: () => showError(t('player.output_device', { defaultValue: 'Could not switch device' }))
+  });
+
+  const repeatMutation = useMutation({
+    mutationFn: audioApi.setRepeatMode,
+    onSuccess: (_, mode) => {
+      queryClient.setQueryData(['audio', 'session'], (old: any) => 
+        old ? { ...old, repeat_mode: mode } : old
+      );
+    }
+  });
+
+  const shuffleMutation = useMutation({
+    mutationFn: audioApi.setShuffle,
+    onSuccess: (_, shuffle) => {
+      queryClient.setQueryData(['audio', 'session'], (old: any) => 
+        old ? { ...old, shuffle } : old
+      );
+    }
+  });
+
   const handleStartSleepTimer = (minutes: number) => {
     setSleepAnchor(null);
-    audioApi.startSleepTimer(minutes).catch(() =>
-      showError(t('sleep_timer.error', { defaultValue: 'Sleep Timer konnte nicht gesetzt werden' }))
-    );
+    startSleepTimerMutation.mutate(minutes);
   };
 
   const handleCancelSleepTimer = () => {
-    audioApi.cancelSleepTimer().catch(() =>
-      showError(t('sleep_timer.cancel_error', { defaultValue: 'Sleep Timer konnte nicht abgebrochen werden' }))
-    );
+    cancelSleepTimerMutation.mutate();
   };
 
   const formatSleepRemaining = (ms: number) => {
@@ -228,31 +309,22 @@ export const PlayerPage: React.FC = () => {
     return `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  const handleAction = useCallback(async (fn: () => Promise<void>) => {
-    setActionLoading(true);
-    setError(null);
-    try {
-      await fn();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error';
-      setError(msg);
-    } finally {
-      setActionLoading(false);
-    }
-  }, []);
-
-  const handlePlay     = () => handleAction(audioApi.play);
-  const handlePause    = () => handleAction(audioApi.pause);
-  const handleStop     = () => handleAction(audioApi.stop);
-  const handleNext     = () => handleAction(audioApi.next);
-  const handlePrevious = () => handleAction(audioApi.previous);
+  const handlePlay     = () => playMutation.mutate();
+  const handlePause    = () => pauseMutation.mutate();
+  const handleStop     = () => stopMutation.mutate();
+  const handleNext     = () => nextMutation.mutate();
+  const handlePrevious = () => prevMutation.mutate();
 
   const handleVolumeChange = useCallback((volume: number) => {
     setOptimisticVolume(volume);
     if (optimisticTimeoutRef.current) clearTimeout(optimisticTimeoutRef.current);
     optimisticTimeoutRef.current = setTimeout(() => setOptimisticVolume(null), 4000);
-    handleAction(() => audioApi.setVolume(volume));
-  }, [handleAction]);
+    volumeMutation.mutate(volume);
+  }, [volumeMutation]);
+
+  const actionLoading = playMutation.isPending || pauseMutation.isPending || 
+                        stopMutation.isPending || nextMutation.isPending || 
+                        prevMutation.isPending;
 
   if (!audioStatus) {
     return <LoadingSpinner message={t('title')} fullPage />;
@@ -401,12 +473,9 @@ export const PlayerPage: React.FC = () => {
                 onChange={(e) => {
                   const v = e.target.value as string;
                   if (!v) return;
-                  audioApi
-                    .switchDevice(v)
-                    .then(() => setAudioConfig((c) => (c ? { ...c, output_device_name: v } : c)))
-                    .catch(() => showError(t('player.output_device', { defaultValue: 'Could not switch device' })));
+                  switchDeviceMutation.mutate(v);
                 }}
-                disabled={outputDevicesLoading}
+                disabled={outputDevicesLoading || switchDeviceMutation.isPending}
                 aria-label={t('player.output_device', { defaultValue: 'Output device' })}
               >
                 {outputDevices.map((d) => (
@@ -419,14 +488,7 @@ export const PlayerPage: React.FC = () => {
             <Tooltip title={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}>
               <IconButton
                 size="small"
-                onClick={() => {
-                  setOutputDevicesLoading(true);
-                  audioApi
-                    .getDevices(true)
-                    .then((r) => setOutputDevices(r.devices ?? []))
-                    .catch(() => setOutputDevices([]))
-                    .finally(() => setOutputDevicesLoading(false));
-                }}
+                onClick={() => refetchDevices()}
                 disabled={outputDevicesLoading}
                 aria-label={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}
               >
@@ -445,9 +507,7 @@ export const PlayerPage: React.FC = () => {
                     color={session.repeat_mode === 'all' ? 'primary' : 'default'}
                     onClick={() => {
                       const mode = session.repeat_mode === 'all' ? 'none' : 'all';
-                      audioApi.setRepeatMode(mode).then(() =>
-                        setSession((p) => (p ? { ...p, repeat_mode: mode } : null))
-                      ).catch(() => {});
+                      repeatMutation.mutate(mode);
                     }}
                     aria-label={session.repeat_mode === 'all' ? 'Repeat all' : 'Repeat off'}
                   >
@@ -460,9 +520,7 @@ export const PlayerPage: React.FC = () => {
                     color={session.shuffle ? 'primary' : 'default'}
                     onClick={() => {
                       const next = !session.shuffle;
-                      audioApi.setShuffle(next).then(() =>
-                        setSession((p) => (p ? { ...p, shuffle: next } : null))
-                      ).catch(() => {});
+                      shuffleMutation.mutate(next);
                     }}
                     aria-label={session.shuffle ? 'Shuffle on' : 'Shuffle off'}
                   >
