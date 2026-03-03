@@ -24,6 +24,7 @@ from backend_service.core.usage_limits import (
     is_within_allowed_usage_time,
     read_allowed_usage_times,
     read_daily_limit_settings,
+    read_stop_playback_on_tag_remove,
 )
 from backend_service.exceptions import ContentNotFoundError
 from backend_service.models.database import (
@@ -42,6 +43,9 @@ if TYPE_CHECKING:
     from backend_service.core.mqtt_client import MQTTClient
 
 logger = structlog.get_logger(__name__)
+
+# Seconds to ignore the same tag_id after we started playback (avoids double-play when tag is scanned twice in quick succession)
+TAG_SCAN_COOLDOWN_SEC = 4.0
 
 # Last audio status (updated by handle_audio_status); used by routes_audio for play-after-pause
 _last_audio_status: dict[str, Any] = {}
@@ -116,6 +120,7 @@ class MQTTHandlers:
         self.mqtt_client = mqtt_client
         self.websocket_manager = websocket_manager
         self._audio_status_cache: dict[str, Any] = {}
+        self._tag_scan_cooldown_until: dict[str, float] = {}  # tag_id -> time.time() until which we ignore this tag
         self._sleep_timer_task: asyncio.Task | None = None
         self._sleep_timer_start_time: float = 0.0
         self._sleep_timer_duration_ms: int = 0
@@ -132,6 +137,15 @@ class MQTTHandlers:
         tag_id = data.get("tag_id")
         if not tag_id:
             logger.warning("rfid_tag_scanned_missing_tag_id", data=data)
+            return
+
+        now_sec = time.time()
+        if now_sec < self._tag_scan_cooldown_until.get(tag_id, 0):
+            logger.info(
+                "rfid_tag_scan_ignored_cooldown",
+                tag_id=tag_id,
+                cooldown_sec=TAG_SCAN_COOLDOWN_SEC,
+            )
             return
 
         logger.info("rfid_tag_scanned_received", tag_id=tag_id)
@@ -218,6 +232,15 @@ class MQTTHandlers:
                 content_type=tag.content_type,
                 content_id=tag.content_id,
             )
+
+            # Cooldown: ignore same tag for a short time to avoid double-play when tag is scanned twice in quick succession
+            self._tag_scan_cooldown_until[tag_id] = time.time() + TAG_SCAN_COOLDOWN_SEC
+            # Prune expired entries to avoid unbounded dict growth
+            self._tag_scan_cooldown_until = {
+                tid: until
+                for tid, until in self._tag_scan_cooldown_until.items()
+                if until > time.time()
+            }
 
             # Load content and create session
             tag_db_id = tag.id
@@ -449,6 +472,15 @@ class MQTTHandlers:
                     },
                 }
             )
+
+    async def handle_rfid_tag_removed(self, topic: str, data: dict[str, Any]) -> None:
+        """Handle RFID tag removed: optionally stop playback when tag is taken off reader."""
+        if not read_stop_playback_on_tag_remove():
+            return
+        tag_id = data.get("tag_id", "")
+        logger.info("rfid_tag_removed_stopping_playback", tag_id=tag_id)
+        mark_deliberate_stop()
+        await self.mqtt_client.publish_audio_command("stop", {})
 
     async def handle_audio_status(self, topic: str, data: dict[str, Any]) -> None:
         """Handle audio status update.

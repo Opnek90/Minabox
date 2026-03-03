@@ -99,6 +99,10 @@ class BackendService:
             self._mqtt_handlers.handle_rfid_tag_scanned_learning,
         )
         await self._mqtt_client.subscribe(
+            self.config.get_mqtt_topic("rfid", "tag-removed"),
+            self._mqtt_handlers.handle_rfid_tag_removed,
+        )
+        await self._mqtt_client.subscribe(
             self.config.get_mqtt_topic("audio", "status"),
             self._mqtt_handlers.handle_audio_status,
         )

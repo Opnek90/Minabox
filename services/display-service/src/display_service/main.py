@@ -25,6 +25,16 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8080")
 SLEEP_TIMER_POLL_INTERVAL = 5.0
 RENDER_INTERVAL = 1.0
 
+# Layout limits – must match DisplayRenderer slot counts
+_HEADER_MAX_ITEMS = 6
+_BODY_MAX_ITEMS = 3
+
+# Element types whose rendered output depends on runtime state.
+# These are "conditional" – they may produce 0 or 1 items at render time.
+_CONDITIONAL_TYPES = frozenset({
+    "sleep_timer", "mute", "error_state", "repeat", "shuffle", "bluetooth",
+})
+
 
 class DisplayService:
     """Main display service class."""
@@ -55,6 +65,7 @@ class DisplayService:
                 self._display_config.i2c_bus,
                 self._display_config.i2c_address,
             )
+        self._warn_overcrowded_areas(self._display_config)
         await self.mqtt_client.connect()
         device_id = self.config.env.minabox_device_id
         await self.mqtt_client.publish(
@@ -133,7 +144,7 @@ class DisplayService:
         try:
             self._display_config = self.config_manager.reload_config()
             logger.info("config_reload_success")
-            # Redraw immediately so changes are visible without waiting for next render tick
+            self._warn_overcrowded_areas(self._display_config)
             if is_available() and self._display_config and self._display_config.enabled:
                 cfg = self._display_config
                 areas = self._build_areas()
@@ -146,57 +157,120 @@ class DisplayService:
         except Exception as exc:
             logger.error("config_reload_failed", error=str(exc), exc_info=True)
 
+    @staticmethod
+    def _warn_overcrowded_areas(cfg: DisplayServiceConfig | None) -> None:
+        """Emit a warning for any area whose enabled elements exceed the renderer limit.
+
+        Body areas (1 & 2) hold at most 3 slots; the header (area 0) holds at most 6.
+        Conditional elements (mute, shuffle, repeat, …) each *may* produce an item at
+        runtime, so an area with more enabled elements than slots will silently drop
+        low-priority items.  This warning makes that misconfiguration visible early.
+        """
+        if not cfg:
+            return
+        limits = {0: _HEADER_MAX_ITEMS, 1: _BODY_MAX_ITEMS, 2: _BODY_MAX_ITEMS}
+        for area_idx, limit in limits.items():
+            enabled_in_area = [
+                e for e in cfg.elements if e.enabled and e.area == area_idx
+            ]
+            if len(enabled_in_area) > limit:
+                types = [e.type for e in enabled_in_area]
+                logger.warning(
+                    "display_area_overcrowded",
+                    area=area_idx,
+                    configured=len(enabled_in_area),
+                    limit=limit,
+                    elements=types,
+                    hint=(
+                        f"Area {area_idx} has {len(enabled_in_area)} enabled elements but "
+                        f"the renderer supports at most {limit}. "
+                        "Items beyond the limit will be dropped at render time. "
+                        "Reduce the number of enabled elements or move some to another area."
+                    ),
+                )
+
     def _build_areas(self) -> list[list[dict]]:
-        """Build header (area 0) + left (1) + right (2). Play-state = icon, sleep_timer = icon + minutes."""
+        """Build header (area 0) + left (1) + right (2).
+
+        Each area is capped at its renderer limit (_HEADER_MAX_ITEMS / _BODY_MAX_ITEMS)
+        *after* evaluating runtime state, so conditional icons (shuffle, repeat, mute …)
+        only count against the limit when they are actually active.  Items that exceed
+        the cap are dropped with a warning so the renderer never silently clips them.
+        """
         cfg = self._display_config
         if not cfg or not cfg.enabled:
             return [[], [], []]
         enabled = [e for e in cfg.elements if e.enabled]
         if not enabled:
             return [[], [], []]
+
         by_area: list[list] = [[], [], []]
         for area_idx in (0, 1, 2):
-            area_el = sorted(
+            by_area[area_idx] = sorted(
                 [e for e in enabled if e.area == area_idx],
                 key=lambda e: e.order,
             )
-            by_area[area_idx] = area_el
+
         audio = self.state_manager.get_audio()
         sleep_timer = self.state_manager.get_sleep_timer()
         session = self.state_manager.get_session()
+
         result: list[list[dict]] = [[], [], []]
         for area_idx in (0, 1, 2):
             for el in by_area[area_idx]:
+                item: dict | None = None
+
                 if el.type == "volume":
                     vol = audio.get("volume", 0)
-                    result[area_idx].append({"type": "text", "value": f"{vol}%"})
+                    item = {"type": "text", "value": f"{vol}%"}
                 elif el.type == "sleep_timer":
                     if sleep_timer.get("active") and sleep_timer.get("remaining_ms") is not None:
                         remaining_ms = sleep_timer.get("remaining_ms") or 0
                         minutes = max(0, (remaining_ms + 59999) // 60000)
-                        result[area_idx].append({"type": "sleep_timer", "minutes": minutes})
+                        item = {"type": "sleep_timer", "minutes": minutes}
                 elif el.type == "mute":
                     if audio.get("muted"):
-                        result[area_idx].append({"type": "icon", "value": "mute"})
+                        item = {"type": "icon", "value": "mute"}
                 elif el.type == "play_state":
                     state = audio.get("state", "stopped")
                     icon_val = "play" if state == "playing" else "pause" if state == "paused" else "stop"
-                    result[area_idx].append({"type": "icon", "value": icon_val})
+                    item = {"type": "icon", "value": icon_val}
                 elif el.type == "clock":
                     now = datetime.now()
-                    result[area_idx].append({"type": "text", "value": now.strftime("%H:%M")})
+                    item = {"type": "text", "value": now.strftime("%H:%M")}
                 elif el.type == "error_state":
                     if self.state_manager.has_error():
-                        result[area_idx].append({"type": "icon", "value": "error"})
+                        item = {"type": "icon", "value": "error"}
                 elif el.type == "repeat":
                     if session.get("repeat_mode") == "all":
-                        result[area_idx].append({"type": "icon", "value": "repeat"})
+                        item = {"type": "icon", "value": "repeat"}
                 elif el.type == "shuffle":
                     if session.get("shuffle"):
-                        result[area_idx].append({"type": "icon", "value": "shuffle"})
+                        item = {"type": "icon", "value": "shuffle"}
                 elif el.type == "bluetooth":
                     if audio.get("bluetooth_sink_available") and audio.get("multiple_output_devices"):
-                        result[area_idx].append({"type": "icon", "value": "bluetooth"})
+                        item = {"type": "icon", "value": "bluetooth"}
+
+                if item is None:
+                    continue
+
+                limit = _HEADER_MAX_ITEMS if area_idx == 0 else _BODY_MAX_ITEMS
+                if len(result[area_idx]) >= limit:
+                    logger.warning(
+                        "display_area_item_dropped",
+                        area=area_idx,
+                        dropped_type=el.type,
+                        limit=limit,
+                        hint=(
+                            f"Area {area_idx} is full ({limit} items). "
+                            f"Element '{el.type}' was dropped. "
+                            "Move it to another area or disable a lower-priority element."
+                        ),
+                    )
+                    continue
+
+                result[area_idx].append(item)
+
         return result
 
     async def _render_loop(self) -> None:

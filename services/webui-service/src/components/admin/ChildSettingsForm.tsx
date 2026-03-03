@@ -53,11 +53,6 @@ export const ChildSettingsForm: React.FC = () => {
           usage_times_enabled: gen.usage_times_enabled ?? false,
           daily_limit_enabled: gen.daily_limit_enabled ?? false,
           daily_limit_minutes: gen.daily_limit_minutes ?? 120,
-          sleep_timer_minutes: gen.sleep_timer_minutes ?? 30,
-          bedtime_fade_enabled: gen.bedtime_fade_enabled ?? false,
-          bedtime_fade_duration_minutes: gen.bedtime_fade_duration_minutes ?? 15,
-          bedtime_fade_interval_seconds: gen.bedtime_fade_interval_seconds ?? 30,
-          bedtime_fade_step_percent: gen.bedtime_fade_step_percent ?? 2,
         });
         setAudioConfig(audio);
       })
@@ -73,11 +68,6 @@ export const ChildSettingsForm: React.FC = () => {
         usage_times_enabled: general.usage_times_enabled,
         daily_limit_enabled: general.daily_limit_enabled,
         daily_limit_minutes: general.daily_limit_minutes,
-        sleep_timer_minutes: general.sleep_timer_minutes,
-        bedtime_fade_enabled: general.bedtime_fade_enabled,
-        bedtime_fade_duration_minutes: general.bedtime_fade_duration_minutes,
-        bedtime_fade_interval_seconds: general.bedtime_fade_interval_seconds,
-        bedtime_fade_step_percent: general.bedtime_fade_step_percent,
       });
       await configApi.updateAudio({
         max_volume: audioConfig.max_volume,
@@ -226,88 +216,6 @@ export const ChildSettingsForm: React.FC = () => {
           onChange={(_, v) =>
             setAudioConfig((p) => (p ? { ...p, default_volume: v as number } : p))
           }
-        />
-      </Box>
-
-      <Divider />
-
-      <Typography variant="subtitle2" color="text.secondary">
-        {t('general.sleep_timer')}
-      </Typography>
-      <TextField
-        label={t('general.sleep_timer_minutes')}
-        type="number"
-        value={general.sleep_timer_minutes ?? 30}
-        onChange={(e) =>
-          setGeneral((p) =>
-            p ? { ...p, sleep_timer_minutes: Math.max(1, parseInt(e.target.value, 10) || 30) } : p
-          )
-        }
-        size="small"
-        fullWidth
-        inputProps={{ min: 1, max: 480 }}
-        helperText={t('general.sleep_timer_minutes_hint')}
-      />
-
-      <Typography variant="subtitle2" color="text.secondary">
-        {t('general.bedtime_fade')}
-      </Typography>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={general.bedtime_fade_enabled ?? false}
-            onChange={(e) =>
-              setGeneral((p) => (p ? { ...p, bedtime_fade_enabled: e.target.checked } : p))
-            }
-          />
-        }
-        label={t('general.bedtime_fade_enabled')}
-      />
-      <Box display="flex" gap={2} flexWrap="wrap">
-        <TextField
-          label={t('general.bedtime_fade_duration_minutes')}
-          type="number"
-          value={general.bedtime_fade_duration_minutes ?? 15}
-          onChange={(e) =>
-            setGeneral((p) =>
-              p
-                ? { ...p, bedtime_fade_duration_minutes: Math.max(1, parseInt(e.target.value, 10) || 15) }
-                : p
-            )
-          }
-          size="small"
-          inputProps={{ min: 1, max: 120 }}
-        />
-        <TextField
-          label={t('general.bedtime_fade_interval_seconds')}
-          type="number"
-          value={general.bedtime_fade_interval_seconds ?? 30}
-          onChange={(e) =>
-            setGeneral((p) =>
-              p
-                ? { ...p, bedtime_fade_interval_seconds: Math.max(5, parseInt(e.target.value, 10) || 30) }
-                : p
-            )
-          }
-          size="small"
-          inputProps={{ min: 5, max: 300 }}
-        />
-        <TextField
-          label={t('general.bedtime_fade_step_percent')}
-          type="number"
-          value={general.bedtime_fade_step_percent ?? 2}
-          onChange={(e) =>
-            setGeneral((p) =>
-              p
-                ? {
-                    ...p,
-                    bedtime_fade_step_percent: Math.max(0.5, Math.min(50, parseFloat(e.target.value) || 2)),
-                  }
-                : p
-            )
-          }
-          size="small"
-          inputProps={{ min: 0.5, max: 50, step: 0.5 }}
         />
       </Box>
 

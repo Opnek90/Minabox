@@ -274,6 +274,11 @@
     },
     "save_success": "RFID-Einstellungen gespeichert"
   },
+  "control": {
+    "title": "Steuerung",
+    "section_rfid": "RFID",
+    "stop_playback_on_tag_remove": "Musik bei Tag-Entfernung stoppen"
+  },
   "stats": {
     "title": "Hörstatistiken",
     "period": "Zeitraum",
