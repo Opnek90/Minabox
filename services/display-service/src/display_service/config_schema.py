@@ -8,10 +8,29 @@ from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 
 from shared_lib.config import EnvConfigBase
 
-DisplayElementType = Literal["volume", "sleep_timer", "mute", "play_state", "clock", "error_state", "repeat", "shuffle", "bluetooth"]
+DisplayElementType = Literal[
+    "volume",
+    "sleep_timer",
+    "mute",
+    "play_state",
+    "clock",
+    "error_state",
+    "repeat",
+    "shuffle",
+    "bluetooth",
+]
 DisplayArea = Literal[0, 1, 2]  # 0=header (full width), 1=left column, 2=right column
 DisplayFontSize = Literal["small", "medium", "large"]
-DisplayFont = Literal["default", "sans", "mono"]
+DisplayFont = Literal[
+    "default",      # PIL built-in bitmap font, always available
+    "sans",         # DejaVu Sans (apt: fonts-dejavu-core, usually pre-installed)
+    "mono",         # DejaVu Sans Mono
+    "roboto",       # Roboto Regular      (apt: fonts-roboto)
+    "ubuntu",       # Ubuntu Regular      (apt: fonts-ubuntu)
+    "noto",         # Noto Sans Regular   (apt: fonts-noto)
+    "liberation",   # Liberation Sans     (apt: fonts-liberation, often pre-installed)
+    "terminus",     # Terminus TTF        (apt: fonts-terminus)
+]
 
 
 class DisplayElement(BaseModel):
@@ -47,11 +66,15 @@ class DisplayServiceConfig(BaseModel):
     )
     font_size: DisplayFontSize = Field(
         default="medium",
-        description="Text size: small (8px), medium (10px), large (12px).",
+        description="Text size: small (9px), medium (12px), large (14px).",
     )
     font: DisplayFont = Field(
-        default="default",
-        description="Font: default (built-in), sans, mono.",
+        default="sans",
+        description=(
+            "Font family. Options: default (PIL built-in), sans (DejaVu Sans), "
+            "mono (DejaVu Mono), roboto, ubuntu, noto, liberation, terminus. "
+            "Falls back to default if the font is not installed on the system."
+        ),
     )
 
 
