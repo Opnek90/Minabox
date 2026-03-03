@@ -34,6 +34,7 @@ import type {
   DisplayFontSize,
   DisplayFont,
 } from '@/types/api';
+import { DISPLAY_CONDITIONAL_TYPES, DISPLAY_AREA_LIMITS } from '@/types/api';
 
 function mergeElements(
   existing: DisplayElement[],
@@ -57,6 +58,21 @@ function mergeElements(
 
 function sortByOrder(elements: DisplayElement[]): DisplayElement[] {
   return [...elements].sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Returns the areas (1 or 2) where the number of enabled elements exceeds
+ * the renderer limit, considering that conditional elements *may* all fire
+ * simultaneously in the worst case.
+ */
+function getOvercrowdedAreas(elements: DisplayElement[]): DisplayArea[] {
+  const overcrowded: DisplayArea[] = [];
+  for (const area of [0, 1, 2] as DisplayArea[]) {
+    const limit = DISPLAY_AREA_LIMITS[area];
+    const count = elements.filter((e) => e.enabled && (e.area ?? 0) === area).length;
+    if (count > limit) overcrowded.push(area);
+  }
+  return overcrowded;
 }
 
 export const DisplayConfigPanel: React.FC = () => {
@@ -164,6 +180,9 @@ export const DisplayConfigPanel: React.FC = () => {
   }
 
   const sortedElements = sortByOrder(config.elements);
+  const overcrowdedAreas = getOvercrowdedAreas(config.elements);
+  const areaLabel = (a: DisplayArea) =>
+    a === 0 ? t('display.area_header') : a === 1 ? t('display.area_left') : t('display.area_right');
 
   return (
     <Box>
@@ -210,7 +229,7 @@ export const DisplayConfigPanel: React.FC = () => {
                 <MenuItem value="large">{t('display.font_size_large')}</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
+            <FormControl size="small" sx={{ minWidth: 130 }}>
               <InputLabel>{t('display.font')}</InputLabel>
               <Select
                 label={t('display.font')}
@@ -220,11 +239,28 @@ export const DisplayConfigPanel: React.FC = () => {
                 <MenuItem value="default">{t('display.font_default')}</MenuItem>
                 <MenuItem value="sans">{t('display.font_sans')}</MenuItem>
                 <MenuItem value="mono">{t('display.font_mono')}</MenuItem>
+                <MenuItem value="roboto">Roboto</MenuItem>
+                <MenuItem value="ubuntu">Ubuntu</MenuItem>
+                <MenuItem value="noto">Noto Sans</MenuItem>
+                <MenuItem value="liberation">Liberation Sans</MenuItem>
+                <MenuItem value="terminus">Terminus</MenuItem>
               </Select>
             </FormControl>
           </Box>
         </Box>
       </Paper>
+
+      {overcrowdedAreas.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {t('display.overcrowded_warning', {
+            areas: overcrowdedAreas.map(areaLabel).join(', '),
+            defaultValue:
+              `Achtung: In den Bereichen "{{areas}}" sind mehr Elemente aktiviert als angezeigt werden können (max. 3 pro Spalte, 6 im Header). ` +
+              'Bedingte Elemente (Shuffle, Repeat, Mute …) werden nur bei aktiver Funktion angezeigt – wenn mehrere gleichzeitig aktiv sind, werden Elemente am Ende der Liste verworfen. ' +
+              'Bitte Elemente deaktivieren oder in andere Bereiche verschieben.',
+          })}
+        </Alert>
+      )}
 
       <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
         {t('display.elements')}
@@ -245,7 +281,14 @@ export const DisplayConfigPanel: React.FC = () => {
           </TableHead>
           <TableBody>
             {sortedElements.map((el, index) => (
-              <TableRow key={el.type}>
+              <TableRow
+                key={el.type}
+                sx={
+                  overcrowdedAreas.includes(el.area ?? 0 as DisplayArea) && el.enabled
+                    ? { backgroundColor: 'warning.light', opacity: 0.85 }
+                    : undefined
+                }
+              >
                 <TableCell>
                   <Box display="flex" alignItems="center" gap={0.5}>
                     <Tooltip title={t('display.order') + ' hoch'}>
@@ -270,7 +313,14 @@ export const DisplayConfigPanel: React.FC = () => {
                 </TableCell>
                 <TableCell>{index + 1}</TableCell>
                 <TableCell>
-                  {t(`display.element_types.${el.type}` as const)}
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    {t(`display.element_types.${el.type}` as const)}
+                    {DISPLAY_CONDITIONAL_TYPES.has(el.type) && (
+                      <Tooltip title={t('display.conditional_hint', { defaultValue: 'Bedingtes Element – wird nur angezeigt wenn aktiv' })}>
+                        <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>*</Typography>
+                      </Tooltip>
+                    )}
+                  </Box>
                 </TableCell>
                 <TableCell>
                   <Box display="flex" gap={0.5}>
@@ -282,11 +332,7 @@ export const DisplayConfigPanel: React.FC = () => {
                         onClick={() => setElementArea(el.type, a)}
                         sx={{ minWidth: 56 }}
                       >
-                        {a === 0
-                          ? t('display.area_header')
-                          : a === 1
-                            ? t('display.area_left')
-                            : t('display.area_right')}
+                        {areaLabel(a)}
                       </Button>
                     ))}
                   </Box>

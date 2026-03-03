@@ -321,6 +321,15 @@ export interface ButtonConfig {
 
 export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state' | 'repeat' | 'shuffle' | 'bluetooth';
 
+/** Conditional element types – only render an item when the state is active.
+ *  If too many of these share an area, some may be dropped at runtime. */
+export const DISPLAY_CONDITIONAL_TYPES: ReadonlySet<DisplayElementType> = new Set([
+  'sleep_timer', 'mute', 'error_state', 'repeat', 'shuffle', 'bluetooth',
+]);
+
+/** Maximum items the renderer can show per area. */
+export const DISPLAY_AREA_LIMITS: Record<number, number> = { 0: 6, 1: 3, 2: 3 };
+
 /** Area on the OLED: 0 = header (full width), 1 = left column, 2 = right column */
 export type DisplayArea = 0 | 1 | 2;
 
@@ -333,10 +342,30 @@ export interface DisplayElement {
   area?: DisplayArea;
 }
 
-/** Font size: small (8px), medium (10px), large (12px) */
+/** Font size: small (9px), medium (12px), large (14px) */
 export type DisplayFontSize = 'small' | 'medium' | 'large';
-/** Font: default (built-in), sans, mono */
-export type DisplayFont = 'default' | 'sans' | 'mono';
+
+/**
+ * Font family for the OLED display.
+ * - default : PIL built-in bitmap font, always available
+ * - sans     : DejaVu Sans          (apt: fonts-dejavu-core, usually pre-installed)
+ * - mono     : DejaVu Sans Mono     (apt: fonts-dejavu-core)
+ * - roboto   : Roboto Regular       (apt: fonts-roboto)
+ * - ubuntu   : Ubuntu Regular       (apt: fonts-ubuntu)
+ * - noto     : Noto Sans Regular    (apt: fonts-noto)
+ * - liberation: Liberation Sans     (apt: fonts-liberation, often pre-installed)
+ * - terminus : Terminus TTF         (apt: fonts-terminus)
+ * Falls back to 'default' if the chosen font is not installed on the device.
+ */
+export type DisplayFont =
+  | 'default'
+  | 'sans'
+  | 'mono'
+  | 'roboto'
+  | 'ubuntu'
+  | 'noto'
+  | 'liberation'
+  | 'terminus';
 
 export interface DisplayConfig {
   enabled: boolean;
