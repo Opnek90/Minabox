@@ -132,6 +132,11 @@ class MQTTHandlers:
         
         # Track active playback intent (to prevent unwanted auto-advance loops)
         self._playback_intent_active: bool = False
+
+        # Stream reconnect state
+        self._stream_reconnect_task: asyncio.Task | None = None
+        self._stream_reconnect_attempts: int = 0
+
         logger.debug("mqtt_handlers_initialized")
 
     async def handle_rfid_tag_scanned(self, topic: str, data: dict[str, Any]) -> None:
@@ -174,6 +179,11 @@ class MQTTHandlers:
                 return
 
         logger.info("rfid_tag_scanned_received", tag_id=tag_id)
+
+        # Cancel any active stream reconnects if user manually scans a tag
+        if self._stream_reconnect_task and not self._stream_reconnect_task.done():
+            self._stream_reconnect_task.cancel()
+            self._stream_reconnect_attempts = 0
 
         # Check if db_manager is initialized
         if not _db_module.db_manager:
@@ -262,6 +272,7 @@ class MQTTHandlers:
             self._last_played_tag_id = tag_id
             self._last_played_tag_time = now_sec
             self._playback_intent_active = True
+            self._stream_reconnect_attempts = 0
             
             # Cooldown: ignore same tag for a short time to avoid double-play when tag is scanned twice in quick succession
             self._tag_scan_cooldown_until[tag_id] = now_sec + TAG_SCAN_COOLDOWN_SEC
@@ -524,6 +535,10 @@ class MQTTHandlers:
             
         logger.info("rfid_tag_removed_stopping_playback", tag_id=tag_id)
         
+        # Cancel any active stream reconnects
+        if self._stream_reconnect_task and not self._stream_reconnect_task.done():
+            self._stream_reconnect_task.cancel()
+
         # Mark deliberate stop and clear playback intent so auto-advance doesn't fight it
         mark_deliberate_stop()
         self._playback_intent_active = False
@@ -549,10 +564,15 @@ class MQTTHandlers:
         _last_audio_status.clear()
         _last_audio_status.update(data)
 
-        # Auto-advance playlist when a track ends naturally (playing → stopped)
-        if prev_state == "playing" and new_state == "stopped":
-            # Extra safety check: if we don't have an active playback intent, do NOT auto-advance.
-            # This prevents infinite auto-advance loops when VLC fails to load a stream or aborts immediately.
+        # Clear stream reconnect logic if we successfully started playing again
+        if new_state == "playing":
+            if self._stream_reconnect_task and not self._stream_reconnect_task.done():
+                self._stream_reconnect_task.cancel()
+            self._stream_reconnect_attempts = 0
+
+        # Handle stream drop or track end (playing → stopped or playing → error)
+        if prev_state == "playing" and new_state in ("stopped", "error"):
+            # Extra safety check: if we don't have an active playback intent, do NOT auto-advance/reconnect.
             if not self._playback_intent_active:
                 logger.info("auto_advance_skipped_no_playback_intent")
             elif _deliberate_stop:
@@ -580,19 +600,49 @@ class MQTTHandlers:
                         db_session.close()
                 
                 # Check if this is a stream. Streams don't have a "next" track in session manager.
-                # If a stream ends, it's just over (e.g. connection dropped).
+                # If a stream ends unexpectedly, try to reconnect (Wi-Fi drop protection).
                 track_id_raw = data.get("track_id")
                 is_stream = isinstance(track_id_raw, str) and (track_id_raw.startswith("stream-") or track_id_raw.startswith("podcast-"))
                 
                 if is_stream:
-                    logger.info("stream_ended_no_auto_advance", track_id=track_id_raw)
-                    self._playback_intent_active = False
+                    # Stream dropped unexpectedly!
+                    logger.warning("stream_ended_unexpectedly", track_id=track_id_raw)
+                    if self._stream_reconnect_attempts < 5:
+                        self._stream_reconnect_attempts += 1
+                        delay = min(2 ** self._stream_reconnect_attempts, 30) # Exponential backoff: 2, 4, 8, 16, 30s
+                        logger.info("stream_reconnect_scheduled", attempt=self._stream_reconnect_attempts, delay_sec=delay)
+                        
+                        async def _reconnect() -> None:
+                            try:
+                                await asyncio.sleep(delay)
+                                if self._playback_intent_active and not _deliberate_stop:
+                                    logger.info("stream_reconnecting_now", track_id=track_id_raw)
+                                    await self.mqtt_client.publish_audio_command(
+                                        "play",
+                                        {
+                                            "track_id": track_id_raw,
+                                            "source_type": "stream",
+                                            "source_uri": data.get("source_uri"),
+                                            "start_position_ms": 0,
+                                        },
+                                    )
+                            except asyncio.CancelledError:
+                                pass
+
+                        if self._stream_reconnect_task and not self._stream_reconnect_task.done():
+                            self._stream_reconnect_task.cancel()
+                        self._stream_reconnect_task = asyncio.create_task(_reconnect())
+                    else:
+                        logger.error("stream_reconnect_gave_up", track_id=track_id_raw)
+                        self._playback_intent_active = False
                 else:
+                    # Normal track ended
                     logger.info("track_ended_naturally_auto_advancing")
                     await self._handle_next()
 
         # Close latest playback event when entering stopped (with listened_ms from status)
-        if new_state == "stopped" and _db_module.db_manager:
+        # Note: We already did this above if coming from 'playing', but just in case we transition from 'paused' to 'stopped'.
+        if new_state == "stopped" and prev_state != "playing" and _db_module.db_manager:
             db_session = _db_module.db_manager.get_session()
             try:
                 _close_open_playback_event(db_session, data)
@@ -691,6 +741,11 @@ class MQTTHandlers:
         
         self._playback_intent_active = True
 
+        # Cancel any active stream reconnects if user presses a button
+        if self._stream_reconnect_task and not self._stream_reconnect_task.done():
+            self._stream_reconnect_task.cancel()
+            self._stream_reconnect_attempts = 0
+
         # Handle different button actions
         if action == "play_pause":
             await self._handle_play_pause()
@@ -729,6 +784,7 @@ class MQTTHandlers:
         current_state = self._audio_status_cache.get("state", "stopped")
 
         if current_state == "playing":
+            mark_deliberate_stop()
             self._playback_intent_active = False
             await self.mqtt_client.publish_audio_command("pause", {})
         elif current_state == "paused":
