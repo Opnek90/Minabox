@@ -40,6 +40,7 @@ class ButtonService:
         self._shutdown_event = asyncio.Event()
         self._mqtt_task: asyncio.Task | None = None
         self._processor_task: asyncio.Task | None = None
+        self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._gpio_manager: GPIOInputManager | None = None
 
@@ -130,7 +131,7 @@ class ButtonService:
             log_config=None,
         )
         self._api_server = uvicorn.Server(uvicorn_config)
-        asyncio.create_task(self._api_server.serve())
+        self._uvicorn_task = asyncio.create_task(self._api_server.serve())
         logger.debug("api_server_started", port=8000)
 
     async def run(self) -> None:
@@ -142,10 +143,15 @@ class ButtonService:
         """Stop the button service gracefully."""
         logger.info("button_service_stopping")
 
-        # Stop API server
+        # Stop API server and await its task
         if self._api_server:
             self._api_server.should_exit = True
-            logger.debug("api_server_stopped")
+        if self._uvicorn_task and not self._uvicorn_task.done():
+            try:
+                await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+        logger.debug("api_server_stopped")
 
         # Stop MQTT client loop
         await self.mqtt_client.stop()

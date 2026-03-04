@@ -51,6 +51,7 @@ class LEDService:
         
         self._shutdown_event = asyncio.Event()
         self._mqtt_task: asyncio.Task | None = None
+        self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
 
     async def start(self) -> None:
@@ -59,7 +60,7 @@ class LEDService:
         
         # Load initial LED configuration
         led_config = self.config_manager.load_config()
-        self.led_manager.initialize_leds(led_config.leds)
+        await self.led_manager.initialize_leds(led_config.leds)
         
         # Connect to MQTT
         await self.mqtt_client.connect()
@@ -87,12 +88,10 @@ class LEDService:
             app=app,
             host="0.0.0.0",
             port=8000,
-            log_config=None,  # Use our own logging
+            log_config=None,
         )
         self._api_server = uvicorn.Server(config)
-        
-        # Run server in background task
-        asyncio.create_task(self._api_server.serve())
+        self._uvicorn_task = asyncio.create_task(self._api_server.serve())
         logger.debug("api_server_started", port=8000)
 
     async def run(self) -> None:
@@ -104,10 +103,15 @@ class LEDService:
         """Stop the LED service gracefully."""
         logger.info("led_service_stopping")
         
-        # Stop API server
+        # Stop API server and await its task
         if self._api_server:
             self._api_server.should_exit = True
-            logger.debug("api_server_stopped")
+        if self._uvicorn_task and not self._uvicorn_task.done():
+            try:
+                await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+        logger.debug("api_server_stopped")
         
         # Stop MQTT client
         await self.mqtt_client.stop()
@@ -140,11 +144,8 @@ class LEDService:
             topic: The MQTT topic.
             payload: The message payload.
         """
-        # Derive logical state
         logical_state = self.state_manager.derive_state(topic, payload)
-        
         if logical_state:
-            # Apply state to LEDs (async, so schedule it)
             asyncio.create_task(self.led_manager.apply_state(logical_state))
 
     def _handle_config_update(self, new_config: LEDServiceConfig) -> None:
@@ -153,52 +154,45 @@ class LEDService:
         Args:
             new_config: The new LED configuration.
         """
-        try:
-            # Persist config
-            self.config_manager.update_config(new_config)
-            
-            # Re-initialize LEDs
-            self.led_manager.initialize_leds(new_config.leds)
-            
-            # Restore system_online state – device is still running
-            asyncio.create_task(self.led_manager.apply_state("system_online"))
-            
-            logger.debug("config_hot_reload_success")
-        except Exception as exc:
-            logger.error(
-                "config_hot_reload_failed",
-                error=str(exc),
-                exc_info=True,
-            )
-            raise
+        async def _do_update() -> None:
+            try:
+                self.config_manager.update_config(new_config)
+                # initialize_leds() is async; must be awaited so GPIO pins are
+                # fully released before the system_online state is applied.
+                await self.led_manager.initialize_leds(new_config.leds)
+                await self.led_manager.apply_state("system_online")
+                logger.debug("config_hot_reload_success")
+            except Exception as exc:
+                logger.error(
+                    "config_hot_reload_failed",
+                    error=str(exc),
+                    exc_info=True,
+                )
+
+        asyncio.create_task(_do_update())
 
     def _handle_config_reload(self) -> None:
         """Handle config reload requests from MQTT."""
-        try:
-            # Reload from disk
-            new_config = self.config_manager.reload_config()
-            
-            # Re-initialize LEDs
-            self.led_manager.initialize_leds(new_config.leds)
-            
-            # Restore system_online state – device is still running
-            asyncio.create_task(self.led_manager.apply_state("system_online"))
-            
-            logger.debug("config_reload_success")
-        except Exception as exc:
-            logger.error(
-                "config_reload_failed",
-                error=str(exc),
-                exc_info=True,
-            )
-            raise
+        async def _do_reload() -> None:
+            try:
+                new_config = self.config_manager.reload_config()
+                # initialize_leds() is async; must be awaited so GPIO pins are
+                # fully released before the system_online state is applied.
+                await self.led_manager.initialize_leds(new_config.leds)
+                await self.led_manager.apply_state("system_online")
+                logger.debug("config_reload_success")
+            except Exception as exc:
+                logger.error(
+                    "config_reload_failed",
+                    error=str(exc),
+                    exc_info=True,
+                )
+
+        asyncio.create_task(_do_reload())
 
 async def main() -> None:
     """Main async entry point."""
-    # Load configuration
     config = load_app_config()
-    
-    # Setup logging
     setup_structlog(config.env.log_level)
     
     logger.debug(
@@ -207,10 +201,7 @@ async def main() -> None:
         log_level=config.env.log_level,
     )
     
-    # Create service
     service = LEDService(config)
-    
-    # Setup signal handlers for graceful shutdown
     loop = asyncio.get_running_loop()
     
     def signal_handler(sig: signal.Signals) -> None:
@@ -221,12 +212,8 @@ async def main() -> None:
         loop.add_signal_handler(sig, lambda s=sig: signal_handler(s))
     
     try:
-        # Start service
         await service.start()
-        
-        # Run until shutdown
         await service.run()
-        
     except Exception as exc:
         logger.error(
             "service_error",
@@ -235,7 +222,6 @@ async def main() -> None:
         )
         raise
     finally:
-        # Clean shutdown
         await service.stop()
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ logger = structlog.get_logger(__name__)
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8080")
 SLEEP_TIMER_POLL_INTERVAL = 5.0
+SESSION_POLL_INTERVAL = 5.0
 RENDER_INTERVAL = 1.0
 
 # Layout limits – must match DisplayRenderer slot counts
@@ -54,6 +55,7 @@ class DisplayService:
         self._render_task: asyncio.Task | None = None
         self._sleep_poll_task: asyncio.Task | None = None
         self._session_poll_task: asyncio.Task | None = None
+        self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._display_config: DisplayServiceConfig | None = None
 
@@ -62,10 +64,17 @@ class DisplayService:
         logger.info("display_service_starting")
         self._display_config = self.config_manager.load_config()
         if self._display_config.enabled:
-            display_init(
-                self._display_config.i2c_bus,
-                self._display_config.i2c_address,
-            )
+            try:
+                display_init(
+                    self._display_config.i2c_bus,
+                    self._display_config.i2c_address,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "display_init_failed",
+                    error=str(exc),
+                    hint="Display disabled. Check I2C bus configuration.",
+                )
         self._warn_overcrowded_areas(self._display_config)
         await self.mqtt_client.connect()
         device_id = self.config.env.minabox_device_id
@@ -89,7 +98,7 @@ class DisplayService:
             log_config=None,
         )
         self._api_server = uvicorn.Server(server_config)
-        asyncio.create_task(self._api_server.serve())
+        self._uvicorn_task = asyncio.create_task(self._api_server.serve())
         logger.info("api_server_started", port=8000)
 
     async def run(self) -> None:
@@ -100,6 +109,11 @@ class DisplayService:
         logger.info("display_service_stopping")
         if self._api_server:
             self._api_server.should_exit = True
+        if self._uvicorn_task and not self._uvicorn_task.done():
+            try:
+                await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
         await self.mqtt_client.stop()
         if self._render_task and not self._render_task.done():
             self._render_task.cancel()
@@ -321,7 +335,7 @@ class DisplayService:
         """Poll backend for session (repeat_mode, shuffle)."""
         while not self._shutdown_event.is_set():
             try:
-                await asyncio.sleep(SLEEP_TIMER_POLL_INTERVAL)
+                await asyncio.sleep(SESSION_POLL_INTERVAL)
                 async with httpx.AsyncClient(timeout=3.0) as client:
                     try:
                         r = await client.get(f"{BACKEND_URL}/api/v1/audio/session")

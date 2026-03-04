@@ -33,6 +33,7 @@ class RFIDService:
         self._shutdown_event = asyncio.Event()
         self._mqtt_task: asyncio.Task | None = None
         self._scan_task: asyncio.Task | None = None
+        self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._reader: RFIDReader | None = None
         self._manager: RFIDManager | None = None
@@ -46,34 +47,39 @@ class RFIDService:
         """Start the RFID service."""
         logger.info("rfid_service_starting")
 
-        # Initialize hardware reader
-        self._reader = create_reader(self.config.rfid.reader)
-        self._reader.initialize()
+        try:
+            # Initialize hardware reader
+            self._reader = create_reader(self.config.rfid.reader)
+            self._reader.initialize()
 
-        # Connect to MQTT
-        await self.mqtt_client.connect()
+            # Connect to MQTT
+            await self.mqtt_client.connect()
 
-        # Publish service-started event
-        device_id = self.config.env.minabox_device_id
-        await self.mqtt_client.publish(
-            f"minabox/{device_id}/system/service-started",
-            {"service": "rfid"},
-        )
+            # Publish service-started event
+            device_id = self.config.env.minabox_device_id
+            await self.mqtt_client.publish(
+                f"minabox/{device_id}/system/service-started",
+                {"service": "rfid"},
+            )
 
-        # Create and start manager
-        self._manager = RFIDManager(self.config, self._reader, self.mqtt_client)
-        await self._manager.start()
+            # Create and start manager
+            self._manager = RFIDManager(self.config, self._reader, self.mqtt_client)
+            await self._manager.start()
 
-        # Start MQTT message loop
-        self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
+            # Start MQTT message loop
+            self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
 
-        # Start scan loop
-        self._scan_task = asyncio.create_task(self._manager.scan_loop())
+            # Start scan loop
+            self._scan_task = asyncio.create_task(self._manager.scan_loop())
 
-        # Start FastAPI server
-        await self._start_api_server()
+            # Start FastAPI server
+            await self._start_api_server()
 
-        logger.info("rfid_service_started")
+            logger.info("rfid_service_started")
+        except Exception as exc:
+            logger.error("rfid_service_start_failed", error=str(exc), exc_info=True)
+            await self.stop()
+            raise
 
     async def _start_api_server(self) -> None:
         """Start the FastAPI server."""
@@ -85,7 +91,7 @@ class RFIDService:
             log_config=None,
         )
         self._api_server = uvicorn.Server(uvicorn_config)
-        asyncio.create_task(self._api_server.serve())
+        self._uvicorn_task = asyncio.create_task(self._api_server.serve())
         logger.info("api_server_started", port=8000)
 
     async def run(self) -> None:
@@ -97,10 +103,15 @@ class RFIDService:
         """Stop the RFID service gracefully."""
         logger.info("rfid_service_stopping")
 
-        # Stop API server
+        # Stop API server and await its task
         if self._api_server:
             self._api_server.should_exit = True
-            logger.info("api_server_stopped")
+        if self._uvicorn_task and not self._uvicorn_task.done():
+            try:
+                await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+        logger.info("api_server_stopped")
 
         # Stop manager (stops scanning)
         if self._manager:
@@ -140,9 +151,19 @@ class RFIDService:
         self._shutdown_event.set()
 
     def _handle_set_mode(self, mode: str) -> None:
-        """Handle set-mode command from MQTT."""
+        """Handle set-mode command from MQTT.
+
+        Uses call_soon_threadsafe because this callback may be invoked from a
+        different thread (MQTT client thread) where no event loop is running.
+        """
         if self._manager:
-            asyncio.create_task(self._manager.set_mode(mode))
+            try:
+                loop = asyncio.get_event_loop()
+                loop.call_soon_threadsafe(
+                    lambda: asyncio.ensure_future(self._manager.set_mode(mode))
+                )
+            except RuntimeError:
+                logger.warning("set_mode_no_event_loop", mode=mode)
 
 async def main() -> None:
     """Main async entry point."""
