@@ -27,15 +27,22 @@ SLEEP_TIMER_POLL_INTERVAL = 5.0
 SESSION_POLL_INTERVAL = 5.0
 RENDER_INTERVAL = 1.0
 
-# Layout limits – must match DisplayRenderer slot counts
 _HEADER_MAX_ITEMS = 6
 _BODY_MAX_ITEMS = 3
 
-# Element types whose rendered output depends on runtime state.
-# These are "conditional" – they may produce 0 or 1 items at render time.
 _CONDITIONAL_TYPES = frozenset({
     "sleep_timer", "mute", "error_state", "repeat", "shuffle", "bluetooth",
 })
+
+
+async def _cancel_task(task: asyncio.Task | None, timeout: float = 5.0) -> None:
+    """Cancel an asyncio Task and wait for it to finish cleanly."""
+    if task is None or task.done():
+        return
+    task.cancel()
+    done, _ = await asyncio.wait({task}, timeout=timeout)
+    if not done:
+        logger.debug("task_cancel_timeout", task_name=task.get_name())
 
 
 class DisplayService:
@@ -106,40 +113,16 @@ class DisplayService:
         logger.info("shutdown_requested")
 
     async def stop(self) -> None:
+        """Stop the display service gracefully."""
         logger.info("display_service_stopping")
         if self._api_server:
             self._api_server.should_exit = True
-        if self._uvicorn_task and not self._uvicorn_task.done():
-            try:
-                await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+        await _cancel_task(self._uvicorn_task)
         await self.mqtt_client.stop()
-        if self._render_task and not self._render_task.done():
-            self._render_task.cancel()
-            try:
-                await self._render_task
-            except asyncio.CancelledError:
-                pass
-        if self._sleep_poll_task and not self._sleep_poll_task.done():
-            self._sleep_poll_task.cancel()
-            try:
-                await self._sleep_poll_task
-            except asyncio.CancelledError:
-                pass
-        if self._session_poll_task and not self._session_poll_task.done():
-            self._session_poll_task.cancel()
-            try:
-                await self._session_poll_task
-            except asyncio.CancelledError:
-                pass
-        if self._mqtt_task and not self._mqtt_task.done():
-            try:
-                await asyncio.wait_for(self._mqtt_task, timeout=5.0)
-            except asyncio.TimeoutError:
-                self._mqtt_task.cancel()
-            except asyncio.CancelledError:
-                pass
+        await _cancel_task(self._render_task)
+        await _cancel_task(self._sleep_poll_task)
+        await _cancel_task(self._session_poll_task)
+        await _cancel_task(self._mqtt_task)
         await self.mqtt_client.disconnect()
         if is_available():
             clear()
@@ -155,7 +138,6 @@ class DisplayService:
         self.state_manager.update_audio(topic, payload)
 
     def _handle_config_reload(self) -> None:
-        """Reload config from disk and redraw display immediately (hot reload)."""
         try:
             self._display_config = self.config_manager.reload_config()
             logger.info("config_reload_success")
@@ -174,13 +156,6 @@ class DisplayService:
 
     @staticmethod
     def _warn_overcrowded_areas(cfg: DisplayServiceConfig | None) -> None:
-        """Emit a warning for any area whose enabled elements exceed the renderer limit.
-
-        Body areas (1 & 2) hold at most 3 slots; the header (area 0) holds at most 6.
-        Conditional elements (mute, shuffle, repeat, …) each *may* produce an item at
-        runtime, so an area with more enabled elements than slots will silently drop
-        low-priority items.  This warning makes that misconfiguration visible early.
-        """
         if not cfg:
             return
         limits = {0: _HEADER_MAX_ITEMS, 1: _BODY_MAX_ITEMS, 2: _BODY_MAX_ITEMS}
@@ -199,19 +174,11 @@ class DisplayService:
                     hint=(
                         f"Area {area_idx} has {len(enabled_in_area)} enabled elements but "
                         f"the renderer supports at most {limit}. "
-                        "Items beyond the limit will be dropped at render time. "
-                        "Reduce the number of enabled elements or move some to another area."
+                        "Items beyond the limit will be dropped at render time."
                     ),
                 )
 
     def _build_areas(self) -> list[list[dict]]:
-        """Build header (area 0) + left (1) + right (2).
-
-        Each area is capped at its renderer limit (_HEADER_MAX_ITEMS / _BODY_MAX_ITEMS)
-        *after* evaluating runtime state, so conditional icons (shuffle, repeat, mute …)
-        only count against the limit when they are actually active.  Items that exceed
-        the cap are dropped with a warning so the renderer never silently clips them.
-        """
         cfg = self._display_config
         if not cfg or not cfg.enabled:
             return [[], [], []]
@@ -276,11 +243,6 @@ class DisplayService:
                         area=area_idx,
                         dropped_type=el.type,
                         limit=limit,
-                        hint=(
-                            f"Area {area_idx} is full ({limit} items). "
-                            f"Element '{el.type}' was dropped. "
-                            "Move it to another area or disable a lower-priority element."
-                        ),
                     )
                     continue
 
@@ -289,7 +251,6 @@ class DisplayService:
         return result
 
     async def _render_loop(self) -> None:
-        """Periodically render display from state and config."""
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(RENDER_INTERVAL)
@@ -311,7 +272,6 @@ class DisplayService:
                 logger.warning("render_loop_error", error=str(exc))
 
     async def _sleep_timer_poll_loop(self) -> None:
-        """Poll backend for sleep timer status."""
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(SLEEP_TIMER_POLL_INTERVAL)
@@ -332,7 +292,6 @@ class DisplayService:
                 logger.debug("sleep_timer_poll_error", error=str(exc))
 
     async def _session_poll_loop(self) -> None:
-        """Poll backend for session (repeat_mode, shuffle)."""
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(SESSION_POLL_INTERVAL)

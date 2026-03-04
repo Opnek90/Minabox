@@ -173,10 +173,12 @@ class BackendService:
             version="0.1.0",
         )
 
-        # CORS middleware for WebUI
+        # CORS middleware: origins are loaded from config to allow per-environment
+        # restriction. Use CORS_ALLOWED_ORIGINS=['*'] in .env for local dev;
+        # in production set the actual frontend URL (e.g. http://minabox.local).
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=self.config.env.cors_allowed_origins,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],

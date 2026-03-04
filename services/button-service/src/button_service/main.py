@@ -1,11 +1,4 @@
-"""Main entry point for the button service.
-
-This module:
-- Sets up structured logging
-- Loads configuration
-- Initializes GPIO inputs, MQTT, event processor, API
-- Handles graceful shutdown
-"""
+"""Main entry point for the button service."""
 
 from __future__ import annotations
 
@@ -30,6 +23,17 @@ from .infrastructure import MQTTClient
 
 logger = structlog.get_logger(__name__)
 
+
+async def _cancel_task(task: asyncio.Task | None, timeout: float = 5.0) -> None:
+    """Cancel an asyncio Task and wait for it to finish cleanly."""
+    if task is None or task.done():
+        return
+    task.cancel()
+    done, _ = await asyncio.wait({task}, timeout=timeout)
+    if not done:
+        logger.debug("task_cancel_timeout", task_name=task.get_name())
+
+
 class ButtonService:
     """Main button service class."""
 
@@ -51,23 +55,19 @@ class ButtonService:
         )
 
     def _get_buttons_count(self) -> int:
-        """Return current number of configured buttons (for health endpoint)."""
         cfg = self.config_manager.get_current_config()
         return len(cfg.buttons) if cfg else 0
 
     def _get_config(self) -> ButtonServiceConfig | None:
-        """Return current button config (for event processor)."""
         return self.config_manager.get_current_config()
 
     async def start(self) -> None:
         """Start the button service."""
         logger.debug("button_service_starting")
 
-        # Load initial button configuration
         buttons_config = self.config_manager.load_config()
         loop = asyncio.get_running_loop()
 
-        # Initialize GPIO only if not disabled (avoids gpiozero fallback to sysfs in containers)
         disable_gpio = os.environ.get("DISABLE_GPIO", "false").strip().lower() in ("true", "1")
         if disable_gpio:
             logger.info("gpio_disabled_by_config", message="DISABLE_GPIO=true; running without button hardware.")
@@ -80,7 +80,7 @@ class ButtonService:
                     loop=loop,
                 )
                 self._gpio_manager.start()
-            except (GPIOInitError, Exception) as exc:
+            except Exception as exc:
                 logger.warning(
                     "gpio_init_skipped",
                     error=str(exc),
@@ -88,20 +88,16 @@ class ButtonService:
                 )
                 self._gpio_manager = None
 
-        # Connect to MQTT
         await self.mqtt_client.connect()
 
-        # Publish service-started event
         device_id = self.config.env.minabox_device_id
         await self.mqtt_client.publish(
             f"minabox/{device_id}/system/service-started",
             {"service": "button"},
         )
 
-        # Start MQTT message loop
         self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
 
-        # Start event processor (FIFO → mapping → MQTT)
         self._processor_task = asyncio.create_task(
             run_event_processor(
                 event_queue=self._event_queue,
@@ -112,13 +108,11 @@ class ButtonService:
             ),
         )
 
-        # Start FastAPI server
         await self._start_api_server()
 
         logger.info("button_service_started")
 
     async def _start_api_server(self) -> None:
-        """Start the FastAPI server."""
         app = create_app(
             self.config,
             self.mqtt_client,
@@ -135,7 +129,6 @@ class ButtonService:
         logger.debug("api_server_started", port=8000)
 
     async def run(self) -> None:
-        """Run the service until shutdown is requested."""
         await self._shutdown_event.wait()
         logger.debug("shutdown_requested")
 
@@ -143,40 +136,16 @@ class ButtonService:
         """Stop the button service gracefully."""
         logger.info("button_service_stopping")
 
-        # Stop API server and await its task
         if self._api_server:
             self._api_server.should_exit = True
-        if self._uvicorn_task and not self._uvicorn_task.done():
-            try:
-                await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+        await _cancel_task(self._uvicorn_task)
         logger.debug("api_server_stopped")
 
-        # Stop MQTT client loop
         await self.mqtt_client.stop()
-
-        # Cancel event processor
-        if self._processor_task and not self._processor_task.done():
-            self._processor_task.cancel()
-            try:
-                await asyncio.wait_for(self._processor_task, timeout=5.0)
-            except asyncio.CancelledError:
-                pass
-            except asyncio.TimeoutError:
-                logger.warning("processor_task_timeout")
-
-        # Wait for MQTT task
-        if self._mqtt_task and not self._mqtt_task.done():
-            try:
-                await asyncio.wait_for(self._mqtt_task, timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("mqtt_task_timeout")
-                self._mqtt_task.cancel()
-
+        await _cancel_task(self._processor_task)
+        await _cancel_task(self._mqtt_task)
         await self.mqtt_client.disconnect()
 
-        # Close GPIO devices
         if self._gpio_manager:
             self._gpio_manager.close()
             self._gpio_manager = None
@@ -184,40 +153,28 @@ class ButtonService:
         logger.info("button_service_stopped")
 
     def request_shutdown(self) -> None:
-        """Request a graceful shutdown."""
         logger.info("shutdown_signal_received")
         self._shutdown_event.set()
 
     def _handle_config_update(self, new_config: ButtonServiceConfig) -> None:
-        """Handle button configuration updates from MQTT."""
         try:
             self.config_manager.update_config(new_config)
             self._reinit_gpio()
             logger.debug("config_update_applied")
         except Exception as exc:
-            logger.error(
-                "config_update_failed",
-                error=str(exc),
-                exc_info=True,
-            )
+            logger.error("config_update_failed", error=str(exc), exc_info=True)
             raise
 
     def _handle_config_reload(self) -> None:
-        """Handle config reload requests from MQTT."""
         try:
             self.config_manager.reload_config()
             self._reinit_gpio()
             logger.debug("config_reload_applied")
         except Exception as exc:
-            logger.error(
-                "config_reload_failed",
-                error=str(exc),
-                exc_info=True,
-            )
+            logger.error("config_reload_failed", error=str(exc), exc_info=True)
             raise
 
     def _reinit_gpio(self) -> None:
-        """Close current GPIO manager and start a new one with current config."""
         if os.environ.get("DISABLE_GPIO", "false").strip().lower() in ("true", "1"):
             return
         cfg = self.config_manager.get_current_config()
@@ -235,15 +192,12 @@ class ButtonService:
             )
             self._gpio_manager.start()
             logger.debug("gpio_reinitialized", buttons_count=len(cfg.buttons))
-        except (GPIOInitError, Exception) as exc:
-            logger.warning(
-                "gpio_reinit_skipped",
-                error=str(exc),
-            )
+        except Exception as exc:
+            logger.warning("gpio_reinit_skipped", error=str(exc))
             self._gpio_manager = None
 
+
 async def main() -> None:
-    """Main async entry point."""
     config = load_app_config()
     setup_structlog(config.env.log_level)
 
@@ -262,12 +216,8 @@ async def main() -> None:
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
-            loop.add_signal_handler(
-                sig,
-                lambda s=sig: signal_handler(s),
-            )
+            loop.add_signal_handler(sig, lambda s=sig: signal_handler(s))
         except NotImplementedError:
-            # e.g. Windows
             break
 
     try:
@@ -279,8 +229,8 @@ async def main() -> None:
     finally:
         await service.stop()
 
+
 def run() -> None:
-    """Entry point for python -m button_service."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
@@ -288,6 +238,7 @@ def run() -> None:
     except Exception:
         logger.exception("service_crashed")
         raise
+
 
 if __name__ == "__main__":
     run()
