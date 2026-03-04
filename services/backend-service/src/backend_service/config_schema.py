@@ -30,6 +30,14 @@ class EnvConfig(EnvConfigBase):
         default="/mnt/audio/tracks",
         description="Audio files storage path.",
     )
+    cors_allowed_origins: list[str] = Field(
+        default=["http://localhost:3000", "http://localhost:8080"],
+        description=(
+            "Allowed CORS origins. Set to ['*'] in .env for local dev environments. "
+            "In production, restrict to the actual frontend URL, e.g. "
+            "['http://minabox.local', 'http://192.168.1.100']."
+        ),
+    )
 
 
 class BackendServiceConfig(BaseModel):

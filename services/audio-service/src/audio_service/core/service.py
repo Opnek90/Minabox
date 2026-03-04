@@ -72,6 +72,11 @@ class AudioService:
         self._vlc_backend = VLCBackend(config.audio)
         self._state_manager = StateManager(Path(config.env.audio_state_path))
 
+        # Instantiate once to avoid repeated OS calls (PulseAudio/PipeWire sink
+        # enumeration) on every 2-second status-loop tick.
+        from ..infrastructure.pulse_detector import PulseSinkDetector
+        self._pulse_detector = PulseSinkDetector()
+
         # MQTT message handler with callbacks
         self._mqtt_handler = MQTTMessageHandler(
             config=config,
@@ -561,16 +566,9 @@ class AudioService:
         """Check if VLC backend is initialized."""
         return self._vlc_backend._initialized
 
-    async def get_audio_status(self) -> AudioStatus:
-        """Get current audio status."""
-        return await self._vlc_backend.get_status()
-
     async def get_audio_devices(self, enabled_only: bool = False) -> list[dict]:
         """Get detected Pulse sinks, optionally filtered by enabled_output_devices."""
-        from ..infrastructure.pulse_detector import PulseSinkDetector
-
-        detector = PulseSinkDetector()
-        sinks = await detector.detect_sinks()
+        sinks = await self._pulse_detector.detect_sinks()
         config = self._get_audio_config()
         enabled = getattr(config, "enabled_output_devices", None) or []
         display_names = getattr(config, "device_display_names", None) or {}
