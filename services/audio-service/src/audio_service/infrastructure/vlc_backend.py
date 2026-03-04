@@ -261,25 +261,33 @@ class VLCBackend(AudioBackend):
             # Validate source
             await self._validate_source(source_uri)
 
-            # Reset player when transitioning from Ended/Stopped to new media.
+            # Fast-path: if VLC is already paused with the same source, simply
+            # toggle pause off. This avoids the stop → media_new → play → set_time
+            # sequence that causes an audible stutter (~1 s wrong audio + seek gap).
+            current_state = self._player.get_state()
+            if (
+                current_state == vlc.State.Paused
+                and self._current_source_uri == source_uri
+            ):
+                self._player.play()  # toggles VLC pause off
+                if start_position_ms > 0:
+                    await asyncio.sleep(0.1)
+                    self._player.set_time(start_position_ms)
+                logger.debug("play_resumed_from_pause_fast_path", source_uri=source_uri)
+                return
+
+            # Reset player when transitioning from Ended/Stopped to new media (e.g. next track in playlist).
+            # Without this, VLC may not transition to Playing when loading new media after a track has ended.
             try:
                 self._player.stop()
                 await self._wait_for_state(vlc.State.Stopped, timeout_sec=1.5)
             except (PlaybackError, Exception):
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.2)
 
             # Create media
             media = self._instance.media_new(source_uri)
             if media is None:
                 raise PlaybackError(f"Failed to create media from {source_uri}")
-
-            # ROBUSTNESS FIX: Avoid "jumpy" playback when resuming.
-            # If we just play() and then call set_time(), VLC plays the beginning of the file 
-            # for a split second, then pauses to buffer the seek, and then continues. 
-            # By passing the start-time as an option *before* playback, VLC starts directly there.
-            if start_position_ms > 0:
-                start_sec = start_position_ms / 1000.0
-                media.add_option(f":start-time={start_sec}")
 
             # Set media to player
             self._player.set_media(media)
@@ -314,6 +322,11 @@ class VLCBackend(AudioBackend):
                     self._pending_volume = None
                 else:
                     self._pending_volume = applied
+
+            # Set start position if specified
+            if start_position_ms > 0:
+                await asyncio.sleep(0.2)  # Brief delay for VLC to load media
+                self._player.set_time(start_position_ms)
 
             self._current_source_uri = source_uri
 
