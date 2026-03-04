@@ -50,6 +50,7 @@ class BackendService:
         self._mqtt_client: MQTTClient | None = None
         self._mqtt_handlers: MQTTHandlers | None = None
         self._mqtt_task: asyncio.Task | None = None
+        self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._db = None
         self._podcast_fetch_task: asyncio.Task | None = None
@@ -161,7 +162,7 @@ class BackendService:
             log_config=None,
         )
         self._api_server = uvicorn.Server(uv_config)
-        asyncio.create_task(self._api_server.serve())
+        self._uvicorn_task = asyncio.create_task(self._api_server.serve())
         logger.debug("api_server_started", port=self.config.api_port)
 
     def _create_app(self) -> FastAPI:
@@ -259,10 +260,15 @@ class BackendService:
         """Stop the backend service gracefully."""
         logger.info("backend_service_stopping")
 
-        # Stop API server
+        # Stop API server and await its task
         if self._api_server:
             self._api_server.should_exit = True
-            logger.info("api_server_stopped")
+        if self._uvicorn_task and not self._uvicorn_task.done():
+            try:
+                await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+        logger.info("api_server_stopped")
 
         # Stop podcast fetch task
         if self._podcast_fetch_task:
@@ -304,4 +310,3 @@ class BackendService:
 
 
 __all__ = ["BackendService", "setup_structlog"]
-
