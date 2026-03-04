@@ -1,16 +1,19 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { SleepTimerStatus, WebSocketMessage } from '@/types/api';
 
+// Export an EventTarget instance so components can subscribe to messages without re-rendering
+export const wsEventTarget = new EventTarget();
+
+export const WS_EVENT_MESSAGE = 'ws_message';
+
 interface WebSocketContextType {
   isConnected: boolean;
-  lastMessage: WebSocketMessage | null;
   sleepTimerStatus: SleepTimerStatus | null;  // ✅ neu
   sendMessage: (message: unknown) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType>({
   isConnected: false,
-  lastMessage: null,
   sleepTimerStatus: null,
   sendMessage: () => undefined,
 });
@@ -22,7 +25,6 @@ const RECONNECT_DELAY_FACTOR = 2;
 
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
-  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [sleepTimerStatus, setSleepTimerStatus] = useState<SleepTimerStatus | null>(null); // ✅ neu
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef<number>(RECONNECT_DELAY_INITIAL);
@@ -51,7 +53,10 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!mountedRef.current) return;
       try {
         const message = JSON.parse(event.data as string) as WebSocketMessage;
-        setLastMessage(message);
+        
+        // Dispatch custom event for Pub/Sub pattern
+        const customEvent = new CustomEvent(WS_EVENT_MESSAGE, { detail: message });
+        wsEventTarget.dispatchEvent(customEvent);
 
         // ✅ Sleep-Timer-Status persistent im Context halten
         if (message.type === 'sleep_timer_status') {
@@ -109,10 +114,30 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   return (
-    <WebSocketContext.Provider value={{ isConnected, lastMessage, sleepTimerStatus, sendMessage }}>
+    <WebSocketContext.Provider value={{ isConnected, sleepTimerStatus, sendMessage }}>
       {children}
     </WebSocketContext.Provider>
   );
 };
 
 export const useWebSocket = (): WebSocketContextType => useContext(WebSocketContext);
+
+// Custom Hook for subscribing to specific WebSocket message types
+export function useWebSocketEvent<T extends WebSocketMessage['type']>(
+  messageType: T,
+  callback: (data: Extract<WebSocketMessage, { type: T }>) => void
+) {
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<WebSocketMessage>;
+      if (customEvent.detail.type === messageType) {
+        callback(customEvent.detail as Extract<WebSocketMessage, { type: T }>);
+      }
+    };
+
+    wsEventTarget.addEventListener(WS_EVENT_MESSAGE, handler);
+    return () => {
+      wsEventTarget.removeEventListener(WS_EVENT_MESSAGE, handler);
+    };
+  }, [messageType, callback]);
+}

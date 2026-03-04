@@ -179,6 +179,9 @@ services:
       - AUDIO_CONFIG_PATH=config/audio.json
       - AUDIO_STATE_PATH=state/audio_state.json
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      # Tells PulseAudio/PipeWire clients not to allow the server to suspend the sink
+      - PULSE_PROP_module-suspend-on-idle.timeout=0
+      - PULSE_PROP_media.role=music
     volumes:
       - ./services/audio-service/config:/app/config
       - ./services/audio-service/state:/app/state

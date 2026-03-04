@@ -37,18 +37,27 @@ class DatabaseManager:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Create engine
+        # SQLite timeout=30 increases busy_timeout to 30 seconds to prevent "database is locked" errors
+        # when concurrent processes/threads try to write.
         database_url = f"sqlite:///{self.database_path}"
         self.engine = create_engine(
             database_url,
             echo=False,  # Set to True for SQL query logging
-            connect_args={"check_same_thread": False},  # Needed for SQLite with FastAPI
+            connect_args={"check_same_thread": False, "timeout": 30.0},
         )
 
-        # Enable foreign keys for SQLite
+        # Enable foreign keys and WAL mode for SQLite
         @event.listens_for(Engine, "connect")
         def set_sqlite_pragma(dbapi_conn: Any, connection_record: Any) -> None:
             cursor = dbapi_conn.cursor()
+            # Enable foreign keys
             cursor.execute("PRAGMA foreign_keys=ON")
+            # Enable Write-Ahead Logging for better concurrency (readers don't block writers)
+            cursor.execute("PRAGMA journal_mode=WAL")
+            # Set synchronous mode to NORMAL (safe with WAL, faster than FULL)
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            # Free up space efficiently
+            cursor.execute("PRAGMA temp_store=MEMORY")
             cursor.close()
 
         # Create session factory

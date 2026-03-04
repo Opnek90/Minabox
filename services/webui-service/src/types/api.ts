@@ -1,1 +1,579 @@
-/**\n * TypeScript type definitions for the Minabox Backend REST API.\n * Mirrors the Pydantic schemas from the backend-service.\n */\n\n// ============================================================================\n// Enums\n// ============================================================================\n\nexport type ContentType = 'playlist' | 'track' | 'stream' | 'podcast';\nexport type SourceType = 'file' | 'remote';\nexport type AudioState = 'playing' | 'paused' | 'stopped' | 'error';\nexport type ServiceState = 'online' | 'offline' | 'error';\nexport type RFIDMode = 'normal' | 'learning';\nexport type LEDPatternType = 'solid' | 'blink' | 'pulse' | 'off';\nexport type ButtonMode = 'basic' | 'advanced';\nexport type ButtonType = 'push' | 'rotary';\n\n// ============================================================================\n// Tags\n// ============================================================================\n\nexport interface Tag {\n  id: number;\n  tag_id: string;\n  name: string | null;\n  content_type: ContentType;\n  content_id: number;\n  created_at: string;\n  updated_at: string;\n  last_scanned_at: string | null;\n}\n\nexport interface TagCreate {\n  tag_id: string;\n  name?: string | null;\n  content_type: ContentType;\n  content_id: number;\n}\n\nexport interface TagUpdate {\n  name?: string | null;\n  content_type?: ContentType;\n  content_id?: number;\n}\n\nexport interface TagWithContent extends Tag {\n  content_name?: string | null;\n}\n\n// ============================================================================\n// Playlists\n// ============================================================================\n\nexport interface Playlist {\n  id: number;\n  name: string;\n  description: string | null;\n  cover_art_url: string | null;\n  created_at: string;\n  updated_at: string;\n  tracks?: PlaylistTrack[] | Track[];\n}\n\n/** Playlist as returned by GET /playlists/:id (includes tracks as Track[]) */\nexport interface PlaylistDetail extends Omit<Playlist, 'tracks'> {\n  tracks: Track[];\n}\n\nexport interface PlaylistCreate {\n  name: string;\n  description?: string | null;\n}\n\nexport interface PlaylistUpdate {\n  name?: string;\n  description?: string | null;\n  track_ids?: number[];\n}\n\nexport interface PlaylistTrack {\n  id: number;\n  playlist_id: number;\n  track_id: number;\n  position: number;\n  track: Track;\n}\n\nexport interface PlaylistTrackAdd {\n  track_id: number;\n  position?: number;\n}\n\n// ============================================================================\n// Tracks\n// ============================================================================\n\nexport interface Track {\n  id: number;\n  title: string;\n  artist: string | null;\n  album: string | null;\n  duration_ms: number | null;\n  source_type: SourceType;\n  source_uri: string;\n  cover_art_url?: string | null;\n  created_at: string;\n  last_played_at: string | null;\n}\n\nexport interface TrackCreate {\n  title: string;\n  artist?: string | null;\n  album?: string | null;\n  source_type: SourceType;\n  source_uri: string;\n}\n\nexport interface TrackUpdate {\n  title?: string;\n  artist?: string | null;\n  album?: string | null;\n}\n\n// ============================================================================\n// Streams\n// ============================================================================\n\nexport interface Stream {\n  id: number;\n  title: string;\n  artist: string | null;\n  source_uri: string;\n  cover_art_url: string | null;\n  created_at: string;\n  last_played_at: string | null;\n}\n\nexport interface StreamCreate {\n  title: string;\n  artist?: string | null;\n  source_uri: string;\n}\n\nexport interface StreamUpdate {\n  title?: string;\n  artist?: string | null;\n  source_uri?: string;\n}\n\n// ============================================================================\n// Podcasts\n// ============================================================================\n\nexport interface Podcast {\n  id: number;\n  title: string;\n  rss_url: string;\n  description: string | null;\n  cover_art_url: string | null;\n  last_fetched_at: string | null;\n  last_played_at: string | null;\n  created_at: string;\n  latest_episode_title: string | null;\n  latest_episode_published_at: string | null;\n}\n\nexport interface PodcastEpisode {\n  id: number;\n  podcast_id: number;\n  title: string;\n  source_uri: string;\n  published_at: string | null;\n  duration_ms: number | null;\n  created_at: string;\n}\n\nexport interface PodcastCreate {\n  title: string;\n  rss_url: string;\n  description?: string | null;\n  cover_art_url?: string | null;\n}\n\nexport interface PodcastUpdate {\n  title?: string;\n  rss_url?: string;\n  description?: string | null;\n  cover_art_url?: string | null;\n}\n\n// ============================================================================\n// Audio\n// ============================================================================\n\nexport interface AudioStatus {\n  state: AudioState;\n  track_id: number | null;\n  source_type: SourceType | null;\n  source_uri: string | null;\n  position_ms: number;\n  duration_ms: number | null;\n  volume: number;\n  timestamp: string;\n  playlist_id?: number | null;\n  playlist_position?: number | null;\n  playlist_total?: number | null;\n  track_title?: string | null;\n  track_artist?: string | null;\n  track_album?: string | null;\n  track_cover_art_url?: string | null;\n}\n\nexport interface QueueItem {\n  track_id: number;\n  title: string;\n  artist: string | null;\n  album: string | null;\n  index: number;\n  is_current: boolean;\n}\n\nexport type RepeatMode = 'none' | 'all';\n\nexport interface AudioSessionResponse {\n  queue: QueueItem[];\n  repeat_mode: RepeatMode;\n  shuffle: boolean;\n}\n\nexport interface VolumeRequest {\n  volume: number;\n}\n\nexport interface PlayRequest {\n  playlist_id?: number;\n  track_id?: number;\n  stream_id?: number;\n  podcast_id?: number;\n  position_ms?: number;\n}\n\n// ============================================================================\n// System\n// ============================================================================\n\nexport interface ServiceStatus {\n  service: string;\n  state: ServiceState;\n  timestamp: string;\n  version?: string | null;\n}\n\nexport interface SystemStatus {\n  services: ServiceStatus[];\n  device_id: string;\n  uptime_seconds?: number | null;\n}\n\n// ============================================================================\n// Config: Audio\n// ============================================================================\n\nexport interface AudioDeviceItem {\n  id: string;\n  name: string;\n  card_name: string;\n  alsa_device: string;\n  priority: number;\n}\n\nexport interface AudioDevicesResponse {\n  devices: AudioDeviceItem[];\n}\n\nexport interface AudioConfig {\n  output_device_type: string;\n  output_device_name: string;\n  enabled_output_devices?: string[];\n  device_display_names?: Record<string, string>;\n  max_volume: number;\n  default_volume: number;\n  resume_on_startup?: boolean;\n  fade_in_ms?: number;\n  fade_out_ms?: number;\n}\n\n// ============================================================================\n// Config: LED\n// ============================================================================\n\nexport interface LEDPattern {\n  pattern_type: LEDPatternType;\n  duration_ms?: number | null;\n  interval_ms?: number | null;\n  repeat?: number | null;\n}\n\nexport interface LED {\n  id: string;\n  name: string;\n  gpio: number;\n  bindings: Record<string, LEDPattern>;\n}\n\nexport interface LEDConfig {\n  leds: LED[];\n}\n\n// ============================================================================\n// Config: Button\n// ============================================================================\n\nexport interface ButtonConfig {\n  buttons: Button[];\n}\n\n// ============================================================================\n// Config: Display (OLED)\n// ============================================================================\n\nexport type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state' | 'repeat' | 'shuffle' | 'bluetooth';\n\n/** Conditional element types – only render an item when the state is active.\n *  If too many of these share an area, some may be dropped at runtime. */\nexport const DISPLAY_CONDITIONAL_TYPES: ReadonlySet<DisplayElementType> = new Set([\n  'sleep_timer', 'mute', 'error_state', 'repeat', 'shuffle', 'bluetooth',\n]);\n\n/** Maximum items the renderer can show per area. */\nexport const DISPLAY_AREA_LIMITS: Record<number, number> = { 0: 6, 1: 3, 2: 3 };\n\n/** Area on the OLED: 0 = header (full width), 1 = left column, 2 = right column */\nexport type DisplayArea = 0 | 1 | 2;\n\nexport interface DisplayElement {\n  id: string;\n  type: DisplayElementType;\n  enabled: boolean;\n  order: number;\n  /** Area: 0 = header, 1 = left, 2 = right */\n  area?: DisplayArea;\n}\n\n/** Font size: small (9px), medium (12px), large (14px) */\nexport type DisplayFontSize = 'small' | 'medium' | 'large';\n\n/**\n * Font family for the OLED display.\n * - default : PIL built-in bitmap font, always available\n * - sans     : DejaVu Sans          (apt: fonts-dejavu-core, usually pre-installed)\n * - mono     : DejaVu Sans Mono     (apt: fonts-dejavu-core)\n * - roboto   : Roboto Regular       (apt: fonts-roboto)\n * - ubuntu   : Ubuntu Regular       (apt: fonts-ubuntu)\n * - noto     : Noto Sans Regular    (apt: fonts-noto)\n * - liberation: Liberation Sans     (apt: fonts-liberation, often pre-installed)\n * - terminus : Terminus TTF         (apt: fonts-terminus)\n * Falls back to 'default' if the chosen font is not installed on the device.\n */\nexport type DisplayFont =\n  | 'default'\n  | 'sans'\n  | 'mono'\n  | 'roboto'\n  | 'ubuntu'\n  | 'noto'\n  | 'liberation'\n  | 'terminus';\n\nexport interface DisplayConfig {\n  enabled: boolean;\n  i2c_bus: number;\n  i2c_address: number;\n  font_size?: DisplayFontSize;\n  font?: DisplayFont;\n  elements: DisplayElement[];\n}\n\nexport interface Button {\n  id: string;\n  name: string;\n  mode: ButtonMode;\n  type: ButtonType;\n  gpio?: number | null;\n  clk?: number | null;\n  dt?: number | null;\n  sw?: number | null;\n  action?: string | null;\n  actions?: Record<string, string> | null;\n}\n\n// ============================================================================\n// Config: RFID\n// ============================================================================\n\nexport interface RFIDConfig {\n  reader_type: string;\n  interface: string;\n  scan_interval_ms: number;\n  duplicate_suppression_ms: number;\n}\n\n// ============================================================================\n// Config: General (central .env-style settings)\n// ============================================================================\n\nexport interface AllowedUsageTimeSlot {\n  weekday: number; // 0=Monday .. 6=Sunday\n  start: string;   // \"HH:MM\"\n  end: string;     // \"HH:MM\"\n}\n\nexport interface GeneralConfig {\n  minabox_device_id: string;\n  log_level: string;\n  mqtt_broker: string;\n  mqtt_port: number;\n  disable_gpio: boolean;\n  sleep_timer_minutes: number;\n  bedtime_fade_enabled: boolean;\n  bedtime_fade_duration_minutes: number;\n  bedtime_fade_interval_seconds: number;\n  bedtime_fade_step_percent: number;\n  allowed_usage_times: AllowedUsageTimeSlot[];\n  usage_times_enabled?: boolean;\n  daily_limit_enabled?: boolean;\n  daily_limit_minutes?: number;\n  stop_playback_on_tag_remove?: boolean;\n}\n\nexport interface SleepTimerStatus {\n  active: boolean;\n  remaining_ms: number | null;\n}\n\nexport interface ServiceLogsResponse {\n  service: string;\n  lines: string;\n  tail: number;\n}\n\n// ============================================================================\n// WebSocket Messages\n// ============================================================================\n\nexport type WebSocketMessageType =\n  | 'audio_status'\n  | 'rfid_scanned'\n  | 'rfid_scanned_learning'\n  | 'rfid_removed'\n  | 'tag_not_found'\n  | 'usage_denied'\n  | 'button_action'\n  | 'sleep_timer_status'\n  | 'repeat_mode'\n  | 'shuffle_mode'\n  | 'service_status'\n  | 'system_status'\n  | 'system_alert'\n  | 'system_alert_cleared'\n  | 'error';\n\nexport interface WebSocketMessage {\n  type: WebSocketMessageType;\n  data: unknown;\n  timestamp: string;\n}\n\nexport interface AudioStatusMessage extends WebSocketMessage {\n  type: 'audio_status';\n  data: AudioStatus;\n}\n\nexport interface RFIDScannedMessage extends WebSocketMessage {\n  type: 'rfid_scanned' | 'rfid_scanned_learning';\n  data: {\n    tag_id: string;\n  };\n}\n\nexport interface UsageDeniedMessage extends WebSocketMessage {\n  type: 'usage_denied';\n  data: {\n    tag_id: string;\n    timestamp: string;\n  };\n}\n\nexport interface ServiceStatusMessage extends WebSocketMessage {\n  type: 'service_status';\n  data: ServiceStatus;\n}\n\n// ============================================================================\n// API Responses\n// ============================================================================\n\nexport interface ErrorResponse {\n  error: {\n    code: string;\n    message: string;\n    details?: Record<string, unknown>;\n  };\n}\n\nexport interface PaginatedResponse<T> {\n  items: T[];\n  total: number;\n  page: number;\n  page_size: number;\n}\n\n// ============================================================================\n// RFID Learning Mode\n// ============================================================================\n\nexport interface LearningModeRequest {\n  enabled: boolean;\n}\n\nexport interface LearningModeResponse {\n  active: boolean;\n  timestamp: string;\n}\n\nexport interface ServiceStatus {\n  service: string;\n  state: ServiceState;\n  timestamp: string;\n  version?: string | null;\n  // Optional – populated when Docker socket is available\n  cpu_percent?: number | null;\n  memory_mb?: number | null;\n  memory_percent?: number | null;\n}\n\n// ============================================================================\n// Listening stats (Parent Dashboard)\n// ============================================================================\n\nexport interface MinutesPerDayItem {\n  date: string;\n  minutes: number;\n}\n\nexport interface TopTagItem {\n  tag_id: number;\n  name: string | null;\n  scan_count: number;\n}\n\nexport interface TopPlaylistItem {\n  playlist_id: number;\n  name: string | null;\n  play_count: number;\n}\n\nexport interface HeatmapItem {\n  hour: number;\n  weekday: number;\n  minutes: number;\n}\n\nexport interface ListeningSummaryResponse {\n  minutes_per_day: MinutesPerDayItem[];\n  top_tags: TopTagItem[];\n  top_playlists: TopPlaylistItem[];\n  heatmap: HeatmapItem[];\n}\n\nexport interface UsageTodayResponse {\n  minutes_today: number;\n  daily_limit_enabled: boolean;\n  daily_limit_minutes: number;\n}\n\nexport interface OverviewResponse {\n  minutes_today: number;\n  minutes_total: number;\n  daily_limit_enabled: boolean;\n  daily_limit_minutes: number;\n  tags_count: number;\n  tracks_count: number;\n  streams_count: number;\n  podcasts_count: number;\n  playlists_count: number;\n}\n
+/**
+ * TypeScript type definitions for the Minabox Backend REST API.
+ * Mirrors the Pydantic schemas from the backend-service.
+ */
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+export type ContentType = 'playlist' | 'track' | 'stream' | 'podcast';
+export type SourceType = 'file' | 'remote';
+export type AudioState = 'playing' | 'paused' | 'stopped' | 'error';
+export type ServiceState = 'online' | 'offline' | 'error';
+export type RFIDMode = 'normal' | 'learning';
+export type LEDPatternType = 'solid' | 'blink' | 'pulse' | 'off';
+export type ButtonMode = 'basic' | 'advanced';
+export type ButtonType = 'push' | 'rotary';
+
+// ============================================================================
+// Tags
+// ============================================================================
+
+export interface Tag {
+  id: number;
+  tag_id: string;
+  name: string | null;
+  content_type: ContentType;
+  content_id: number;
+  created_at: string;
+  updated_at: string;
+  last_scanned_at: string | null;
+}
+
+export interface TagCreate {
+  tag_id: string;
+  name?: string | null;
+  content_type: ContentType;
+  content_id: number;
+}
+
+export interface TagUpdate {
+  name?: string | null;
+  content_type?: ContentType;
+  content_id?: number;
+}
+
+export interface TagWithContent extends Tag {
+  content_name?: string | null;
+}
+
+// ============================================================================
+// Playlists
+// ============================================================================
+
+export interface Playlist {
+  id: number;
+  name: string;
+  description: string | null;
+  cover_art_url: string | null;
+  created_at: string;
+  updated_at: string;
+  tracks?: PlaylistTrack[] | Track[];
+}
+
+/** Playlist as returned by GET /playlists/:id (includes tracks as Track[]) */
+export interface PlaylistDetail extends Omit<Playlist, 'tracks'> {
+  tracks: Track[];
+}
+
+export interface PlaylistCreate {
+  name: string;
+  description?: string | null;
+}
+
+export interface PlaylistUpdate {
+  name?: string;
+  description?: string | null;
+  track_ids?: number[];
+}
+
+export interface PlaylistTrack {
+  id: number;
+  playlist_id: number;
+  track_id: number;
+  position: number;
+  track: Track;
+}
+
+export interface PlaylistTrackAdd {
+  track_id: number;
+  position?: number;
+}
+
+// ============================================================================
+// Tracks
+// ============================================================================
+
+export interface Track {
+  id: number;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  duration_ms: number | null;
+  source_type: SourceType;
+  source_uri: string;
+  cover_art_url?: string | null;
+  created_at: string;
+  last_played_at: string | null;
+}
+
+export interface TrackCreate {
+  title: string;
+  artist?: string | null;
+  album?: string | null;
+  source_type: SourceType;
+  source_uri: string;
+}
+
+export interface TrackUpdate {
+  title?: string;
+  artist?: string | null;
+  album?: string | null;
+}
+
+// ============================================================================
+// Streams
+// ============================================================================
+
+export interface Stream {
+  id: number;
+  title: string;
+  artist: string | null;
+  source_uri: string;
+  cover_art_url: string | null;
+  created_at: string;
+  last_played_at: string | null;
+}
+
+export interface StreamCreate {
+  title: string;
+  artist?: string | null;
+  source_uri: string;
+}
+
+export interface StreamUpdate {
+  title?: string;
+  artist?: string | null;
+  source_uri?: string;
+}
+
+// ============================================================================
+// Podcasts
+// ============================================================================
+
+export interface Podcast {
+  id: number;
+  title: string;
+  rss_url: string;
+  description: string | null;
+  cover_art_url: string | null;
+  last_fetched_at: string | null;
+  last_played_at: string | null;
+  created_at: string;
+  latest_episode_title: string | null;
+  latest_episode_published_at: string | null;
+}
+
+export interface PodcastEpisode {
+  id: number;
+  podcast_id: number;
+  title: string;
+  source_uri: string;
+  published_at: string | null;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+export interface PodcastCreate {
+  title: string;
+  rss_url: string;
+  description?: string | null;
+  cover_art_url?: string | null;
+}
+
+export interface PodcastUpdate {
+  title?: string;
+  rss_url?: string;
+  description?: string | null;
+  cover_art_url?: string | null;
+}
+
+// ============================================================================
+// Audio
+// ============================================================================
+
+export interface AudioStatus {
+  state: AudioState;
+  track_id: number | null;
+  source_type: SourceType | null;
+  source_uri: string | null;
+  position_ms: number;
+  duration_ms: number | null;
+  volume: number;
+  timestamp: string;
+  playlist_id?: number | null;
+  playlist_position?: number | null;
+  playlist_total?: number | null;
+  track_title?: string | null;
+  track_artist?: string | null;
+  track_album?: string | null;
+  track_cover_art_url?: string | null;
+}
+
+export interface QueueItem {
+  track_id: number;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  index: number;
+  is_current: boolean;
+}
+
+export type RepeatMode = 'none' | 'all';
+
+export interface AudioSessionResponse {
+  queue: QueueItem[];
+  repeat_mode: RepeatMode;
+  shuffle: boolean;
+}
+
+export interface VolumeRequest {
+  volume: number;
+}
+
+export interface PlayRequest {
+  playlist_id?: number;
+  track_id?: number;
+  stream_id?: number;
+  podcast_id?: number;
+  position_ms?: number;
+}
+
+// ============================================================================
+// System
+// ============================================================================
+
+export interface ServiceStatus {
+  service: string;
+  state: ServiceState;
+  timestamp: string;
+  version?: string | null;
+  cpu_percent?: number | null;
+  memory_mb?: number | null;
+  memory_percent?: number | null;
+}
+
+export interface SystemStatus {
+  services: ServiceStatus[];
+  device_id: string;
+  uptime_seconds?: number | null;
+}
+
+// ============================================================================
+// Config: Audio
+// ============================================================================
+
+export interface AudioDeviceItem {
+  id: string;
+  name: string;
+  card_name: string;
+  alsa_device: string;
+  priority: number;
+}
+
+export interface AudioDevicesResponse {
+  devices: AudioDeviceItem[];
+}
+
+export interface AudioConfig {
+  output_device_type: string;
+  output_device_name: string;
+  enabled_output_devices?: string[];
+  device_display_names?: Record<string, string>;
+  max_volume: number;
+  default_volume: number;
+  resume_on_startup?: boolean;
+  fade_in_ms?: number;
+  fade_out_ms?: number;
+}
+
+// ============================================================================
+// Config: LED
+// ============================================================================
+
+export interface LEDPattern {
+  pattern_type: LEDPatternType;
+  duration_ms?: number | null;
+  interval_ms?: number | null;
+  repeat?: number | null;
+}
+
+export interface LED {
+  id: string;
+  name: string;
+  gpio: number;
+  bindings: Record<string, LEDPattern>;
+}
+
+export interface LEDConfig {
+  leds: LED[];
+}
+
+// ============================================================================
+// Config: Button
+// ============================================================================
+
+export interface ButtonConfig {
+  buttons: Button[];
+}
+
+export interface Button {
+  id: string;
+  name: string;
+  mode: ButtonMode;
+  type: ButtonType;
+  gpio?: number | null;
+  clk?: number | null;
+  dt?: number | null;
+  sw?: number | null;
+  action?: string | null;
+  actions?: Record<string, string> | null;
+}
+
+// ============================================================================
+// Config: Display (OLED)
+// ============================================================================
+
+export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state' | 'repeat' | 'shuffle' | 'bluetooth';
+
+/** Conditional element types – only render an item when the state is active.
+ *  If too many of these share an area, some may be dropped at runtime. */
+export const DISPLAY_CONDITIONAL_TYPES: ReadonlySet<DisplayElementType> = new Set([
+  'sleep_timer', 'mute', 'error_state', 'repeat', 'shuffle', 'bluetooth',
+]);
+
+/** Maximum items the renderer can show per area. */
+export const DISPLAY_AREA_LIMITS: Record<number, number> = { 0: 6, 1: 3, 2: 3 };
+
+/** Area on the OLED: 0 = header (full width), 1 = left column, 2 = right column */
+export type DisplayArea = 0 | 1 | 2;
+
+export interface DisplayElement {
+  id: string;
+  type: DisplayElementType;
+  enabled: boolean;
+  order: number;
+  /** Area: 0 = header, 1 = left, 2 = right */
+  area?: DisplayArea;
+}
+
+/** Font size: small (9px), medium (12px), large (14px) */
+export type DisplayFontSize = 'small' | 'medium' | 'large';
+
+/**
+ * Font family for the OLED display.
+ * - default : PIL built-in bitmap font, always available
+ * - sans     : DejaVu Sans          (apt: fonts-dejavu-core, usually pre-installed)
+ * - mono     : DejaVu Sans Mono     (apt: fonts-dejavu-core)
+ * - roboto   : Roboto Regular       (apt: fonts-roboto)
+ * - ubuntu   : Ubuntu Regular       (apt: fonts-ubuntu)
+ * - noto     : Noto Sans Regular    (apt: fonts-noto)
+ * - liberation: Liberation Sans     (apt: fonts-liberation, often pre-installed)
+ * - terminus : Terminus TTF         (apt: fonts-terminus)
+ * Falls back to 'default' if the chosen font is not installed on the device.
+ */
+export type DisplayFont =
+  | 'default'
+  | 'sans'
+  | 'mono'
+  | 'roboto'
+  | 'ubuntu'
+  | 'noto'
+  | 'liberation'
+  | 'terminus';
+
+export interface DisplayConfig {
+  enabled: boolean;
+  i2c_bus: number;
+  i2c_address: number;
+  font_size?: DisplayFontSize;
+  font?: DisplayFont;
+  elements: DisplayElement[];
+}
+
+// ============================================================================
+// Config: RFID
+// ============================================================================
+
+export interface RFIDConfig {
+  reader_type: string;
+  interface: string;
+  scan_interval_ms: number;
+  duplicate_suppression_ms: number;
+}
+
+// ============================================================================
+// Config: General (central .env-style settings)
+// ============================================================================
+
+export interface AllowedUsageTimeSlot {
+  weekday: number; // 0=Monday .. 6=Sunday
+  start: string;   // "HH:MM"
+  end: string;     // "HH:MM"
+}
+
+export interface GeneralConfig {
+  minabox_device_id: string;
+  log_level: string;
+  mqtt_broker: string;
+  mqtt_port: number;
+  disable_gpio: boolean;
+  sleep_timer_minutes: number;
+  bedtime_fade_enabled: boolean;
+  bedtime_fade_duration_minutes: number;
+  bedtime_fade_interval_seconds: number;
+  bedtime_fade_step_percent: number;
+  allowed_usage_times: AllowedUsageTimeSlot[];
+  usage_times_enabled?: boolean;
+  daily_limit_enabled?: boolean;
+  daily_limit_minutes?: number;
+  stop_playback_on_tag_remove?: boolean;
+}
+
+export interface SleepTimerStatus {
+  active: boolean;
+  remaining_ms: number | null;
+}
+
+export interface ServiceLogsResponse {
+  service: string;
+  lines: string;
+  tail: number;
+}
+
+// ============================================================================
+// WebSocket Messages
+// ============================================================================
+
+export type WebSocketMessageType =
+  | 'audio_status'
+  | 'rfid_scanned'
+  | 'rfid_scanned_learning'
+  | 'rfid_removed'
+  | 'tag_not_found'
+  | 'usage_denied'
+  | 'button_action'
+  | 'sleep_timer_status'
+  | 'repeat_mode'
+  | 'shuffle_mode'
+  | 'service_status'
+  | 'system_status'
+  | 'system_alert'
+  | 'system_alert_cleared'
+  | 'error';
+
+export interface WebSocketMessage {
+  type: WebSocketMessageType;
+  data: unknown;
+  timestamp: string;
+}
+
+export interface AudioStatusMessage extends WebSocketMessage {
+  type: 'audio_status';
+  data: AudioStatus;
+}
+
+export interface RFIDScannedMessage extends WebSocketMessage {
+  type: 'rfid_scanned' | 'rfid_scanned_learning';
+  data: {
+    tag_id: string;
+  };
+}
+
+export interface UsageDeniedMessage extends WebSocketMessage {
+  type: 'usage_denied';
+  data: {
+    tag_id: string;
+    timestamp: string;
+  };
+}
+
+export interface ServiceStatusMessage extends WebSocketMessage {
+  type: 'service_status';
+  data: ServiceStatus;
+}
+
+// ============================================================================
+// API Responses
+// ============================================================================
+
+export interface ErrorResponse {
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, unknown>;
+  };
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// ============================================================================
+// RFID Learning Mode
+// ============================================================================
+
+export interface LearningModeRequest {
+  enabled: boolean;
+}
+
+export interface LearningModeResponse {
+  active: boolean;
+  timestamp: string;
+}
+
+// ============================================================================
+// Listening stats (Parent Dashboard)
+// ============================================================================
+
+export interface MinutesPerDayItem {
+  date: string;
+  minutes: number;
+}
+
+export interface TopTagItem {
+  tag_id: number;
+  name: string | null;
+  scan_count: number;
+}
+
+export interface TopPlaylistItem {
+  playlist_id: number;
+  name: string | null;
+  play_count: number;
+}
+
+export interface HeatmapItem {
+  hour: number;
+  weekday: number;
+  minutes: number;
+}
+
+export interface ListeningSummaryResponse {
+  minutes_per_day: MinutesPerDayItem[];
+  top_tags: TopTagItem[];
+  top_playlists: TopPlaylistItem[];
+  heatmap: HeatmapItem[];
+}
+
+export interface UsageTodayResponse {
+  minutes_today: number;
+  daily_limit_enabled: boolean;
+  daily_limit_minutes: number;
+}
+
+export interface OverviewResponse {
+  minutes_today: number;
+  minutes_total: number;
+  daily_limit_enabled: boolean;
+  daily_limit_minutes: number;
+  tags_count: number;
+  tracks_count: number;
+  streams_count: number;
+  podcasts_count: number;
+  playlists_count: number;
+}

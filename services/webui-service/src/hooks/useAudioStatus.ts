@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
-import type { AudioStatus } from '@/types/api';
+import type { AudioStatus, AudioStatusMessage } from '@/types/api';
 
 const TICK_MS = 1000;
 
 export const useAudioStatus = (): AudioStatus | null => {
-  const { lastMessage } = useWebSocket();
   const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(null);
   const interpolatedRef = useRef<AudioStatus | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -27,14 +26,12 @@ export const useAudioStatus = (): AudioStatus | null => {
     }).catch(() => null);
   }, []);
 
-  // Update from WebSocket
-  useEffect(() => {
-    if (lastMessage?.type === 'audio_status') {
-      const data = lastMessage.data as AudioStatus;
-      interpolatedRef.current = { ...data };
-      setAudioStatus({ ...data });
-    }
-  }, [lastMessage]);
+  // Update from WebSocket using the new Pub/Sub hook
+  useWebSocketEvent('audio_status', (message: AudioStatusMessage) => {
+    const data = message.data;
+    interpolatedRef.current = { ...data };
+    setAudioStatus({ ...data });
+  });
 
   // While playing, tick every second to advance position_ms for smoother progress bar
   useEffect(() => {

@@ -261,18 +261,25 @@ class VLCBackend(AudioBackend):
             # Validate source
             await self._validate_source(source_uri)
 
-            # Reset player when transitioning from Ended/Stopped to new media (e.g. next track in playlist).
-            # Without this, VLC may not transition to Playing when loading new media after a track has ended.
+            # Reset player when transitioning from Ended/Stopped to new media.
             try:
                 self._player.stop()
                 await self._wait_for_state(vlc.State.Stopped, timeout_sec=1.5)
             except (PlaybackError, Exception):
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.1)
 
             # Create media
             media = self._instance.media_new(source_uri)
             if media is None:
                 raise PlaybackError(f"Failed to create media from {source_uri}")
+
+            # ROBUSTNESS FIX: Avoid "jumpy" playback when resuming.
+            # If we just play() and then call set_time(), VLC plays the beginning of the file 
+            # for a split second, then pauses to buffer the seek, and then continues. 
+            # By passing the start-time as an option *before* playback, VLC starts directly there.
+            if start_position_ms > 0:
+                start_sec = start_position_ms / 1000.0
+                media.add_option(f":start-time={start_sec}")
 
             # Set media to player
             self._player.set_media(media)
@@ -307,11 +314,6 @@ class VLCBackend(AudioBackend):
                     self._pending_volume = None
                 else:
                     self._pending_volume = applied
-
-            # Set start position if specified
-            if start_position_ms > 0:
-                await asyncio.sleep(0.2)  # Brief delay for VLC to load media
-                self._player.set_time(start_position_ms)
 
             self._current_source_uri = source_uri
 
