@@ -269,7 +269,7 @@ class LEDController:
                     logger.warning("led_close_failed", led_id=self.config.id, exc_info=True)
             
             # After closing the LED, explicitly configure the pin as input with pull-down.
-            # This helps prevent the LED from leichtes Glimmen durch Leckströme,
+            # This prevents the LED from faint glowing caused by leakage currents
             # once the service (or container) has stopped.
             try:
                 from gpiozero import Device
@@ -352,25 +352,17 @@ class LEDManager:
         self._controllers: Dict[str, LEDController] = {}
         logger.debug("led_manager_initialized")
 
-    def initialize_leds(self, led_configs: list[LEDConfig]) -> None:
+    async def initialize_leds(self, led_configs: list[LEDConfig]) -> None:
         """Initialize LED controllers from configuration.
+
+        Properly awaits cleanup of existing controllers before creating new ones
+        to prevent transient GPIO pin conflicts on the same pins.
         
         Args:
             led_configs: List of LED configurations.
         """
-        # Cancel running patterns and release GPIO pins synchronously so that
-        # new controllers for the same pins can be created immediately after.
         for controller in self._controllers.values():
-            if controller._current_task and not controller._current_task.done():
-                controller._current_task.cancel()
-            if controller._led is not None:
-                try:
-                    controller._led.off()
-                    controller._led.close()
-                except Exception:
-                    pass
-                controller._led = None
-                controller._gpio_available = False
+            await controller.cleanup()
         self._controllers.clear()
         
         # Initialize new controllers
