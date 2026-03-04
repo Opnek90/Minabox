@@ -19,9 +19,37 @@ Nicht-Ziele:
 
 ---
 
-## 2. Öffentliche Schnittstellen
+## 2. Datei- und Ordnerstruktur
 
-### 2.1 MQTT – Actions
+Relevanter Pfad: `services/button-service/src/button_service/`
+
+```text
+button_service/
+├── __init__.py              # Package-Init
+├── main.py                  # Einstiegspunkt: Config, EventProcessor, MQTT, API-Server, Graceful Shutdown
+├── config.py                # Lädt Env + buttons.json
+├── config_schema.py         # Pydantic-Schema für Button-Config (buttons[], id, name, mode, type, gpio, actions)
+├── config_manager.py        # JSON-Config (config/buttons.json), Hot-Reload
+├── exceptions.py            # Service-spezifische Exceptions
+├── core/
+│   ├── __init__.py
+│   ├── event_processor.py   # Verarbeitung Raw-Events: Mapping (basic/advanced), Action-Dispatch, MQTT-Publish
+│   ├── events.py            # Event-Definitionen / Datentypen für Button-Events
+│   ├── state_machine.py    # State-Machine pro Button (short_press, long_press, double_press, rotate_cw/ccw)
+│   └── gpio_input_manager.py # GPIO-/Encoder-Einlesen, Roh-Events erzeugen
+├── infrastructure/
+│   ├── __init__.py
+│   └── mqtt_client.py       # MQTT: Verbindung, Subscriptions (config/get, config/update, config/reload), Publish (Actions, config/response)
+└── api/
+    ├── __init__.py
+    └── routes.py            # FastAPI: GET /health (Buttons, MQTT-Status)
+```
+
+---
+
+## 3. Öffentliche Schnittstellen
+
+### 3.1 MQTT – Actions
 
 Der Button-Service publiziert **fertige Aktionen**, nachdem das Mapping angewendet wurde.
 
@@ -54,7 +82,7 @@ Payload (JSON, minimal):
 - `source`: interne Button-ID (z.B. `btn_1`, `enc_1`).
 - `event_type`: z.B. `short_press`, `long_press`, `double_press`, `rotate_cw`, `rotate_ccw`.
 
-### 2.2 MQTT – Raw-Events (optional, Debug)
+### 3.2 MQTT – Raw-Events (optional, Debug)
 
 Zusätzlich kann der Button-Service **Raw-Events** (vor Mapping) für Debug/Analyse publizieren:
 
@@ -76,7 +104,7 @@ Payload (JSON):
 
 Diese Raw-Events sind optional und primär für Logging/Debugging gedacht.
 
-### 2.3 MQTT – Config-API
+### 3.3 MQTT – Config-API
 
 Der Button-Service unterstützt eine Config-API über MQTT, um das Mapping zu verwalten.
 
@@ -145,7 +173,7 @@ Im Fehlerfall:
 }
 ```
 
-### 2.4 REST (optional)
+### 3.4 REST (optional)
 
 Optional kann der Service einen HTTP-Endpoint anbieten (z.B. FastAPI):
 
@@ -153,12 +181,12 @@ Optional kann der Service einen HTTP-Endpoint anbieten (z.B. FastAPI):
 
 ---
 
-## 3. Konfigurationsmodell
+## 4. Konfigurationsmodell
 
 Die Button-Konfiguration wird lokal in einer JSON-Datei gespeichert, z.B. `config/buttons.json`.
 Der Inhalt wird vom Backend/WebUI verwaltet und per MQTT (`config/update`) in den Service gespielt. Der Service schreibt die Datei und lädt das Mapping per Hot-Reload neu.
 
-### 3.1 Struktur `buttons.json`
+### 4.1 Struktur `buttons.json`
 
 ```json
 {
@@ -202,16 +230,16 @@ Felder:
 - `action`: (nur `mode = basic`) – Name der logischen Aktion (z.B. `"play_pause"`).
 - `actions`: (nur `mode = advanced`) – Map von `event_type` auf logische Aktion (z.B. `"short_press"`: `"play_pause"`).
 
-### 3.2 Verhalten bei fehlenden Mappings
+### 4.2 Verhalten bei fehlenden Mappings
 
 - Wenn einem Button für ein bestimmtes `event_type` **keine** Aktion zugeordnet ist, passiert einfach nichts.
 - Mehrere Buttons dürfen dieselbe Aktion haben (z.B. zwei "Play/Pause"-Buttons); der Service erzwingt keine Eindeutigkeit.
 
 ---
 
-## 4. Kern-Funktionen / Use-Cases
+## 5. Kern-Funktionen / Use-Cases
 
-### 4.1 Eventtypen & State-Machine
+### 5.1 Eventtypen & State-Machine
 
 Der Button-Service erkennt intern verschiedene Eventtypen pro Button:
 
@@ -224,7 +252,7 @@ Der Button-Service erkennt intern verschiedene Eventtypen pro Button:
 
 Zur Erkennung dieser Eventtypen verwendet er pro Button eine einfache **State-Machine**, die z.B. Klickdauer und Zeitabstände zwischen Klicks auswertet.
 
-### 4.2 Basic-Modus
+### 5.2 Basic-Modus
 
 Im Basic-Modus (`mode = "basic"`):
 
@@ -249,7 +277,7 @@ Internes Verhalten:
 - Roh-Event (z.B. `short_press`) → Mapping → Aktion `play_pause` → MQTT-Event
   - Topic: `minabox/<device-id>/button/play-pause`
 
-### 4.3 Advanced-Modus
+### 5.3 Advanced-Modus
 
 Im Advanced-Modus (`mode = "advanced"`):
 
@@ -280,7 +308,7 @@ Internes Verhalten:
 
 Wenn es für einen Eventtyp keine Aktion in `actions` gibt, passiert nichts.
 
-### 4.4 Raw-Event-Erfassung & FIFO-Verarbeitung
+### 5.4 Raw-Event-Erfassung & FIFO-Verarbeitung
 
 Ablauf intern:
 
@@ -296,7 +324,7 @@ So bleibt das Verhalten bei schnellen/gleichzeitigen Eingaben deterministisch.
 
 ---
 
-## 5. Abhängigkeiten
+## 6. Abhängigkeiten
 
 - **Hardware:**
   - GPIO-Pins für Push-Buttons.
@@ -320,15 +348,15 @@ So bleibt das Verhalten bei schnellen/gleichzeitigen Eingaben deterministisch.
 
 ---
 
-## 6. Fehler & Status
+## 7. Fehler & Status
 
-### 6.1 Typische Fehlerfälle
+### 7.1 Typische Fehlerfälle
 
 - `gpio_init_failed` – GPIO-Pin konnte nicht initialisiert werden.
 - `invalid_config` – Config-Datei syntaktisch ungültig oder unvollständig.
 - `unsupported_type` – Button-/Encoder-Typ wird nicht unterstützt.
 
-### 6.2 Verhalten bei Config-Fehlern
+### 7.2 Verhalten bei Config-Fehlern
 
 - Bei ungültiger neuer Config (`config/update`):
   - Service verwirft die neue Config, behält die alte bei.
@@ -338,7 +366,7 @@ So bleibt das Verhalten bei schnellen/gleichzeitigen Eingaben deterministisch.
   - Service geht in einen Fehlerzustand (analog RFID: `state = "error"`).
   - Es werden keine Action-Events publiziert, bis eine gültige Config vorliegt.
 
-### 6.3 Logging
+### 7.3 Logging
 
 - Wichtige Ereignisse und Fehler werden strukturiert geloggt:
   - `button_event` mit `button_id`, `event_type`.
@@ -347,8 +375,15 @@ So bleibt das Verhalten bei schnellen/gleichzeitigen Eingaben deterministisch.
 - Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen).
 ---
 
-## 7. Nicht-Ziele / Abgrenzung
+## 8. Nicht-Ziele / Abgrenzung
 
 - Kein direktes Triggern von Audio oder anderen Services über interne Aufrufe – Kommunikation läuft ausschließlich über MQTT-Action-Events.
 - Keine Persistenz von Button-Konfigurationen in einer Datenbank (Backend ist dafür zuständig).
 - Keine Interpretation der Aktionen – z.B. `play_pause` ist ein reiner Aktionsname; was konkret passiert, entscheidet Backend/Audio-Service.
+
+---
+
+## 9. Refactoring-Checkliste
+
+- [ ] **Keine groben Inkonsistenzen:** Event-Verarbeitung (core), Config und MQTT sind getrennt; GPIO/Encoder in core, MQTT in infrastructure.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.

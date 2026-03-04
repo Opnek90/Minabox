@@ -364,18 +364,24 @@ class AudioService:
                     start_position_ms=command.start_position_ms,
                 )
             else:
-                state = self._state_manager.get_state()
-                if state.last_source_uri and self._state_manager.can_resume():
-                    self._vlc_backend.set_track_metadata(
-                        track_id=state.last_track_id,
-                        source_type=state.last_source_type,
-                    )
-                    await self._vlc_backend.play(
-                        source_uri=state.last_source_uri,
-                        start_position_ms=state.last_position_ms,
-                    )
+                # If VLC is already paused, use native resume to avoid the
+                # stop → media_new → play → set_time stutter sequence.
+                current_status = await self._vlc_backend.get_status()
+                if current_status.state == PlaybackState.PAUSED:
+                    await self._vlc_backend.resume()
                 else:
-                    logger.warning("play_resume_no_state")
+                    state = self._state_manager.get_state()
+                    if state.last_source_uri and self._state_manager.can_resume():
+                        self._vlc_backend.set_track_metadata(
+                            track_id=state.last_track_id,
+                            source_type=state.last_source_type,
+                        )
+                        await self._vlc_backend.play(
+                            source_uri=state.last_source_uri,
+                            start_position_ms=state.last_position_ms,
+                        )
+                    else:
+                        logger.warning("play_resume_no_state")
             await self._publish_status()
         except Exception as exc:
             logger.error("handle_play_failed", error=str(exc))

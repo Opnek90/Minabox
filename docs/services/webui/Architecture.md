@@ -48,120 +48,51 @@ Nicht-Ziele:
 
 ---
 
-## 3. Projekt-Struktur
+## 3. Datei- und Ordnerstruktur
 
+Relevanter Pfad: `services/webui-service/src/` (und Root für Dockerfile, nginx, package.json).
+
+```text
+src/
+├── api/                       # Backend-API-Client
+│   ├── client.ts              # Axios-Instance, Base-URL, Interceptors
+│   ├── auth.ts                # Login, Logout, Passwort, geschützte Bereiche
+│   ├── system.ts              # Host-Status, Logs, Restart, WiFi, USB, Backup, Bluetooth, Syslog, Update, etc.
+│   ├── stats.ts               # Stats-API (overview, usage-today, listening-summary)
+│   ├── tags.ts
+│   ├── playlists.ts
+│   ├── tracks.ts
+│   ├── streams.ts
+│   ├── podcasts.ts
+│   ├── audio.ts
+│   └── config.ts
+├── components/
+│   ├── common/                # Generische Komponenten
+│   │   ├── Header.tsx, Navigation.tsx, LoadingSpinner.tsx, ErrorBoundary.tsx
+│   │   ├── CommandPalette.tsx, SystemAlertBar.tsx, MiniPlayer.tsx
+│   │   ├── PageShell.tsx, PasswordDialog.tsx, ProtectedRoute.tsx
+│   ├── player/                # Player: PlaybackControls, VolumeControl, ProgressBar, TrackInfo
+│   ├── rfid/                  # TagList, TagCard, TagEditDialog, LearnModeButton, RfidScanDrawer
+│   ├── media/                 # PlaylistList, TrackList, UploadDialog, StreamList, StreamDialog, StreamEditDialog,
+│   │                           # PodcastList, PodcastDialog, PodcastEditDialog, RemoteTrackDialog, CoverUploadField, PlaylistTracksDialog
+│   ├── admin/                 # SystemStatus, SystemPanel, ServiceStatus, ServiceLogsModal, SyslogModal,
+│   │   ├── StatsDashboard.tsx, BluetoothSection.tsx, DisplayConfigPanel.tsx, LEDConfigPanel.tsx, ButtonConfigPanel.tsx
+│   │   ├── AuthSection.tsx, SecurityPanel.tsx, SystemMaintenanceSection.tsx
+│   │   ├── ParentSettingsForm.tsx, ChildSettingsForm.tsx
+│   │   └── ConfigForm/        # Untermodule: GeneralSettingsForm, ControlSettingsForm, DesignSettingsForm, AudioConfigForm, RFIDConfigForm
+│   └── dashboard/             # DashboardOverview
+├── contexts/                  # React Context: WebSocketContext, AuthContext, ThemeContext, ToastContext
+├── hooks/                     # useWebSocket, useAudioStatus, useApi, useFormState, useSleepTimer, useDashboardOverview, useStatsDashboard, useServiceLogs
+├── pages/                     # PlayerPage, RfidPage, MediaPage, DashboardPage, AdminPage, KioskPage
+├── types/                     # api.ts (Backend-API-Response-Types)
+├── utils/                     # formatTime.ts, validators.ts
+├── App.tsx, main.tsx, i18n.ts
+└── vite-env.d.ts
 ```
-webui-service/
-├── src/
-│   ├── api/                    # Backend-API-Client
-│   │   ├── client.ts          # Axios-Instance mit Base-URL
-│   │   ├── tags.ts
-│   │   ├── playlists.ts
-│   │   ├── tracks.ts
-│   │   ├── streams.ts         # Stream-API (GET/POST/PUT/DELETE /api/v1/streams)
-│   │   ├── podcasts.ts        # Podcast-API (CRUD, Episoden)
-│   │   ├── audio.ts
-│   │   ├── config.ts
-│   │   ├── stats.ts           # Stats-API (overview, usage-today, listening-summary)
-│   │   └── system.ts          # System/Host-API (host-status, logs, restart, WiFi, USB, Backup, Bluetooth, …)
-│   ├── components/            # Wiederverwendbare Komponenten
-│   │   ├── common/            # Generische Komponenten
-│   │   │   ├── Header.tsx
-│   │   │   ├── Navigation.tsx
-│   │   │   ├── LoadingSpinner.tsx
-│   │   │   ├── ErrorBoundary.tsx
-│   │   │   ├── CommandPalette.tsx   # Tastatur-Navigation (z.B. Strg+K)
-│   │   │   ├── SystemAlertBar.tsx   # Globaler Alert-Balken über dem Header (Überhitzung, später z.B. Update verfügbar)
-│   │   │   └── MiniPlayer.tsx       # Kompakter Player in der Leiste
-│   │   ├── player/            # Player-spezifische Komponenten
-│   │   │   ├── PlaybackControls.tsx
-│   │   │   ├── VolumeControl.tsx
-│   │   │   ├── ProgressBar.tsx
-│   │   │   └── TrackInfo.tsx
-│   │   ├── rfid/              # RFID-spezifische Komponenten
-│   │   │   ├── TagList.tsx
-│   │   │   ├── TagCard.tsx
-│   │   │   ├── TagEditDialog.tsx
-│   │   │   ├── LearnModeButton.tsx
-│   │   │   └── RfidScanDrawer.tsx  # Drawer bei RFID-Scan (Tag zuordnen / Info)
-│   │   ├── media/             # Media-spezifische Komponenten
-│   │   │   ├── PlaylistList.tsx
-│   │   │   ├── TrackList.tsx
-│   │   │   ├── UploadDialog.tsx
-│   │   │   ├── StreamDialog.tsx
-│   │   │   ├── StreamList.tsx
-│   │   │   ├── StreamEditDialog.tsx
-│   │   │   ├── PodcastList.tsx
-│   │   │   ├── PodcastDialog.tsx
-│   │   │   ├── PodcastEditDialog.tsx
-│   │   │   ├── RemoteTrackDialog.tsx
-│   │   │   └── CoverUploadField.tsx  # Cover-Upload für Playlist/Stream/Track
-│   │   └── admin/             # Admin-spezifische Komponenten
-│   │       ├── SystemStatus.tsx
-│   │       ├── SystemPanel.tsx
-│   │       ├── ServiceStatus.tsx
-│   │       ├── ServiceLogsModal.tsx
-│   │       ├── SyslogModal.tsx         # Host-Syslog (kernel/docker)
-│   │       ├── MaintenancePanel.tsx    # Update, Factory Reset, Backup/Restore
-│   │       ├── StatsDashboard.tsx      # Parent Dashboard: Hörstatistik, Daily-Limit
-│   │       ├── BluetoothSection.tsx    # Bluetooth-Geräte scannen/paren/verbinden
-│   │       ├── DisplayConfigPanel.tsx
-│   │       ├── LEDConfigPanel.tsx
-│   │       ├── ButtonConfigPanel.tsx
-│   │       ├── ConfigForm.tsx
-│   │       └── ParentSettingsForm.tsx  # Daily-Limit, Kinderschutz (general_settings)
-│   ├── contexts/              # React Context für globalen State
-│   │   ├── AudioContext.tsx   # Audio-Status (WebSocket)
-│   │   ├── WebSocketContext.tsx
-│   │   └── LanguageContext.tsx
-│   ├── hooks/                 # Custom React Hooks
-│   │   ├── useWebSocket.ts
-│   │   ├── useAudioStatus.ts
-│   │   └── useApi.ts
-│   ├── locales/               # i18n Übersetzungen
-│   │   ├── de/
-│   │   │   ├── common.json
-│   │   │   ├── player.json
-│   │   │   ├── rfid.json
-│   │   │   ├── media.json
-│   │   │   ├── admin.json
-│   │   │   └── errors.json
-│   │   └── en/
-│   │       ├── common.json
-│   │       ├── player.json
-│   │       ├── rfid.json
-│   │       ├── media.json
-│   │       ├── admin.json
-│   │       └── errors.json
-│   ├── pages/                 # Seiten-Komponenten
-│   │   ├── PlayerPage.tsx
-│   │   ├── RfidPage.tsx
-│   │   ├── MediaPage.tsx
-│   │   ├── DashboardPage.tsx   # Parent Dashboard (Statistik, Daily-Limit, Einstellungen)
-│   │   ├── AdminPage.tsx
-│   │   └── KioskPage.tsx       # Vollbild-Kiosk-Modus (optional)
-│   ├── types/                 # TypeScript-Type-Definitionen
-│   │   ├── api.ts             # Backend-API-Response-Types
-│   │   ├── audio.ts
-│   │   ├── rfid.ts
-│   │   └── config.ts
-│   ├── utils/                 # Utility-Funktionen
-│   │   ├── formatTime.ts      # z.B. ms → "03:45"
-│   │   └── validators.ts
-│   ├── App.tsx                # Haupt-App-Komponente
-│   ├── main.tsx               # Entry-Point
-│   └── i18n.ts                # i18next-Konfiguration
-├── public/
-│   └── locales/               # Statische i18n-Dateien (kopiert aus src/locales)
-├── nginx/
-│   └── nginx.conf             # Nginx-Konfiguration
-├── Dockerfile
-├── docker-compose.yml         # Optional: lokales Testing
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── README.md
-```
+
+**Hinweis:** i18n-Dateien liegen typisch unter `public/locales/` (de/en mit common, player, rfid, media, admin, errors). Nginx-Config unter `nginx/nginx.conf`; Build unter `dist/`.
+
+---
 
 ---
 
@@ -1234,3 +1165,11 @@ console.error('[WebUI] API call failed:', error);
 - Keine User-Authentication in Phase 1 (Single-User-System)
 - Keine Offline-Funktionalität (WebUI benötigt Backend-Verbindung)
 - Keine Mobile-App (nur Web-basiert, aber responsive)
+
+---
+
+## 12. Refactoring-Checkliste
+
+- [ ] **Struktur-Doku angepasst:** Die Datei- und Ordnerstruktur in Abschnitt 3 wurde an die tatsächliche Codebasis angeglichen (z. B. `api/auth.ts`, `api/system.ts`, `components/admin/ConfigForm/` mit GeneralSettingsForm, ControlSettingsForm, DesignSettingsForm, ChildSettingsForm, AudioConfigForm, RFIDConfigForm; AuthSection, SecurityPanel, SystemMaintenanceSection; `contexts/ThemeContext`, `ToastContext`; `hooks/useSleepTimer`, `useDashboardOverview`, `useStatsDashboard`, `useServiceLogs`; `components/dashboard/DashboardOverview`).
+- [ ] **Konsistenz prüfen:** Komponenten- und API-Modulnamen in den Abschnitten „Seiten & Features“ und „Admin“ mit der tatsächlichen Struktur abgleichen (z. B. ParentSettingsForm vs. ChildSettingsForm, ConfigForm vs. ConfigForm/*).
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.

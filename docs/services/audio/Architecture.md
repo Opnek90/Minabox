@@ -28,9 +28,43 @@ Er erhält Steuerbefehle (z.B. `play`, `pause`, `stop`, `next`, `prev`, `set_vol
 
 ---
 
-## 2. Komponenten-Übersicht
+## 2. Datei- und Ordnerstruktur
 
-### 2.1 Kern-Komponenten
+Relevanter Pfad: `services/audio-service/src/audio_service/`
+
+```text
+audio_service/
+├── __init__.py              # Package-Init
+├── main.py                  # Einstiegspunkt: Config, Logging, AudioService-Instanz, Signal-Handler, Graceful Shutdown
+├── config.py                # Lädt Service-Config: Env + audio.json
+├── config_schema.py         # Pydantic AudioConfig (output_device_type/name, enabled_output_devices, device_display_names, max_volume, default_volume)
+├── config_manager.py        # JSON-Config (config/audio.json), Hot-Reload, Validierung, atomare Schreibvorgänge
+├── exceptions.py            # MinaboxAudioError, AudioError, PlaybackError, VLCError, MQTTError, ConfigUpdateError, StateError, etc.
+├── core/
+│   ├── __init__.py
+│   ├── service.py           # Haupt-Orchestrierung: MQTT-Command-Routing, periodisches Status-Publish, State-Persistenz, Resume, Config-Reload, Graceful Shutdown
+│   ├── state_manager.py     # Playback-State-Persistenz (state/audio_state.json), Save/Restore, Resume
+│   └── mqtt_handler.py      # MQTT-Command-Verarbeitung (play, pause, stop, next, prev, set-volume, volume-up/down, config/update, config/reload, config/get)
+├── infrastructure/
+│   ├── __init__.py
+│   ├── vlc_backend.py       # VLC-Playback-Engine (libVLC): Play/Pause/Stop, Volume, Events, Position/Duration, Pulse/ALSA-Output
+│   ├── audio_backend.py     # Abstrakte AudioBackend-Schnittstelle (ABC) für erweiterbare Backends
+│   ├── audio_detector.py    # ALSA-Geräteerkennung (aplay -L), Prioritäts-Ranking (HATs, USB, onboard)
+│   ├── pulse_detector.py   # PulseAudio-Sink-Erkennung (pactl list sinks) für Geräteauswahl
+│   └── mqtt_client.py       # Async MQTT (aiomqtt), Subscriptions/Publish, Auto-Reconnect, Retained Status
+├── api/
+│   ├── __init__.py
+│   └── routes.py            # REST: GET /api/v1/health, GET /api/v1/status
+└── models/
+    ├── __init__.py
+    └── schemas.py           # Pydantic-Schemas für API/MQTT (Health, Status, Commands)
+```
+
+---
+
+## 3. Komponenten-Übersicht
+
+### 3.1 Kern-Komponenten
 
 #### VLC Backend (`vlc_backend.py`) - 455 LOC
 
@@ -116,7 +150,7 @@ class AudioBackend(ABC):
 4. Devices nach Priorität sortieren
 5. Bestes verfügbares Device zurückgeben
 
-### 2.2 Service-Layer
+### 3.2 Service-Layer
 
 #### Service (`service.py`) - 415 LOC
 
@@ -190,7 +224,7 @@ class AudioBackend(ABC):
 - Source-URI-Validation (file/stream)
 - Error-Handling mit strukturiertem Logging
 
-### 2.3 Support-Komponenten
+### 3.3 Support-Komponenten
 
 #### State Manager (`state_manager.py`) - 172 LOC
 
@@ -270,9 +304,9 @@ class AudioConfig(BaseModel):
 
 ---
 
-## 3. Datenfluss
+## 4. Datenfluss
 
-### 3.1 Play-Command-Flow
+### 4.1 Play-Command-Flow
 
 ```
 MQTT Command (play)
@@ -301,7 +335,7 @@ MQTT Status Publishing
 minabox/{device_id}/audio/status (retained, every 2s)
 ```
 
-### 3.2 Config-Update-Flow
+### 4.2 Config-Update-Flow
 
 ```
 MQTT (config/update)
@@ -323,9 +357,9 @@ MQTT (config/response)
 
 ---
 
-## 4. Öffentliche Schnittstellen
+## 5. Öffentliche Schnittstellen
 
-### 4.1 MQTT – Steuerbefehle
+### 5.1 MQTT – Steuerbefehle
 
 Topic-Schema:
 ```
@@ -389,7 +423,7 @@ Keine Payload erforderlich.
 - `step`: Schrittwert (optional, default: 5)
 - Resultat wird auf `max_volume` begrenzt
 
-### 4.2 MQTT – Status & Fehler
+### 5.2 MQTT – Status & Fehler
 
 #### Status-Topic (retained)
 ```
@@ -444,7 +478,7 @@ minabox/<device-id>/audio/error
 - `vlc_initialization_error` - VLC Backend-Initialisierung fehlgeschlagen
 - `device_detection_error` - Auto-Detection fehlgeschlagen
 
-### 4.3 REST API
+### 5.3 REST API
 
 #### `GET /api/v1/health`
 
@@ -471,9 +505,9 @@ minabox/<device-id>/audio/error
 
 ---
 
-## 5. Konfigurationsmodell
+## 6. Konfigurationsmodell
 
-### 5.1 Struktur `config/audio.json`
+### 6.1 Struktur `config/audio.json`
 
 ```json
 {
@@ -510,7 +544,7 @@ minabox/<device-id>/audio/error
 
 - `default_volume`: Lautstärke beim Service-Start
 
-### 5.2 Auto-Detection
+### 6.2 Auto-Detection
 
 **Wenn `output_device_name` = `"auto"`**:
 
@@ -524,7 +558,7 @@ minabox/<device-id>/audio/error
 - Falls keine Devices gefunden: Fehler loggen, Service im degraded state
 - User kann manuelles Device in Config setzen
 
-### 5.3 MQTT-Config-API
+### 6.3 MQTT-Config-API
 
 #### Commands
 - `minabox/<device-id>/audio/config/get` - Config abrufen
@@ -560,9 +594,9 @@ minabox/<device-id>/audio/error
 
 ---
 
-## 6. VLC Backend – Technische Details
+## 7. VLC Backend – Technische Details
 
-### 6.1 libVLC Integration
+### 7.1 libVLC Integration
 
 **Library**: [python-vlc](https://github.com/oaubert/python-vlc) 3.0.21216
 
@@ -578,7 +612,7 @@ instance = vlc.Instance(args)
 player = instance.media_player_new()
 ```
 
-### 6.2 Event-Handling
+### 7.2 Event-Handling
 
 **Registrierte Events**:
 - `vlc.EventType.MediaPlayerPlaying` → `state = "playing"`
@@ -600,7 +634,7 @@ Service Event Handler (async)
 State Update + MQTT Publish
 ```
 
-### 6.3 Position & Duration Tracking
+### 7.3 Position & Duration Tracking
 
 **Position**:
 - Via `player.get_time()` (Millisekunden)
@@ -610,7 +644,7 @@ State Update + MQTT Publish
 - Via `player.get_length()` (Millisekunden)
 - Kann `None` sein (z.B. bei Streams)
 
-### 6.4 Volume Control
+### 7.4 Volume Control
 
 **Range**: 0-100 (VLC-intern: 0-200, wird umgerechnet)
 
@@ -624,9 +658,9 @@ def set_volume(self, volume: int) -> None:
 
 ---
 
-## 7. State-Management & Resume
+## 8. State-Management & Resume
 
-### 7.1 Interner State
+### 8.1 Interner State
 
 **State-Manager** hält:
 ```python
@@ -641,7 +675,7 @@ def set_volume(self, volume: int) -> None:
 }
 ```
 
-### 7.2 Persistenz
+### 8.2 Persistenz
 
 **Datei**: `state/audio_state.json`
 
@@ -655,7 +689,7 @@ def set_volume(self, volume: int) -> None:
 2. `fsync()`
 3. `rename()` to `audio_state.json`
 
-### 7.3 Resume-Logik
+### 8.3 Resume-Logik
 
 **Service-Start**:
 1. State-Manager lädt `audio_state.json`
@@ -669,9 +703,9 @@ def set_volume(self, volume: int) -> None:
 
 ---
 
-## 8. Fehlerbehandlung & Logging
+## 9. Fehlerbehandlung & Logging
 
-### 8.1 Fehlertypen
+### 9.1 Fehlertypen
 
 **Playback-Fehler**:
 - `file_not_found` → Error-Event + `state = "error"`
@@ -687,7 +721,7 @@ def set_volume(self, volume: int) -> None:
 - Ungültige Config → alte Config bleibt, Response `success: false`
 - Missing config file → Default-Config wird erstellt
 
-### 8.2 Logging
+### 9.2 Logging
 
 **Framework**: structlog mit JSON-Logging (LOG_LEVEL=INFO) oder Console (LOG_LEVEL=DEBUG)
 
@@ -702,7 +736,7 @@ def set_volume(self, volume: int) -> None:
 - `config_update_received`, `config_update_applied` - Config changes
 - `state_persisted` - State save events
 
-### 8.3 Health Status
+### 9.3 Health Status
 
 **Healthy**:
 - MQTT connected: `true`
@@ -721,9 +755,9 @@ def set_volume(self, volume: int) -> None:
 
 ---
 
-## 9. Abhängigkeiten
+## 10. Abhängigkeiten
 
-### 9.1 Hardware / OS
+### 10.1 Hardware / OS
 
 - **Raspberry Pi** (3/4/5) mit ALSA-konfiguriertem Audio-Device
 - **Unterstützte Audio-Hardware**:
@@ -734,7 +768,7 @@ def set_volume(self, volume: int) -> None:
   - 3.5mm Klinke (onboard)
   - HDMI Audio
 
-### 9.2 Software
+### 10.2 Software
 
 **System-Packages**:
 - `vlc` - VLC Media Player
@@ -751,12 +785,12 @@ def set_volume(self, volume: int) -> None:
 - `tenacity` - Retry & error handling
 - `httpx` - HTTP client (z.B. für Health-Checks)
 
-### 9.3 Services
+### 10.3 Services
 
 - **MQTT Broker** (Mosquitto): `mqtt:1883`
 - **Backend Service**: Sendet Play/Pause/Stop-Commands
 
-### 9.4 Konfiguration
+### 10.4 Konfiguration
 
 - **Global** (`.env`): `MINABOX_DEVICE_ID`, `MQTT_BROKER`, `MQTT_PORT`, `LOG_LEVEL`
 - **Service-spezifisch**: `config/audio.json`
@@ -764,9 +798,9 @@ def set_volume(self, volume: int) -> None:
 
 ---
 
-## 10. Implementierungs-Status
+## 11. Implementierungs-Status
 
-### 10.1 Komponenten-Übersicht
+### 11.1 Komponenten-Übersicht
 
 | Modul | LOC | Status |
 |-------|-----|--------|
@@ -785,7 +819,7 @@ def set_volume(self, volume: int) -> None:
 | `__init__.py` | 32 | ✅ Production Ready |
 | **Gesamt** | **~2800** | **✅ Production Ready** |
 
-### 10.2 Features
+### 11.2 Features
 
 - ✅ VLC-basierte Wiedergabe
 - ✅ Automatische Hardware-Erkennung
@@ -798,7 +832,7 @@ def set_volume(self, volume: int) -> None:
 - ✅ Graceful Shutdown
 - ✅ Docker-Integration
 
-### 10.3 Tests
+### 11.3 Tests
 
 - ✅ VLC Backend-Initialisierung
 - ✅ Audio Device Detection
@@ -809,7 +843,7 @@ def set_volume(self, volume: int) -> None:
 
 ---
 
-## 11. Nicht-Ziele / Abgrenzung
+## 12. Nicht-Ziele / Abgrenzung
 
 - ❌ **Keine Playlist-Verwaltung** (Reihenfolge/Shuffle/Repeat) – liegt im Backend
 - ❌ **Keine Benutzerprofile** – kann später im Backend ergänzt werden
@@ -819,7 +853,7 @@ def set_volume(self, volume: int) -> None:
 
 ---
 
-## 12. Roadmap / Erweiterungen
+## 13. Roadmap / Erweiterungen
 
 ### Phase 1 (Current) ✅
 - VLC Backend
@@ -838,6 +872,13 @@ def set_volume(self, volume: int) -> None:
 - Crossfade zwischen Tracks
 - Multi-Room-Sync (Snapcast)
 - Spotify Connect Integration
+
+---
+
+## 14. Refactoring-Checkliste
+
+- [ ] **Keine groben Inkonsistenzen:** State-Persistenz (state_manager), Config (config_manager) und MQTT-Handler sind klar getrennt; VLC und Backend-Abstraktion in infrastructure.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.
 
 ---
 

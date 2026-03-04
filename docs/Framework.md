@@ -73,6 +73,7 @@ scripts/                 # Hilfsskripte (dev-tools.sh, setup-folders.sh, test_di
 - Alle Architecture.md-Dateien für die Hauptservices (RFID, Audio, Backend, WebUI, LED, Button) sind bereits vorhanden und beschreiben Aufgaben, Schnittstellen und Konfigurationsmodelle.
 - Der **Host-Helper-Service** (optional) kapselt systemnahe Aktionen auf dem Host (z.B. Dateien verschieben); er wird nur intern vom Backend angesprochen und ist nicht nach außen exponiert. Siehe `docs/services/host-helper/Architecture.md`.
 - **Gemeinsame Python-Bausteine** (Config, Exceptions, MQTT-Basis) liegen in `services/shared-lib` (Paket **minabox-shared**, Import **shared_lib**). Siehe `services/shared-lib/README.md`.
+- **Inhalt der Service-Architektur-Dokumentation:** Jede `docs/services/<bereich>/Architecture.md` enthält verbindlich: (1) **Datei- und Ordnerstruktur** des Service mit einer Zeile „Funktion“ pro Datei, (2) **Öffentliche Schnittstellen** (REST, MQTT), (3) **Kernkomponenten & Abhängigkeiten**, (4) **Konfiguration**, (5) **Refactoring-Checkliste** mit Verbesserungsvorschlägen und identifizierten Inkonsistenzen. Siehe auch [docs/REFACTORING_CHECKLIST.md](REFACTORING_CHECKLIST.md).
 
 ---
 
