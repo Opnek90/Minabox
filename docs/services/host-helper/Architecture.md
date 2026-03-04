@@ -18,7 +18,27 @@ Nicht-Ziele:
 
 ---
 
-## 2. Sicherheitsmodell
+## 2. Datei- und Ordnerstruktur
+
+Relevanter Pfad: `services/host-helper-service/src/host_helper/`
+
+```text
+host_helper/
+├── __init__.py       # Package-Init
+├── main.py           # Einstiegspunkt: Config, FastAPI-App mit Router-Mount, Uvicorn, Graceful Shutdown
+├── config.py         # Lädt Env (API-Key, erlaubte Pfade, etc.)
+├── api/
+│   ├── __init__.py
+│   └── routes.py     # Alle HTTP-Endpoints in einer Datei: Health, Audio-Pfad, Move, Reboot, Host-Status, Container-Logs, WiFi, USB, Backup, Zeit, Hostname, Board-LEDs, Netzwerk, Passwort, SSH, Syslog, Docker, Factory Reset, Update, Bluetooth
+└── core/
+    └── __init__.py   # (leer oder Re-Export)
+```
+
+**Thematische Blöcke in `api/routes.py`:** Health, Audio-Pfad (GET/POST), Move (POST, GET move-status), Host-System (reboot, shutdown, host-status, restart), Container-Logs, WiFi (scan, connect, hotspot start/stop/status), USB (devices, files, import, eject), Backup (download, restore), Zeit & Hostname (timezone, time-status, hostname GET/PUT), Board-LEDs (GET/PUT), Netzwerk (GET/PUT), Passwort & SSH (password, ssh-status, ssh-toggle), Syslog & Docker (syslog, docker-prune), Factory Reset & Update (factory-reset, update-minabox, version, update-os, update-os/log), Bluetooth (scan, pair, paired, connect, disconnect, remove).
+
+---
+
+## 3. Sicherheitsmodell
 
 - **Container mit erweiterten Rechten:** Der Service läuft mit `privileged: true` oder mit gezielten `cap_add` und notwendigen Volume-Mounts, um auf Host-Pfade zuzugreifen.
 - **Nur intern erreichbar:** Die HTTP-API des Host-Helpers wird **nicht** nach außen exponiert (kein `ports:` in docker-compose). Erreichbar nur innerhalb des Docker-Netzes (z.B. `http://host-helper:PORT`).
@@ -31,7 +51,7 @@ Nicht-Ziele:
 
 ---
 
-## 3. Schnittstelle (HTTP-API)
+## 4. Schnittstelle (HTTP-API)
 
 Der Host-Helper stellt eine HTTP-API bereit (FastAPI). Alle Endpoints außer `GET /health` erfordern den Header `X-Api-Key` mit dem konfigurierten API-Key (nur Backend bekannt).
 
@@ -141,7 +161,7 @@ Der Host-Helper stellt eine HTTP-API bereit (FastAPI). Alle Endpoints außer `GE
 
 ---
 
-## 4. Integration mit dem Backend
+## 5. Integration mit dem Backend
 
 - Das **Backend** ruft den Host-Helper über eine interne URL auf (z.B. `http://host-helper:8000`), nur aus dem gemeinsamen Docker-Netz.
 - Das Backend kann eigene REST-Endpoints bereitstellen (z.B. `POST /api/v1/system/move-audio`, `GET /api/v1/system/logs`, `GET /api/v1/system/host-status`), die von der WebUI aufgerufen werden. Nach Validierung der Parameter leitet das Backend die Anfrage an den Host-Helper weiter und gibt das Ergebnis an die WebUI zurück.
@@ -169,14 +189,21 @@ flowchart LR
 
 ---
 
-## 5. Einsatz im Stack
+## 6. Einsatz im Stack
 
 - Der Host-Helper wird im zentralen **`docker-compose.yml`** im Root-Repository als Service (z.B. `host-helper`) eingetragen. Er gehört zum gleichen Docker-Netzwerk wie Backend und erhält die nötigen Volume-Mounts für die erlaubten Host-Pfade.
 - Keine Port-Freigabe nach außen; der Service ist nur für andere Container im Stack erreichbar.
 
 ---
 
-## 6. Scope und Erweiterbarkeit
+## 7. Scope und Erweiterbarkeit
 
 - **Phase 1 (empfohlen für erste Implementierung):** Fokus auf **Audio-Ordner verschieben**. Ein klar begrenzter Use-Case: User wählt in der WebUI einen Zielpfad (aus erlaubten Optionen), Backend validiert und ruft Host-Helper auf; Host-Helper führt die Verschiebung aus, Backend kann danach ggf. Konfiguration/DB aktualisieren.
 - **Später erweiterbar:** Weitere Aktionen wie IP-Adresse ändern, Root-Passwort setzen, Volumes mounten können als weitere Endpoints ergänzt werden. Jede neue Aktion muss in dieser Architektur und im Sicherheitsmodell beschrieben und mit Allowlists/Validierung versehen werden.
+
+---
+
+## 8. Refactoring-Checkliste
+
+- [ ] **api/routes.py aufteilen:** Die Datei enthält sehr viele Endpoints (Audio-Pfad, Move, Reboot, WiFi, USB, Backup, System, Bluetooth, Zeit, Hostname, etc.). Empfehlung: Aufteilung nach Domänen in mehrere Route-Module (z. B. `routes_system.py`, `routes_wifi.py`, `routes_usb.py`, `routes_backup.py`, `routes_bluetooth.py`) und in der FastAPI-App zusammenführen.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.

@@ -45,7 +45,7 @@ Minabox/
 **KRITISCH:** Bevor du Code für einen Service schreibst, MUSST du folgende Dokumente lesen:
 
 1. **`docs/Framework.md`** – Technische Standards, Code-Qualität, Projektstruktur, MQTT-Schema
-2. **`docs/services/<service-name>/Architecture.md`** – Service-spezifische Architektur, API, Verantwortlichkeiten
+2. **`docs/services/<service-name>/Architecture.md`** – Service-spezifische Architektur, API, Verantwortlichkeiten, Datei-/Ordnerstruktur mit Funktion pro Datei sowie Refactoring-Checkliste
 3. **`pyproject.toml`** – Aktuelle Tool-Konfiguration (Python 3.13, Ruff, Black, mypy)
 
 **Verwende GitHub-MCP-Tools, um diese Dateien zu laden!**

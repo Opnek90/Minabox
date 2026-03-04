@@ -17,15 +17,44 @@ Nicht-Ziele:
 
 ---
 
-## 2. Schnittstellen
+## 2. Datei- und Ordnerstruktur
 
-### 2.1 REST
+Relevanter Pfad: `services/display-service/src/display_service/`
+
+```text
+display_service/
+├── __init__.py                  # Package-Init
+├── main.py                      # DisplayService: Config, State, MQTT, Render-Loop, Sleep-Timer-Poll, Session-Poll, Area-Build, API-Server, Shutdown
+├── config.py                    # Lädt App-Config: Env + display.json
+├── config_schema.py             # Pydantic: DisplayElement (type, area, order), DisplayServiceConfig, AppConfig; Element-Typen (volume, sleep_timer, clock, …)
+├── config_manager.py            # Thin Wrapper um shared_lib JsonConfigManager für Display-Config, Hot-Reload
+├── exceptions.py                # MinaboxDisplayError, DisplayHardwareError
+├── core/
+│   ├── __init__.py
+│   └── state_manager.py         # In-Memory-State: Audio (state, volume, muted), Sleep-Timer, Session (repeat/shuffle), Error-Flag; Updates aus MQTT und Backend-Polls
+├── infrastructure/
+│   ├── __init__.py
+│   ├── display_controller.py    # OLED (SSD1306) über I2C: Theme/Layout, init/clear/is_available, show_areas/show_lines (Header + zwei Spalten)
+│   └── mqtt_client.py            # MQTT: Subscriptions audio/status, audio/error, system/service-error, display config/reload; Message- und Config-Reload-Callbacks
+├── api/
+│   ├── __init__.py
+│   └── routes.py                # FastAPI create_app: GET /health (display_enabled, display_available, mqtt_connected, device_id)
+└── models/
+    ├── __init__.py
+    └── schemas.py               # Pydantic HealthResponse für /health
+```
+
+---
+
+## 3. Schnittstellen
+
+### 3.1 REST
 
 - **`GET /health`** – Health-Check. Response: `status`, `service`, `device_id`, `display_enabled`, `display_available`, `mqtt_connected`, `mqtt_broker`, `mqtt_port`.
 
 Es gibt keine weiteren REST-Endpoints; Konfiguration erfolgt über die Config-Datei und MQTT Reload.
 
-### 2.2 MQTT – Subscriptions
+### 3.2 MQTT – Subscriptions
 
 Der Display-Service subscribed auf:
 
@@ -34,13 +63,13 @@ Der Display-Service subscribed auf:
 - **`minabox/<device-id>/system/service-error`** – System-Fehler; setzt ebenfalls Fehlerzustand.
 - **`minabox/<device-id>/display/config/reload`** – Signal zum Neuladen der lokalen Config (`config/display.json`).
 
-### 2.3 Backend-Abfrage (Sleep-Timer)
+### 3.3 Backend-Abfrage (Sleep-Timer)
 
 Der Service pollt periodisch (z.B. alle 5 Sekunden) **`GET <BACKEND_URL>/api/v1/audio/sleep-timer`**, um den Sleep-Timer-Status (active, remaining_ms) zu erhalten. Diese Daten werden im StateManager gecacht und für Elemente vom Typ `sleep_timer` verwendet. Kein MQTT-Topic für Sleep-Timer.
 
 ---
 
-## 3. Konfiguration
+## 4. Konfiguration
 
 **Datei:** `config/display.json`
 
@@ -85,7 +114,7 @@ Die Backend-API stellt **`GET /api/v1/config/display/element-types`** bereit, um
 
 ---
 
-## 4. Kernkomponenten
+## 5. Kernkomponenten
 
 - **DisplayService (main.py)** – Orchestrierung: Config laden, MQTT verbinden, Render-Loop und Sleep-Timer-Poll starten, FastAPI-Server.
 - **DisplayController (display_controller.py)** – Low-Level-Zugriff auf das I2C-Display (init, clear, show_areas); prüft `is_available()`.
@@ -97,7 +126,7 @@ Die Backend-API stellt **`GET /api/v1/config/display/element-types`** bereit, um
 
 ---
 
-## 5. Abhängigkeiten
+## 6. Abhängigkeiten
 
 - **MQTT-Broker** (Mosquitto) – für audio/status, audio/error, system/service-error, display/config/reload.
 - **Backend** – für Sleep-Timer-Abfrage (`GET /api/v1/audio/sleep-timer`) und optional für Config-Bereitstellung (Backend schreibt `config/display.json`; Display liest sie).
@@ -105,8 +134,15 @@ Die Backend-API stellt **`GET /api/v1/config/display/element-types`** bereit, um
 
 ---
 
-## 6. Integration im Stack
+## 7. Integration im Stack
 
 - Der Display-Service wird in der zentralen **docker-compose.yml** als Service (z.B. `display`) eingetragen und gehört zum gleichen Docker-Netzwerk wie Backend und MQTT.
 - Config wird vom Backend über Volume-Mount oder Config-Sync in `config/display.json` bereitgestellt; die Admin-UI konfiguriert über `GET/PUT /api/v1/config/display`.
 - Nach Config-Änderung kann das Backend (oder ein anderer Dienst) `minabox/<device-id>/display/config/reload` publishen, damit der Display-Service die Config neu lädt.
+
+---
+
+## 8. Refactoring-Checkliste
+
+- [ ] **main.py vereint viele Verantwortungen:** DisplayService in `main.py` enthält Orchestrierung, Render-Loop, Sleep-Timer-Poll, Session-Poll, MQTT-Handling, Area-Building und API-Server. Optional: Poll-Loops und Area-Build-Logik in eigene Module auslagern (z. B. `core/display_runner.py`, `core/area_builder.py`); `main.py` nur Orchestrierung.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.

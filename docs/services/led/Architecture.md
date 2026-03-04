@@ -19,7 +19,34 @@ Nicht-Ziele:
 
 ---
 
-## 2. Logische Zustände (Beispiele)
+## 2. Datei- und Ordnerstruktur
+
+Relevanter Pfad: `services/led-service/src/led_service/`
+
+```text
+led_service/
+├── __init__.py              # Package-Init
+├── main.py                  # Einstiegspunkt: Config, LEDController, MQTT, State-Management, API-Server, Graceful Shutdown
+├── config.py                # Lädt Env + leds.json
+├── config_schema.py         # Pydantic-Schema für LED-Config (leds[], id, name, gpio, bindings)
+├── config_manager.py        # JSON-Config (config/leds.json), Hot-Reload
+├── exceptions.py            # Service-spezifische Exceptions
+├── core/
+│   ├── __init__.py
+│   ├── led_controller.py    # Steuerung der LEDs: Zustand aus MQTT ableiten, Pattern aus bindings anwenden
+│   ├── led_patterns.py      # Pattern-Ausführung (solid, blink, pulse, off) pro LED
+│   └── state_manager.py     # Aktueller logischer Zustand (aus MQTT-Events), FIFO-Verarbeitung
+├── infrastructure/
+│   ├── __init__.py
+│   └── mqtt_client.py       # MQTT: Subscriptions (audio/status, rfid/tag-scanned, system/service-error, button/raw-event, led/config), Publish config/response
+└── api/
+    ├── __init__.py
+    └── routes.py            # FastAPI: GET /health (LEDs, MQTT-Status)
+```
+
+---
+
+## 3. Logische Zustände (Beispiele)
 
 Der LED-Service arbeitet mit logischen Zuständen/Ereignissen, die aus MQTT-Nachrichten anderer Services abgeleitet werden. Mögliche Zustände sind u.a.:
 
@@ -56,9 +83,9 @@ Diese Liste dient als Vorschlagskatalog. Welche Zustände tatsächlich verwendet
 
 ---
 
-## 3. Öffentliche Schnittstellen
+## 4. Öffentliche Schnittstellen
 
-### 3.1 MQTT – Eingehende Events
+### 4.1 MQTT – Eingehende Events
 
 Der LED-Service subscribed auf relevante MQTT-Themen anderer Services (z.B. Audio, RFID, System, Backend) und leitet daraus die oben genannten logischen Zustände ab.
 
@@ -69,7 +96,7 @@ Beispiele (konkret im Architecture-Dokument der jeweiligen Services definiert):
 - `minabox/<device-id>/system/service-error` → abgeleitet: `system_error`.
 - `minabox/<device-id>/button/raw-event` → abgeleitet: `button_pressed`.
 
-### 3.2 MQTT – Config-API
+### 4.2 MQTT – Config-API
 
 Analog zum Button-Service besitzt der LED-Service eine Config-API über MQTT.
 
@@ -155,7 +182,7 @@ Im Fehlerfall:
 }
 ```
 
-### 3.3 REST (optional)
+### 4.3 REST (optional)
 
 Optional kann der Service einen HTTP-Endpoint anbieten (z.B. FastAPI):
 
@@ -163,12 +190,12 @@ Optional kann der Service einen HTTP-Endpoint anbieten (z.B. FastAPI):
 
 ---
 
-## 4. Konfigurationsmodell
+## 5. Konfigurationsmodell
 
 Die LED-Konfiguration wird lokal in einer JSON-Datei gespeichert, z.B. `config/leds.json`.
 Der Inhalt wird vom Backend/WebUI verwaltet und per MQTT (`config/update`) in den Service gespielt. Der Service schreibt die Datei und lädt das Mapping per Hot-Reload neu.
 
-### 4.1 Struktur `leds.json`
+### 5.1 Struktur `leds.json`
 
 ```json
 {
@@ -200,7 +227,7 @@ Felder:
 - `gpio`: GPIO-Pin, an dem die LED angeschlossen ist.
 - `bindings`: Map von `logical_state` (z.B. `audio_playing`, `system_error`) auf ein Pattern-Objekt.
 
-### 4.2 Pattern-Objekt
+### 5.2 Pattern-Objekt
 
 Ein Pattern beschreibt, **wie** die LED auf einen logischen Zustand reagieren soll:
 
@@ -253,16 +280,16 @@ Beispiele:
 }
 ```
 
-### 4.3 Verhalten bei fehlenden Bindings
+### 5.3 Verhalten bei fehlenden Bindings
 
 - Wenn für einen logischen Zustand (`logical_state`) in `bindings` **kein** Pattern definiert ist, verändert dieser Zustand die LED nicht.
 - Mehrere LEDs dürfen denselben logischen Zustand binden (z.B. mehrere LEDs für `system_error`).
 
 ---
 
-## 5. Kern-Funktionen / Use-Cases
+## 6. Kern-Funktionen / Use-Cases
 
-### 5.1 Zustandsableitung aus MQTT
+### 6.1 Zustandsableitung aus MQTT
 
 Der LED-Service leitet logische Zustände aus MQTT-Nachrichten ab, z.B.:
 
@@ -274,7 +301,7 @@ Der LED-Service leitet logische Zustände aus MQTT-Nachrichten ab, z.B.:
 
 Diese Zuordnung (welches Topic → welcher `logical_state`) wird im LED-Service-Code oder in einer separaten Mapping-Konfiguration festgelegt.
 
-### 5.2 Pattern-Ausführung
+### 6.2 Pattern-Ausführung
 
 Ablauf pro LED:
 
@@ -286,14 +313,14 @@ Ablauf pro LED:
    - `pulse`: LED wird für `duration_ms` eingeschaltet, dann wieder ausgeschaltet, ggf. mehrfach.
 4. Bei einem neuen Zustand mit Binding für dieselbe LED wird das vorherige Pattern abgebrochen/überschrieben.
 
-### 5.3 FIFO-Verarbeitung
+### 6.3 FIFO-Verarbeitung
 
 - Eingehende Zustandsereignisse (abgeleitet aus MQTT) werden in einer FIFO-Queue verarbeitet.
 - So werden Zustandänderungen in der Reihenfolge ihres Auftretens abgearbeitet und das Verhalten bleibt deterministisch.
 
 ---
 
-## 6. Abhängigkeiten
+## 7. Abhängigkeiten
 
 - **Hardware:**
   - GPIO-Pins für einfarbige LEDs.
@@ -320,15 +347,15 @@ Ablauf pro LED:
 
 ---
 
-## 7. Fehler & Status
+## 8. Fehler & Status
 
-### 7.1 Typische Fehlerfälle
+### 8.1 Typische Fehlerfälle
 
 - `gpio_init_failed` – GPIO-Pin konnte nicht initialisiert werden.
 - `invalid_led_config` – Config-Datei syntaktisch ungültig oder unvollständig.
 - `unsupported_pattern` – Pattern-Typ nicht unterstützt.
 
-### 7.2 Verhalten bei Config-Fehlern
+### 8.2 Verhalten bei Config-Fehlern
 
 - Bei ungültiger neuer Config (`led/config/update`):
   - Service verwirft die neue Config, behält die alte bei.
@@ -338,7 +365,7 @@ Ablauf pro LED:
   - Service geht in einen Fehlerzustand.
   - LEDs bleiben in einem definierten Fallback-Zustand (z.B. alle aus oder Fehlerblinken für eine spezielle LED).
 
-### 7.3 Logging
+### 8.3 Logging
 
 - Wichtige Ereignisse und Fehler werden strukturiert geloggt:
   - `led_state_change` mit `led_id`, `logical_state`, `pattern_type`.
@@ -347,8 +374,15 @@ Ablauf pro LED:
 - Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen).
 ---
 
-## 8. Nicht-Ziele / Abgrenzung
+## 9. Nicht-Ziele / Abgrenzung
 
 - Keine komplexen Animations-Frameworks oder Farbverläufe (nur einfache Patterns für einfarbige LEDs).
 - Keine Interpretation von Business-Logik – der Service reagiert nur auf abgeleitete logische Zustände.
 - Kein direktes Triggern anderer Services – Kommunikation verläuft nur passiv über MQTT-Subscriptions.
+
+---
+
+## 10. Refactoring-Checkliste
+
+- [ ] **Keine groben Inkonsistenzen:** LED-Controller, Patterns und State-Management in core; MQTT in infrastructure.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.

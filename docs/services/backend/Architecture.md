@@ -23,9 +23,67 @@ Nicht-Ziele:
 
 ---
 
-## 2. Öffentliche Schnittstellen
+## 2. Datei- und Ordnerstruktur
 
-### 2.1 REST-API
+Relevanter Pfad: `services/backend-service/src/backend_service/`
+
+```text
+backend_service/
+├── __init__.py              # Package-Init, __version__
+├── main.py                  # Einstiegspunkt: Config, Logging, BackendService, SIGTERM/SIGINT, Graceful Shutdown
+├── app_factory.py           # FastAPI-App-Factory, BackendService: Router-Mount, CORS, Static, MQTT/API/Podcast/Temperature-Start
+├── config.py                # load_app_config(), get_config(): Env, general_settings, backend.json
+├── config_manager.py        # Thin Wrapper um shared_lib JsonConfigManager für Backend-Config, Hot-Reload
+├── config_schema.py         # Pydantic: EnvConfig, BackendServiceConfig, AppConfig (Session-Timeout, Health-Intervall, Upload-Size)
+├── exceptions.py            # Backend-Exception-Hierarchie: MinaboxBackendError, ServiceCommunicationError, MQTT*, DatabaseError, TagNotFoundError, ContentNotFoundError
+├── api/
+│   ├── __init__.py          # Router-Mount: auth, tags, playlists, tracks, streams, podcasts, audio, rfid, config, stats, system, host unter /api/v1
+│   ├── routes_audio.py      # REST Audio: play/pause/stop, volume, Sleep-Timer, Session (repeat/shuffle), Status-Proxy; nutzt MQTT-Handlers
+│   ├── routes_config.py     # REST Config für andere Services (LED, Button, RFID, Audio, Display): GET/PUT JSON-Configs, Static-Upload, MQTT-Reload, Element-Typen
+│   ├── routes_system.py     # System/Health: Service-Health-URLs, Uptime, DB-Check, MQTT-Connected, System-Status-Response
+│   ├── routes_tags.py       # REST RFID-Tags: Liste, Get, Create, Update, Delete (tag_id, name, content_type, content_id)
+│   ├── routes_host.py       # Host-Helper-Proxy: Audio-Pfad, Move/Copy, Temperatur, Current-Alert; Pfad-Validierung, erlaubte Basen
+│   ├── routes_stats.py      # Listening-Stats (Parent-Dashboard): heute/gesamt, minutes_per_day, top_tags, Scan-Counts; general_settings + DB
+│   ├── routes_auth.py       # Web-Auth-API: Login/Logout, Passwort-Änderung, geschützte Bereiche; Cookie-Session
+│   ├── routes_tracks.py     # REST Tracks: Liste, Get, Create, Update, Delete; Upload, Cover in static/
+│   ├── routes_streams.py    # REST Streams: CRUD inkl. optional Cover
+│   ├── routes_podcasts.py   # REST Podcasts: CRUD, neueste Episode in Response
+│   ├── routes_playlists.py  # REST Playlists: CRUD, Detail inkl. Tracks und Cover
+│   ├── routes_rfid.py       # REST RFID: Lern-Modus an/aus via MQTT-Command
+│   └── websocket.py         # WebSocket-Manager: Verbindungen, letzter Audio-Status, Broadcast (audio_status, rfid_scanned, button_action, …)
+├── core/
+│   ├── __init__.py          # Re-Export: DatabaseManager, get_db, init_db, MQTTClient, PlaybackSession, SessionManager, session_manager
+│   ├── mqtt_handlers.py     # MQTT-Handler: RFID (Scan/Learning/Removed), Audio-Status, Button-Actions, Playback-Events, Sleep-Timer, Bedtime-Fade, Stream-Reconnect
+│   ├── mqtt_client.py       # MQTT-Client: Reconnect/Retry, Subscriptions (RFID/Audio/Button), Dispatch an MQTTHandlers, Publish Audio/RFID-Commands
+│   ├── db_manager.py        # SQLite: Engine, Sessions, WAL, Foreign Keys; DatabaseManager, get_db, init_db
+│   ├── session_manager.py   # In-Memory Playback-Session: PlaybackSession/SessionTrack, current_track_index, Shuffle, Repeat; SessionManager, session_manager
+│   ├── sleep_settings.py    # Liest sleep_timer_minutes und Bedtime-Fade (Dauer, Intervall, Step) aus general_settings.json
+│   ├── usage_limits.py      # Eltern/Nutzung: erlaubte Zeiten und Daily-Limit aus general_settings; Prüfung ob aktuell erlaubt; Stop-on-Tag-Remove
+│   ├── playback_stats.py    # Playback-Statistik: minutes_for_event, get_today_listened_minutes, get_total_listened_minutes aus PlaybackEvent
+│   ├── podcast_fetcher.py   # Hintergrund-Loop: Podcast-RSS fetchen, Episoden parsen, in DB upserten (Podcast/PodcastEpisode)
+│   ├── temperature_logger.py # Hintergrund-Loop: Host-Temperatur via Host-Helper lesen, in DB loggen, bei Überhitzung MQTT/WebSocket
+│   └── auth.py              # Web-Auth: auth_settings lesen/schreiben (Passwort-Hash, geschützte Bereiche), bcrypt, JWT-Session
+├── models/
+│   ├── __init__.py          # Re-Export Schemas und Modell-Typen für backend_service.models
+│   ├── database.py          # SQLAlchemy-Modelle: PlaybackEvent, Tag, Track, Playlist, PlaylistTrack, Stream, Podcast, PodcastEpisode, TemperatureReading
+│   ├── schemas.py           # Re-Export Pydantic-Schemas aus Domain-Modulen (audio, config, content, error, rfid, system, ws, enums)
+│   ├── schemas_error.py     # Pydantic ErrorDetail, ErrorResponse für API-Fehler
+│   ├── schemas_ws.py        # Pydantic WebSocketMessage (type, data, timestamp)
+│   ├── schemas_rfid.py      # Pydantic RFID: RFIDLearningModeCommand, RFIDScanEvent, RFIDModeResponse
+│   ├── schemas_system.py    # Pydantic System: HealthCheckResponse, ServiceStatus, SystemStatusResponse
+│   ├── schemas_config.py    # Pydantic Config: ButtonConfig, LEDConfig, RFIDConfig, AudioConfig für andere Services
+│   ├── schemas_audio.py     # Pydantic Audio: AudioPlayCommand, AudioVolumeCommand, AudioStatusResponse
+│   ├── schemas_content.py   # Pydantic Content: Tag, Playlist, Track, Stream, Podcast Base/Create/Update/Response
+│   └── schemas_enums.py     # Enums: ContentType, SourceType, AudioState, ServiceState, RFIDMode
+└── infrastructure/
+    └── __init__.py          # (optional, leer oder Re-Export)
+```
+
+---
+
+## 3. Öffentliche Schnittstellen
+
+### 3.1 REST-API
 
 **Base-Path:** `/api/v1`
 
@@ -145,7 +203,7 @@ Nicht-Ziele:
 - **Docker:** `POST /api/v1/system/docker-prune`
 - **Bluetooth:** `GET /api/v1/system/bluetooth/scan`, `POST /api/v1/system/bluetooth/pair`, `GET /api/v1/system/bluetooth/paired`, `POST /api/v1/system/bluetooth/connect`, `POST /api/v1/system/bluetooth/disconnect`, `POST /api/v1/system/bluetooth/remove`
 
-### 2.2 WebSocket
+### 3.2 WebSocket
 
 **Endpoint:** `/ws`
 
@@ -259,7 +317,7 @@ Optional kann die WebUI Commands via WebSocket senden (alternativ REST):
 }
 ```
 
-### 2.3 MQTT – Subscribe Topics
+### 3.3 MQTT – Subscribe Topics
 
 Der Backend subscribed auf folgende MQTT-Topics:
 
@@ -288,7 +346,7 @@ Der Backend subscribed auf folgende MQTT-Topics:
 
 - `minabox/<device-id>/system/+`
 
-### 2.4 MQTT – Publish Topics
+### 3.4 MQTT – Publish Topics
 
 **Audio-Commands:**
 
@@ -315,17 +373,17 @@ Der Backend subscribed auf folgende MQTT-Topics:
 - `minabox/<device-id>/audio/config/update`
 - `minabox/<device-id>/audio/config/get`
 
-### 2.5 System-/Host-Operationen
+### 3.5 System-/Host-Operationen
 
 Aktionen, die direkt auf dem Host ausgeführt werden müssen (z.B. Dateien verschieben, später ggf. Netz- oder Mount-Konfiguration), werden **nicht** vom Backend selbst ausgeführt. Das Backend delegiert solche Anfragen an den **Host-Helper-Service**, der mit erweiterten Rechten läuft und nur intern erreichbar ist. Das Backend validiert die von der WebUI übergebenen Parameter und leitet sie an den Host-Helper weiter; Host-Details oder Fehler des Host-Helpers werden nicht ungefiltert an die WebUI durchgereicht. Details zu Rolle, Sicherheit und Schnittstelle des Host-Helpers: [docs/services/host-helper/Architecture.md](../host-helper/Architecture.md).
 
 ---
 
-## 3. Datenbank-Schema
+## 4. Datenbank-Schema
 
 Der Backend verwendet SQLite mit SQLAlchemy und Alembic für Migrations.
 
-### 3.1 Tags
+### 4.1 Tags
 
 ```python
 class Tag(Base):
@@ -340,7 +398,7 @@ class Tag(Base):
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 ```
 
-### 3.2 Playlists
+### 4.2 Playlists
 
 ```python
 class Playlist(Base):
@@ -355,7 +413,7 @@ class Playlist(Base):
     tracks = relationship("PlaylistTrack", back_populates="playlist", cascade="all, delete-orphan")
 ```
 
-### 3.3 Streams
+### 4.3 Streams
 
 ```python
 class Stream(Base):
@@ -372,7 +430,7 @@ class Stream(Base):
 
 Streams sind eigenständige Webradio-/Stream-Einträge (nicht in Playlists). Tags können auf Streams verweisen (content_type="stream", content_id=stream_id).
 
-### 3.4 Tracks
+### 4.4 Tracks
 
 ```python
 class Track(Base):
@@ -390,7 +448,7 @@ class Track(Base):
     last_played_at = Column(DateTime, nullable=True)
 ```
 
-### 3.5 Podcasts & Episoden
+### 4.5 Podcasts & Episoden
 
 ```python
 class Podcast(Base):
@@ -417,7 +475,7 @@ class PodcastEpisode(Base):
 
 Podcast-Episoden werden per **podcast_fetcher** (RSS-Fetch-Loop, z.B. täglich) aktualisiert. Abspielen erfolgt wie bei Tracks (source_uri an Audio-Service).
 
-### 3.6 PlaybackEvent (Statistik)
+### 4.6 PlaybackEvent (Statistik)
 
 ```python
 class PlaybackEvent(Base):
@@ -436,7 +494,7 @@ class PlaybackEvent(Base):
 
 Wird für **Stats API** (Parent Dashboard: Hörminuten, Top-Tags, Top-Playlists, Heatmap) und Daily-Limit (general_settings: daily_limit_enabled, daily_limit_minutes) genutzt.
 
-### 3.7 PlaylistTrack (M:N)
+### 4.7 PlaylistTrack (M:N)
 
 ```python
 class PlaylistTrack(Base):
@@ -455,11 +513,11 @@ class PlaylistTrack(Base):
     )
 ```
 
-### 3.8 Playlist (Cover)
+### 4.8 Playlist (Cover)
 
 Playlist hat optional `cover_art_url`; Stream und Track haben optional `cover_art_url`. Cover-Bilder werden unter `STATIC_DIR/covers/` gespeichert.
 
-### 3.9 TemperatureReadings (Systemtemperatur)
+### 4.9 TemperatureReadings (Systemtemperatur)
 
 Die Systemtemperatur des Raspberry Pi wird periodisch (z.B. alle 5 Minuten) vom Backend aus dem Host-Status (Host-Helper) gelesen und in der Tabelle `temperature_readings` gespeichert. Überhitzungswarnungen nutzen das bestehende MQTT-Topic `system/service-error` (LED/Display); die WebUI zeigt einen globalen Alert-Balken (SystemAlertBar) über dem Header.
 
@@ -475,7 +533,7 @@ class TemperatureReading(Base):
 - **Retention:** Einträge älter als z.B. 30 Tage werden vom Temperature-Log-Task gelöscht.
 - **Überhitzung:** Schwellwert in `general_settings.json` (`temperature_warning_celsius`, Default 80). Bei Überschreitung: Backend publiziert MQTT `minabox/<device-id>/system/service-error` (Payload z.B. `code: "temperature_high"`); LED/Display reagieren wie bei anderen System-Fehlern. Bei Unterschreiten: Backend publiziert `system/service-started`. Zusätzlich sendet das Backend WebSocket `system_alert` / `system_alert_cleared` an die WebUI; `GET /api/v1/system/current-alert` liefert den aktuellen Alert für Reload/Tab-Wechsel.
 
-### 3.10 Alembic Migrations
+### 4.10 Alembic Migrations
 
 Der Backend verwendet Alembic für Schema-Migrationen:
 
@@ -508,9 +566,9 @@ Beim Service-Start wird automatisch `alembic upgrade head` ausgeführt, um siche
 
 ---
 
-## 4. Kern-Funktionen / Workflows
+## 5. Kern-Funktionen / Workflows
 
-### 4.1 Tag-Scan → Wiedergabe (Normal-Modus)
+### 5.1 Tag-Scan → Wiedergabe (Normal-Modus)
 
 Ablauf:
 
@@ -544,7 +602,7 @@ Ablauf:
 }
 ```
 
-### 4.2 Tag anlernen (Lern-Modus)
+### 5.2 Tag anlernen (Lern-Modus)
 
 Ablauf:
 
@@ -585,7 +643,7 @@ Ablauf:
 11. Backend deaktiviert Lern-Modus (sendet `set-mode` mit `normal`).
 12. Bestätigung an WebUI.
 
-### 4.3 Button-Action → Audio-Control
+### 5.3 Button-Action → Audio-Control
 
 Ablauf:
 
@@ -610,7 +668,7 @@ Ablauf:
 }
 ```
 
-### 4.4 Next/Prev – Playlist-Navigation
+### 5.4 Next/Prev – Playlist-Navigation
 
 Der Backend verwaltet eine **Playback-Session** im Memory:
 
@@ -654,7 +712,7 @@ Der Audio-Service sendet bei Track-Ende ein Event (z.B. via `audio/status` mit `
 3. Falls letzter Track:
    - Stop (wie oben beschrieben).
 
-### 4.5 Config-Management
+### 5.5 Config-Management
 
 Ablauf:
 
@@ -672,7 +730,7 @@ Ablauf:
 6. Falls Service antwortet mit `success=false`:
    - Return HTTP 500 mit Service-Fehlerdetails.
 
-### 4.6 Audio-Upload
+### 5.6 Audio-Upload
 
 **Endpoint:** `POST /api/v1/tracks/upload`
 
@@ -773,7 +831,7 @@ db.commit()
 
 **Vorteil:** Track-ID eindeutig, Dateien isoliert, einfach zu löschen (Track löschen → Verzeichnis löschen).
 
-### 4.7 Stream-Hinzufügen
+### 5.7 Stream-Hinzufügen
 
 **Endpoint:** `POST /api/v1/tracks`
 
@@ -827,7 +885,7 @@ db.commit()
 
 ---
 
-## 5. Abhängigkeiten
+## 6. Abhängigkeiten
 
 **Services:**
 
@@ -870,9 +928,9 @@ db.commit()
 
 ---
 
-## 6. Fehler & Status
+## 7. Fehler & Status
 
-### 6.1 Typische Fehlerfälle
+### 7.1 Typische Fehlerfälle
 
 - `tag_not_found` – Tag-ID nicht in Datenbank
 - `content_not_found` – Zugeordneter Content (Playlist/Track) existiert nicht mehr
@@ -882,7 +940,7 @@ db.commit()
 - `file_upload_failed` – Fehler beim Speichern der Upload-Datei
 - `metadata_extraction_failed` – Metadaten konnten nicht extrahiert werden (nicht kritisch)
 
-### 6.2 REST Error-Format
+### 7.2 REST Error-Format
 
 Standard-Fehlerformat für alle REST-Endpoints:
 
@@ -906,7 +964,7 @@ HTTP-Status-Codes:
 - `404 Not Found` – Ressource nicht gefunden (z.B. Tag, Playlist, Track)
 - `500 Internal Server Error` – Server-/DB-Fehler
 
-### 6.3 Logging
+### 7.3 Logging
 
 Der Backend loggt strukturiert (structlog, JSON) u.a.:
 
@@ -923,7 +981,7 @@ Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (struc
 
 ---
 
-## 7. Nicht-Ziele / Abgrenzung
+## 8. Nicht-Ziele / Abgrenzung
 
 - Keine direkte Hardware-Anbindung (GPIO, I2C, SPI etc.)
 - Keine Audio-Dekodierung oder Wiedergabe (Audio-Service)
@@ -932,3 +990,11 @@ Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (struc
 - Keine Multi-Tenancy (eine Box = eine Backend-Instanz)
 - Kein Streaming-Server (Audio-Files werden lokal gespeichert und via Pfad referenziert)
 - Keine erweiterten Playlist-Modi (Shuffle, Repeat) in Phase 1 (kann später ergänzt werden)
+
+---
+
+## 9. Refactoring-Checkliste
+
+- [ ] **core/mqtt_handlers.py aufteilen:** Die Datei bündelt RFID (Tag-Scan, Learning, Tag-Removed), Button-Actions, Audio-Status, Sleep-Timer, Bedtime-Fade, Playback-Events und Stream-Reconnect. Empfehlung: thematische Handler-Module (z. B. `rfid_handlers.py`, `button_handlers.py`, `sleep_timer.py`, `playback_events.py`) mit gemeinsamer Basis; MQTT-Dispatcher ruft die jeweiligen Handler auf.
+- [ ] **Sleep-Timer-Logik bündeln:** Aktuell verteilt auf `core/mqtt_handlers.py`, `core/sleep_settings.py` und REST in `api/routes_audio.py`. Optional: eigenes Feature-Modul (z. B. `core/sleep_timer.py`) mit API-Anbindung in `routes_audio.py`.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.

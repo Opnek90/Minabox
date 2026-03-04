@@ -20,9 +20,44 @@ Nicht-Ziele:
 
 ---
 
-## 2. Öffentliche Schnittstellen
+## 2. Datei- und Ordnerstruktur
 
-### 2.1 MQTT
+Relevanter Pfad: `services/rfid-service/src/rfid_service/`
+
+```text
+rfid_service/
+├── __init__.py                  # Package-Init
+├── main.py                      # Einstiegspunkt: Config, RFIDManager, MQTT, API-Server, Graceful Shutdown
+├── config.py                    # Lädt Env + rfid.json
+├── config_schema.py             # Pydantic-Schema für RFID-Config (reader_type, interface, scan_interval_ms, duplicate_suppression_ms)
+├── config_manager.py            # JSON-Config (config/rfid.json)
+├── exceptions.py                # Service-spezifische Exceptions
+├── core/
+│   ├── __init__.py
+│   └── rfid_manager.py          # Lern-/Normal-Modus, Scan-Loop, Duplicate-Suppression, Publish tag-scanned/tag-removed/status
+├── infrastructure/
+│   ├── __init__.py
+│   ├── mqtt_client.py           # MQTT: Subscriptions (cmd/set-mode, cmd/reload-config), Publish (tag-scanned, tag-removed, status)
+│   └── hardware/
+│       ├── __init__.py
+│       ├── reader_interface.py  # Abstrakte RFIDReader-Schnittstelle
+│       ├── reader_factory.py    # Factory: Reader-Instanz je reader_type (pn532, mock)
+│       ├── pn532_reader.py      # PN532-Hardware-Implementierung
+│       └── mock_reader.py        # Mock-Reader für Tests/Entwicklung
+├── api/
+│   ├── __init__.py
+│   └── routes.py                # FastAPI: GET /health (Reader, MQTT-Status)
+└── models/
+    ├── __init__.py
+    ├── events.py                # Event-Definitionen / Datentypen für RFID-Events
+    └── schemas.py               # Pydantic-Schemas für API/MQTT
+```
+
+---
+
+## 3. Öffentliche Schnittstellen
+
+### 3.1 MQTT
 
 Grundschema aller Topics:
 
@@ -77,7 +112,7 @@ minabox/<device-id>/<domain>/<action>
 
 **Hinweis Config-API:** Der RFID-Service unterstützt **kein** generisches Config-API-Pattern (keine Topics `config/get`, `config/update`, `config/response` wie bei Button- und LED-Service). Die Konfiguration erfolgt ausschließlich über die Datei `config/rfid.json`; zur Laufzeit können nur der Modus (`cmd/set-mode`) und ein Neuladen der Config (`cmd/reload-config`) per MQTT gesteuert werden.
 
-### 2.2 REST (optional)
+### 3.2 REST (optional)
 
 Optional kann der Service einen kleinen HTTP-Endpoint anbieten (z.B. FastAPI), hauptsächlich für Health-/Debug-Zwecke:
 
@@ -87,9 +122,9 @@ Alle fachlichen Funktionen (Lernen, Mapping, Playback) laufen über MQTT und wer
 
 ---
 
-## 3. Kern-Funktionen / Use-Cases
+## 4. Kern-Funktionen / Use-Cases
 
-### 3.1 Lern-Modus (Tag anlernen)
+### 4.1 Lern-Modus (Tag anlernen)
 
 Ablauf:
 
@@ -105,7 +140,7 @@ Ablauf:
 
 Optional: Ein konfigurierbarer Timeout kann den Lern-Modus nach einer gewissen Zeit ohne Scan automatisch zurück in den Normal-Modus setzen.
 
-### 3.2 Normal-Modus (Tag → Playback)
+### 4.2 Normal-Modus (Tag → Playback)
 
 Ablauf:
 
@@ -121,7 +156,7 @@ Ablauf:
    - Event: `minabox/<device-id>/rfid/tag-removed`.
    - Backend kann z.B. Pause/Stop auslösen.
 
-### 3.3 Doppeltes Scannen / Entprellen
+### 4.3 Doppeltes Scannen / Entprellen
 
 Um mehrfaches Auslösen durch leichte Bewegungen zu vermeiden:
 
@@ -131,7 +166,7 @@ Um mehrfaches Auslösen durch leichte Bewegungen zu vermeiden:
 
 ---
 
-## 4. Abhängigkeiten
+## 5. Abhängigkeiten
 
 - **Hardware:**
   - Mindestens ein RFID-Reader (z.B. PN532), abstrahiert über eine Reader-Interface-Klasse (z.B. `RFIDReader`), sodass weitere Modelle eingebunden werden können.
@@ -155,9 +190,9 @@ Um mehrfaches Auslösen durch leichte Bewegungen zu vermeiden:
 
 ---
 
-## 5. Fehler & Status
+## 6. Fehler & Status
 
-### 5.1 Zustände
+### 6.1 Zustände
 
 Der `state` im Status-Payload kann folgende Werte annehmen:
 
@@ -166,7 +201,7 @@ Der `state` im Status-Payload kann folgende Werte annehmen:
 - `learning` – Lern-Modus aktiv.
 - `error` – Fehler verhindert normalen Betrieb.
 
-### 5.2 Typische Fehlercodes
+### 6.2 Typische Fehlercodes
 
 Im Feld `error` des Status-Payloads können z.B. auftreten:
 
@@ -186,7 +221,7 @@ Beispiel-Status bei Fehler:
 }
 ```
 
-### 5.3 Logging
+### 6.3 Logging
 
 Der Service loggt alle relevanten Ereignisse strukturiert, z.B.:
 
@@ -199,8 +234,15 @@ Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (struc
 
 ---
 
-## 6. Nicht-Ziele / Abgrenzung
+## 7. Nicht-Ziele / Abgrenzung
 
 - Keine Persistenz von Tag-Mappings (rein Sache des Backends).
 - Kein direktes Ansteuern des Audio-Services (nur Events).
 - Keine UI-Logik – der Service kennt WebUI und Frontend nicht, sondern spricht ausschließlich über MQTT und evtl. einen Health-Endpoint.
+
+---
+
+## 8. Refactoring-Checkliste
+
+- [ ] **Keine groben Inkonsistenzen:** RFID-Manager in core, Hardware-Abstraktion in infrastructure/hardware, MQTT in infrastructure.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.
