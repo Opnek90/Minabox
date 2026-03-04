@@ -121,13 +121,10 @@ class AudioService:
         logger.debug("audio_service_starting")
 
         try:
-            # Load state
             self._state_manager.load()
 
-            # Initialize VLC backend
             await self._vlc_backend.initialize()
 
-            # Set initial volume
             audio_cfg = self._get_audio_config()
             state = self._state_manager.get_state()
             if state.last_volume > 0:
@@ -141,24 +138,15 @@ class AudioService:
             logger.debug("setting_service_initial_volume", volume=initial_volume)
             await self._vlc_backend.set_volume(initial_volume)
 
-            # Connect to MQTT
             await self._mqtt_client.connect()
-
-            # Subscribe to command topics
             await self._subscribe_to_topics()
-
-            # Set message handler on MQTT client
             self._mqtt_client._on_message = self._mqtt_handler.handle_message
 
-            # Start background tasks
             self._running = True
             self._status_publish_task = asyncio.create_task(self._status_publish_loop())
             self._mqtt_task = asyncio.create_task(self._mqtt_client.run())
 
-            # Publish online status
             await self._publish_system_event("service-started")
-
-            # Note: audio_service_started is logged by AudioServiceRunner.start()
 
         except Exception as exc:
             logger.error("audio_service_start_failed", error=str(exc))
@@ -171,7 +159,6 @@ class AudioService:
 
         self._running = False
 
-        # Cancel background tasks
         if self._status_publish_task is not None:
             self._status_publish_task.cancel()
             try:
@@ -179,7 +166,6 @@ class AudioService:
             except asyncio.CancelledError:
                 pass
 
-        # Stop MQTT run loop
         await self._mqtt_client.stop()
         if self._mqtt_task is not None:
             try:
@@ -187,28 +173,22 @@ class AudioService:
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
 
-        # Stop playback
         try:
             await self._vlc_backend.stop()
         except Exception as exc:
             logger.warning("shutdown_stop_failed", error=str(exc))
 
-        # Save final state
         try:
             await self._save_current_state()
         except Exception as exc:
             logger.warning("shutdown_save_state_failed", error=str(exc))
 
-        # Publish offline status
         try:
             await self._publish_system_event("service-stopped")
         except Exception as exc:
             logger.warning("shutdown_publish_failed", error=str(exc))
 
-        # Disconnect MQTT
         await self._mqtt_client.disconnect()
-
-        # Shutdown VLC
         await self._vlc_backend.shutdown()
 
         logger.info("audio_service_shutdown_complete")
@@ -238,13 +218,7 @@ class AudioService:
             await self._mqtt_client.subscribe(topic)
 
     async def _status_publish_loop(self) -> None:
-        """Periodically publish audio status to MQTT – only on state changes.
-
-        The loop still ticks every 2 seconds so that state transitions
-        (e.g. a track ending naturally) are picked up quickly.  However,
-        the actual MQTT publish is skipped when the relevant fields have not
-        changed since the last publish, eliminating heartbeat spam.
-        """
+        """Periodically publish audio status to MQTT – only on state changes."""
         while self._running:
             try:
                 await asyncio.sleep(2.0)
@@ -255,18 +229,10 @@ class AudioService:
                 logger.error("status_publish_loop_error", error=str(exc))
 
     async def _publish_status(self, *, force: bool = True) -> None:
-        """Publish current audio status to MQTT.
-
-        Args:
-            force: When True (default) always publish – used by command
-                   handlers so that immediate feedback is never suppressed.
-                   When False the publish is skipped if the fingerprint of
-                   relevant fields matches the last published value.
-        """
+        """Publish current audio status to MQTT."""
         try:
             status = await self._vlc_backend.get_status()
 
-            # Device availability for display "switch possible" / Bluetooth icon
             multiple_output_devices = False
             bluetooth_sink_available = False
             try:
@@ -354,6 +320,29 @@ class AudioService:
             volume=status.volume,
         )
 
+    async def _reinitialize_and_resume(self, config: AudioConfig) -> None:
+        """Re-initialize VLC backend and resume playback from the last snapshot.
+
+        Extracts the repeated reinitialize + conditional-resume pattern that
+        previously appeared verbatim in both _handle_config_reload() and
+        switch_output_device().
+        """
+        snapshot = await self._vlc_backend.reinitialize(config)
+        if snapshot.get("source_uri") and snapshot.get("state") in (
+            PlaybackState.PLAYING.value,
+            PlaybackState.PAUSED.value,
+        ):
+            self._vlc_backend.set_track_metadata(
+                track_id=snapshot.get("track_id"),
+                source_type=snapshot.get("source_type"),
+            )
+            await self._vlc_backend.play(
+                source_uri=snapshot["source_uri"],
+                start_position_ms=snapshot.get("position_ms", 0),
+            )
+            if snapshot.get("state") == PlaybackState.PAUSED.value:
+                await self._vlc_backend.pause()
+
     # Command Handlers
 
     async def _handle_play(self, command: PlayCommand | None) -> None:
@@ -369,8 +358,6 @@ class AudioService:
                     start_position_ms=command.start_position_ms,
                 )
             else:
-                # If VLC is already paused, use native resume to avoid the
-                # stop → media_new → play → set_time stutter sequence.
                 current_status = await self._vlc_backend.get_status()
                 if current_status.state == PlaybackState.PAUSED:
                     await self._vlc_backend.resume()
@@ -502,21 +489,7 @@ class AudioService:
                 or old_config.output_device_name != current.output_device_name
             )
             if device_changed and self._vlc_backend._initialized:
-                snapshot = await self._vlc_backend.reinitialize(current)
-                if snapshot.get("source_uri") and snapshot.get("state") in (
-                    PlaybackState.PLAYING.value,
-                    PlaybackState.PAUSED.value,
-                ):
-                    self._vlc_backend.set_track_metadata(
-                        track_id=snapshot.get("track_id"),
-                        source_type=snapshot.get("source_type"),
-                    )
-                    await self._vlc_backend.play(
-                        source_uri=snapshot["source_uri"],
-                        start_position_ms=snapshot.get("position_ms", 0),
-                    )
-                    if snapshot.get("state") == PlaybackState.PAUSED.value:
-                        await self._vlc_backend.pause()
+                await self._reinitialize_and_resume(current)
             else:
                 self._vlc_backend.update_config(current)
             await self._publish_config_response(success=True)
@@ -565,6 +538,10 @@ class AudioService:
     def is_vlc_initialized(self) -> bool:
         """Check if VLC backend is initialized."""
         return self._vlc_backend._initialized
+
+    async def get_audio_status(self) -> AudioStatus:
+        """Get current audio status."""
+        return await self._vlc_backend.get_status()
 
     async def get_audio_devices(self, enabled_only: bool = False) -> list[dict]:
         """Get detected Pulse sinks, optionally filtered by enabled_output_devices."""
@@ -623,19 +600,5 @@ class AudioService:
             "output_device_name": target,
         })
         self._config_manager.update_config(new_config)
-        snapshot = await self._vlc_backend.reinitialize(new_config)
-        if snapshot.get("source_uri") and snapshot.get("state") in (
-            PlaybackState.PLAYING.value,
-            PlaybackState.PAUSED.value,
-        ):
-            self._vlc_backend.set_track_metadata(
-                track_id=snapshot.get("track_id"),
-                source_type=snapshot.get("source_type"),
-            )
-            await self._vlc_backend.play(
-                source_uri=snapshot["source_uri"],
-                start_position_ms=snapshot.get("position_ms", 0),
-            )
-            if snapshot.get("state") == PlaybackState.PAUSED.value:
-                await self._vlc_backend.pause()
+        await self._reinitialize_and_resume(new_config)
         return await self._vlc_backend.get_status()
