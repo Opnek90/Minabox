@@ -127,6 +127,9 @@ async def play_audio(
     if not _mqtt_client:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
+    if _mqtt_handlers:
+        _mqtt_handlers.playback_intent_active = True
+
     start_ms = command.start_position_ms or 0
 
     # Play by stream_id: load stream and play (no session)
@@ -265,6 +268,10 @@ async def pause_audio() -> dict:
     if not _mqtt_client:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
+    if _mqtt_handlers:
+        _mqtt_handlers.mark_deliberate_stop()
+        _mqtt_handlers.playback_intent_active = False
+
     await _mqtt_client.publish_audio_command("pause", {})
 
     return {"status": "ok", "message": "Pause command sent"}
@@ -284,6 +291,7 @@ async def stop_audio() -> dict:
 
     if _mqtt_handlers:
         _mqtt_handlers.mark_deliberate_stop()
+        _mqtt_handlers.playback_intent_active = False
     await _mqtt_client.publish_audio_command("stop", {})
 
     return {"status": "ok", "message": "Stop command sent"}
@@ -302,7 +310,7 @@ async def next_track() -> dict:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
     if _mqtt_handlers:
-        await _mqtt_handlers._handle_next()
+        await _mqtt_handlers.button_handler._handle_next()
     else:
         await _mqtt_client.publish_audio_command("next", {})
 
@@ -322,7 +330,7 @@ async def previous_track() -> dict:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
     if _mqtt_handlers:
-        await _mqtt_handlers._handle_prev()
+        await _mqtt_handlers.button_handler._handle_prev()
     else:
         await _mqtt_client.publish_audio_command("prev", {})
 
