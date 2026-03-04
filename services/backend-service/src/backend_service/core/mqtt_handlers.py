@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -46,19 +43,6 @@ logger = structlog.get_logger(__name__)
 
 # Seconds to ignore the same tag_id after we started playback
 TAG_SCAN_COOLDOWN_SEC = 5.0
-
-# Last audio status (updated by handle_audio_status); used by routes_audio for play-after-pause
-_last_audio_status: dict[str, Any] = {}
-
-# Set to True by routes_audio.stop_audio() so that the resulting playing→stopped
-# state transition does NOT trigger auto-advance to the next track.
-_deliberate_stop: bool = False
-
-
-def mark_deliberate_stop() -> None:
-    """Signal that the next 'stopped' status is from an explicit stop command."""
-    global _deliberate_stop
-    _deliberate_stop = True
 
 
 def _close_open_playback_event(db_session: Session, status_data: dict[str, Any] | None = None) -> None:
@@ -137,7 +121,27 @@ class MQTTHandlers:
         self._stream_reconnect_task: asyncio.Task | None = None
         self._stream_reconnect_attempts: int = 0
 
+        # Audio status cache for external access (e.g. REST routes)
+        self._last_audio_status: dict[str, Any] = {}
+
+        # Set to True by mark_deliberate_stop() so that the resulting playing→stopped
+        # state transition does NOT trigger auto-advance to the next track.
+        self._deliberate_stop: bool = False
+
         logger.debug("mqtt_handlers_initialized")
+
+    # -------------------------------------------------------------------------
+    # Public state accessors
+    # -------------------------------------------------------------------------
+
+    @property
+    def last_audio_status(self) -> dict[str, Any]:
+        """Return the last known audio status (read-only view)."""
+        return self._last_audio_status
+
+    def mark_deliberate_stop(self) -> None:
+        """Signal that the next 'stopped' status is from an explicit stop command."""
+        self._deliberate_stop = True
 
     # -------------------------------------------------------------------------
     # Private helpers
@@ -191,7 +195,7 @@ class MQTTHandlers:
         """
         try:
             await asyncio.sleep(delay)
-            if self._playback_intent_active and not _deliberate_stop:
+            if self._playback_intent_active and not self._deliberate_stop:
                 logger.info("stream_reconnecting_now", track_id=track_id_raw)
                 await self.mqtt_client.publish_audio_command(
                     "play",
@@ -560,7 +564,7 @@ class MQTTHandlers:
         if self._stream_reconnect_task and not self._stream_reconnect_task.done():
             self._stream_reconnect_task.cancel()
 
-        mark_deliberate_stop()
+        self.mark_deliberate_stop()
         self._playback_intent_active = False
         await self.mqtt_client.publish_audio_command("stop", {})
 
@@ -574,14 +578,13 @@ class MQTTHandlers:
         Enriches status with track title/artist/album from DB for WebUI display.
         """
         logger.debug("audio_status_received", data=data)
-        global _deliberate_stop  # noqa: PLW0603
 
         prev_state = self._audio_status_cache.get("state")
         new_state = data.get("state")
 
         self._audio_status_cache = data
-        _last_audio_status.clear()
-        _last_audio_status.update(data)
+        self._last_audio_status.clear()
+        self._last_audio_status.update(data)
 
         if new_state == "playing":
             if self._stream_reconnect_task and not self._stream_reconnect_task.done():
@@ -591,8 +594,8 @@ class MQTTHandlers:
         if prev_state == "playing" and new_state in ("stopped", "error"):
             if not self._playback_intent_active:
                 logger.info("auto_advance_skipped_no_playback_intent")
-            elif _deliberate_stop:
-                _deliberate_stop = False
+            elif self._deliberate_stop:
+                self._deliberate_stop = False
                 logger.info("auto_advance_skipped_deliberate_stop")
             else:
                 daily_enabled, daily_minutes = read_daily_limit_settings()
@@ -773,7 +776,7 @@ class MQTTHandlers:
         current_state = self._audio_status_cache.get("state", "stopped")
 
         if current_state == "playing":
-            mark_deliberate_stop()
+            self.mark_deliberate_stop()
             self._playback_intent_active = False
             await self.mqtt_client.publish_audio_command("pause", {})
         elif current_state == "paused":
@@ -881,7 +884,7 @@ class MQTTHandlers:
         self._cancel_bedtime_fade()
         enabled, duration_min, interval_sec, step_pct = read_bedtime_fade_settings()
         if not enabled:
-            mark_deliberate_stop()
+            self.mark_deliberate_stop()
             self._playback_intent_active = False
             await self.mqtt_client.publish_audio_command("stop", {})
             return
@@ -902,7 +905,7 @@ class MQTTHandlers:
             pass
         finally:
             self._bedtime_fade_task = None
-        mark_deliberate_stop()
+        self.mark_deliberate_stop()
         self._playback_intent_active = False
         await self.mqtt_client.publish_audio_command("stop", {})
 
@@ -998,7 +1001,7 @@ class MQTTHandlers:
             })
         try:
             await asyncio.sleep(minutes * 60)
-            mark_deliberate_stop()
+            self.mark_deliberate_stop()
             self._playback_intent_active = False
             await self.mqtt_client.publish_audio_command("stop", {})
             logger.info("sleep_timer_fired", minutes=minutes)
