@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
 from backend_service.core.mqtt_client import MQTTClient
-from backend_service.core.mqtt_handlers import _last_audio_status, mark_deliberate_stop
 from backend_service.core.playback_stats import get_today_listened_minutes
 from backend_service.core.session_manager import SessionTrack, session_manager
 from backend_service.models.database import (
@@ -107,9 +106,10 @@ async def get_audio_status() -> dict:
     Used by the WebUI Player page on mount so it renders immediately
     without waiting for the next WebSocket broadcast.
     """
-    if not _last_audio_status:
+    status = _mqtt_handlers.last_audio_status if _mqtt_handlers else {}
+    if not status:
         return {"state": "stopped"}
-    return dict(_last_audio_status)
+    return dict(status)
 
 
 @router.post("/play")
@@ -126,6 +126,9 @@ async def play_audio(
 
     if not _mqtt_client:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
+
+    if _mqtt_handlers:
+        _mqtt_handlers.playback_intent_active = True
 
     start_ms = command.start_position_ms or 0
 
@@ -186,7 +189,11 @@ async def play_audio(
 
     # No track/playlist/stream/podcast: resume from pause, from session, or from audio service persisted state
     if not command.track_id and not command.playlist_id:
-        current_state = _last_audio_status.get("state", "stopped")
+        current_state = (
+            _mqtt_handlers.last_audio_status.get("state", "stopped")
+            if _mqtt_handlers
+            else "stopped"
+        )
         if current_state == "paused":
             await _mqtt_client.publish_audio_command("play", {})
             return {"status": "ok", "message": "Resume from pause"}
@@ -261,6 +268,10 @@ async def pause_audio() -> dict:
     if not _mqtt_client:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
+    if _mqtt_handlers:
+        _mqtt_handlers.mark_deliberate_stop()
+        _mqtt_handlers.playback_intent_active = False
+
     await _mqtt_client.publish_audio_command("pause", {})
 
     return {"status": "ok", "message": "Pause command sent"}
@@ -278,7 +289,9 @@ async def stop_audio() -> dict:
     if not _mqtt_client:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
-    mark_deliberate_stop()
+    if _mqtt_handlers:
+        _mqtt_handlers.mark_deliberate_stop()
+        _mqtt_handlers.playback_intent_active = False
     await _mqtt_client.publish_audio_command("stop", {})
 
     return {"status": "ok", "message": "Stop command sent"}
@@ -297,7 +310,7 @@ async def next_track() -> dict:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
     if _mqtt_handlers:
-        await _mqtt_handlers._handle_next()
+        await _mqtt_handlers.button_handler._handle_next()
     else:
         await _mqtt_client.publish_audio_command("next", {})
 
@@ -317,7 +330,7 @@ async def previous_track() -> dict:
         raise HTTPException(status_code=500, detail="MQTT client not initialized")
 
     if _mqtt_handlers:
-        await _mqtt_handlers._handle_prev()
+        await _mqtt_handlers.button_handler._handle_prev()
     else:
         await _mqtt_client.publish_audio_command("prev", {})
 

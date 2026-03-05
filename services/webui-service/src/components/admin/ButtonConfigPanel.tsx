@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -35,7 +35,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
-import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { ButtonConfig, Button as ButtonType } from '@/types/api';
 
 
@@ -62,7 +62,11 @@ export const ButtonConfigPanel: React.FC = () => {
   const [testBtn, setTestBtn] = useState<ButtonType | null>(null);
   const [btnEvents, setBtnEvents] = useState<string[]>([]);
   const eventsEndRef = useRef<HTMLDivElement>(null);
-  const { lastMessage } = useWebSocket();
+
+  // Keep a ref so the WebSocket callback always sees the latest testBtn
+  // without needing to re-register the listener on every state change.
+  const testBtnRef = useRef<ButtonType | null>(null);
+  testBtnRef.current = testBtn;
 
   const stepLabels = useMemo(
     () => [t('buttons.steps.basics'), t('buttons.steps.actions')],
@@ -74,14 +78,25 @@ export const ButtonConfigPanel: React.FC = () => {
     configApi.getButtonActions().then(setButtonActions).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!testBtn) return;
-    if (lastMessage?.type === 'button_action') {
-      const data = lastMessage.data as { action?: string; timestamp?: string };
+  // Listen for raw button events from the hardware test-mode.
+  // `button_raw_event` is emitted by the backend for every physical press,
+  // regardless of whether an action mapping exists.
+  useWebSocketEvent(
+    'button_raw_event',
+    useCallback((msg) => {
+      if (!testBtnRef.current) return;
+      const data = msg.data as {
+        button_id?: string;
+        name?: string;
+        event_type?: string;
+        timestamp?: string;
+      };
       const ts = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '';
-      setBtnEvents((prev) => [`[${ts}] action: ${data.action ?? '?'}`, ...prev]);
-    }
-  }, [lastMessage, testBtn]);
+      const label = data.name ?? data.button_id ?? '?';
+      const evType = data.event_type ?? '?';
+      setBtnEvents((prev) => [`[${ts}] ${label}: ${evType}`, ...prev]);
+    }, []),
+  );
 
   useEffect(() => {
     eventsEndRef.current?.scrollIntoView({ behavior: 'smooth' });

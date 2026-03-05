@@ -454,6 +454,7 @@ export type WebSocketMessageType =
   | 'tag_not_found'
   | 'usage_denied'
   | 'button_action'
+  | 'button_raw_event'
   | 'sleep_timer_status'
   | 'repeat_mode'
   | 'shuffle_mode'
@@ -492,6 +493,18 @@ export interface UsageDeniedMessage extends WebSocketMessage {
 export interface ServiceStatusMessage extends WebSocketMessage {
   type: 'service_status';
   data: ServiceStatus;
+}
+
+/** Emitted by backend when button-service publishes a raw hardware event.
+ *  Used by the WebUI hardware test-mode to show immediate feedback. */
+export interface ButtonRawEventMessage extends WebSocketMessage {
+  type: 'button_raw_event';
+  data: {
+    button_id: string | null;
+    name: string | null;
+    event_type: string | null;
+    timestamp: string | null;
+  };
 }
 
 // ============================================================================

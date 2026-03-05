@@ -13,9 +13,10 @@ from .events import RawButtonEvent
 
 logger = structlog.get_logger(__name__)
 
+
 def _resolve_action(button: ButtonConfig, event_type: str) -> str | None:
     """Resolve logical action for a raw event type from button config.
-    
+
     Returns:
         Action name if mapped, None if no mapping for this event_type.
     """
@@ -25,25 +26,32 @@ def _resolve_action(button: ButtonConfig, event_type: str) -> str | None:
         return button.actions.get(event_type)
     return None
 
+
 async def run_event_processor(
     event_queue: asyncio.Queue[RawButtonEvent],
     get_config: Callable[[], ButtonServiceConfig | None],
     mqtt_client: MQTTClient,
-    publish_raw_events: bool = False,
     shutdown_event: asyncio.Event | None = None,
 ) -> None:
     """Consume raw events from queue, map to actions, publish to MQTT.
-    
+
+    For every hardware event two things happen unconditionally:
+      1. A raw-event is published on  minabox/{id}/button/raw-event
+         so that the LED service and the WebUI hardware test-mode always
+         receive feedback, regardless of whether an action mapping exists.
+      2. If a logical action is configured for this event type it is
+         published on  minabox/{id}/button/{action-name}  for the backend.
+
     Runs until shutdown_event is set (if provided) or the queue is closed.
     """
-    logger.debug("event_processor_started", publish_raw_events=publish_raw_events)
-    
+    logger.debug("event_processor_started")
+
     while True:
         try:
             if shutdown_event and shutdown_event.is_set():
                 logger.debug("event_processor_shutdown_requested")
                 break
-            
+
             # Wait for next event with short timeout to allow shutdown check
             try:
                 event = await asyncio.wait_for(
@@ -52,28 +60,28 @@ async def run_event_processor(
                 )
             except asyncio.TimeoutError:
                 continue
-            
+
             config = get_config()
             if not config:
                 logger.warning("event_processor_no_config", source_id=event.source_id)
                 continue
-            
+
             button = next((b for b in config.buttons if b.id == event.source_id), None)
             if not button:
                 logger.warning("event_processor_unknown_source", source_id=event.source_id)
                 continue
-            
+
             event_type_str = event.event_type
-            
-            # Optional: publish raw event for debugging
-            if publish_raw_events:
-                await mqtt_client.publish_raw_event(
-                    button_id=button.id,
-                    name=button.name,
-                    button_type=button.type,
-                    event_type=event_type_str,
-                )
-            
+
+            # Always publish raw event — required by LED service (blink) and
+            # WebUI hardware test-mode, not just for debugging.
+            await mqtt_client.publish_raw_event(
+                button_id=button.id,
+                name=button.name,
+                button_type=button.type,
+                event_type=event_type_str,
+            )
+
             # Resolve action and publish
             action = _resolve_action(button, event_type_str)
             if action:
@@ -99,7 +107,7 @@ async def run_event_processor(
                     source_id=event.source_id,
                     event_type=event_type_str,
                 )
-                
+
         except asyncio.CancelledError:
             logger.debug("event_processor_cancelled")
             break
@@ -109,5 +117,5 @@ async def run_event_processor(
                 error=str(exc),
                 exc_info=True,
             )
-    
+
     logger.debug("event_processor_stopped")

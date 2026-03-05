@@ -108,9 +108,16 @@ class BackendService:
             self.config.get_mqtt_topic("audio", "status"),
             self._mqtt_handlers.handle_audio_status,
         )
+        # button/+ catches all mapped action topics (play-pause, volume-up, …)
         await self._mqtt_client.subscribe(
             self.config.get_mqtt_topic("button", "+"),
             self._mqtt_handlers.handle_button_action,
+        )
+        # button/raw-event is published for every physical press, regardless of
+        # action mapping — used by the WebUI hardware test-mode.
+        await self._mqtt_client.subscribe(
+            self.config.get_mqtt_topic("button", "raw-event"),
+            self._mqtt_handlers.handle_button_raw_event,
         )
 
         # Inject MQTT client and handlers into route modules
