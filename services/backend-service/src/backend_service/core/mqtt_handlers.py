@@ -77,6 +77,10 @@ class MQTTHandlers:
     async def handle_button_action(self, topic: str, data: dict[str, Any]) -> None:
         await self.button_handler.handle_button_action(topic, data)
 
+    async def handle_button_raw_event(self, topic: str, data: dict[str, Any]) -> None:
+        """Delegate raw button hardware events to the button handler."""
+        await self.button_handler.handle_button_raw_event(topic, data)
+
     def get_sleep_timer_status(self) -> dict[str, Any]:
         return self.timer_handler.get_sleep_timer_status()
 

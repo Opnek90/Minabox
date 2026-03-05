@@ -26,6 +26,13 @@ class ButtonHandler:
 
     async def handle_button_action(self, topic: str, data: dict[str, Any]) -> None:
         action_from_topic = topic.split("/")[-1]
+
+        # raw-event topics are handled by handle_button_raw_event.
+        # Returning early prevents wrong side-effects such as setting
+        # playback_intent_active or cancelling stream_reconnect_task.
+        if action_from_topic == "raw-event":
+            return
+
         action = action_from_topic.replace("-", "_")
         logger.info("button_action_received", action=action, data=data)
 
@@ -61,6 +68,26 @@ class ButtonHandler:
                     "data": {
                         "action": action,
                         "timestamp": datetime.now(UTC).isoformat(),
+                    },
+                }
+            )
+
+    async def handle_button_raw_event(self, topic: str, data: dict[str, Any]) -> None:
+        """Forward raw hardware button events to WebSocket clients.
+
+        Called for every physical button press on minabox/{id}/button/raw-event,
+        regardless of whether an action mapping exists. This powers the WebUI
+        hardware test-mode so it shows feedback even for unmapped buttons.
+        """
+        if self.dispatcher.websocket_manager:
+            await self.dispatcher.websocket_manager.broadcast(
+                {
+                    "type": "button_raw_event",
+                    "data": {
+                        "button_id": data.get("button_id"),
+                        "name": data.get("name"),
+                        "event_type": data.get("event_type"),
+                        "timestamp": data.get("timestamp"),
                     },
                 }
             )
