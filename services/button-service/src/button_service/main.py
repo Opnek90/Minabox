@@ -103,7 +103,6 @@ class ButtonService:
                 event_queue=self._event_queue,
                 get_config=self._get_config,
                 mqtt_client=self.mqtt_client,
-                publish_raw_events=False,
                 shutdown_event=self._shutdown_event,
             ),
         )
