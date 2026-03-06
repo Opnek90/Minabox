@@ -1,15 +1,8 @@
 {
   "output_device_type": "pulseaudio",
-  "output_device_name": "alsa_output.platform-soc_sound.stereo-fallback",
-  "enabled_output_devices": [
-    "alsa_output.platform-soc_sound.stereo-fallback",
-    "alsa_output.usb-Qualcomm_Dongle_MMX_230_wireless_DA780BA29921F9BB2200-02.analog-stereo",
-    "bluez_output.00_09_A7_54_68_E0.1"
-  ],
-  "device_display_names": {
-    "alsa_output.usb-Qualcomm_Dongle_MMX_230_wireless_DA780BA29921F9BB2200-02.analog-stereo": "Headset",
-    "alsa_output.platform-soc_sound.stereo-fallback": "Lautsprecher"
-  },
+  "output_device_name": "",
+  "enabled_output_devices": [],
+  "device_display_names": {},
   "max_volume": 70,
   "default_volume": 40
 }
