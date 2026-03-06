@@ -115,14 +115,15 @@ async def switch_device(body: SwitchDeviceBody) -> StatusResponse:
     """Switch output device; re-initializes VLC and optionally resumes playback."""
     if _service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
-    if not body.alsa_device and body.direction != "next":
+    target = body.sink_name or body.alsa_device
+    if not target and body.direction != "next":
         raise HTTPException(
             status_code=400,
-            detail="Provide alsa_device or direction='next'",
+            detail="Provide sink_name or direction='next'",
         )
     try:
         status = await _service.switch_output_device(
-            alsa_device=body.alsa_device,
+            sink_name=target,
             direction=body.direction,
         )
         return StatusResponse(

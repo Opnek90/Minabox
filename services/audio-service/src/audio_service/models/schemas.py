@@ -44,8 +44,11 @@ class DevicesResponse(BaseModel):
 class SwitchDeviceBody(BaseModel):
     """Request body for POST /switch-device."""
 
+    sink_name: str | None = Field(
+        default=None, description="PulseAudio/PipeWire sink name to switch to"
+    )
     alsa_device: str | None = Field(
-        default=None, description="Pulse sink name to switch to"
+        default=None, description="Deprecated alias for sink_name; kept for backwards compatibility"
     )
     direction: str | None = Field(
         default=None, description="'next' to cycle to next enabled device"
