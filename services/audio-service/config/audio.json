@@ -1,8 +1,0 @@
-{
-  "output_device_type": "pulseaudio",
-  "output_device_name": "",
-  "enabled_output_devices": [],
-  "device_display_names": {},
-  "max_volume": 70,
-  "default_volume": 40
-}
