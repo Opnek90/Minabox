@@ -73,10 +73,10 @@ export const audioApi = {
     return response.data;
   },
 
-  switchDevice: async (alsaDevice: string): Promise<AudioStatus> => {
+  switchDevice: async (sinkName: string): Promise<AudioStatus> => {
     const response = await apiClient.post<{ status: AudioStatus; timestamp: string }>(
       '/audio/switch-device',
-      { alsa_device: alsaDevice }
+      { sink_name: sinkName }
     );
     return response.data.status;
   },
