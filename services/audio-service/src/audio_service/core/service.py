@@ -213,24 +213,26 @@ class AudioService:
         logger.info("audio_service_shutdown_complete")
 
     async def _subscribe_to_topics(self) -> None:
-        """Subscribe to all required MQTT topics."""
-        device_id = self._config.env.minabox_device_id
+        """Subscribe to all required MQTT topics.
 
+        Uses self._config.get_mqtt_topic() consistently instead of building
+        f-strings manually (issue #33).
+        """
         topics = [
-            f"minabox/{device_id}/audio/play",
-            f"minabox/{device_id}/audio/pause",
-            f"minabox/{device_id}/audio/stop",
-            f"minabox/{device_id}/audio/next",
-            f"minabox/{device_id}/audio/prev",
-            f"minabox/{device_id}/audio/set-volume",
-            f"minabox/{device_id}/audio/volume-up",
-            f"minabox/{device_id}/audio/volume-down",
-            f"minabox/{device_id}/audio/mute-toggle",
-            f"minabox/{device_id}/audio/config/update",
-            f"minabox/{device_id}/audio/config/reload",
-            f"minabox/{device_id}/audio/config/get",
-            f"minabox/{device_id}/audio/switch-device",
-            f"minabox/{device_id}/config/general",
+            self._config.get_mqtt_topic("audio", "play"),
+            self._config.get_mqtt_topic("audio", "pause"),
+            self._config.get_mqtt_topic("audio", "stop"),
+            self._config.get_mqtt_topic("audio", "next"),
+            self._config.get_mqtt_topic("audio", "prev"),
+            self._config.get_mqtt_topic("audio", "set-volume"),
+            self._config.get_mqtt_topic("audio", "volume-up"),
+            self._config.get_mqtt_topic("audio", "volume-down"),
+            self._config.get_mqtt_topic("audio", "mute-toggle"),
+            self._config.get_mqtt_topic("audio", "config/update"),
+            self._config.get_mqtt_topic("audio", "config/reload"),
+            self._config.get_mqtt_topic("audio", "config/get"),
+            self._config.get_mqtt_topic("audio", "switch-device"),
+            self._config.get_mqtt_topic("config", "general"),
         ]
 
         for topic in topics:
@@ -425,12 +427,22 @@ class AudioService:
             await self._publish_error("playback_error", str(exc))
 
     async def _handle_next(self) -> None:
-        """Handle next command (backend decides next track)."""
-        logger.debug("next_command_received_awaiting_backend")
+        """Handle next command (backend decides next track).
+
+        This feature is not yet implemented. The subscription exists for
+        future use. A warning is logged so the unimplemented state is
+        visible in logs (issue #34).
+        """
+        logger.warning("next_command_not_implemented", hint="Feature pending, no action taken")
 
     async def _handle_prev(self) -> None:
-        """Handle previous command (backend decides previous track)."""
-        logger.debug("prev_command_received_awaiting_backend")
+        """Handle previous command (backend decides previous track).
+
+        This feature is not yet implemented. The subscription exists for
+        future use. A warning is logged so the unimplemented state is
+        visible in logs (issue #34).
+        """
+        logger.warning("prev_command_not_implemented", hint="Feature pending, no action taken")
 
     async def _handle_set_volume(self, command: VolumeCommand) -> None:
         """Handle set volume command."""
@@ -513,7 +525,7 @@ class AudioService:
                 or old_config.output_device_type != current.output_device_type
                 or old_config.output_device_name != current.output_device_name
             )
-            if device_changed and self._vlc_backend._initialized:
+            if device_changed and self._vlc_backend.is_initialized:
                 await self._reinitialize_and_resume(current)
             else:
                 self._vlc_backend.update_config(current)
@@ -561,8 +573,8 @@ class AudioService:
         return self._mqtt_client.is_connected
 
     def is_vlc_initialized(self) -> bool:
-        """Check if VLC backend is initialized."""
-        return self._vlc_backend._initialized
+        """Check if VLC backend is initialized via public property (issue #35)."""
+        return self._vlc_backend.is_initialized
 
     async def get_audio_status(self) -> AudioStatus:
         """Get current audio status."""
