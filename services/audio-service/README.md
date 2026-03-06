@@ -127,6 +127,14 @@ To find your device name, run:
 aplay -L
 ```
 
+### Troubleshooting: No sound on WM8960 / built-in (Lautsprecher)
+
+If Bluetooth works but the WM8960 or Pi built-in sink (`platform-soc_sound`) has no sound:
+
+- The service now **unsuspends** the Pulse/PipeWire sink and **unmutes ALSA** (Master, Speaker, PCM) on card 0 and 1 when you use that sink. Restart the audio service and try again.
+- On the host, check ALSA mixer: run `alsamixer`, press F6 to select the correct card (e.g. WM8960), and ensure Master/Speaker are not muted (MM = muted).
+- In Pulse/PipeWire (e.g. `pavucontrol`), ensure the sink is not muted and volume is up.
+
 ## VLC Backend
 
 ### libVLC Integration

@@ -25,13 +25,11 @@ from ..exceptions import (
 logger = structlog.get_logger(__name__)
 
 # #region agent log
-DEBUG_LOG_PATH = Path("/cursor-debug/debug-eb9057.log")
-
-
 def _agent_log(location: str, message: str, data: dict, hypothesis_id: str) -> None:
     try:
-        payload = {"sessionId": "eb9057", "timestamp": int(time.time() * 1000), "location": location, "message": message, "data": data, "hypothesisId": hypothesis_id}
-        with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+        log_path = Path("/cursor-debug/debug-bd7bd2.log") if Path("/cursor-debug").exists() else Path("/home/pi/minabox/.cursor/debug-bd7bd2.log")
+        payload = {"sessionId": "bd7bd2", "timestamp": int(time.time() * 1000), "location": location, "message": message, "data": data, "hypothesisId": hypothesis_id}
+        with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except Exception:
         pass
@@ -111,12 +109,19 @@ class VLCBackend(AudioBackend):
                     self._config.output_device_name = "default"
 
             # VLC pulse module has no device option; set Pulse default sink so VLC uses it
+            pulse_ok = False
             if (
                 self._config.output_device_type == OutputDeviceType.PULSEAUDIO
                 and self._config.output_device_name
                 and self._config.output_device_name.strip()
             ):
-                self._set_pulse_default_sink(self._config.output_device_name.strip())
+                pulse_ok = self._set_pulse_default_sink(self._config.output_device_name.strip())
+            _agent_log(
+                "vlc_backend.py:initialize",
+                "pulse sink setup",
+                {"pulse_server_set": bool(os.environ.get("PULSE_SERVER")), "output_device_name": self._config.output_device_name or "", "pulse_sink_set": pulse_ok},
+                "A",
+            )
 
             # Create VLC instance with audio output configuration
             vlc_args = self._build_vlc_args()
@@ -131,6 +136,14 @@ class VLCBackend(AudioBackend):
             if self._player is None:
                 raise VLCError("Failed to create VLC media player")
 
+            # Set Pulse sink explicitly on the player so VLC uses it regardless of system default
+            if (
+                self._config.output_device_type == OutputDeviceType.PULSEAUDIO
+                and self._config.output_device_name
+                and self._config.output_device_name.strip()
+            ):
+                self._set_vlc_output_device(self._config.output_device_name.strip())
+
             # FIXED: Safe initial volume calculation
             # VLC returns -1 for audio_get_volume() without media
             initial_volume = getattr(self._config, "default_volume", 40)
@@ -144,6 +157,12 @@ class VLCBackend(AudioBackend):
             # Set initial volume with error handling
             # Note: VLC may return -1 if no audio output is ready yet
             result = self._player.audio_set_volume(initial_volume)
+            _agent_log(
+                "vlc_backend.py:initialize",
+                "initial_volume_set",
+                {"initial_volume": initial_volume, "vlc_result": result},
+                "B",
+            )
             if result == -1:
                 logger.warning(
                     "initial_volume_set_returned_error",
@@ -185,11 +204,37 @@ class VLCBackend(AudioBackend):
 
         return args
 
-    def _set_pulse_default_sink(self, sink_name: str) -> None:
-        """Set Pulse default sink so VLC (--aout=pulse) uses the configured device."""
-        if not os.environ.get("PULSE_SERVER"):
+    def _set_vlc_output_device(self, device_id: str) -> None:
+        """Set VLC media player output device explicitly (e.g. Pulse sink name)."""
+        if self._player is None:
             return
         try:
+            if hasattr(self._player, "audio_output_device_set"):
+                self._player.audio_output_device_set(None, device_id)
+                _agent_log("vlc_backend.py:_set_vlc_output_device", "vlc_device_set", {"device_id": device_id}, "A")
+                logger.debug("vlc_output_device_set", device=device_id)
+            else:
+                _agent_log("vlc_backend.py:_set_vlc_output_device", "no_audio_output_device_set", {"device_id": device_id}, "A")
+        except Exception as e:
+            _agent_log("vlc_backend.py:_set_vlc_output_device", "vlc_device_set_error", {"device_id": device_id, "error": str(e)}, "A")
+            logger.warning("vlc_output_device_set_failed", device=device_id, error=str(e))
+
+    def _set_pulse_default_sink(self, sink_name: str) -> bool:
+        """Set Pulse default sink so VLC (--aout=pulse) uses the configured device. Returns True if set successfully."""
+        if not os.environ.get("PULSE_SERVER"):
+            _agent_log("vlc_backend.py:_set_pulse_default_sink", "skipped_no_pulse_server", {"sink_name": sink_name}, "A")
+            return False
+        try:
+            # Unsuspend sink (e.g. WM8960 / platform-soc_sound) so PipeWire/Pulse actually outputs
+            subprocess.run(
+                ["pactl", "suspend-sink", sink_name, "0"],
+                capture_output=True,
+                timeout=5,
+                env=os.environ.copy(),
+            )
+            # For Pi built-in / WM8960 (platform-soc_sound): unmute ALSA Master so hardware outputs
+            if "platform-soc_sound" in sink_name or "soc_sound" in sink_name:
+                self._unmute_alsa_for_sink(sink_name)
             result = subprocess.run(
                 ["pactl", "set-default-sink", sink_name],
                 capture_output=True,
@@ -197,7 +242,14 @@ class VLCBackend(AudioBackend):
                 timeout=5,
                 env=os.environ.copy(),
             )
-            if result.returncode == 0:
+            ok = result.returncode == 0
+            _agent_log(
+                "vlc_backend.py:_set_pulse_default_sink",
+                "pactl_result",
+                {"sink_name": sink_name, "returncode": result.returncode, "stderr": (result.stderr or "").strip() or None, "ok": ok},
+                "A",
+            )
+            if ok:
                 logger.debug("pulse_default_sink_set", sink=sink_name)
             else:
                 logger.warning(
@@ -205,12 +257,37 @@ class VLCBackend(AudioBackend):
                     sink=sink_name,
                     stderr=(result.stderr or "").strip() or None,
                 )
+            return ok
         except FileNotFoundError:
             logger.warning("pulse_set_default_sink_pactl_not_found")
+            _agent_log("vlc_backend.py:_set_pulse_default_sink", "pactl_not_found", {"sink_name": sink_name}, "A")
+            return False
         except subprocess.TimeoutExpired:
             logger.warning("pulse_set_default_sink_timeout", sink=sink_name)
+            _agent_log("vlc_backend.py:_set_pulse_default_sink", "pactl_timeout", {"sink_name": sink_name}, "A")
+            return False
         except Exception as e:
             logger.warning("pulse_set_default_sink_error", sink=sink_name, error=str(e))
+            _agent_log("vlc_backend.py:_set_pulse_default_sink", "pactl_error", {"sink_name": sink_name, "error": str(e)}, "A")
+            return False
+
+    def _unmute_alsa_for_sink(self, sink_name: str) -> None:
+        """Unmute ALSA Master/Speaker for Pi built-in or WM8960 (platform-soc_sound); often needed for sound."""
+        # Card 0 = often Pi SoC built-in; card 1 = often WM8960 HAT when both exist
+        for card in ("0", "1"):
+            for control in ("Master", "Speaker", "PCM"):
+                try:
+                    r = subprocess.run(
+                        ["amixer", "-c", card, "sset", control, "unmute"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                        env=os.environ.copy(),
+                    )
+                    if r.returncode == 0:
+                        logger.debug("alsa_unmute", card=card, control=control)
+                except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+                    pass
 
     async def shutdown(self) -> None:
         """Shutdown VLC backend gracefully."""
@@ -251,11 +328,27 @@ class VLCBackend(AudioBackend):
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
 
+        _agent_log(
+            "vlc_backend.py:play",
+            "play_called",
+            {"source_uri": source_uri, "start_position_ms": start_position_ms},
+            "C_E",
+        )
         logger.debug(
             "play_started",
             source_uri=source_uri,
             start_position_ms=start_position_ms,
         )
+
+        # Re-apply Pulse default sink and VLC output device so playback uses our configured sink
+        if (
+            self._config.output_device_type == OutputDeviceType.PULSEAUDIO
+            and self._config.output_device_name
+            and self._config.output_device_name.strip()
+        ):
+            sink = self._config.output_device_name.strip()
+            self._set_pulse_default_sink(sink)
+            self._set_vlc_output_device(sink)
 
         try:
             # Validate source
@@ -292,6 +385,14 @@ class VLCBackend(AudioBackend):
             # Set media to player
             self._player.set_media(media)
 
+            # Set output device again after set_media in case VLC resets it when loading new media
+            if (
+                self._config.output_device_type == OutputDeviceType.PULSEAUDIO
+                and self._config.output_device_name
+                and self._config.output_device_name.strip()
+            ):
+                self._set_vlc_output_device(self._config.output_device_name.strip())
+
             # Start playback
             result = self._player.play()
             if result == -1:
@@ -302,6 +403,7 @@ class VLCBackend(AudioBackend):
             timeout_sec = 15.0 if is_stream else 5.0
             try:
                 await self._wait_for_state(vlc.State.Playing, timeout_sec=timeout_sec)
+                _agent_log("vlc_backend.py:play", "reached_playing", {"source_uri": source_uri}, "C_D")
             except PlaybackError as e:
                 if "Timeout" in str(e) and self._player.get_state() == vlc.State.Stopped:
                     logger.warning("play_first_attempt_timeout_retrying", source_uri=source_uri)
@@ -314,14 +416,27 @@ class VLCBackend(AudioBackend):
                 else:
                     raise
 
-            # Apply pending volume (set while no media was loaded)
-            if self._pending_volume is not None:
-                applied = min(self._pending_volume, self._config.max_volume)
-                applied = max(applied, 0)
+            # Re-apply volume after media starts: VLC can reset volume when loading new media
+            current = await self.get_volume()
+            if current <= 0:
+                desired = (
+                    self._pending_volume
+                    if self._pending_volume is not None
+                    else min(self._config.default_volume, self._config.max_volume)
+                )
+                applied = min(max(desired, 0), self._config.max_volume)
                 if self._player.audio_set_volume(applied) != -1:
                     self._pending_volume = None
                 else:
                     self._pending_volume = applied
+                _agent_log("vlc_backend.py:play", "volume_reapplied_after_play", {"current": current, "applied": applied}, "B")
+            elif self._pending_volume is not None:
+                applied = min(max(self._pending_volume, 0), self._config.max_volume)
+                if self._player.audio_set_volume(applied) != -1:
+                    self._pending_volume = None
+                else:
+                    self._pending_volume = applied
+                _agent_log("vlc_backend.py:play", "volume_reapplied_pending", {"applied": applied}, "B")
 
             # Set start position if specified
             if start_position_ms > 0:
@@ -332,9 +447,11 @@ class VLCBackend(AudioBackend):
 
             logger.debug("play_successful", source_uri=source_uri)
 
-        except (FileNotFoundError, StreamUnreachableError):
+        except (FileNotFoundError, StreamUnreachableError) as e:
+            _agent_log("vlc_backend.py:play", "play_failed_source", {"source_uri": source_uri, "error_type": type(e).__name__}, "C_E")
             raise
         except Exception as e:
+            _agent_log("vlc_backend.py:play", "play_failed", {"source_uri": source_uri, "error": str(e)}, "C_E")
             logger.error("play_failed", source_uri=source_uri, error=str(e))
             raise PlaybackError(f"Playback failed: {e}") from e
 
@@ -353,18 +470,11 @@ class VLCBackend(AudioBackend):
         path = Path(source_uri)
         # #region agent log
         exists = path.exists()
-        is_file = path.is_file() if exists else None
-        stat_info = {}
-        try:
-            s = path.stat()
-            stat_info = {"mode_oct": oct(s.st_mode), "uid": s.st_uid, "gid": s.st_gid}
-        except OSError as e:
-            stat_info = {"errno": e.errno, "strerror": str(e)}
         _agent_log(
             "vlc_backend.py:_validate_source",
-            "path check before exists",
-            {"source_uri": source_uri, "path_str": str(path), "exists": exists, "is_file": is_file, "stat": stat_info, "cwd": str(Path.cwd()), "process_uid": os.getuid(), "process_gid": os.getgid()},
-            "H1_H2_H3_H4",
+            "source_validation",
+            {"source_uri": source_uri, "path_exists": exists, "cwd": str(Path.cwd())},
+            "C_E",
         )
         # #endregion
         if not path.exists():

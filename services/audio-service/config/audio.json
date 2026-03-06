@@ -8,8 +8,9 @@
   ],
   "device_display_names": {
     "alsa_output.usb-Qualcomm_Dongle_MMX_230_wireless_DA780BA29921F9BB2200-02.analog-stereo": "Headset",
-    "alsa_output.platform-soc_sound.stereo-fallback": "Lautsprecher"
+    "alsa_output.platform-soc_sound.stereo-fallback": "Lautsprecher",
+    "bluez_output.00_09_A7_54_68_E0.1": "Headset"
   },
   "max_volume": 70,
-  "default_volume": 40
+  "default_volume": 50
 }
