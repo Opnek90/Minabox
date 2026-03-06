@@ -90,9 +90,9 @@ class ButtonService:
 
         await self.mqtt_client.connect()
 
-        device_id = self.config.env.minabox_device_id
+        # Use get_mqtt_topic() instead of manual f-string (issue #16)
         await self.mqtt_client.publish(
-            f"minabox/{device_id}/system/service-started",
+            self.config.get_mqtt_topic("system", "service-started"),
             {"service": "button"},
         )
 
@@ -117,15 +117,17 @@ class ButtonService:
             self.mqtt_client,
             get_buttons_count=self._get_buttons_count,
         )
+        # Read port from config instead of hardcoding 8000 (issue #17)
+        port = self.config.env.api_port
         uvicorn_config = uvicorn.Config(
             app=app,
             host="0.0.0.0",
-            port=8000,
+            port=port,
             log_config=None,
         )
         self._api_server = uvicorn.Server(uvicorn_config)
         self._uvicorn_task = asyncio.create_task(self._api_server.serve())
-        logger.debug("api_server_started", port=8000)
+        logger.debug("api_server_started", port=port)
 
     async def run(self) -> None:
         await self._shutdown_event.wait()

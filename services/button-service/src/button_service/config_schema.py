@@ -9,12 +9,9 @@ from shared_lib.config import EnvConfigBase
 ButtonMode = Literal["basic", "advanced"]
 ButtonType = Literal["push", "rotary"]
 
-class ButtonConfig(BaseModel):
-    """Configuration for a single physical button or rotary encoder.
 
-    Matches the structure of entries in config/buttons.json as documented in the
-    Button service architecture.
-    """
+class ButtonConfig(BaseModel):
+    """Configuration for a single physical button or rotary encoder."""
 
     id: str = Field(
         min_length=1,
@@ -102,6 +99,7 @@ class ButtonConfig(BaseModel):
 
         return self
 
+
 class ButtonServiceConfig(BaseModel):
     """Top-level button configuration loaded from config/buttons.json."""
 
@@ -110,16 +108,37 @@ class ButtonServiceConfig(BaseModel):
         description="Configured buttons and encoders for this device.",
     )
 
+
 class EnvConfig(EnvConfigBase):
     """Environment-based configuration for the button service (extends shared base)."""
 
+    api_port: int = Field(
+        default=8000,
+        ge=1024,
+        le=65535,
+        description="REST API port for the button service (issue #17).",
+    )
+
 
 class AppConfig(BaseModel):
-    """Combined configuration for the button service.
-
-    This is what the rest of the service should depend on.
-    """
+    """Combined configuration for the button service."""
 
     env: EnvConfig
     buttons: ButtonServiceConfig
 
+    @property
+    def mqtt_topic_prefix(self) -> str:
+        """Get MQTT topic prefix for this device."""
+        return f"minabox/{self.env.minabox_device_id}"
+
+    def get_mqtt_topic(self, domain: str, action: str) -> str:
+        """Build a namespaced MQTT topic (issue #16).
+
+        Args:
+            domain: Service domain (e.g. 'button', 'audio', 'config').
+            action: Action / sub-topic (e.g. 'play-pause', 'config/get').
+
+        Returns:
+            Full topic string: minabox/<device-id>/<domain>/<action>
+        """
+        return f"{self.mqtt_topic_prefix}/{domain}/{action}"
