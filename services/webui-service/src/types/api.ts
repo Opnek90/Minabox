@@ -268,7 +268,8 @@ export interface AudioDeviceItem {
   id: string;
   name: string;
   card_name: string;
-  alsa_device: string;
+  sink_name: string;
+  alsa_device?: string;
   priority: number;
 }
 
