@@ -22,6 +22,11 @@ logger = structlog.get_logger(__name__)
 
 
 class AudioHandler:
+    # Stream reconnect tuning constants (issue #29)
+    MAX_RECONNECT_ATTEMPTS: int = 5
+    MAX_RECONNECT_DELAY_SEC: float = 30.0
+    RECONNECT_BASE_DELAY_SEC: float = 2.0
+
     def __init__(self, dispatcher: "MQTTHandlers") -> None:
         self.dispatcher = dispatcher
 
@@ -73,10 +78,17 @@ class AudioHandler:
 
                 if is_stream:
                     logger.warning("stream_ended_unexpectedly", track_id=track_id_raw)
-                    if self.dispatcher.stream_reconnect_attempts < 5:
+                    if self.dispatcher.stream_reconnect_attempts < self.MAX_RECONNECT_ATTEMPTS:
                         self.dispatcher.stream_reconnect_attempts += 1
-                        delay = min(2 ** self.dispatcher.stream_reconnect_attempts, 30)
-                        logger.info("stream_reconnect_scheduled", attempt=self.dispatcher.stream_reconnect_attempts, delay_sec=delay)
+                        delay = min(
+                            self.RECONNECT_BASE_DELAY_SEC ** self.dispatcher.stream_reconnect_attempts,
+                            self.MAX_RECONNECT_DELAY_SEC,
+                        )
+                        logger.info(
+                            "stream_reconnect_scheduled",
+                            attempt=self.dispatcher.stream_reconnect_attempts,
+                            delay_sec=delay,
+                        )
                         if self.dispatcher.stream_reconnect_task and not self.dispatcher.stream_reconnect_task.done():
                             self.dispatcher.stream_reconnect_task.cancel()
                         self.dispatcher.stream_reconnect_task = asyncio.create_task(
