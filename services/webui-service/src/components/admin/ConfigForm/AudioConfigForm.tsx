@@ -19,10 +19,14 @@ import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type { AudioConfig, AudioDeviceItem } from '@/types/api';
 
+function getDeviceKey(device: AudioDeviceItem): string {
+  return device.sink_name ?? device.alsa_device ?? device.id;
+}
+
 function isDeviceEnabled(device: AudioDeviceItem, enabledList: string[] | undefined): boolean {
   const list = enabledList ?? [];
   if (list.length === 0) return true;
-  return list.includes(device.alsa_device);
+  return list.includes(getDeviceKey(device));
 }
 
 export const AudioConfigForm: React.FC = () => {
@@ -63,22 +67,23 @@ export const AudioConfigForm: React.FC = () => {
 
   const handleDeviceEnabledChange = (device: AudioDeviceItem, enabled: boolean) => {
     if (!config) return;
+    const deviceKey = getDeviceKey(device);
     const list = config.enabled_output_devices ?? [];
     if (enabled) {
       setConfig({
         ...config,
-        enabled_output_devices: list.includes(device.alsa_device) ? list : [...list, device.alsa_device],
+        enabled_output_devices: list.includes(deviceKey) ? list : [...list, deviceKey],
       });
     } else {
       if (list.length === 0) {
         setConfig({
           ...config,
-          enabled_output_devices: devices.filter((d) => d.alsa_device !== device.alsa_device).map((d) => d.alsa_device),
+          enabled_output_devices: devices.filter((d) => getDeviceKey(d) !== deviceKey).map(getDeviceKey),
         });
       } else {
         setConfig({
           ...config,
-          enabled_output_devices: list.filter((a) => a !== device.alsa_device),
+          enabled_output_devices: list.filter((name) => name !== deviceKey),
         });
       }
     }
@@ -134,13 +139,14 @@ export const AudioConfigForm: React.FC = () => {
       ) : (
         <List dense sx={{ bgcolor: 'action.hover', borderRadius: 1 }}>
           {devices.map((d) => {
+            const deviceKey = getDeviceKey(d);
             const enabled = isDeviceEnabled(d, config.enabled_output_devices);
-            const isCurrent = config.output_device_name === d.alsa_device;
+            const isCurrent = config.output_device_name === deviceKey;
             const displayNames = config.device_display_names ?? {};
-            const displayName = displayNames[d.alsa_device] ?? '';
+            const displayName = displayNames[deviceKey] ?? '';
             return (
               <ListItemButton
-                key={d.alsa_device}
+                key={deviceKey}
                 dense
                 sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.5 }}
               >
@@ -160,8 +166,8 @@ export const AudioConfigForm: React.FC = () => {
                     <Typography variant="body2" noWrap title={d.name}>
                       {d.name}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap title={d.alsa_device}>
-                      {d.card_name}
+                    <Typography variant="caption" color="text.secondary" noWrap title={deviceKey}>
+                      {d.card_name || deviceKey}
                       {isCurrent && ' · ' + t('audio.output_devices_current')}
                     </Typography>
                   </Box>
@@ -173,8 +179,8 @@ export const AudioConfigForm: React.FC = () => {
                   onChange={(e) => {
                     const next = { ...displayNames };
                     const v = e.target.value.trim();
-                    if (v) next[d.alsa_device] = v;
-                    else delete next[d.alsa_device];
+                    if (v) next[deviceKey] = v;
+                    else delete next[deviceKey];
                     setConfig((p) => (p ? { ...p, device_display_names: next } : p));
                   }}
                   onClick={(e) => e.stopPropagation()}
