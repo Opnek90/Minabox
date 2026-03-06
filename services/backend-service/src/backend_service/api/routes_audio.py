@@ -132,7 +132,6 @@ async def play_audio(
 
     start_ms = command.start_position_ms or 0
 
-    # Play by stream_id: load stream and play (no session)
     if command.stream_id:
         _check_daily_limit(db)
         stream = db.query(Stream).filter(Stream.id == command.stream_id).first()
@@ -155,7 +154,6 @@ async def play_audio(
         await _mqtt_client.publish_audio_command("play", payload)
         return {"status": "ok", "message": "Stream playback started"}
 
-    # Play by podcast_id: load podcast, play latest episode (no session)
     if command.podcast_id:
         _check_daily_limit(db)
         podcast = db.query(Podcast).filter(Podcast.id == command.podcast_id).first()
@@ -187,7 +185,6 @@ async def play_audio(
         await _mqtt_client.publish_audio_command("play", payload)
         return {"status": "ok", "message": "Podcast playback started"}
 
-    # No track/playlist/stream/podcast: resume from pause, from session, or from audio service persisted state
     if not command.track_id and not command.playlist_id:
         current_state = (
             _mqtt_handlers.last_audio_status.get("state", "stopped")
@@ -203,11 +200,9 @@ async def play_audio(
             payload = _build_play_payload(track, start_ms)
             await _mqtt_client.publish_audio_command("play", payload)
             return {"status": "ok", "message": "Play command sent"}
-        # Let audio service resume from its persisted state (e.g. last stream or file)
         await _mqtt_client.publish_audio_command("play", {})
         return {"status": "ok", "message": "Resume command sent"}
 
-    # Play by playlist_id: load playlist, create session, play first track
     if command.playlist_id:
         _check_daily_limit(db)
         playlist = db.query(Playlist).filter(Playlist.id == command.playlist_id).first()
@@ -237,7 +232,6 @@ async def play_audio(
         await _mqtt_client.publish_audio_command("play", payload)
         return {"status": "ok", "message": "Playlist playback started"}
 
-    # Play by track_id: load track and play
     _check_daily_limit(db)
     track = db.query(Track).filter(Track.id == command.track_id).first()
     if not track:
@@ -258,11 +252,7 @@ async def play_audio(
 
 @router.post("/pause")
 async def pause_audio() -> dict:
-    """Pause audio playback.
-
-    Returns:
-        Success response
-    """
+    """Pause audio playback."""
     logger.info("api_audio_pause")
 
     if not _mqtt_client:
@@ -273,17 +263,12 @@ async def pause_audio() -> dict:
         _mqtt_handlers.playback_intent_active = False
 
     await _mqtt_client.publish_audio_command("pause", {})
-
     return {"status": "ok", "message": "Pause command sent"}
 
 
 @router.post("/stop")
 async def stop_audio() -> dict:
-    """Stop audio playback.
-
-    Returns:
-        Success response
-    """
+    """Stop audio playback."""
     logger.info("api_audio_stop")
 
     if not _mqtt_client:
@@ -299,11 +284,7 @@ async def stop_audio() -> dict:
 
 @router.post("/next")
 async def next_track() -> dict:
-    """Skip to next track.
-
-    Uses session manager (same logic as button next): advance index and send
-    audio/play with the new track, or audio/stop at end of playlist.
-    """
+    """Skip to next track."""
     logger.info("api_audio_next")
 
     if not _mqtt_client:
@@ -319,11 +300,7 @@ async def next_track() -> dict:
 
 @router.post("/prev")
 async def previous_track() -> dict:
-    """Skip to previous track.
-
-    Uses session manager (same logic as button prev): go back one track and
-    send audio/play with that track.
-    """
+    """Skip to previous track."""
     logger.info("api_audio_prev")
 
     if not _mqtt_client:
@@ -339,14 +316,7 @@ async def previous_track() -> dict:
 
 @router.post("/volume")
 async def set_volume(command: AudioVolumeCommand) -> dict:
-    """Set audio volume.
-
-    Args:
-        command: Volume command with level (0-100)
-
-    Returns:
-        Success response
-    """
+    """Set audio volume."""
     logger.info("api_audio_set_volume", volume=command.volume)
 
     if not _mqtt_client:
@@ -422,13 +392,11 @@ async def set_shuffle_mode(command: ShuffleRequest) -> dict:
     return {"status": "ok", "shuffle": sess.shuffle if sess else False}
 
 
-# ── Audio output device (proxy to audio-service) ────────────────────────────────────────
-
 @router.get("/devices")
 async def get_audio_devices(
     enabled_only: bool = Query(False, description="Return only enabled devices"),
 ) -> dict:
-    """List detected ALSA audio devices (proxied to audio-service)."""
+    """List detected PulseAudio/PipeWire sinks (proxied to audio-service)."""
     try:
         async with httpx.AsyncClient(timeout=AUDIO_SERVICE_TIMEOUT) as client:
             r = await client.get(
@@ -454,21 +422,26 @@ async def get_audio_devices(
 class SwitchDeviceRequest(BaseModel):
     """Request body for POST /switch-device."""
 
-    alsa_device: str | None = Field(default=None, description="ALSA device to switch to")
+    sink_name: str | None = Field(default=None, description="PulseAudio/PipeWire sink to switch to")
+    alsa_device: str | None = Field(
+        default=None,
+        description="Deprecated alias for sink_name; kept for backwards compatibility",
+    )
     direction: str | None = Field(default=None, description="'next' to cycle devices")
 
 
 @router.post("/switch-device")
 async def switch_audio_device(body: SwitchDeviceRequest) -> dict:
-    """Switch audio output device (proxied to audio-service)."""
-    if not body.alsa_device and body.direction != "next":
+    """Switch audio output sink (proxied to audio-service)."""
+    sink_name = body.sink_name or body.alsa_device
+    if not sink_name and body.direction != "next":
         raise HTTPException(
             status_code=400,
-            detail="Provide alsa_device or direction='next'",
+            detail="Provide sink_name or direction='next'",
         )
     payload = {}
-    if body.alsa_device:
-        payload["alsa_device"] = body.alsa_device
+    if sink_name:
+        payload["sink_name"] = sink_name
     if body.direction:
         payload["direction"] = body.direction
     try:

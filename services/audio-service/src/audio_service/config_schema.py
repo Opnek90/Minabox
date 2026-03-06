@@ -7,18 +7,21 @@ audio-specific configuration settings.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal
 
-from pydantic import BaseModel, Field, PositiveInt, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from shared_lib.config import EnvConfigBase
 
 
 class OutputDeviceType(str, Enum):
-    """Audio output device types. ALSA deprecated; use PULSEAUDIO."""
+    """Audio output device types.
+
+    The product runtime is Pulse/PipeWire-only. Legacy values remain as
+    compatibility aliases so older configs can be migrated on load.
+    """
 
     AUTO = "auto"
-    ALSA = "alsa"  # Deprecated: migrated to PULSEAUDIO on load
+    ALSA = "alsa"
     PULSEAUDIO = "pulseaudio"
     DEFAULT = "default"
 
@@ -27,20 +30,20 @@ class AudioConfig(BaseModel):
     """Audio service-specific configuration loaded from config/audio.json."""
 
     output_device_type: OutputDeviceType = Field(
-        default=OutputDeviceType.AUTO,
-        description="Output type: auto, pulseaudio, default",
+        default=OutputDeviceType.PULSEAUDIO,
+        description="Output type. Runtime uses pulseaudio/PipeWire.",
     )
     output_device_name: str = Field(
-        default="auto",
-        description="Pulse sink name or empty for default",
+        default="",
+        description="Pulse sink name; empty string means host default sink.",
     )
     enabled_output_devices: list[str] = Field(
         default_factory=list,
-        description="Pulse sink names allowed in device selector (empty = all)",
+        description="Pulse sink names allowed in device selector (empty = all).",
     )
     device_display_names: dict[str, str] = Field(
         default_factory=dict,
-        description="Sink name -> custom display name (optional)",
+        description="Sink name -> custom display name (optional).",
     )
     max_volume: int = Field(
         default=70,

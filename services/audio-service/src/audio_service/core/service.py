@@ -515,9 +515,9 @@ class AudioService:
     async def _handle_switch_device(self, data: dict) -> None:
         """Handle switch-device command (MQTT)."""
         try:
-            alsa_device = data.get("alsa_device")
+            sink_name = data.get("sink_name") or data.get("alsa_device")
             direction = data.get("direction")
-            await self.switch_output_device(alsa_device=alsa_device, direction=direction)
+            await self.switch_output_device(sink_name=sink_name, direction=direction)
             await self._publish_status()
         except ValueError as e:
             logger.warning("switch_device_invalid", error=str(e))
@@ -572,7 +572,7 @@ class AudioService:
 
     async def switch_output_device(
         self,
-        alsa_device: str | None = None,
+        sink_name: str | None = None,
         direction: str | None = None,
     ) -> AudioStatus:
         """Switch output device, re-init VLC, optionally resume. Returns new status."""
@@ -587,13 +587,13 @@ class AudioService:
             idx = next((i for i, d in enumerate(devices) if d["alsa_device"] == current), -1)
             next_idx = (idx + 1) % len(devices)
             target = devices[next_idx]["alsa_device"]
-        elif alsa_device:
+        elif sink_name:
             allowed = {d["alsa_device"] for d in devices}
-            if alsa_device not in allowed:
-                raise ValueError(f"Device not available or not enabled: {alsa_device!r}")
-            target = alsa_device
+            if sink_name not in allowed:
+                raise ValueError(f"Device not available or not enabled: {sink_name!r}")
+            target = sink_name
         else:
-            raise ValueError("Provide alsa_device or direction='next'")
+            raise ValueError("Provide sink_name or direction='next'")
 
         new_config = config.model_copy(update={
             "output_device_type": OutputDeviceType.PULSEAUDIO,
