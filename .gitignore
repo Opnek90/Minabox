@@ -29,6 +29,16 @@ audio/tracks/
 !audio/tracks/.gitkeep
 
 # =================================
+# Config Files
+# =================================
+
+services/audio-service/config/audio.json
+services/audio-service/state/audio_state.json
+services/button-service/config/buttons.json
+services/display-service/config/display.json
+services/led-service/config/leds.json
+
+# =================================
 # Logs
 # =================================
 logs/
