@@ -17,11 +17,10 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from backend_service import __version__
 from backend_service.api import api_router
-from backend_service.api.routes_auth import COOKIE_NAME
 from backend_service.api.routes_audio import (
     set_mqtt_client as set_audio_mqtt_client,
     set_mqtt_handlers as set_audio_mqtt_handlers,
@@ -31,12 +30,12 @@ from backend_service.api.routes_rfid import set_mqtt_client as set_rfid_mqtt_cli
 from backend_service.api.routes_system import set_mqtt_client as set_system_mqtt_client
 from backend_service.api.websocket import websocket_endpoint, ws_manager
 from backend_service.config_schema import AppConfig
-from backend_service.core.auth import read_auth_settings, verify_session_token
 from backend_service.core.db_manager import init_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
 from backend_service.core.podcast_fetcher import run_podcast_fetch_loop
 from backend_service.core.temperature_logger import run_temperature_log_loop
+from backend_service.middleware.auth import web_auth_middleware
 
 logger = structlog.get_logger(__name__)
 
@@ -58,7 +57,7 @@ class BackendService:
 
     async def start(self) -> None:
         """Start the backend service."""
-        logger.info("backend_service_starting", version="0.1.0")
+        logger.info("backend_service_starting", version=__version__)
 
         # Initialize database
         logger.debug("initializing_database", path=self.config.database_path)
@@ -177,7 +176,7 @@ class BackendService:
         app = FastAPI(
             title="Minabox Backend Service",
             description="Central orchestration and data management for Minabox",
-            version="0.1.0",
+            version=__version__,
         )
 
         # CORS middleware: origins are loaded from config to allow per-environment
@@ -191,45 +190,8 @@ class BackendService:
             allow_headers=["*"],
         )
 
-        # Web auth: require session cookie for protected API paths
-        @app.middleware("http")
-        async def web_auth_middleware(request: Request, call_next):
-            path = request.url.path
-            if not path.startswith("/api/v1/"):
-                return await call_next(request)
-            if path in (
-                "/api/v1/auth/config",
-                "/api/v1/auth/login",
-                "/api/v1/auth/logout",
-            ):
-                return await call_next(request)
-            settings = read_auth_settings()
-            auth_enabled = bool((settings.get("web_password_hash") or "").strip())
-            if not auth_enabled:
-                return await call_next(request)
-            protected_areas = set(settings.get("protected_areas") or [])
-            if not protected_areas:
-                return await call_next(request)
-            area = None
-            if path.startswith("/api/v1/config") or path.startswith("/api/v1/system"):
-                area = "admin"
-            elif path.startswith("/api/v1/playlists") or path.startswith(
-                "/api/v1/tracks"
-            ) or path.startswith("/api/v1/streams") or path.startswith(
-                "/api/v1/podcasts"
-            ):
-                area = "media"
-            elif path.startswith("/api/v1/stats"):
-                area = "dashboard"
-            if area is None or area not in protected_areas:
-                return await call_next(request)
-            token = request.cookies.get(COOKIE_NAME)
-            if not token or not verify_session_token(token):
-                return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Authentication required"},
-                )
-            return await call_next(request)
+        # Web auth middleware (extracted to middleware/auth.py for testability)
+        app.add_middleware(BaseHTTPMiddleware, dispatch=web_auth_middleware)
 
         # Root-level health check (Framework standard: /health)
         @app.get("/health")

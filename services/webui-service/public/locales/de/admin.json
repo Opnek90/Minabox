@@ -47,7 +47,11 @@
     "password_too_short": "Passwort muss mindestens 4 Zeichen haben.",
     "logout": "Abmelden",
     "session_expired": "Sitzung abgelaufen. Bitte erneut anmelden.",
-    "current_password_required": "Bitte aktuelles Passwort eingeben."
+    "current_password_required": "Bitte aktuelles Passwort eingeben.",
+    "reset_button": "Passwort & Sperren zurücksetzen",
+    "reset_confirm_text": "Möchtest du das WebUI-Passwort wirklich löschen und alle gesperrten Bereiche entsperren? Der Zugriffsschutz wird vollständig deaktiviert.",
+    "reset_success": "Passwort gelöscht und alle Bereiche entsperrt.",
+    "reset_failed": "Zurücksetzen fehlgeschlagen."
   },
   "buttons": {
     "title": "Button-Einstellungen",
@@ -447,6 +451,7 @@
     "system": "System",
     "hardware": "Hardware",
     "general": "Allgemein",
+    "control": "Steuerung",
     "design": "Design",
     "child": "Kind",
     "security": "Sicherheit",
