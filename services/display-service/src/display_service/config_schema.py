@@ -81,6 +81,13 @@ class DisplayServiceConfig(BaseModel):
 class EnvConfig(EnvConfigBase):
     """Environment-based configuration for the display service (extends shared base)."""
 
+    api_port: int = Field(
+        default=8000,
+        ge=1024,
+        le=65535,
+        description="REST API port for the display service (issue #39).",
+    )
+
 
 class AppConfig(BaseModel):
     """Combined configuration for the display service."""
