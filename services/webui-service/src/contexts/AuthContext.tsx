@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    setOnUnauthorized(() => () => setIsAuthenticated(false));
+    setOnUnauthorized(() => setIsAuthenticated(false));
     return () => setOnUnauthorized(null);
   }, []);
 

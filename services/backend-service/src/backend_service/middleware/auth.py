@@ -31,6 +31,7 @@ _PUBLIC_PATHS: frozenset[str] = frozenset({
     "/api/v1/auth/config",
     "/api/v1/auth/login",
     "/api/v1/auth/logout",
+    "/api/v1/auth/password",
 })
 
 

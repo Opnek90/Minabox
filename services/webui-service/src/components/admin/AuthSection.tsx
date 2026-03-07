@@ -83,7 +83,8 @@ export const AuthSection: React.FC = () => {
       setNewPassword('');
       setConfirmPassword('');
       showSuccess(t('auth.password_saved'));
-      if (!authEnabled) login(newPassword);
+      await refreshConfig();
+      if (!authEnabled) await login(newPassword);
     } catch (err: unknown) {
       const ax = err as { response?: { data?: unknown; status?: number }; message?: string };
       if (import.meta.env.DEV) {
