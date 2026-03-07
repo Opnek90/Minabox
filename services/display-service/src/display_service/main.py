@@ -7,7 +7,7 @@ import logging
 import os
 import signal
 from datetime import datetime
-from typing import Callable
+from typing import Any, Callable
 
 import httpx
 import structlog
@@ -34,6 +34,103 @@ _BODY_MAX_ITEMS = 3
 _CONDITIONAL_TYPES = frozenset({
     "sleep_timer", "mute", "error_state", "repeat", "shuffle", "bluetooth",
 })
+
+# ---------------------------------------------------------------------------
+# Registry-Pattern for display element renderers (issue #26)
+#
+# Each entry maps an element type string to a callable with the signature:
+#   (audio, sleep_timer, session, state_manager) -> dict | None
+#
+# Return None to skip the element (conditional types).
+# Adding a new type only requires a new entry here — _build_areas() is
+# never touched.
+# ---------------------------------------------------------------------------
+
+def _render_volume(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    vol = audio.get("volume", 0)
+    return {"type": "text", "value": f"{vol}%"}
+
+
+def _render_sleep_timer(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    if sleep_timer.get("active") and sleep_timer.get("remaining_ms") is not None:
+        remaining_ms = sleep_timer.get("remaining_ms") or 0
+        minutes = max(0, (remaining_ms + 59999) // 60000)
+        return {"type": "sleep_timer", "minutes": minutes}
+    return None
+
+
+def _render_mute(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    if audio.get("muted"):
+        return {"type": "icon", "value": "mute"}
+    return None
+
+
+def _render_play_state(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    state = audio.get("state", "stopped")
+    icon_val = "play" if state == "playing" else "pause" if state == "paused" else "stop"
+    return {"type": "icon", "value": icon_val}
+
+
+def _render_clock(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    return {"type": "text", "value": datetime.now().strftime("%H:%M")}
+
+
+def _render_error_state(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    if state_manager.has_error():
+        return {"type": "icon", "value": "error"}
+    return None
+
+
+def _render_repeat(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    if session.get("repeat_mode") == "all":
+        return {"type": "icon", "value": "repeat"}
+    return None
+
+
+def _render_shuffle(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    if session.get("shuffle"):
+        return {"type": "icon", "value": "shuffle"}
+    return None
+
+
+def _render_bluetooth(
+    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
+) -> dict | None:
+    if audio.get("bluetooth_sink_available") and audio.get("multiple_output_devices"):
+        return {"type": "icon", "value": "bluetooth"}
+    return None
+
+
+_ELEMENT_RENDERERS: dict[
+    str,
+    Callable[[dict, dict, dict, Any], dict | None],
+] = {
+    "volume":      _render_volume,
+    "sleep_timer": _render_sleep_timer,
+    "mute":        _render_mute,
+    "play_state":  _render_play_state,
+    "clock":       _render_clock,
+    "error_state": _render_error_state,
+    "repeat":      _render_repeat,
+    "shuffle":     _render_shuffle,
+    "bluetooth":   _render_bluetooth,
+}
 
 
 async def _cancel_task(task: asyncio.Task | None, timeout: float = 5.0) -> None:
@@ -99,7 +196,6 @@ class DisplayService:
 
     async def _start_api_server(self) -> None:
         app = create_app(self.config, self.config_manager, self.mqtt_client)
-        # Read port from config instead of hardcoding 8000 (issue #39)
         port = self.config.env.api_port
         server_config = uvicorn.Config(
             app=app,
@@ -182,6 +278,7 @@ class DisplayService:
                 )
 
     def _build_areas(self) -> list[list[dict]]:
+        """Build render areas using the _ELEMENT_RENDERERS registry (issue #26)."""
         cfg = self._display_config
         if not cfg or not cfg.enabled:
             return [[], [], []]
@@ -203,39 +300,12 @@ class DisplayService:
         result: list[list[dict]] = [[], [], []]
         for area_idx in (0, 1, 2):
             for el in by_area[area_idx]:
-                item: dict | None = None
+                renderer = _ELEMENT_RENDERERS.get(el.type)
+                if renderer is None:
+                    logger.warning("unknown_element_type", el_type=el.type)
+                    continue
 
-                if el.type == "volume":
-                    vol = audio.get("volume", 0)
-                    item = {"type": "text", "value": f"{vol}%"}
-                elif el.type == "sleep_timer":
-                    if sleep_timer.get("active") and sleep_timer.get("remaining_ms") is not None:
-                        remaining_ms = sleep_timer.get("remaining_ms") or 0
-                        minutes = max(0, (remaining_ms + 59999) // 60000)
-                        item = {"type": "sleep_timer", "minutes": minutes}
-                elif el.type == "mute":
-                    if audio.get("muted"):
-                        item = {"type": "icon", "value": "mute"}
-                elif el.type == "play_state":
-                    state = audio.get("state", "stopped")
-                    icon_val = "play" if state == "playing" else "pause" if state == "paused" else "stop"
-                    item = {"type": "icon", "value": icon_val}
-                elif el.type == "clock":
-                    now = datetime.now()
-                    item = {"type": "text", "value": now.strftime("%H:%M")}
-                elif el.type == "error_state":
-                    if self.state_manager.has_error():
-                        item = {"type": "icon", "value": "error"}
-                elif el.type == "repeat":
-                    if session.get("repeat_mode") == "all":
-                        item = {"type": "icon", "value": "repeat"}
-                elif el.type == "shuffle":
-                    if session.get("shuffle"):
-                        item = {"type": "icon", "value": "shuffle"}
-                elif el.type == "bluetooth":
-                    if audio.get("bluetooth_sink_available") and audio.get("multiple_output_devices"):
-                        item = {"type": "icon", "value": "bluetooth"}
-
+                item = renderer(audio, sleep_timer, session, self.state_manager)
                 if item is None:
                     continue
 
@@ -260,17 +330,7 @@ class DisplayService:
         update_fn: Callable[[dict], None],
         error_event: str,
     ) -> None:
-        """Generic backend polling helper (issue #24).
-
-        Polls BACKEND_URL{endpoint} every `interval` seconds and calls
-        update_fn with the parsed JSON on HTTP 200.
-
-        Args:
-            endpoint: URL path to poll (e.g. '/api/v1/audio/sleep-timer').
-            interval: Seconds between polls.
-            update_fn: Callback that receives the response dict.
-            error_event: structlog event name for unexpected errors.
-        """
+        """Generic backend polling helper (issue #24)."""
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(interval)
@@ -287,7 +347,6 @@ class DisplayService:
                 logger.debug(error_event, endpoint=endpoint, error=str(exc))
 
     async def _sleep_timer_poll_loop(self) -> None:
-        """Poll backend sleep-timer endpoint (delegates to _poll_backend, issue #24)."""
         def _update(data: dict) -> None:
             self.state_manager.update_sleep_timer(
                 data.get("active", False),
@@ -301,7 +360,6 @@ class DisplayService:
         )
 
     async def _session_poll_loop(self) -> None:
-        """Poll backend session endpoint (delegates to _poll_backend, issue #24)."""
         def _update(data: dict) -> None:
             self.state_manager.update_session(
                 data.get("repeat_mode", "none"),
@@ -325,7 +383,6 @@ class DisplayService:
                     continue
                 areas = self._build_areas()
                 if any(areas):
-                    # Use direct attribute access — defaults are defined in schema (issue #40)
                     show_areas(
                         areas,
                         font_size=cfg.font_size,
