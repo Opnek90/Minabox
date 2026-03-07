@@ -149,6 +149,19 @@ async def set_password(body: PasswordBody, request: Request, response: Response)
         raise HTTPException(status_code=500, detail=f"Set password failed: {e!s}") from e
 
 
+@router.delete("/password")
+async def delete_password(request: Request, response: Response) -> dict:
+    """Delete web password and disable access protection. Requires valid session."""
+    _require_auth(request)
+    try:
+        write_auth_settings({"web_password_hash": "", "protected_areas": []})
+        response.delete_cookie(key=COOKIE_NAME, path="/")
+        return {"ok": True}
+    except OSError as e:
+        logger.warning("auth_settings_write_failed", path=str(AUTH_SETTINGS_PATH), error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to write auth settings (check permissions)") from e
+
+
 @router.put("/config")
 async def update_auth_config(body: ConfigUpdateBody, request: Request) -> dict:
     """Update protected_areas only. Requires valid session (or no password set)."""
