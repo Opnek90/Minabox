@@ -7,6 +7,7 @@ import logging
 import os
 import signal
 from datetime import datetime
+from typing import Callable
 
 import httpx
 import structlog
@@ -98,15 +99,17 @@ class DisplayService:
 
     async def _start_api_server(self) -> None:
         app = create_app(self.config, self.config_manager, self.mqtt_client)
+        # Read port from config instead of hardcoding 8000 (issue #39)
+        port = self.config.env.api_port
         server_config = uvicorn.Config(
             app=app,
             host="0.0.0.0",
-            port=8000,
+            port=port,
             log_config=None,
         )
         self._api_server = uvicorn.Server(server_config)
         self._uvicorn_task = asyncio.create_task(self._api_server.serve())
-        logger.info("api_server_started", port=8000)
+        logger.info("api_server_started", port=port)
 
     async def run(self) -> None:
         await self._shutdown_event.wait()
@@ -148,8 +151,8 @@ class DisplayService:
                 if any(areas):
                     show_areas(
                         areas,
-                        font_size=getattr(cfg, "font_size", "medium"),
-                        font=getattr(cfg, "font", "default"),
+                        font_size=cfg.font_size,
+                        font=cfg.font,
                     )
         except Exception as exc:
             logger.error("config_reload_failed", error=str(exc), exc_info=True)
@@ -250,6 +253,67 @@ class DisplayService:
 
         return result
 
+    async def _poll_backend(
+        self,
+        endpoint: str,
+        interval: float,
+        update_fn: Callable[[dict], None],
+        error_event: str,
+    ) -> None:
+        """Generic backend polling helper (issue #24).
+
+        Polls BACKEND_URL{endpoint} every `interval` seconds and calls
+        update_fn with the parsed JSON on HTTP 200.
+
+        Args:
+            endpoint: URL path to poll (e.g. '/api/v1/audio/sleep-timer').
+            interval: Seconds between polls.
+            update_fn: Callback that receives the response dict.
+            error_event: structlog event name for unexpected errors.
+        """
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(interval)
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    try:
+                        r = await client.get(f"{BACKEND_URL}{endpoint}")
+                        if r.status_code == 200:
+                            update_fn(r.json())
+                    except (httpx.ConnectError, httpx.TimeoutException):
+                        pass
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.debug(error_event, endpoint=endpoint, error=str(exc))
+
+    async def _sleep_timer_poll_loop(self) -> None:
+        """Poll backend sleep-timer endpoint (delegates to _poll_backend, issue #24)."""
+        def _update(data: dict) -> None:
+            self.state_manager.update_sleep_timer(
+                data.get("active", False),
+                data.get("remaining_ms"),
+            )
+        await self._poll_backend(
+            endpoint="/api/v1/audio/sleep-timer",
+            interval=SLEEP_TIMER_POLL_INTERVAL,
+            update_fn=_update,
+            error_event="sleep_timer_poll_error",
+        )
+
+    async def _session_poll_loop(self) -> None:
+        """Poll backend session endpoint (delegates to _poll_backend, issue #24)."""
+        def _update(data: dict) -> None:
+            self.state_manager.update_session(
+                data.get("repeat_mode", "none"),
+                data.get("shuffle", False),
+            )
+        await self._poll_backend(
+            endpoint="/api/v1/audio/session",
+            interval=SESSION_POLL_INTERVAL,
+            update_fn=_update,
+            error_event="session_poll_error",
+        )
+
     async def _render_loop(self) -> None:
         while not self._shutdown_event.is_set():
             try:
@@ -261,55 +325,16 @@ class DisplayService:
                     continue
                 areas = self._build_areas()
                 if any(areas):
+                    # Use direct attribute access — defaults are defined in schema (issue #40)
                     show_areas(
                         areas,
-                        font_size=getattr(cfg, "font_size", "medium"),
-                        font=getattr(cfg, "font", "default"),
+                        font_size=cfg.font_size,
+                        font=cfg.font,
                     )
             except asyncio.CancelledError:
                 break
             except Exception as exc:
                 logger.warning("render_loop_error", error=str(exc))
-
-    async def _sleep_timer_poll_loop(self) -> None:
-        while not self._shutdown_event.is_set():
-            try:
-                await asyncio.sleep(SLEEP_TIMER_POLL_INTERVAL)
-                async with httpx.AsyncClient(timeout=3.0) as client:
-                    try:
-                        r = await client.get(f"{BACKEND_URL}/api/v1/audio/sleep-timer")
-                        if r.status_code == 200:
-                            data = r.json()
-                            self.state_manager.update_sleep_timer(
-                                data.get("active", False),
-                                data.get("remaining_ms"),
-                            )
-                    except (httpx.ConnectError, httpx.TimeoutException):
-                        pass
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                logger.debug("sleep_timer_poll_error", error=str(exc))
-
-    async def _session_poll_loop(self) -> None:
-        while not self._shutdown_event.is_set():
-            try:
-                await asyncio.sleep(SESSION_POLL_INTERVAL)
-                async with httpx.AsyncClient(timeout=3.0) as client:
-                    try:
-                        r = await client.get(f"{BACKEND_URL}/api/v1/audio/session")
-                        if r.status_code == 200:
-                            data = r.json()
-                            self.state_manager.update_session(
-                                data.get("repeat_mode", "none"),
-                                data.get("shuffle", False),
-                            )
-                    except (httpx.ConnectError, httpx.TimeoutException):
-                        pass
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                logger.debug("session_poll_error", error=str(exc))
 
 
 async def main() -> None:
