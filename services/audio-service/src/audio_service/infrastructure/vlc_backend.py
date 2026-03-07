@@ -47,6 +47,11 @@ class VLCBackend(AudioBackend):
         self._current_source_type: str | None = None
         self._current_source_uri: str | None = None
 
+    @property
+    def is_initialized(self) -> bool:
+        """Returns True if the VLC backend has been successfully initialized (issue #35)."""
+        return self._initialized
+
     def update_config(self, config: AudioConfig) -> None:
         """Update audio config at runtime."""
         self._config = config

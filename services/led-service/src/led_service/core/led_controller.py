@@ -35,21 +35,23 @@ class LEDController:
     """Controls a single physical LED and its pattern execution."""
 
     def __init__(self, config: LEDConfig) -> None:
-        """Initialize LED controller with direct NativePinFactory.
-        
+        """Initialize LED controller.
+
+        GPIO pin factory is expected to be set once by LEDManager before
+        instantiating controllers (issue #36).
+
         Args:
             config: LED configuration including GPIO pin and bindings.
         """
         self.config = config
         self._current_task: asyncio.Task[None] | None = None
         self._cancel_event = asyncio.Event()
-        self._current_logical_state: str | None = None  # skip re-apply when state unchanged
+        self._current_logical_state: str | None = None
         self._gpio_available = False
         self._led = None
-        
-        # Check if GPIO should be disabled (dev mode)
+
         disable_gpio = os.getenv("DISABLE_GPIO", "false").lower() == "true"
-        
+
         if disable_gpio:
             logger.debug(
                 "gpio_disabled_dev_mode",
@@ -58,15 +60,9 @@ class LEDController:
                 reason="DISABLE_GPIO environment variable",
             )
             return
-        
-        # Try to initialize GPIO with NativePinFactory directly
+
         try:
-            from gpiozero.pins.native import NativeFactory
-            from gpiozero import Device, LED
-            
-            # Set pin factory explicitly to avoid fallback warnings
-            Device.pin_factory = NativeFactory()
-            
+            from gpiozero import LED
             self._led = LED(config.gpio)
             self._gpio_available = True
             logger.debug(
@@ -84,11 +80,27 @@ class LEDController:
                 error=str(exc),
                 hint="Set DISABLE_GPIO=true for dev mode without hardware",
             )
-            # Service continues without hardware
+
+    def close_sync(self) -> None:
+        """Synchronous close for re-initialization without await (issue #37).
+
+        Cancels any running task and releases the GPIO LED object.
+        Called by LEDManager.initialize_leds() before creating new controllers.
+        """
+        if self._current_task and not self._current_task.done():
+            self._current_task.cancel()
+        if self._led is not None:
+            try:
+                self._led.off()
+                self._led.close()
+            except Exception:
+                pass
+            self._led = None
+            self._gpio_available = False
 
     async def apply_pattern(self, logical_state: str) -> None:
         """Apply the pattern for a given logical state.
-        
+
         Args:
             logical_state: The logical state to apply (e.g. 'audio_playing').
         """
@@ -99,8 +111,7 @@ class LEDController:
                 logical_state=logical_state,
             )
             return
-        
-        # Check if we have a binding for this state
+
         pattern = self.config.bindings.get(logical_state)
         if pattern is None:
             logger.debug(
@@ -110,11 +121,6 @@ class LEDController:
             )
             return
 
-        # Idempotent: skip only if the same state is actively running (avoids
-        # cancel/restart spam for periodic status messages). One-shot patterns
-        # (solid, blink with repeat) finish their task quickly; once the task
-        # is done _current_logical_state is cleared so the state can be
-        # re-triggered (e.g. rfid_scanned on every new scan).
         if (
             self._current_logical_state == logical_state
             and self._current_task is not None
@@ -126,11 +132,9 @@ class LEDController:
                 logical_state=logical_state,
             )
             return
-        
-        # Cancel any running pattern
+
         await self._cancel_current_pattern()
-        
-        # Start new pattern
+
         try:
             await self._start_pattern(logical_state, pattern)
         except Exception as exc:
@@ -146,16 +150,36 @@ class LEDController:
                 f"Pattern execution failed for LED '{self.config.name}': {exc}"
             ) from exc
 
+    async def _run_blink_task(self, interval_ms: int, repeat: int) -> None:
+        """Create and await a blink task, managing _current_task lifecycle (issue #27).
+
+        Shared by _start_pattern(blink) and run_test_blink() to avoid
+        duplicated task-creation boilerplate.
+        """
+        self._cancel_event.clear()
+        task = asyncio.create_task(
+            run_blink_pattern(
+                self._led,
+                interval_ms,
+                repeat,
+                self.config.id,
+                self._cancel_event,
+            )
+        )
+        self._current_task = task
+        task.add_done_callback(lambda _: setattr(self, "_current_task", None))
+        await task
+
     async def _start_pattern(self, logical_state: str, pattern: LEDPattern) -> None:
         """Start executing a pattern.
-        
+
         Args:
             logical_state: The logical state this pattern represents.
             pattern: The pattern configuration to execute.
         """
         self._cancel_event.clear()
         self._current_logical_state = logical_state
-        
+
         logger.info(
             "led_state_changed",
             led_id=self.config.id,
@@ -163,7 +187,7 @@ class LEDController:
             logical_state=logical_state,
             pattern_type=pattern.pattern_type,
         )
-        
+
         if pattern.pattern_type == "solid":
             self._current_task = asyncio.create_task(
                 run_solid_pattern(
@@ -173,7 +197,6 @@ class LEDController:
                 )
             )
         elif pattern.pattern_type == "off":
-            # Just ensure the LED is off without any visible pulse
             self._current_task = asyncio.create_task(
                 run_off_pattern(
                     self._led,
@@ -213,12 +236,6 @@ class LEDController:
                 f"Unknown pattern type '{pattern.pattern_type}' for LED '{self.config.name}'"
             )
 
-        # When a one-shot (non-persistent) pattern finishes on its own, clear the
-        # state so the same logical state can be re-triggered later
-        # (e.g. rfid_scanned on every new scan).
-        # Persistent patterns (solid, off) intentionally keep _current_logical_state
-        # set so that repeated identical events (e.g. system_online heartbeats) are
-        # correctly suppressed by the idempotency check in apply_pattern().
         _pattern_type = pattern.pattern_type
 
         def _on_task_done(task: asyncio.Task) -> None:
@@ -248,7 +265,6 @@ class LEDController:
                 except asyncio.CancelledError:
                     pass
             logger.debug("pattern_cancelled", led_id=self.config.id)
-        # Always reset state – even if the task already finished on its own
         self._current_logical_state = None
         self._current_task = None
 
@@ -256,24 +272,16 @@ class LEDController:
         """Clean up resources (cancel pattern, turn off LED)."""
         await self._cancel_current_pattern()
         if self._led:
-            # Try to leave the GPIO pin in a defined low state with pull-down
             try:
-                # First ensure the LED is off while we still have the LED wrapper
                 self._led.off()
             finally:
-                # Close the gpiozero LED object to release resources
                 try:
                     self._led.close()
                 except Exception:
-                    # If close fails we still try to enforce a safe pin state
                     logger.warning("led_close_failed", led_id=self.config.id, exc_info=True)
-            
-            # After closing the LED, explicitly configure the pin as input with pull-down.
-            # This prevents the LED from faint glowing caused by leakage currents
-            # once the service (or container) has stopped.
+
             try:
                 from gpiozero import Device
-                
                 pin = Device.pin_factory.pin(self.config.gpio)
                 pin.function = "input"
                 pin.pull = "down"
@@ -283,7 +291,6 @@ class LEDController:
                     gpio=self.config.gpio,
                 )
             except Exception as exc:
-                # In worst case we fall back to whatever state gpiozero left the pin in
                 logger.warning(
                     "led_pin_pulldown_failed",
                     led_id=self.config.id,
@@ -294,25 +301,19 @@ class LEDController:
         logger.debug("led_cleanup", led_id=self.config.id)
 
     async def run_test_blink(self, duration_sec: float = 5.0) -> bool:
-        """Run a fixed blink pattern for testing (e.g. 5 seconds), independent of bindings.
+        """Run a fixed blink pattern for testing, independent of bindings (issue #27).
 
-        Does not set _current_logical_state so normal state handling is unaffected.
-        Returns True if the LED is available and test was started, False otherwise.
+        Delegates to _run_blink_task() to avoid duplicating task-creation logic.
+        Returns True if GPIO is available and test was started, False otherwise.
 
         Args:
             duration_sec: Total blink duration in seconds.
         """
         if not self._gpio_available:
-            logger.debug(
-                "test_blink_skipped_no_hardware",
-                led_id=self.config.id,
-            )
+            logger.debug("test_blink_skipped_no_hardware", led_id=self.config.id)
             return False
 
         await self._cancel_current_pattern()
-        self._cancel_event.clear()
-
-        # 500 ms on/off = 1 cycle per second; repeat = duration in seconds
         interval_ms = 500
         repeat = max(1, int(duration_sec))
         logger.debug(
@@ -321,23 +322,8 @@ class LEDController:
             led_name=self.config.name,
             duration_sec=duration_sec,
         )
-        task = asyncio.create_task(
-            run_blink_pattern(
-                self._led,
-                interval_ms,
-                repeat,
-                self.config.id,
-                self._cancel_event,
-            )
-        )
-        self._current_task = task
-
-        def _on_done(_t: asyncio.Task) -> None:
-            self._current_task = None
-
-        task.add_done_callback(_on_done)
         try:
-            await task
+            await self._run_blink_task(interval_ms, repeat)
         finally:
             self._current_task = None
         logger.debug("test_blink_finished", led_id=self.config.id)
@@ -355,43 +341,51 @@ class LEDManager:
     async def initialize_leds(self, led_configs: list[LEDConfig]) -> None:
         """Initialize LED controllers from configuration.
 
-        Properly awaits cleanup of existing controllers before creating new ones
-        to prevent transient GPIO pin conflicts on the same pins.
-        
+        Sets the gpiozero pin factory exactly once before creating controllers
+        (issue #36). Uses the public close_sync() API on existing controllers
+        instead of accessing private attributes (issue #37).
+
         Args:
             led_configs: List of LED configurations.
         """
         for controller in self._controllers.values():
-            await controller.cleanup()
+            controller.close_sync()
         self._controllers.clear()
-        
-        # Initialize new controllers
+
+        # Set pin factory once, before instantiating any LEDController (issue #36)
+        disable_gpio = os.getenv("DISABLE_GPIO", "false").lower() == "true"
+        if not disable_gpio:
+            try:
+                from gpiozero.pins.native import NativeFactory
+                from gpiozero import Device
+                Device.pin_factory = NativeFactory()
+                logger.debug("gpio_pin_factory_set", factory="NativeFactory")
+            except Exception as exc:
+                logger.warning("gpio_pin_factory_set_failed", error=str(exc))
+
         for config in led_configs:
             controller = LEDController(config)
             self._controllers[config.id] = controller
-        
+
         logger.debug("leds_initialized", count=len(self._controllers))
 
     async def apply_state(self, logical_state: str) -> None:
         """Apply a logical state to all LEDs that have bindings for it.
-        
+
         Args:
             logical_state: The logical state to apply (e.g. 'audio_playing').
         """
         logger.debug("applying_state", logical_state=logical_state)
-        
+
         tasks = []
         for controller in self._controllers.values():
             tasks.append(controller.apply_pattern(logical_state))
-        
+
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def test_led(self, led_id: str) -> bool:
         """Run a fixed 5-second blink on the LED for testing.
-
-        Does not use bindings; the LED blinks for 5 seconds regardless of
-        configured patterns. Returns True if the LED was found and test ran.
 
         Args:
             led_id: The LED ID to test.
@@ -400,7 +394,6 @@ class LEDManager:
         if not controller:
             logger.warning("test_led_not_found", led_id=led_id)
             return False
-
         return await controller.run_test_blink(duration_sec=5.0)
 
     async def cleanup(self) -> None:
