@@ -82,15 +82,13 @@ async def run_event_processor(
 ) -> None:
     """Consume raw events from queue, map to actions, publish to MQTT.
 
-    For every hardware event two things happen unconditionally:
-      1. A raw-event is published on  minabox/{id}/button/raw-event
-         so that the LED service and the WebUI hardware test-mode always
-         receive feedback, regardless of whether an action mapping exists.
-      2. If a logical action is configured for this event type it is
-         published on  minabox/{id}/button/{action-name}  for the backend.
+    Debouncing is applied FIRST, before any MQTT publish:
+    - Debounced events are completely dropped (no MQTT traffic)
+    - Only accepted events trigger raw-event publish (for LED feedback)
+    - Only accepted events trigger action publish (for audio commands)
 
-    Debouncing is applied before MQTT publish to prevent rapid duplicate commands.
-    Raw events are still published for LED feedback even if debounced.
+    This prevents LED "Kirmis" (flicker) during rapid button presses while
+    still providing visual feedback for registered events.
 
     Runs until shutdown_event is set (if provided) or the queue is closed.
     """
@@ -124,16 +122,7 @@ async def run_event_processor(
 
             event_type_str = event.event_type
 
-            # Always publish raw event — required by LED service (blink) and
-            # WebUI hardware test-mode, not just for debugging.
-            await mqtt_client.publish_raw_event(
-                button_id=button.id,
-                name=button.name,
-                button_type=button.type,
-                event_type=event_type_str,
-            )
-
-            # Apply debouncing BEFORE resolving/publishing action
+            # Apply debouncing FIRST (before any MQTT publish)
             if not debouncer.should_fire(button):
                 logger.debug(
                     "button_debounced",
@@ -141,7 +130,15 @@ async def run_event_processor(
                     button_type=button.type,
                     event_type=event_type_str,
                 )
-                continue  # Skip action publishing, but raw event was already sent
+                continue  # Event completely dropped, no MQTT publish
+
+            # Now publish raw event (for LED service and WebUI hardware test-mode)
+            await mqtt_client.publish_raw_event(
+                button_id=button.id,
+                name=button.name,
+                button_type=button.type,
+                event_type=event_type_str,
+            )
 
             # Resolve action and publish
             action = _resolve_action(button, event_type_str)
