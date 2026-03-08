@@ -46,6 +46,7 @@ class VLCBackend(AudioBackend):
         self._current_track_id: str | None = None
         self._current_source_type: str | None = None
         self._current_source_uri: str | None = None
+        self._first_play_after_init = True  # Track cold start
 
     @property
     def is_initialized(self) -> bool:
@@ -124,6 +125,7 @@ class VLCBackend(AudioBackend):
                 logger.debug("initial_volume_set_success", volume=initial_volume)
 
             self._initialized = True
+            self._first_play_after_init = True  # Reset cold start flag
 
         except Exception as e:
             logger.error("vlc_backend_initialization_failed", error=str(e))
@@ -166,8 +168,9 @@ class VLCBackend(AudioBackend):
         """Play audio from source URI.
         
         Includes smart pre-buffering to prevent cold-start stutter (issue #65).
-        Instead of blind delay, waits for VLC to actually start decoding (position > 0),
-        then adds buffer time. This adapts to system speed automatically.
+        First play after service start gets extra buffer time (1.5s) for PulseAudio
+        connection establishment. Subsequent plays use shorter buffer (0.5s) since
+        the audio pipeline is already warm.
         """
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
@@ -206,8 +209,18 @@ class VLCBackend(AudioBackend):
                     hint="VLC position stayed at 0, playback may stutter"
                 )
             
-            # Additional buffering after decoding starts (fills audio buffer)
-            await asyncio.sleep(0.5)
+            # Buffer time depends on whether this is first play after init
+            if self._first_play_after_init:
+                # Cold start: PulseAudio connection + ALSA driver init needs more time
+                buffer_time = 1.5
+                logger.debug("cold_start_buffering", buffer_seconds=buffer_time)
+                self._first_play_after_init = False
+            else:
+                # Warm start: pipeline already established
+                buffer_time = 0.5
+                logger.debug("warm_start_buffering", buffer_seconds=buffer_time)
+            
+            await asyncio.sleep(buffer_time)
 
             if self._pending_volume is not None:
                 applied = min(max(self._pending_volume, 0), self._config.max_volume)
