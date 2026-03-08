@@ -167,10 +167,8 @@ class VLCBackend(AudioBackend):
     async def play(self, source_uri: str, start_position_ms: int = 0) -> None:
         """Play audio from source URI.
         
-        Includes smart pre-buffering to prevent cold-start stutter (issue #65).
-        First play after service start gets extra buffer time (1.5s) for PulseAudio
-        connection establishment. Subsequent plays use shorter buffer (0.5s) since
-        the audio pipeline is already warm.
+        DIAGNOSTIC VERSION: Using extreme 10s buffer for cold start to test
+        if stuttering is buffer-related or a deeper audio stack issue.
         """
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
@@ -209,14 +207,12 @@ class VLCBackend(AudioBackend):
                     hint="VLC position stayed at 0, playback may stutter"
                 )
             
-            # Buffer time depends on whether this is first play after init
+            # DIAGNOSTIC: Extreme buffer times to test if this solves the issue
             if self._first_play_after_init:
-                # Cold start: PulseAudio connection + ALSA driver init needs more time
-                buffer_time = 1.5
-                logger.debug("cold_start_buffering", buffer_seconds=buffer_time)
+                buffer_time = 10.0  # 10 seconds - if this stutters, it's NOT buffer-related!
+                logger.warning("DIAGNOSTIC_cold_start_10s_buffer", buffer_seconds=buffer_time)
                 self._first_play_after_init = False
             else:
-                # Warm start: pipeline already established
                 buffer_time = 0.5
                 logger.debug("warm_start_buffering", buffer_seconds=buffer_time)
             
