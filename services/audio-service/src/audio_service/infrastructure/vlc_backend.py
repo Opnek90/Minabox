@@ -206,11 +206,95 @@ class VLCBackend(AudioBackend):
         raise PlaybackError(f"Timeout waiting for {expected_state}")
 
     async def pause(self) -> None:
-        if self._player: self._player.pause()
+        """Pause playback and wait for state transition.
+        
+        Fixes issue #65: VLC's pause() is asynchronous and takes ~1s to complete.
+        Waiting for State.Paused prevents race conditions where resume() is called
+        before the pause has fully taken effect.
+        """
+        if not self._player:
+            return
+        
+        self._player.pause()
+        
+        # Wait until VLC has actually paused (prevents race conditions)
+        try:
+            await self._wait_for_state(vlc.State.Paused, timeout_sec=2.0)
+        except PlaybackError:
+            logger.warning("pause_state_transition_timeout")
 
     async def resume(self) -> None:
-        if self._player and self._player.get_state() == vlc.State.Paused:
-            self._player.play()
+        """Resume playback from pause.
+        
+        Fixes issue #65: VLC discards its audio buffer after ~5-10 seconds of pause.
+        For short pauses, uses VLC's internal buffer (toggle-resume).
+        For long pauses, detects buffer loss via position jump and does full re-play.
+        
+        This ensures seamless playback regardless of pause duration.
+        """
+        if not self._player:
+            return
+        
+        current_state = self._player.get_state()
+        if current_state != vlc.State.Paused:
+            logger.warning("resume_called_but_not_paused", state=current_state)
+            return
+        
+        # Save position before resume attempt
+        saved_position = self._player.get_time()
+        if saved_position < 0:
+            saved_position = 0
+        
+        # Attempt toggle-resume (works if VLC still has buffer)
+        self._player.pause()  # Toggle: Paused → Playing
+        
+        # Brief wait to let VLC attempt buffer-based resume
+        await asyncio.sleep(0.3)
+        
+        current_position = self._player.get_time()
+        if current_position < 0:
+            current_position = 0
+        
+        position_jump = abs(current_position - saved_position)
+        
+        # If position jumped >100ms, VLC lost the buffer → do full re-play
+        if position_jump > 100:
+            logger.info(
+                "resume_buffer_lost_replaying",
+                saved_position=saved_position,
+                current_position=current_position,
+                jump_ms=position_jump,
+            )
+            
+            # Stop current playback
+            self._player.stop()
+            await asyncio.sleep(0.1)
+            
+            # Full re-play with saved position
+            if self._current_source_uri:
+                media = self._instance.media_new(self._current_source_uri)
+                self._player.set_media(media)
+                self._player.play()
+                
+                try:
+                    await self._wait_for_state(vlc.State.Playing, timeout_sec=3.0)
+                except PlaybackError as e:
+                    logger.error("resume_replay_failed", error=str(e))
+                    raise
+                
+                # Jump to saved position
+                self._player.set_time(saved_position)
+                logger.debug("resume_replay_success", position=saved_position)
+            else:
+                logger.error("resume_replay_no_source_uri")
+                raise PlaybackError("Cannot resume: no source URI stored")
+        else:
+            # Toggle-resume worked, just sync state
+            logger.debug("resume_toggle_success", position_jump=position_jump)
+            try:
+                await self._wait_for_state(vlc.State.Playing, timeout_sec=2.0)
+            except PlaybackError:
+                logger.warning("resume_state_transition_timeout")
 
     async def stop(self) -> None:
         if self._player:
