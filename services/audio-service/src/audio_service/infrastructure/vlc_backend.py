@@ -165,10 +165,9 @@ class VLCBackend(AudioBackend):
     async def play(self, source_uri: str, start_position_ms: int = 0) -> None:
         """Play audio from source URI.
         
-        Includes pre-buffering delay to prevent cold-start stutter (issue #65).
-        When playing the first track after service start, VLC needs time to establish
-        PulseAudio connection and fill audio buffer. Without this delay, the first
-        ~500ms of audio would stutter.
+        Includes smart pre-buffering to prevent cold-start stutter (issue #65).
+        Instead of blind delay, waits for VLC to actually start decoding (position > 0),
+        then adds buffer time. This adapts to system speed automatically.
         """
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
@@ -182,11 +181,32 @@ class VLCBackend(AudioBackend):
             if result == -1:
                 raise PlaybackError("VLC player.play() returned error")
 
+            # Wait for Playing state (VLC reports ready, but may not be decoding yet)
             await self._wait_for_state(vlc.State.Playing)
             
-            # Pre-buffering delay: Give VLC time to fill initial audio buffer
-            # Prevents cold-start stutter on first track after service start
-            # (PulseAudio connection + decoder init + buffer fill ~500ms)
+            # Wait until VLC actually starts decoding audio (position > 0)
+            # On cold start, this can take ~300ms after State.Playing
+            max_wait = 2.0
+            elapsed = 0.0
+            while elapsed < max_wait:
+                pos = self._player.get_time()
+                if pos > 0:
+                    logger.debug(
+                        "audio_decoding_started",
+                        position_ms=pos,
+                        elapsed_ms=int(elapsed * 1000)
+                    )
+                    break
+                await asyncio.sleep(0.05)
+                elapsed += 0.05
+            
+            if elapsed >= max_wait:
+                logger.warning(
+                    "audio_decoding_timeout",
+                    hint="VLC position stayed at 0, playback may stutter"
+                )
+            
+            # Additional buffering after decoding starts (fills audio buffer)
             await asyncio.sleep(0.5)
 
             if self._pending_volume is not None:
