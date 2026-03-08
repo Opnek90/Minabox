@@ -163,6 +163,13 @@ class VLCBackend(AudioBackend):
                     pass
 
     async def play(self, source_uri: str, start_position_ms: int = 0) -> None:
+        """Play audio from source URI.
+        
+        Includes pre-buffering delay to prevent cold-start stutter (issue #65).
+        When playing the first track after service start, VLC needs time to establish
+        PulseAudio connection and fill audio buffer. Without this delay, the first
+        ~500ms of audio would stutter.
+        """
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
 
@@ -176,6 +183,11 @@ class VLCBackend(AudioBackend):
                 raise PlaybackError("VLC player.play() returned error")
 
             await self._wait_for_state(vlc.State.Playing)
+            
+            # Pre-buffering delay: Give VLC time to fill initial audio buffer
+            # Prevents cold-start stutter on first track after service start
+            # (PulseAudio connection + decoder init + buffer fill ~500ms)
+            await asyncio.sleep(0.5)
 
             if self._pending_volume is not None:
                 applied = min(max(self._pending_volume, 0), self._config.max_volume)
