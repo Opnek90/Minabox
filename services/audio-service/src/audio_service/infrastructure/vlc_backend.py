@@ -4,7 +4,6 @@ Uses python-vlc to provide audio playback functionality.
 """
 
 import asyncio
-import json
 import os
 import subprocess
 import time
@@ -18,11 +17,14 @@ from ..config_schema import AudioConfig, OutputDeviceType
 from ..exceptions import (
     FileNotFoundError,
     PlaybackError,
-    StreamUnreachableError,
     VLCError,
 )
 
 logger = structlog.get_logger(__name__)
+
+# Seconds of idle after which PipeWire/PulseAudio suspends the ALSA sink.
+# We prewarm slightly below this threshold.
+_PIPELINE_SUSPEND_THRESHOLD_SEC = 4.0
 
 
 class VLCBackend(AudioBackend):
@@ -46,6 +48,10 @@ class VLCBackend(AudioBackend):
         self._current_track_id: str | None = None
         self._current_source_type: str | None = None
         self._current_source_uri: str | None = None
+        # Monotonic timestamp of the last time the audio stream was closed
+        # (stop() or service start).  Used to decide whether a pacat prewarm
+        # is needed before the next play().
+        self._last_stop_time: float = float("-inf")
 
     @property
     def is_initialized(self) -> bool:
@@ -85,7 +91,6 @@ class VLCBackend(AudioBackend):
             if not pulse_server:
                 logger.warning("pulse_server_not_set_vlc_may_fail")
 
-            # Set Pulse default sink
             if self._config.output_device_type != OutputDeviceType.PULSEAUDIO:
                 logger.warning(
                     "coercing_output_device_type_to_pulseaudio",
@@ -108,7 +113,6 @@ class VLCBackend(AudioBackend):
             if self._player is None:
                 raise VLCError("Failed to create VLC media player")
 
-            # Set volume logic
             initial_volume = getattr(self._config, "default_volume", 40)
             if initial_volume is None:
                 initial_volume = 40
@@ -117,7 +121,6 @@ class VLCBackend(AudioBackend):
 
             logger.debug("setting_initial_volume", volume=initial_volume)
             result = self._player.audio_set_volume(initial_volume)
-            
             if result == -1:
                 logger.warning("initial_volume_set_returned_error", requested=initial_volume)
             else:
@@ -128,6 +131,17 @@ class VLCBackend(AudioBackend):
         except Exception as e:
             logger.error("vlc_backend_initialization_failed", error=str(e))
             raise VLCError(f"VLC backend initialization failed: {e}") from e
+
+        # Best-effort: disable PulseAudio suspend-on-idle on the server.
+        # This helps on pure PulseAudio hosts; on PipeWire hosts it may be
+        # a no-op, which is why play() has its own time-based prewarm.
+        await self._disable_pulse_suspend_on_idle()
+
+        # Pre-warm the pipeline at service start (pipeline has never been
+        # opened). Marks _last_stop_time so the first play() skips an
+        # extra prewarm.
+        await self._prewarm_audio_pipeline()
+        self._last_stop_time = time.monotonic()
 
     def _build_vlc_args(self) -> list[str]:
         return [
@@ -141,14 +155,15 @@ class VLCBackend(AudioBackend):
         if not os.environ.get("PULSE_SERVER"):
             return False
         try:
-            # Unsuspend sink
             subprocess.run(["pactl", "suspend-sink", sink_name, "0"], capture_output=True, timeout=5)
-            
-            # Unmute ALSA for specific cards
+
             if "platform-soc_sound" in sink_name or "soc_sound" in sink_name:
                 self._unmute_alsa_for_sink(sink_name)
-            
-            result = subprocess.run(["pactl", "set-default-sink", sink_name], capture_output=True, text=True, timeout=5)
+
+            result = subprocess.run(
+                ["pactl", "set-default-sink", sink_name],
+                capture_output=True, text=True, timeout=5,
+            )
             return result.returncode == 0
         except Exception as e:
             logger.warning("pulse_set_default_sink_error", sink=sink_name, error=str(e))
@@ -158,19 +173,111 @@ class VLCBackend(AudioBackend):
         for card in ("0", "1"):
             for control in ("Master", "Speaker", "PCM"):
                 try:
-                    subprocess.run(["amixer", "-c", card, "sset", control, "unmute"], capture_output=True, timeout=5)
+                    subprocess.run(
+                        ["amixer", "-c", card, "sset", control, "unmute"],
+                        capture_output=True, timeout=5,
+                    )
                 except Exception:
                     pass
 
+    async def _disable_pulse_suspend_on_idle(self) -> None:
+        """Best-effort: unload module-suspend-on-idle from PulseAudio server.
+
+        Effective on pure PulseAudio hosts.  On PipeWire hosts this is usually
+        a no-op (PipeWire has its own suspend mechanism); in that case the
+        time-based prewarm in play() handles the stutter.
+        """
+        if not os.environ.get("PULSE_SERVER"):
+            return
+        try:
+            result = subprocess.run(
+                ["pactl", "unload-module", "module-suspend-on-idle"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                logger.info("pulse_suspend_on_idle_disabled")
+            else:
+                logger.debug(
+                    "pulse_suspend_on_idle_unload_skipped",
+                    hint="no-op on PipeWire or module already unloaded",
+                    stderr=result.stderr.strip(),
+                )
+        except Exception as e:
+            logger.warning("pulse_suspend_on_idle_error", error=str(e))
+
+    async def _prewarm_audio_pipeline(self) -> None:
+        """Write 300 ms of silence via pacat to open the ALSA hardware buffers.
+
+        When the ALSA device is suspended (cold after idle), hardware buffer
+        allocation takes ~100-300 ms.  Writing silence first lets that
+        allocation complete so the subsequent VLC play() starts on a warm sink.
+
+        pacat (pulseaudio-utils) is installed in the Dockerfile.
+        """
+        if not os.environ.get("PULSE_SERVER"):
+            return
+
+        cmd = ["pacat", "--playback", "--rate=48000", "--channels=2", "--format=float32le"]
+        sink_name = (self._config.output_device_name or "").strip()
+        if sink_name:
+            cmd += ["--device", sink_name]
+
+        # 300 ms of silence: 48000 * 2 ch * 4 bytes * 0.3 s = 115 200 bytes
+        silence = bytes(115_200)
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            try:
+                proc.stdin.write(silence)
+                await proc.stdin.drain()
+                proc.stdin.close()
+                await asyncio.wait_for(proc.wait(), timeout=5.0)
+            except Exception:
+                proc.kill()
+                await proc.wait()
+                raise
+            logger.debug("audio_pipeline_prewarmed")
+        except Exception as e:
+            logger.warning("audio_pipeline_prewarm_failed", error=str(e))
+
     async def play(self, source_uri: str, start_position_ms: int = 0) -> None:
+        """Play audio from source URI.
+
+        Cold-start stutter fix (issue #65):
+        If the audio pipeline has been idle for more than _PIPELINE_SUSPEND_THRESHOLD_SEC
+        seconds, PipeWire/PulseAudio will have suspended the ALSA device.  We
+        detect this via the elapsed time since the last stop() and run a pacat
+        prewarm to re-open the hardware before VLC writes its first sample.
+
+        Warm plays (consecutive tracks, < 4 s idle) take the fast path with no
+        added latency.
+        """
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
 
         try:
             await self._validate_source(source_uri)
+
+            # --- Cold-pipeline guard -------------------------------------------
+            idle_sec = time.monotonic() - self._last_stop_time
+            if idle_sec > _PIPELINE_SUSPEND_THRESHOLD_SEC:
+                logger.debug(
+                    "pipeline_cold_prewarming",
+                    idle_sec=round(idle_sec, 1),
+                )
+                await self._prewarm_audio_pipeline()
+                # Update timestamp so consecutive plays skip prewarm
+                self._last_stop_time = time.monotonic()
+            # ------------------------------------------------------------------
+
             media = self._instance.media_new(source_uri)
             self._player.set_media(media)
-            
+
             result = self._player.play()
             if result == -1:
                 raise PlaybackError("VLC player.play() returned error")
@@ -206,16 +313,92 @@ class VLCBackend(AudioBackend):
         raise PlaybackError(f"Timeout waiting for {expected_state}")
 
     async def pause(self) -> None:
-        if self._player: self._player.pause()
+        """Pause playback and wait for state transition.
+
+        Fixes issue #65: VLC's pause() is asynchronous and takes ~1s to complete.
+        Waiting for State.Paused prevents race conditions where resume() is called
+        before the pause has fully taken effect.
+        """
+        if not self._player:
+            return
+
+        self._player.pause()
+
+        try:
+            await self._wait_for_state(vlc.State.Paused, timeout_sec=2.0)
+        except PlaybackError:
+            logger.warning("pause_state_transition_timeout")
 
     async def resume(self) -> None:
-        if self._player and self._player.get_state() == vlc.State.Paused:
-            self._player.play()
+        """Resume playback from pause.
+
+        Fixes issue #65: VLC discards its audio buffer after ~5-10 seconds of pause.
+        For short pauses, uses VLC's internal buffer (toggle-resume).
+        For long pauses, detects buffer loss via position jump and does full re-play.
+        """
+        if not self._player:
+            return
+
+        current_state = self._player.get_state()
+        if current_state != vlc.State.Paused:
+            logger.warning("resume_called_but_not_paused", state=current_state)
+            return
+
+        saved_position = self._player.get_time()
+        if saved_position < 0:
+            saved_position = 0
+
+        self._player.pause()  # Toggle: Paused → Playing
+
+        await asyncio.sleep(0.3)
+
+        current_position = self._player.get_time()
+        if current_position < 0:
+            current_position = 0
+
+        position_jump = abs(current_position - saved_position)
+
+        if position_jump > 100:
+            logger.info(
+                "resume_buffer_lost_replaying",
+                saved_position=saved_position,
+                current_position=current_position,
+                jump_ms=position_jump,
+            )
+
+            self._player.stop()
+            await asyncio.sleep(0.1)
+
+            if self._current_source_uri:
+                media = self._instance.media_new(self._current_source_uri)
+                self._player.set_media(media)
+                self._player.play()
+
+                try:
+                    await self._wait_for_state(vlc.State.Playing, timeout_sec=3.0)
+                except PlaybackError as e:
+                    logger.error("resume_replay_failed", error=str(e))
+                    raise
+
+                self._player.set_time(saved_position)
+                logger.debug("resume_replay_success", position=saved_position)
+            else:
+                logger.error("resume_replay_no_source_uri")
+                raise PlaybackError("Cannot resume: no source URI stored")
+        else:
+            logger.debug("resume_toggle_success", position_jump=position_jump)
+            try:
+                await self._wait_for_state(vlc.State.Playing, timeout_sec=2.0)
+            except PlaybackError:
+                logger.warning("resume_state_transition_timeout")
 
     async def stop(self) -> None:
         if self._player:
             self._player.stop()
             self._current_source_uri = None
+        # Record when the audio stream closed so play() can decide whether
+        # to prewarm the pipeline before the next VLC play.
+        self._last_stop_time = time.monotonic()
 
     async def set_volume(self, volume: int) -> None:
         if not self._player: return

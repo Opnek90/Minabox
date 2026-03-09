@@ -116,6 +116,12 @@ class AudioService:
         self._mqtt_task: asyncio.Task | None = None
         self._running = False
 
+        # Playback command lock (issue #61)
+        # Prevents race conditions when multiple play/stop/pause commands arrive
+        # simultaneously (e.g., rapid button presses by children)
+        self._playback_lock = asyncio.Lock()
+        self._current_playback_task: asyncio.Task | None = None
+
         # Last-published fingerprint for change detection in the periodic loop
         self._last_published_fingerprint: tuple[Any, ...] | None = None
 
@@ -177,6 +183,14 @@ class AudioService:
         logger.info("audio_service_shutting_down")
 
         self._running = False
+
+        # Cancel any ongoing playback operation
+        if self._current_playback_task and not self._current_playback_task.done():
+            self._current_playback_task.cancel()
+            try:
+                await self._current_playback_task
+            except asyncio.CancelledError:
+                pass
 
         if self._status_publish_task is not None:
             self._status_publish_task.cancel()
@@ -367,64 +381,92 @@ class AudioService:
     # Command Handlers
 
     async def _handle_play(self, command: PlayCommand | None) -> None:
-        """Handle play command."""
-        try:
-            _agent_log(
-                "service.py:_handle_play",
-                "play_handler_called",
-                {"has_command": command is not None, "source_uri": command.source_uri if command else None, "track_id": command.track_id if command else None},
-                "C_E",
-            )
-            if command is not None:
-                self._vlc_backend.set_track_metadata(
-                    track_id=command.track_id,
-                    source_type=command.source_type,
-                )
-                await self._vlc_backend.play(
-                    source_uri=command.source_uri,
-                    start_position_ms=command.start_position_ms,
-                )
-            else:
-                current_status = await self._vlc_backend.get_status()
-                if current_status.state == PlaybackState.PAUSED:
-                    await self._vlc_backend.resume()
-                else:
-                    state = self._state_manager.get_state()
-                    if state.last_source_uri and self._state_manager.can_resume():
+        """Handle play command with race condition protection.
+        
+        Fixes issue #61: Multiple rapid play commands (from button mashing) used to
+        corrupt VLC's pipeline, causing "LED on, no sound" symptom. Now protected by
+        a lock that cancels any in-progress play operation when a new one arrives.
+        """
+        # Cancel any currently running play operation
+        if self._current_playback_task and not self._current_playback_task.done():
+            logger.info("play_interrupted_cancelling_previous")
+            self._current_playback_task.cancel()
+            try:
+                await self._current_playback_task
+            except asyncio.CancelledError:
+                pass
+
+        # Create new play task with lock protection
+        async def _execute_play():
+            async with self._playback_lock:
+                try:
+                    _agent_log(
+                        "service.py:_handle_play",
+                        "play_handler_called",
+                        {"has_command": command is not None, "source_uri": command.source_uri if command else None, "track_id": command.track_id if command else None},
+                        "C_E",
+                    )
+                    if command is not None:
                         self._vlc_backend.set_track_metadata(
-                            track_id=state.last_track_id,
-                            source_type=state.last_source_type,
+                            track_id=command.track_id,
+                            source_type=command.source_type,
                         )
                         await self._vlc_backend.play(
-                            source_uri=state.last_source_uri,
-                            start_position_ms=state.last_position_ms,
+                            source_uri=command.source_uri,
+                            start_position_ms=command.start_position_ms,
                         )
                     else:
-                        logger.warning("play_resume_no_state")
-            await self._publish_status()
-        except Exception as exc:
-            logger.error("handle_play_failed", error=str(exc))
-            await self._publish_error("playback_error", str(exc))
+                        current_status = await self._vlc_backend.get_status()
+                        if current_status.state == PlaybackState.PAUSED:
+                            await self._vlc_backend.resume()
+                        else:
+                            state = self._state_manager.get_state()
+                            if state.last_source_uri and self._state_manager.can_resume():
+                                self._vlc_backend.set_track_metadata(
+                                    track_id=state.last_track_id,
+                                    source_type=state.last_source_type,
+                                )
+                                await self._vlc_backend.play(
+                                    source_uri=state.last_source_uri,
+                                    start_position_ms=state.last_position_ms,
+                                )
+                            else:
+                                logger.warning("play_resume_no_state")
+                    await self._publish_status()
+                except asyncio.CancelledError:
+                    logger.debug("play_cancelled_by_new_request")
+                    raise
+                except Exception as exc:
+                    logger.error("handle_play_failed", error=str(exc))
+                    await self._publish_error("playback_error", str(exc))
+
+        self._current_playback_task = asyncio.create_task(_execute_play())
+        try:
+            await self._current_playback_task
+        except asyncio.CancelledError:
+            pass  # Expected when cancelled by new play request
 
     async def _handle_pause(self) -> None:
-        """Handle pause command."""
-        try:
-            await self._vlc_backend.pause()
-            await self._save_current_state()
-            await self._publish_status()
-        except Exception as exc:
-            logger.error("handle_pause_failed", error=str(exc))
-            await self._publish_error("playback_error", str(exc))
+        """Handle pause command with race condition protection."""
+        async with self._playback_lock:
+            try:
+                await self._vlc_backend.pause()
+                await self._save_current_state()
+                await self._publish_status()
+            except Exception as exc:
+                logger.error("handle_pause_failed", error=str(exc))
+                await self._publish_error("playback_error", str(exc))
 
     async def _handle_stop(self) -> None:
-        """Handle stop command."""
-        try:
-            await self._vlc_backend.stop()
-            self._state_manager.clear()
-            await self._publish_status()
-        except Exception as exc:
-            logger.error("handle_stop_failed", error=str(exc))
-            await self._publish_error("playback_error", str(exc))
+        """Handle stop command with race condition protection."""
+        async with self._playback_lock:
+            try:
+                await self._vlc_backend.stop()
+                self._state_manager.clear()
+                await self._publish_status()
+            except Exception as exc:
+                logger.error("handle_stop_failed", error=str(exc))
+                await self._publish_error("playback_error", str(exc))
 
     async def _handle_next(self) -> None:
         """Handle next command (backend decides next track).
