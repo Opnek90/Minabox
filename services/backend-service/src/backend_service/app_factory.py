@@ -107,6 +107,10 @@ class BackendService:
             self.config.get_mqtt_topic("audio", "status"),
             self._mqtt_handlers.handle_audio_status,
         )
+        await self._mqtt_client.subscribe(
+            self.config.get_mqtt_topic("audio", "position-report"),
+            self._mqtt_handlers.handle_audio_position_report,
+        )
         # button/+ catches all mapped action topics (play-pause, volume-up, …)
         await self._mqtt_client.subscribe(
             self.config.get_mqtt_topic("button", "+"),
