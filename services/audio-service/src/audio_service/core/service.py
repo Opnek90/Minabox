@@ -207,6 +207,13 @@ class AudioService:
                 pass
 
         try:
+            # Report position to backend BEFORE stopping VLC so we still
+            # have an accurate position_ms from the running playback.
+            await self._report_position_to_backend()
+        except Exception as exc:
+            logger.warning("shutdown_report_position_failed", error=str(exc))
+
+        try:
             await self._vlc_backend.stop()
         except Exception as exc:
             logger.warning("shutdown_stop_failed", error=str(exc))
@@ -355,6 +362,32 @@ class AudioService:
             volume=status.volume,
         )
 
+    async def _report_position_to_backend(self) -> None:
+        """Publish current playback position to backend-service via MQTT.
+
+        Called on stop, pause, and graceful shutdown so the backend can
+        persist the resume position in SQLite (Issue #51).
+        Skipped silently for live streams (source_type == 'stream').
+        """
+        status = await self._vlc_backend.get_status()
+        if not status.source_uri or status.source_type == "stream":
+            return
+        if status.position_ms <= 0:
+            return
+        payload = {
+            "source_uri": status.source_uri,
+            "source_type": status.source_type,
+            "position_ms": status.position_ms,
+            "duration_ms": status.duration_ms,
+        }
+        topic = self._config.get_mqtt_topic("audio", "position-report")
+        await self._mqtt_client.publish(topic, payload)
+        logger.debug(
+            "position_report_published",
+            source_uri=status.source_uri,
+            position_ms=status.position_ms,
+        )
+
     async def _reinitialize_and_resume(self, config: AudioConfig) -> None:
         """Re-initialize VLC backend and resume playback from the last snapshot.
 
@@ -450,6 +483,8 @@ class AudioService:
         """Handle pause command with race condition protection."""
         async with self._playback_lock:
             try:
+                # Report position BEFORE pausing so VLC still has accurate position_ms
+                await self._report_position_to_backend()
                 await self._vlc_backend.pause()
                 await self._save_current_state()
                 await self._publish_status()
@@ -461,6 +496,8 @@ class AudioService:
         """Handle stop command with race condition protection."""
         async with self._playback_lock:
             try:
+                # Report position BEFORE stopping so VLC still has accurate position_ms
+                await self._report_position_to_backend()
                 await self._vlc_backend.stop()
                 self._state_manager.clear()
                 await self._publish_status()

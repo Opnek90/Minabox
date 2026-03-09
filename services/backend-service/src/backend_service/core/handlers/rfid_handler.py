@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 import backend_service.core.db_manager as _db_module
 from backend_service.core.playback_stats import get_today_listened_minutes
+from backend_service.core.resume_position import get_resume_position
 from backend_service.core.session_manager import session_manager
 from backend_service.core.usage_limits import (
     is_within_allowed_usage_time,
@@ -188,11 +189,23 @@ class RFIDHandler:
         session.add(event)
         session.commit()
 
+        resume_pos = get_resume_position(session, track.source_uri)
+        logger.info(
+            "track_playback_started",
+            track_id=track_id,
+            title=track.title,
+            resume_pos_ms=resume_pos,
+        )
+
         await self.dispatcher.mqtt_client.publish_audio_command(
             "play",
-            {"track_id": str(track.id), "source_type": track.source_type, "source_uri": track.source_uri, "start_position_ms": 0}
+            {
+                "track_id": str(track.id),
+                "source_type": track.source_type,
+                "source_uri": track.source_uri,
+                "start_position_ms": resume_pos,
+            }
         )
-        logger.info("track_playback_started", track_id=track_id, title=track.title)
 
     async def _handle_stream_playback(self, session: Session, stream_id: int, tag_id: int | None = None) -> None:
         stream = session.query(Stream).filter(Stream.id == stream_id).first()
@@ -232,11 +245,24 @@ class RFIDHandler:
         if session_manager.session:
             session_manager.session.reset()
 
+        resume_pos = get_resume_position(session, episode.source_uri)
+        logger.info(
+            "podcast_playback_started",
+            podcast_id=podcast_id,
+            episode_id=episode.id,
+            title=episode.title,
+            resume_pos_ms=resume_pos,
+        )
+
         await self.dispatcher.mqtt_client.publish_audio_command(
             "play",
-            {"track_id": f"podcast-{podcast.id}", "source_type": "podcast", "source_uri": episode.source_uri, "start_position_ms": 0}
+            {
+                "track_id": f"podcast-{podcast.id}",
+                "source_type": "podcast",
+                "source_uri": episode.source_uri,
+                "start_position_ms": resume_pos,
+            }
         )
-        logger.info("podcast_playback_started", podcast_id=podcast_id, episode_id=episode.id, title=episode.title)
 
     async def handle_rfid_tag_scanned_learning(self, topic: str, data: dict[str, Any]) -> None:
         tag_id = data.get("tag_id")
