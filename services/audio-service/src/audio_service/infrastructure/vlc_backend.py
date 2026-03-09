@@ -4,7 +4,6 @@ Uses python-vlc to provide audio playback functionality.
 """
 
 import asyncio
-import json
 import os
 import subprocess
 import time
@@ -118,7 +117,7 @@ class VLCBackend(AudioBackend):
 
             logger.debug("setting_initial_volume", volume=initial_volume)
             result = self._player.audio_set_volume(initial_volume)
-            
+
             if result == -1:
                 logger.warning("initial_volume_set_returned_error", requested=initial_volume)
             else:
@@ -145,11 +144,11 @@ class VLCBackend(AudioBackend):
         try:
             # Unsuspend sink
             subprocess.run(["pactl", "suspend-sink", sink_name, "0"], capture_output=True, timeout=5)
-            
+
             # Unmute ALSA for specific cards
             if "platform-soc_sound" in sink_name or "soc_sound" in sink_name:
                 self._unmute_alsa_for_sink(sink_name)
-            
+
             result = subprocess.run(["pactl", "set-default-sink", sink_name], capture_output=True, text=True, timeout=5)
             return result.returncode == 0
         except Exception as e:
@@ -166,9 +165,16 @@ class VLCBackend(AudioBackend):
 
     async def play(self, source_uri: str, start_position_ms: int = 0) -> None:
         """Play audio from source URI.
-        
-        DIAGNOSTIC VERSION: Using extreme 10s buffer for cold start to test
-        if stuttering is buffer-related or a deeper audio stack issue.
+
+        Cold-start stutter fix (issue #65):
+        On the first play after service initialisation, the :start-paused media
+        option instructs VLC to start in paused state.  This lets the
+        PulseAudio/ALSA pipeline initialise without any audio being written to
+        the hardware.  Once the pipeline is ready we call set_pause(0) and
+        playback begins cleanly.
+
+        Warm-start plays (all subsequent tracks) skip the pause step entirely
+        because the pipeline is already hot — no regression.
         """
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
@@ -176,56 +182,56 @@ class VLCBackend(AudioBackend):
         try:
             await self._validate_source(source_uri)
             media = self._instance.media_new(source_uri)
+
+            is_cold_start = self._first_play_after_init
+
+            if is_cold_start:
+                # Tell VLC to hold in Paused state immediately after play().
+                # No audio is sent to PulseAudio/ALSA during the wait below.
+                media.add_option(":start-paused")
+                logger.debug("cold_start_play_paused_mode")
+
             self._player.set_media(media)
-            
+
             result = self._player.play()
             if result == -1:
                 raise PlaybackError("VLC player.play() returned error")
 
-            # Wait for Playing state (VLC reports ready, but may not be decoding yet)
-            await self._wait_for_state(vlc.State.Playing)
-            
-            # Wait until VLC actually starts decoding audio (position > 0)
-            # On cold start, this can take ~300ms after State.Playing
-            max_wait = 2.0
-            elapsed = 0.0
-            while elapsed < max_wait:
-                pos = self._player.get_time()
-                if pos > 0:
-                    logger.debug(
-                        "audio_decoding_started",
-                        position_ms=pos,
-                        elapsed_ms=int(elapsed * 1000)
-                    )
-                    break
-                await asyncio.sleep(0.05)
-                elapsed += 0.05
-            
-            if elapsed >= max_wait:
-                logger.warning(
-                    "audio_decoding_timeout",
-                    hint="VLC position stayed at 0, playback may stutter"
-                )
-            
-            # DIAGNOSTIC: Extreme buffer times to test if this solves the issue
-            if self._first_play_after_init:
-                buffer_time = 10.0  # 10 seconds - if this stutters, it's NOT buffer-related!
-                logger.warning("DIAGNOSTIC_cold_start_10s_buffer", buffer_seconds=buffer_time)
+            if is_cold_start:
+                # Wait until VLC has actually entered Paused state.
+                await self._wait_for_state(vlc.State.Paused)
+
+                # Give PulseAudio/ALSA 0.5 s to fully open the sink.
+                # Because no audio is being written right now, this wait is
+                # guaranteed to be stutter-free.
+                await asyncio.sleep(0.5)
+
+                if self._pending_volume is not None:
+                    applied = min(max(self._pending_volume, 0), self._config.max_volume)
+                    self._player.audio_set_volume(applied)
+                    self._pending_volume = None
+
+                if start_position_ms > 0:
+                    self._player.set_time(start_position_ms)
+                    await asyncio.sleep(0.1)
+
+                # Release the pause: pipeline is warm, audio starts immediately.
+                self._player.set_pause(0)
                 self._first_play_after_init = False
+                logger.debug("cold_start_pipeline_warmed_resuming")
+
             else:
-                buffer_time = 0.5
-                logger.debug("warm_start_buffering", buffer_seconds=buffer_time)
-            
-            await asyncio.sleep(buffer_time)
+                # Warm start: pipeline already initialised, standard flow.
+                await self._wait_for_state(vlc.State.Playing)
 
-            if self._pending_volume is not None:
-                applied = min(max(self._pending_volume, 0), self._config.max_volume)
-                self._player.audio_set_volume(applied)
-                self._pending_volume = None
+                if self._pending_volume is not None:
+                    applied = min(max(self._pending_volume, 0), self._config.max_volume)
+                    self._player.audio_set_volume(applied)
+                    self._pending_volume = None
 
-            if start_position_ms > 0:
-                await asyncio.sleep(0.2)
-                self._player.set_time(start_position_ms)
+                if start_position_ms > 0:
+                    await asyncio.sleep(0.2)
+                    self._player.set_time(start_position_ms)
 
             self._current_source_uri = source_uri
         except Exception as e:
@@ -248,16 +254,16 @@ class VLCBackend(AudioBackend):
 
     async def pause(self) -> None:
         """Pause playback and wait for state transition.
-        
+
         Fixes issue #65: VLC's pause() is asynchronous and takes ~1s to complete.
         Waiting for State.Paused prevents race conditions where resume() is called
         before the pause has fully taken effect.
         """
         if not self._player:
             return
-        
+
         self._player.pause()
-        
+
         # Wait until VLC has actually paused (prevents race conditions)
         try:
             await self._wait_for_state(vlc.State.Paused, timeout_sec=2.0)
@@ -266,38 +272,38 @@ class VLCBackend(AudioBackend):
 
     async def resume(self) -> None:
         """Resume playback from pause.
-        
+
         Fixes issue #65: VLC discards its audio buffer after ~5-10 seconds of pause.
         For short pauses, uses VLC's internal buffer (toggle-resume).
         For long pauses, detects buffer loss via position jump and does full re-play.
-        
+
         This ensures seamless playback regardless of pause duration.
         """
         if not self._player:
             return
-        
+
         current_state = self._player.get_state()
         if current_state != vlc.State.Paused:
             logger.warning("resume_called_but_not_paused", state=current_state)
             return
-        
+
         # Save position before resume attempt
         saved_position = self._player.get_time()
         if saved_position < 0:
             saved_position = 0
-        
+
         # Attempt toggle-resume (works if VLC still has buffer)
         self._player.pause()  # Toggle: Paused → Playing
-        
+
         # Brief wait to let VLC attempt buffer-based resume
         await asyncio.sleep(0.3)
-        
+
         current_position = self._player.get_time()
         if current_position < 0:
             current_position = 0
-        
+
         position_jump = abs(current_position - saved_position)
-        
+
         # If position jumped >100ms, VLC lost the buffer → do full re-play
         if position_jump > 100:
             logger.info(
@@ -306,23 +312,23 @@ class VLCBackend(AudioBackend):
                 current_position=current_position,
                 jump_ms=position_jump,
             )
-            
+
             # Stop current playback
             self._player.stop()
             await asyncio.sleep(0.1)
-            
+
             # Full re-play with saved position
             if self._current_source_uri:
                 media = self._instance.media_new(self._current_source_uri)
                 self._player.set_media(media)
                 self._player.play()
-                
+
                 try:
                     await self._wait_for_state(vlc.State.Playing, timeout_sec=3.0)
                 except PlaybackError as e:
                     logger.error("resume_replay_failed", error=str(e))
                     raise
-                
+
                 # Jump to saved position
                 self._player.set_time(saved_position)
                 logger.debug("resume_replay_success", position=saved_position)
