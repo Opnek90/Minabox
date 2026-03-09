@@ -196,3 +196,37 @@ class TemperatureReading(Base):
 
     def __repr__(self) -> str:
         return f"<TemperatureReading(id={self.id}, recorded_at={self.recorded_at}, temperature_celsius={self.temperature_celsius})>"
+
+
+class TrackResumePosition(Base):
+    """Persisted playback resume position per content URI.
+
+    Stores the last known position for tracks and podcast episodes so
+    the system can resume from where playback was stopped or paused.
+    Keyed by source_uri — the only identifier shared between audio-service
+    and backend-service.
+
+    A row is upserted on every stop/pause event and deleted when a track
+    is played to completion (< MIN_REMAINING_MS remaining).
+    """
+
+    __tablename__ = "track_resume_positions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_uri = Column(String(1024), nullable=False, unique=True, index=True)
+    position_ms = Column(Integer, nullable=False, default=0)
+    content_type = Column(String(16), nullable=False)  # 'track' or 'podcast'
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<TrackResumePosition("
+            f"source_uri={self.source_uri!r}, "
+            f"position_ms={self.position_ms}, "
+            f"content_type={self.content_type!r})>"
+        )

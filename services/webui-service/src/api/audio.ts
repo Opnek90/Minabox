@@ -35,6 +35,10 @@ export const audioApi = {
     await apiClient.post('/audio/prev');
   },
 
+  seek: async (positionMs: number): Promise<void> => {
+    await apiClient.post('/audio/seek', { position_ms: positionMs });
+  },
+
   setVolume: async (volume: number): Promise<void> => {
     const body: VolumeRequest = { volume };
     await apiClient.post('/audio/volume', body);

@@ -1,3 +1,9 @@
+"""Usage-limit helpers: daily listening cap and allowed-time windows.
+
+RFID-specific behaviour settings (stop on remove, resume on rescan) have
+been extracted to :mod:`backend_service.core.rfid_settings`.
+"""
+
 from __future__ import annotations
 
 import json
@@ -78,23 +84,8 @@ def read_daily_limit_settings() -> tuple[bool, int]:
     return (False, 120)
 
 
-def read_stop_playback_on_tag_remove() -> bool:
-    """Read stop_playback_on_tag_remove from general_settings.json."""
-    data_path = os.environ.get("DATA_PATH", "/data")
-    gs_path = Path(data_path) / "general_settings.json"
-    try:
-        if gs_path.exists():
-            data = json.loads(gs_path.read_text(encoding="utf-8"))
-            return bool(data.get("stop_playback_on_tag_remove", False))
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
-        pass
-    return False
-
-
 __all__ = [
     "read_allowed_usage_times",
     "is_within_allowed_usage_time",
     "read_daily_limit_settings",
-    "read_stop_playback_on_tag_remove",
 ]
-

@@ -8,10 +8,12 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+import backend_service.core.db_manager as _db_module
 from backend_service.core.handlers.audio_handler import AudioHandler
 from backend_service.core.handlers.button_handler import ButtonHandler
 from backend_service.core.handlers.rfid_handler import RFIDHandler
 from backend_service.core.handlers.timer_handler import TimerHandler
+from backend_service.core.resume_position import save_resume_position
 
 if TYPE_CHECKING:
     from backend_service.api.websocket import WebSocketManager
@@ -80,6 +82,42 @@ class MQTTHandlers:
     async def handle_button_raw_event(self, topic: str, data: dict[str, Any]) -> None:
         """Delegate raw button hardware events to the button handler."""
         await self.button_handler.handle_button_raw_event(topic, data)
+
+    async def handle_audio_position_report(self, topic: str, data: dict[str, Any]) -> None:
+        """Persist the playback position reported by audio-service on stop/pause.
+
+        Expected payload fields:
+            source_uri  (str)        -- content identifier
+            source_type (str)        -- 'track' | 'podcast' | 'stream'
+            position_ms (int)        -- current position in ms
+            duration_ms (int | None) -- total duration in ms, if known
+
+        Streams are ignored — they have no meaningful resume position.
+        """
+        source_uri: str | None = data.get("source_uri")
+        source_type: str = data.get("source_type", "")
+        position_ms: int = int(data.get("position_ms") or 0)
+        duration_ms_raw = data.get("duration_ms")
+        duration_ms: int | None = int(duration_ms_raw) if duration_ms_raw else None
+
+        if not source_uri or source_type == "stream":
+            return
+
+        if not _db_module.db_manager:
+            logger.error("db_manager_not_initialized")
+            return
+
+        session = _db_module.db_manager.get_session()
+        try:
+            save_resume_position(
+                session=session,
+                source_uri=source_uri,
+                position_ms=position_ms,
+                content_type=source_type,
+                duration_ms=duration_ms,
+            )
+        finally:
+            session.close()
 
     def get_sleep_timer_status(self) -> dict[str, Any]:
         return self.timer_handler.get_sleep_timer_status()

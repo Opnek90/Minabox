@@ -125,6 +125,7 @@ def _general_settings_read() -> dict:
     daily_limit_enabled = False
     daily_limit_minutes = 120
     stop_playback_on_tag_remove = False
+    resume_on_tag_rescan = True
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -137,6 +138,7 @@ def _general_settings_read() -> dict:
             daily_limit_enabled = bool(data.get("daily_limit_enabled", False))
             daily_limit_minutes = max(1, min(1440, int(data.get("daily_limit_minutes", 120))))
             stop_playback_on_tag_remove = bool(data.get("stop_playback_on_tag_remove", False))
+            resume_on_tag_rescan = bool(data.get("resume_on_tag_rescan", True))
             raw_times = data.get("allowed_usage_times")
             if isinstance(raw_times, list):
                 allowed_usage_times = [
@@ -161,6 +163,7 @@ def _general_settings_read() -> dict:
         "daily_limit_enabled": daily_limit_enabled,
         "daily_limit_minutes": daily_limit_minutes,
         "stop_playback_on_tag_remove": stop_playback_on_tag_remove,
+        "resume_on_tag_rescan": resume_on_tag_rescan,
         "allowed_usage_times": allowed_usage_times,
     }
 
@@ -196,6 +199,7 @@ async def update_general_config(body: dict) -> dict:
         "bedtime_fade_enabled", "bedtime_fade_duration_minutes", "bedtime_fade_interval_seconds", "bedtime_fade_step_percent",
         "usage_times_enabled", "daily_limit_enabled", "daily_limit_minutes",
         "stop_playback_on_tag_remove",
+        "resume_on_tag_rescan",
         "allowed_usage_times",
     }
     data = {k: v for k, v in body.items() if k in allowed}
@@ -221,6 +225,8 @@ async def update_general_config(body: dict) -> dict:
         data["daily_limit_minutes"] = max(1, min(1440, int(data["daily_limit_minutes"])))
     if "stop_playback_on_tag_remove" in data:
         data["stop_playback_on_tag_remove"] = bool(data.get("stop_playback_on_tag_remove", False))
+    if "resume_on_tag_rescan" in data:
+        data["resume_on_tag_rescan"] = bool(data.get("resume_on_tag_rescan", True))
     if "allowed_usage_times" in data:
         raw = data["allowed_usage_times"]
         data["allowed_usage_times"] = _validate_allowed_usage_times(raw if isinstance(raw, list) else [])
