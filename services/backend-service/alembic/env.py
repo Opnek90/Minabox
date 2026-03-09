@@ -1,5 +1,6 @@
 """Alembic migration environment configuration."""
 
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -13,6 +14,11 @@ config = context.config
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Inject DATABASE_URL from environment if present (used inside Docker)
+_db_url = os.environ.get("DATABASE_URL")
+if _db_url:
+    config.set_main_option("sqlalchemy.url", _db_url)
 
 # Add your model's MetaData object here for 'autogenerate' support
 target_metadata = Base.metadata
