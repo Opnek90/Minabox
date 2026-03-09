@@ -87,6 +87,10 @@ class SleepTimerRequest(BaseModel):
     minutes: int = Field(default=30, ge=1, le=480)
 
 
+class SeekRequest(BaseModel):
+    position_ms: int = Field(..., ge=0, description="Target position in milliseconds")
+
+
 def _build_play_payload(
     track: Track | SessionTrack, start_position_ms: int = 0
 ) -> dict:
@@ -248,6 +252,44 @@ async def play_audio(
     payload = _build_play_payload(track, start_ms)
     await _mqtt_client.publish_audio_command("play", payload)
     return {"status": "ok", "message": "Play command sent"}
+
+
+@router.post("/seek")
+async def seek_audio(command: SeekRequest) -> dict:
+    """Seek to a specific position in the currently playing/paused track.
+
+    Publishes a play command with the current source_uri and the requested
+    start_position_ms.  Returns 409 if no track is active or if a live
+    stream is playing (streams have no meaningful seek position).
+    """
+    logger.info("api_audio_seek", position_ms=command.position_ms)
+
+    if not _mqtt_client:
+        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+
+    if not _mqtt_handlers:
+        raise HTTPException(status_code=500, detail="MQTT handlers not initialized")
+
+    status = _mqtt_handlers.last_audio_status
+    state = status.get("state", "stopped")
+    source_uri = status.get("source_uri")
+    source_type = status.get("source_type", "")
+    track_id = status.get("track_id")
+
+    if state not in ("playing", "paused") or not source_uri:
+        raise HTTPException(status_code=409, detail="No active playback to seek in")
+
+    if source_type == "stream":
+        raise HTTPException(status_code=409, detail="Cannot seek in a live stream")
+
+    payload = {
+        "track_id": str(track_id) if track_id else "",
+        "source_type": source_type,
+        "source_uri": source_uri,
+        "start_position_ms": command.position_ms,
+    }
+    await _mqtt_client.publish_audio_command("play", payload)
+    return {"status": "ok", "position_ms": command.position_ms}
 
 
 @router.post("/pause")

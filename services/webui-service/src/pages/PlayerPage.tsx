@@ -211,7 +211,6 @@ export const PlayerPage: React.FC = () => {
       }
     };
 
-    // Need to use the global event target we set up in Context
     window.addEventListener('ws_message', handleWsMessage);
     return () => window.removeEventListener('ws_message', handleWsMessage);
   }, [queryClient]);
@@ -250,6 +249,10 @@ export const PlayerPage: React.FC = () => {
   const stopMutation = useMutation({ mutationFn: audioApi.stop });
   const nextMutation = useMutation({ mutationFn: audioApi.next });
   const prevMutation = useMutation({ mutationFn: audioApi.previous });
+  const seekMutation = useMutation({
+    mutationFn: audioApi.seek,
+    onError: () => showError(t('player.seek_error', { defaultValue: 'Seek fehlgeschlagen' })),
+  });
   
   const volumeMutation = useMutation({ 
     mutationFn: audioApi.setVolume,
@@ -314,6 +317,7 @@ export const PlayerPage: React.FC = () => {
   const handleStop     = () => stopMutation.mutate();
   const handleNext     = () => nextMutation.mutate();
   const handlePrevious = () => prevMutation.mutate();
+  const handleSeek     = useCallback((positionMs: number) => seekMutation.mutate(positionMs), [seekMutation]);
 
   const handleVolumeChange = useCallback((volume: number) => {
     setOptimisticVolume(volume);
@@ -332,6 +336,8 @@ export const PlayerPage: React.FC = () => {
 
   const { state, track_title, track_artist, track_album, track_cover_art_url, position_ms, duration_ms, volume } = audioStatus;
   const displayVolume = optimisticVolume ?? volume ?? 0;
+  // Seek is only available when duration is known (i.e. not a live stream)
+  const canSeek = Boolean(duration_ms && duration_ms > 0);
 
   return (
     <Box
@@ -439,8 +445,12 @@ export const PlayerPage: React.FC = () => {
             stopped={state === 'stopped'}
           />
 
-          {/* Progress Bar */}
-          <ProgressBar positionMs={position_ms} durationMs={duration_ms} />
+          {/* Progress Bar — seekable for tracks/podcasts, read-only for streams */}
+          <ProgressBar
+            positionMs={position_ms}
+            durationMs={duration_ms}
+            onSeek={canSeek ? handleSeek : undefined}
+          />
 
           {/* Playback Controls */}
           <PlaybackControls
