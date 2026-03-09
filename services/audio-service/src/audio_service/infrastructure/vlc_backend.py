@@ -6,6 +6,7 @@ Uses python-vlc to provide audio playback functionality.
 import asyncio
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import structlog
@@ -20,6 +21,10 @@ from ..exceptions import (
 )
 
 logger = structlog.get_logger(__name__)
+
+# Seconds of idle after which PipeWire/PulseAudio suspends the ALSA sink.
+# We prewarm slightly below this threshold.
+_PIPELINE_SUSPEND_THRESHOLD_SEC = 4.0
 
 
 class VLCBackend(AudioBackend):
@@ -43,6 +48,10 @@ class VLCBackend(AudioBackend):
         self._current_track_id: str | None = None
         self._current_source_type: str | None = None
         self._current_source_uri: str | None = None
+        # Monotonic timestamp of the last time the audio stream was closed
+        # (stop() or service start).  Used to decide whether a pacat prewarm
+        # is needed before the next play().
+        self._last_stop_time: float = float("-inf")
 
     @property
     def is_initialized(self) -> bool:
@@ -74,11 +83,7 @@ class VLCBackend(AudioBackend):
         return snapshot
 
     async def initialize(self) -> None:
-        """Initialize VLC instance and media player.
-
-        Also disables PulseAudio suspend-on-idle and pre-warms the ALSA
-        pipeline so that the very first play() is stutter-free (issue #65).
-        """
+        """Initialize VLC instance and media player."""
         logger.debug("vlc_backend_initializing")
 
         try:
@@ -127,15 +132,16 @@ class VLCBackend(AudioBackend):
             logger.error("vlc_backend_initialization_failed", error=str(e))
             raise VLCError(f"VLC backend initialization failed: {e}") from e
 
-        # --- Audio pipeline setup (non-fatal: service continues if these fail) ---
-
-        # 1. Disable PulseAudio suspend-on-idle so the ALSA device is never
-        #    closed between plays (cold-start stutter fix, issue #65).
+        # Best-effort: disable PulseAudio suspend-on-idle on the server.
+        # This helps on pure PulseAudio hosts; on PipeWire hosts it may be
+        # a no-op, which is why play() has its own time-based prewarm.
         await self._disable_pulse_suspend_on_idle()
 
-        # 2. Pre-warm the pipeline with 500 ms of silence so ALSA hardware
-        #    buffers are allocated before the first real play() call.
+        # Pre-warm the pipeline at service start (pipeline has never been
+        # opened). Marks _last_stop_time so the first play() skips an
+        # extra prewarm.
         await self._prewarm_audio_pipeline()
+        self._last_stop_time = time.monotonic()
 
     def _build_vlc_args(self) -> list[str]:
         return [
@@ -175,15 +181,11 @@ class VLCBackend(AudioBackend):
                     pass
 
     async def _disable_pulse_suspend_on_idle(self) -> None:
-        """Unload module-suspend-on-idle from the host PulseAudio daemon.
+        """Best-effort: unload module-suspend-on-idle from PulseAudio server.
 
-        module-suspend-on-idle closes the ALSA device after ~5 s of silence.
-        When the device is closed, the next player.play() writes audio before
-        ALSA has finished re-opening (~100–300 ms) — causing the cold-start
-        stutter.  Unloading the module keeps the ALSA device permanently open.
-
-        Note: PULSE_PROP_module-suspend-on-idle.timeout=0 in docker-compose.yml
-        is a client stream property and does NOT affect the server-side module.
+        Effective on pure PulseAudio hosts.  On PipeWire hosts this is usually
+        a no-op (PipeWire has its own suspend mechanism); in that case the
+        time-based prewarm in play() handles the stutter.
         """
         if not os.environ.get("PULSE_SERVER"):
             return
@@ -197,19 +199,18 @@ class VLCBackend(AudioBackend):
             else:
                 logger.debug(
                     "pulse_suspend_on_idle_unload_skipped",
-                    hint="module may not be loaded or already unloaded",
+                    hint="no-op on PipeWire or module already unloaded",
                     stderr=result.stderr.strip(),
                 )
         except Exception as e:
             logger.warning("pulse_suspend_on_idle_error", error=str(e))
 
     async def _prewarm_audio_pipeline(self) -> None:
-        """Write 500 ms of silence via pacat to force ALSA hardware open.
+        """Write 300 ms of silence via pacat to open the ALSA hardware buffers.
 
-        When the ALSA device is cold (never opened, or just re-opened after
-        suspend), hardware buffer allocation takes ~100–300 ms.  Writing silence
-        once at service start lets that allocation complete before the first
-        real play() call, so VLC always finds a ready sink.
+        When the ALSA device is suspended (cold after idle), hardware buffer
+        allocation takes ~100-300 ms.  Writing silence first lets that
+        allocation complete so the subsequent VLC play() starts on a warm sink.
 
         pacat (pulseaudio-utils) is installed in the Dockerfile.
         """
@@ -221,8 +222,8 @@ class VLCBackend(AudioBackend):
         if sink_name:
             cmd += ["--device", sink_name]
 
-        # 500 ms of silence: 48000 * 2 ch * 4 bytes * 0.5 s = 192 000 bytes
-        silence = bytes(192_000)
+        # 300 ms of silence: 48000 * 2 ch * 4 bytes * 0.3 s = 115 200 bytes
+        silence = bytes(115_200)
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -247,14 +248,33 @@ class VLCBackend(AudioBackend):
     async def play(self, source_uri: str, start_position_ms: int = 0) -> None:
         """Play audio from source URI.
 
-        Pipeline is always warm after initialize() (suspend-on-idle disabled +
-        pacat pre-warm).  No cold-start handling needed here.
+        Cold-start stutter fix (issue #65):
+        If the audio pipeline has been idle for more than _PIPELINE_SUSPEND_THRESHOLD_SEC
+        seconds, PipeWire/PulseAudio will have suspended the ALSA device.  We
+        detect this via the elapsed time since the last stop() and run a pacat
+        prewarm to re-open the hardware before VLC writes its first sample.
+
+        Warm plays (consecutive tracks, < 4 s idle) take the fast path with no
+        added latency.
         """
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
 
         try:
             await self._validate_source(source_uri)
+
+            # --- Cold-pipeline guard -------------------------------------------
+            idle_sec = time.monotonic() - self._last_stop_time
+            if idle_sec > _PIPELINE_SUSPEND_THRESHOLD_SEC:
+                logger.debug(
+                    "pipeline_cold_prewarming",
+                    idle_sec=round(idle_sec, 1),
+                )
+                await self._prewarm_audio_pipeline()
+                # Update timestamp so consecutive plays skip prewarm
+                self._last_stop_time = time.monotonic()
+            # ------------------------------------------------------------------
+
             media = self._instance.media_new(source_uri)
             self._player.set_media(media)
 
@@ -376,8 +396,9 @@ class VLCBackend(AudioBackend):
         if self._player:
             self._player.stop()
             self._current_source_uri = None
-        # module-suspend-on-idle is disabled, so PulseAudio keeps the ALSA
-        # sink open after stop() — no cold-start handling needed on next play().
+        # Record when the audio stream closed so play() can decide whether
+        # to prewarm the pipeline before the next VLC play.
+        self._last_stop_time = time.monotonic()
 
     async def set_volume(self, volume: int) -> None:
         if not self._player: return
