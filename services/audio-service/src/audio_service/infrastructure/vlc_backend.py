@@ -6,7 +6,6 @@ Uses python-vlc to provide audio playback functionality.
 import asyncio
 import os
 import subprocess
-import time
 from pathlib import Path
 
 import structlog
@@ -45,7 +44,10 @@ class VLCBackend(AudioBackend):
         self._current_track_id: str | None = None
         self._current_source_type: str | None = None
         self._current_source_uri: str | None = None
-        self._first_play_after_init = True  # Track cold start
+        # True whenever the PulseAudio/ALSA pipeline may be cold (service start
+        # or after stop()).  The next play() will use :start-paused to
+        # pre-warm the sink before outputting audio.
+        self._audio_pipeline_cold = True
 
     @property
     def is_initialized(self) -> bool:
@@ -124,7 +126,7 @@ class VLCBackend(AudioBackend):
                 logger.debug("initial_volume_set_success", volume=initial_volume)
 
             self._initialized = True
-            self._first_play_after_init = True  # Reset cold start flag
+            self._audio_pipeline_cold = True  # Pipeline not yet opened by VLC
 
         except Exception as e:
             logger.error("vlc_backend_initialization_failed", error=str(e))
@@ -166,15 +168,20 @@ class VLCBackend(AudioBackend):
     async def play(self, source_uri: str, start_position_ms: int = 0) -> None:
         """Play audio from source URI.
 
-        Cold-start stutter fix (issue #65):
-        On the first play after service initialisation, the :start-paused media
-        option instructs VLC to start in paused state.  This lets the
-        PulseAudio/ALSA pipeline initialise without any audio being written to
-        the hardware.  Once the pipeline is ready we call set_pause(0) and
-        playback begins cleanly.
+        Cold-pipeline stutter fix (issue #65):
+        PulseAudio suspends the ALSA sink after ~5 s of idle, which happens
+        both at service cold-start and after any stop().  When the sink is
+        suspended and VLC calls play(), ALSA takes ~100-300 ms to re-open,
+        during which VLC is already writing audio — causing the audible stutter.
 
-        Warm-start plays (all subsequent tracks) skip the pause step entirely
-        because the pipeline is already hot — no regression.
+        Whenever _audio_pipeline_cold is True we attach the :start-paused
+        option to the media.  VLC opens the PulseAudio/ALSA pipeline without
+        writing audio, giving the sink 0.5 s to fully unsuspend.  We then
+        call set_pause(0) and audio starts on an already-warm sink.
+
+        _audio_pipeline_cold is set True by initialize() and by stop().
+        Warm plays (e.g. consecutive tracks without a stop in between) keep
+        it False and use the direct play path — no regression.
         """
         if not self._initialized or self._player is None:
             raise PlaybackError("VLC backend not initialized")
@@ -183,13 +190,13 @@ class VLCBackend(AudioBackend):
             await self._validate_source(source_uri)
             media = self._instance.media_new(source_uri)
 
-            is_cold_start = self._first_play_after_init
+            pipeline_cold = self._audio_pipeline_cold
 
-            if is_cold_start:
-                # Tell VLC to hold in Paused state immediately after play().
-                # No audio is sent to PulseAudio/ALSA during the wait below.
+            if pipeline_cold:
+                # :start-paused keeps VLC in Paused state right after play().
+                # No audio is written to PulseAudio/ALSA until set_pause(0).
                 media.add_option(":start-paused")
-                logger.debug("cold_start_play_paused_mode")
+                logger.debug("play_cold_pipeline_paused_mode")
 
             self._player.set_media(media)
 
@@ -197,13 +204,12 @@ class VLCBackend(AudioBackend):
             if result == -1:
                 raise PlaybackError("VLC player.play() returned error")
 
-            if is_cold_start:
-                # Wait until VLC has actually entered Paused state.
+            if pipeline_cold:
+                # Wait until VLC has entered Paused state (pipeline open, no audio yet).
                 await self._wait_for_state(vlc.State.Paused)
 
-                # Give PulseAudio/ALSA 0.5 s to fully open the sink.
-                # Because no audio is being written right now, this wait is
-                # guaranteed to be stutter-free.
+                # Give PulseAudio/ALSA 0.5 s to fully unsuspend and allocate
+                # hardware buffers.  No stutter possible here — silence only.
                 await asyncio.sleep(0.5)
 
                 if self._pending_volume is not None:
@@ -215,13 +221,13 @@ class VLCBackend(AudioBackend):
                     self._player.set_time(start_position_ms)
                     await asyncio.sleep(0.1)
 
-                # Release the pause: pipeline is warm, audio starts immediately.
+                # Release: sink is warm, audio starts cleanly.
                 self._player.set_pause(0)
-                self._first_play_after_init = False
-                logger.debug("cold_start_pipeline_warmed_resuming")
+                self._audio_pipeline_cold = False
+                logger.debug("play_cold_pipeline_warmed_resuming")
 
             else:
-                # Warm start: pipeline already initialised, standard flow.
+                # Pipeline already warm — standard fast path.
                 await self._wait_for_state(vlc.State.Playing)
 
                 if self._pending_volume is not None:
@@ -317,7 +323,10 @@ class VLCBackend(AudioBackend):
             self._player.stop()
             await asyncio.sleep(0.1)
 
-            # Full re-play with saved position
+            # Full re-play with saved position.
+            # Note: the pipeline was still warm during the pause, so no
+            # :start-paused pre-warm is needed here — _audio_pipeline_cold
+            # intentionally stays False.
             if self._current_source_uri:
                 media = self._instance.media_new(self._current_source_uri)
                 self._player.set_media(media)
@@ -347,6 +356,10 @@ class VLCBackend(AudioBackend):
         if self._player:
             self._player.stop()
             self._current_source_uri = None
+        # After stop(), VLC closes the PulseAudio stream.  PulseAudio will
+        # suspend the ALSA sink after ~5 s of idle, so the next play() must
+        # treat the pipeline as cold and pre-warm it via :start-paused.
+        self._audio_pipeline_cold = True
 
     async def set_volume(self, volume: int) -> None:
         if not self._player: return
