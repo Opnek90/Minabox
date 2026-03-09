@@ -30,6 +30,7 @@ export const ControlSettingsForm: React.FC = () => {
         setGeneral({
           ...g,
           stop_playback_on_tag_remove: g.stop_playback_on_tag_remove ?? false,
+          resume_on_tag_rescan: g.resume_on_tag_rescan ?? true,
           sleep_timer_minutes: g.sleep_timer_minutes ?? 30,
           bedtime_fade_enabled: g.bedtime_fade_enabled ?? false,
           bedtime_fade_duration_minutes: g.bedtime_fade_duration_minutes ?? 15,
@@ -46,6 +47,7 @@ export const ControlSettingsForm: React.FC = () => {
       if (!general) return;
       await configApi.updateGeneral({
         stop_playback_on_tag_remove: general.stop_playback_on_tag_remove,
+        resume_on_tag_rescan: general.resume_on_tag_rescan,
         sleep_timer_minutes: general.sleep_timer_minutes,
         bedtime_fade_enabled: general.bedtime_fade_enabled,
         bedtime_fade_duration_minutes: general.bedtime_fade_duration_minutes,
@@ -63,6 +65,7 @@ export const ControlSettingsForm: React.FC = () => {
       <Typography variant="subtitle2" color="text.secondary">
         {t('control.section_rfid')}
       </Typography>
+
       <FormControlLabel
         control={
           <Switch
@@ -75,6 +78,22 @@ export const ControlSettingsForm: React.FC = () => {
           />
         }
         label={t('control.stop_playback_on_tag_remove')}
+      />
+
+      <FormControlLabel
+        control={
+          <Switch
+            checked={general.resume_on_tag_rescan ?? true}
+            onChange={(e) =>
+              setGeneral((p) =>
+                p ? { ...p, resume_on_tag_rescan: e.target.checked } : p
+              )
+            }
+          />
+        }
+        label={t('control.resume_on_tag_rescan', {
+          defaultValue: 'Ab letzter Position fortsetzen (Tag erneut auflegen)',
+        })}
       />
 
       <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>

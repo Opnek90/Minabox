@@ -12,12 +12,15 @@ from sqlalchemy.orm import Session
 import backend_service.core.db_manager as _db_module
 from backend_service.core.playback_stats import get_today_listened_minutes
 from backend_service.core.resume_position import get_resume_position
+from backend_service.core.rfid_settings import (
+    read_resume_on_tag_rescan,
+    read_stop_playback_on_tag_remove,
+)
 from backend_service.core.session_manager import session_manager
 from backend_service.core.usage_limits import (
     is_within_allowed_usage_time,
     read_allowed_usage_times,
     read_daily_limit_settings,
-    read_stop_playback_on_tag_remove,
 )
 from backend_service.exceptions import ContentNotFoundError
 from backend_service.models.database import (
@@ -189,11 +192,13 @@ class RFIDHandler:
         session.add(event)
         session.commit()
 
-        resume_pos = get_resume_position(session, track.source_uri)
+        resume_enabled = read_resume_on_tag_rescan()
+        resume_pos = get_resume_position(session, track.source_uri) if resume_enabled else 0
         logger.info(
             "track_playback_started",
             track_id=track_id,
             title=track.title,
+            resume_enabled=resume_enabled,
             resume_pos_ms=resume_pos,
         )
 
@@ -245,12 +250,14 @@ class RFIDHandler:
         if session_manager.session:
             session_manager.session.reset()
 
-        resume_pos = get_resume_position(session, episode.source_uri)
+        resume_enabled = read_resume_on_tag_rescan()
+        resume_pos = get_resume_position(session, episode.source_uri) if resume_enabled else 0
         logger.info(
             "podcast_playback_started",
             podcast_id=podcast_id,
             episode_id=episode.id,
             title=episode.title,
+            resume_enabled=resume_enabled,
             resume_pos_ms=resume_pos,
         )
 

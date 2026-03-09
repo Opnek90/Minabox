@@ -430,6 +430,8 @@ export interface GeneralConfig {
   daily_limit_enabled?: boolean;
   daily_limit_minutes?: number;
   stop_playback_on_tag_remove?: boolean;
+  /** Resume playback from last saved position when tag is placed back on reader. */
+  resume_on_tag_rescan?: boolean;
 }
 
 export interface SleepTimerStatus {
