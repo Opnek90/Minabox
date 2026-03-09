@@ -23,7 +23,7 @@ import { playlistsApi } from '@/api/playlists';
 import { podcastsApi } from '@/api/podcasts';
 import { streamsApi } from '@/api/streams';
 import { tracksApi } from '@/api/tracks';
-import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
 
 
@@ -38,7 +38,6 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   onPendingTagHandled,
 }) => {
   const { t } = useTranslation('rfid');
-  const { lastMessage } = useWebSocket();
   const { showSuccess, showError } = useToast();
 
   const [tags, setTags] = useState<Tag[]>([]);
@@ -86,15 +85,14 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   }, [loadData]);
 
   // Lern-Modus: Karte gescannt → TagEditDialog öffnen
-  useEffect(() => {
-    if (lastMessage?.type === 'rfid_scanned_learning') {
-      const msg = lastMessage as RFIDScannedMessage;
-      setScannedTagId(msg.data.tag_id);
-      setLearnModeLoading(false);
-      setEditDialogOpen(true);
-      setEditTag(null);
-    }
-  }, [lastMessage]);
+  const handleRfidLearning = useCallback((msg: RFIDScannedMessage) => {
+    setScannedTagId(msg.data.tag_id);
+    setLearnModeLoading(false);
+    setEditDialogOpen(true);
+    setEditTag(null);
+  }, []);
+
+  useWebSocketEvent('rfid_scanned_learning', handleRfidLearning);
 
   // Drawer → "Zuweisen" gedrückt: pendingTagId kommt rein
   useEffect(() => {
