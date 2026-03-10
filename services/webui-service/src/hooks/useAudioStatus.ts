@@ -1,53 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWebSocket, useWebSocketEvent } from '@/contexts/WebSocketContext';
-import { audioApi } from '@/api/audio';
 import type { AudioStatus, AudioStatusMessage } from '@/types/api';
 
 const TICK_MS = 1000;
 
-export const useAudioStatus = (): AudioStatus | null => {
-  const { lastAudioStatus } = useWebSocket();
+/**
+ * Extrapolate the current position_ms from a cached status.
+ * When state === 'playing', add the elapsed time since the cache was received.
+ * This corrects the stale position without any network call.
+ */
+function extrapolatePosition(status: AudioStatus, receivedAt: number): AudioStatus {
+  if (status.state !== 'playing' || status.position_ms == null) return status;
+  const elapsedMs = Math.round(performance.now() - receivedAt);
+  if (elapsedMs <= 0) return status;
+  const duration = status.duration_ms ?? Infinity;
+  const correctedMs = Math.min((status.position_ms ?? 0) + elapsedMs, duration);
+  return { ...status, position_ms: correctedMs };
+}
 
-  // fix #56 T4/T5: initialize SYNCHRONOUSLY from WS cache so the very first
-  // render already has correct metadata. useEffect-based init was too late
-  // (fires after render) causing null→cached transition = progress bar jump.
-  const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(
-    () => lastAudioStatus ?? null
-  );
+export const useAudioStatus = (): AudioStatus | null => {
+  const { cachedAudioStatus } = useWebSocket();
+
+  // Synchronous lazy initializer: compute the correct position_ms immediately
+  // on first render using the WS cache + elapsed time since it was received.
+  const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(() => {
+    if (!cachedAudioStatus) return null;
+    return extrapolatePosition(cachedAudioStatus.status, cachedAudioStatus.receivedAt);
+  });
 
   const interpolatedRef = useRef<AudioStatus | null>(audioStatus);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const positionPatchedRef = useRef(false);
-
-  useEffect(() => {
-    if (positionPatchedRef.current) return;
-    positionPatchedRef.current = true;
-
-    if (lastAudioStatus) {
-      // Cache hit: metadata already rendered correctly.
-      // Patch only position_ms + duration_ms + state via REST to fix stale position.
-      audioApi.getStatus().then((fresh) => {
-        setAudioStatus((prev) => {
-          if (!prev) return fresh;
-          const patched: AudioStatus = {
-            ...prev,
-            position_ms: fresh.position_ms,
-            duration_ms: fresh.duration_ms,
-            state: fresh.state,
-          };
-          interpolatedRef.current = patched;
-          return patched;
-        });
-      }).catch(() => null);
-    } else {
-      // No cache (first load / hard reload): full REST fetch
-      audioApi.getStatus().then((data) => {
-        interpolatedRef.current = data;
-        setAudioStatus(data);
-      }).catch(() => null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // only on mount
 
   // Live updates from WebSocket
   useWebSocketEvent('audio_status', (message: AudioStatusMessage) => {

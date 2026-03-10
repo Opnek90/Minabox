@@ -1,22 +1,26 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { AudioStatus, SleepTimerStatus, WebSocketMessage } from '@/types/api';
 
-// Export an EventTarget instance so components can subscribe to messages without re-rendering
 export const wsEventTarget = new EventTarget();
-
 export const WS_EVENT_MESSAGE = 'ws_message';
+
+export interface CachedAudioStatus {
+  status: AudioStatus;
+  /** performance.now() timestamp when this status was received */
+  receivedAt: number;
+}
 
 interface WebSocketContextType {
   isConnected: boolean;
   sleepTimerStatus: SleepTimerStatus | null;
-  lastAudioStatus: AudioStatus | null; // ✅ fix #56: cache last audio status for re-mount
+  cachedAudioStatus: CachedAudioStatus | null;
   sendMessage: (message: unknown) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType>({
   isConnected: false,
   sleepTimerStatus: null,
-  lastAudioStatus: null,
+  cachedAudioStatus: null,
   sendMessage: () => undefined,
 });
 
@@ -28,7 +32,7 @@ const RECONNECT_DELAY_FACTOR = 2;
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [sleepTimerStatus, setSleepTimerStatus] = useState<SleepTimerStatus | null>(null);
-  const [lastAudioStatus, setLastAudioStatus] = useState<AudioStatus | null>(null); // ✅ fix #56
+  const [cachedAudioStatus, setCachedAudioStatus] = useState<CachedAudioStatus | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef<number>(RECONNECT_DELAY_INITIAL);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,14 +44,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}${WS_URL}`;
-
-    console.log('[WebUI] Connecting to WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 
     ws.onopen = () => {
       if (!mountedRef.current) return;
-      console.log('[WebUI] WebSocket connected');
       setIsConnected(true);
       reconnectDelayRef.current = RECONNECT_DELAY_INITIAL;
     };
@@ -56,19 +57,18 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!mountedRef.current) return;
       try {
         const message = JSON.parse(event.data as string) as WebSocketMessage;
-
-        // Dispatch custom event for Pub/Sub pattern
         const customEvent = new CustomEvent(WS_EVENT_MESSAGE, { detail: message });
         wsEventTarget.dispatchEvent(customEvent);
 
-        // Cache sleep timer status
         if (message.type === 'sleep_timer_status') {
           setSleepTimerStatus(message.data as SleepTimerStatus);
         }
 
-        // ✅ fix #56: cache last audio_status so PlayerPage can initialize immediately on re-mount
         if (message.type === 'audio_status') {
-          setLastAudioStatus(message.data as AudioStatus);
+          setCachedAudioStatus({
+            status: message.data as AudioStatus,
+            receivedAt: performance.now(),
+          });
         }
       } catch (e) {
         console.error('[WebUI] Failed to parse WebSocket message:', e);
@@ -77,18 +77,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     ws.onclose = (event) => {
       if (!mountedRef.current) return;
-      console.log('[WebUI] WebSocket closed:', event.code, event.reason);
       setIsConnected(false);
       socketRef.current = null;
-
       const delay = reconnectDelayRef.current;
-      console.log(`[WebUI] Reconnecting in ${delay}ms...`);
       reconnectTimerRef.current = setTimeout(() => {
         if (mountedRef.current) {
-          reconnectDelayRef.current = Math.min(
-            delay * RECONNECT_DELAY_FACTOR,
-            RECONNECT_DELAY_MAX
-          );
+          reconnectDelayRef.current = Math.min(delay * RECONNECT_DELAY_FACTOR, RECONNECT_DELAY_MAX);
           connect();
         }
       }, delay);
@@ -102,7 +96,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     mountedRef.current = true;
     connect();
-
     return () => {
       mountedRef.current = false;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -122,7 +115,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   return (
-    <WebSocketContext.Provider value={{ isConnected, sleepTimerStatus, lastAudioStatus, sendMessage }}>
+    <WebSocketContext.Provider value={{ isConnected, sleepTimerStatus, cachedAudioStatus, sendMessage }}>
       {children}
     </WebSocketContext.Provider>
   );
@@ -130,7 +123,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
 export const useWebSocket = (): WebSocketContextType => useContext(WebSocketContext);
 
-// Custom Hook for subscribing to specific WebSocket message types
 export function useWebSocketEvent<T extends WebSocketMessage['type']>(
   messageType: T,
   callback: (data: Extract<WebSocketMessage, { type: T }>) => void
@@ -142,10 +134,7 @@ export function useWebSocketEvent<T extends WebSocketMessage['type']>(
         callback(customEvent.detail as Extract<WebSocketMessage, { type: T }>);
       }
     };
-
     wsEventTarget.addEventListener(WS_EVENT_MESSAGE, handler);
-    return () => {
-      wsEventTarget.removeEventListener(WS_EVENT_MESSAGE, handler);
-    };
+    return () => wsEventTarget.removeEventListener(WS_EVENT_MESSAGE, handler);
   }, [messageType, callback]);
 }
