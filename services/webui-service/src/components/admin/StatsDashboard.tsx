@@ -22,8 +22,24 @@ const WEEKDAY_KEYS = [
   'weekday_6',
 ] as const;
 
+/** fix #59: Format a date string (YYYY-MM-DD) in a locale-aware, user-friendly way.
+ * Uses Intl.DateTimeFormat with the active i18n locale so German users see DD.MM.,
+ * English users see MM/DD etc. Year is omitted for brevity.
+ */
+function formatChartDate(dateStr: string, locale: string): string {
+  try {
+    // Parse as local date (avoid UTC offset shifting the day)
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit' }).format(date);
+  } catch {
+    return dateStr.slice(5); // fallback: raw MM-DD
+  }
+}
+
 export const StatsDashboard: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
+  const locale = i18n.language || 'de-DE'; // fix #59: use active locale for date formatting
   const {
     fromDate,
     toDate,
@@ -63,7 +79,7 @@ export const StatsDashboard: React.FC = () => {
           sx={{ width: 160 }}
         />
         <Button variant="contained" onClick={load} disabled={loading}>
-          {loading ? '…' : t('stats.load')}
+          {loading ? '\u2026' : t('stats.load')}
         </Button>
       </Box>
 
@@ -101,22 +117,26 @@ export const StatsDashboard: React.FC = () => {
                         borderRadius: '4px 4px 0 0',
                         height: `${Math.round((d.minutes / maxMinutes) * 100)}%`,
                         minHeight: d.minutes > 0 ? 4 : 0,
-                        title: `${d.date}: ${Math.round(d.minutes)} min`,
                       }}
+                      title={`${d.date}: ${Math.round(d.minutes)} min`}
                     />
                   ))}
                 </Box>
+
+                {/* fix #59: Localized date row (DD.MM. based on i18n locale) */}
                 <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, fontSize: '0.7rem' }}>
                   {data.minutes_per_day.map((d: MinutesPerDayItem) => (
                     <Box key={d.date} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
-                      {d.date.slice(5)}
+                      {formatChartDate(d.date, locale)}
                     </Box>
                   ))}
                 </Box>
+
+                {/* fix #59: Minutes row with 'min' unit label — no hover needed, touch-accessible */}
                 <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25, fontSize: '0.7rem', color: 'text.secondary' }}>
                   {data.minutes_per_day.map((d: MinutesPerDayItem) => (
                     <Box key={`min-${d.date}`} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
-                      {d.minutes > 0 ? `${Math.round(d.minutes)}` : '–'}
+                      {d.minutes > 0 ? `${Math.round(d.minutes)}\u202fmin` : '\u2013'}
                     </Box>
                   ))}
                 </Box>
@@ -220,8 +240,8 @@ export const StatsDashboard: React.FC = () => {
                                         ? `rgba(25, 118, 210, ${0.2 + (h.minutes / heatmapMax) * 0.8})`
                                         : 'action.hover',
                                     borderRadius: 1,
-                                    title: `${h.hour}:00 – ${Math.round(h.minutes)} min`,
                                   }}
+                                  title={`${h.hour}:00 – ${Math.round(h.minutes)} min`}
                                 />
                               ))}
                           </Box>
