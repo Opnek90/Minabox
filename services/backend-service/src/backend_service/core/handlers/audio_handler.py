@@ -20,50 +20,35 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-# Periodic flush interval: how often to persist in-memory accumulated_ms to DB
-# to survive unexpected power-loss (fix #58)
 _FLUSH_INTERVAL_SEC = 60
 
 
 class AudioHandler:
-    # Stream reconnect tuning constants
     MAX_RECONNECT_ATTEMPTS: int = 5
     MAX_RECONNECT_DELAY_SEC: float = 30.0
     RECONNECT_BASE_DELAY_SEC: float = 2.0
 
     def __init__(self, dispatcher: "MQTTHandlers") -> None:
         self.dispatcher = dispatcher
-
-        # fix #58: in-memory accumulator for real play time (works for streams too)
         self._play_started_at: datetime | None = None
         self._active_event_id: int | None = None
         self._accumulated_ms: int = 0
         self._flush_task: asyncio.Task | None = None  # type: ignore[type-arg]
 
-    # ------------------------------------------------------------------
-    # fix #58: helpers for in-memory listen-time tracking
-    # ------------------------------------------------------------------
-
     def _start_accumulator(self, event_id: int | None) -> None:
-        """Called when playback transitions to 'playing'."""
         self._play_started_at = datetime.now(UTC)
         if event_id is not None:
             self._active_event_id = event_id
-        # Start periodic flush if not already running
         if self._flush_task is None or self._flush_task.done():
             self._flush_task = asyncio.create_task(self._flush_loop())
 
     def _pause_accumulator(self) -> None:
-        """Called when playback leaves 'playing' (pause/stop/error).
-        Accumulates elapsed ms into self._accumulated_ms.
-        """
         if self._play_started_at is not None:
             elapsed_ms = int((datetime.now(UTC) - self._play_started_at).total_seconds() * 1000)
             self._accumulated_ms += elapsed_ms
             self._play_started_at = None
 
     def _reset_accumulator(self) -> None:
-        """Called after a PlaybackEvent is closed. Resets all tracking state."""
         self._play_started_at = None
         self._active_event_id = None
         self._accumulated_ms = 0
@@ -72,14 +57,12 @@ class AudioHandler:
             self._flush_task = None
 
     def _current_accumulated_ms(self) -> int:
-        """Return total accumulated ms including any currently-running segment."""
         total = self._accumulated_ms
         if self._play_started_at is not None:
             total += int((datetime.now(UTC) - self._play_started_at).total_seconds() * 1000)
         return total
 
     async def _flush_loop(self) -> None:
-        """Periodically persist accumulated_ms to DB so power-loss loses at most 60s."""
         while True:
             await asyncio.sleep(_FLUSH_INTERVAL_SEC)
             if self._active_event_id is None:
@@ -89,7 +72,7 @@ class AudioHandler:
                 continue
             db_session = _db_module.db_manager.get_session()
             try:
-                from backend_service.models.database import PlaybackEvent  # local import avoids cycle
+                from backend_service.models.database import PlaybackEvent
                 event = db_session.query(PlaybackEvent).get(self._active_event_id)
                 if event and event.ended_at is None:
                     event.listened_ms = current_total
@@ -99,8 +82,6 @@ class AudioHandler:
                 logger.warning("playback_stats_flush_error", error=str(exc))
             finally:
                 db_session.close()
-
-    # ------------------------------------------------------------------
 
     async def handle_audio_status(self, topic: str, data: dict[str, Any]) -> None:
         logger.debug("audio_status_received", data=data)
@@ -112,12 +93,11 @@ class AudioHandler:
         self.dispatcher._last_audio_status.clear()
         self.dispatcher._last_audio_status.update(data)
 
-        # fix #58: track transition into 'playing'
+        # Transition into playing: start accumulator
         if new_state == "playing" and prev_state != "playing":
             if self.dispatcher.stream_reconnect_task and not self.dispatcher.stream_reconnect_task.done():
                 self.dispatcher.stream_reconnect_task.cancel()
             self.dispatcher.stream_reconnect_attempts = 0
-            # Look up the current open PlaybackEvent id for the flush loop
             if _db_module.db_manager:
                 _db = _db_module.db_manager.get_session()
                 try:
@@ -136,40 +116,43 @@ class AudioHandler:
             self._start_accumulator(ev_id)
 
         elif new_state == "playing" and prev_state == "playing":
-            # Already playing (e.g. metadata update) — no state change needed
             if self.dispatcher.stream_reconnect_task and not self.dispatcher.stream_reconnect_task.done():
                 self.dispatcher.stream_reconnect_task.cancel()
             self.dispatcher.stream_reconnect_attempts = 0
 
+        # Transition out of playing: ALWAYS persist stats, then decide auto-advance
         if prev_state == "playing" and new_state in ("stopped", "error"):
-            # fix #58: pause accumulator before closing event
             self._pause_accumulator()
             accumulated = self._current_accumulated_ms()
 
+            # --- Always persist listened_ms regardless of intent/deliberate flags ---
+            if _db_module.db_manager:
+                db_session = _db_module.db_manager.get_session()
+                try:
+                    close_open_playback_event(db_session, data, accumulated_ms=accumulated)
+                    logger.debug("playback_event_closed", accumulated_ms=accumulated)
+                finally:
+                    db_session.close()
+            self._reset_accumulator()
+
+            # --- Auto-advance / daily-limit logic (only when intent is active) ---
             if not self.dispatcher.playback_intent_active:
                 logger.info("auto_advance_skipped_no_playback_intent")
+
             elif self.dispatcher.deliberate_stop:
                 self.dispatcher.deliberate_stop = False
                 logger.info("auto_advance_skipped_deliberate_stop")
+
             else:
                 daily_enabled, daily_minutes = read_daily_limit_settings()
                 if daily_enabled and _db_module.db_manager:
                     db_session = _db_module.db_manager.get_session()
                     try:
-                        close_open_playback_event(db_session, data, accumulated_ms=accumulated)
-                        self._reset_accumulator()
                         today_min = get_today_listened_minutes(db_session)
                         if today_min >= daily_minutes:
                             logger.info("daily_limit_exceeded_fadeout")
                             await self.dispatcher.timer_handler._trigger_daily_limit_fade()
                             return
-                    finally:
-                        db_session.close()
-                elif _db_module.db_manager:
-                    db_session = _db_module.db_manager.get_session()
-                    try:
-                        close_open_playback_event(db_session, data, accumulated_ms=accumulated)
-                        self._reset_accumulator()
                     finally:
                         db_session.close()
 
@@ -193,19 +176,17 @@ class AudioHandler:
                         )
                         if self.dispatcher.stream_reconnect_task and not self.dispatcher.stream_reconnect_task.done():
                             self.dispatcher.stream_reconnect_task.cancel()
-                        # fix #58: on reconnect, do NOT reset accumulator—keep same event accumulating
                         self.dispatcher.stream_reconnect_task = asyncio.create_task(
                             self.dispatcher.schedule_stream_reconnect(track_id_raw, data.get("source_uri"), delay)
                         )
                     else:
                         logger.error("stream_reconnect_gave_up", track_id=track_id_raw)
                         self.dispatcher.playback_intent_active = False
-                        self._reset_accumulator()
                 else:
                     logger.info("track_ended_naturally_auto_advancing")
-                    self._reset_accumulator()
                     await self.dispatcher.button_handler._handle_next()
 
+        # Stopped without prior playing state: close any orphaned open event
         if new_state == "stopped" and prev_state != "playing" and _db_module.db_manager:
             db_session = _db_module.db_manager.get_session()
             try:
@@ -214,6 +195,7 @@ class AudioHandler:
             finally:
                 db_session.close()
 
+        # Enrich payload with track metadata and broadcast via WebSocket
         payload = dict(data)
         track_id_raw = payload.get("track_id")
         if track_id_raw is not None and _db_module.db_manager:
@@ -278,8 +260,5 @@ class AudioHandler:
         if self.dispatcher.websocket_manager:
             self.dispatcher.websocket_manager.set_last_audio_status_payload(payload)
             await self.dispatcher.websocket_manager.broadcast(
-                {
-                    "type": "audio_status",
-                    "data": payload,
-                }
+                {"type": "audio_status", "data": payload}
             )
