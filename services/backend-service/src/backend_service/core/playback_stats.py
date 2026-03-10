@@ -9,26 +9,29 @@ from sqlalchemy.orm import Session
 from backend_service.models.database import PlaybackEvent
 
 # Max minutes per event to count (avoids runaway/buggy events blowing up the total)
-MAX_MINUTES_PER_EVENT = 480.0  # 8 hours
+# Lowered from 480 (8h) to 120 (2h) — fix #58
+MAX_MINUTES_PER_EVENT = 120.0
 
 
 def minutes_for_event(e: PlaybackEvent) -> float:
-    """Listening minutes for one completed event: use listened_ms if set, else wall-clock. Capped at MAX_MINUTES_PER_EVENT."""
+    """Listening minutes for one completed event: use listened_ms if set, else 0.
+
+    The wall-clock fallback was removed (fix #58) because it caused inflated stats
+    after power-loss / service restarts where ended_at - started_at includes downtime.
+    """
     if e.ended_at is None:
         return 0.0
     if getattr(e, "listened_ms", None) is not None and e.listened_ms is not None:
         minutes = e.listened_ms / 60_000.0
-    else:
-        duration_sec = (e.ended_at - e.started_at).total_seconds()
-        minutes = duration_sec / 60.0
-    return min(minutes, MAX_MINUTES_PER_EVENT) if minutes > 0 else 0.0
+        return min(minutes, MAX_MINUTES_PER_EVENT) if minutes > 0 else 0.0
+    # listened_ms is NULL — no reliable data, count as 0 (don't use wall-clock)
+    return 0.0
 
 
 def get_today_listened_minutes(db: Session) -> float:
     """Sum listening minutes from completed playback events that ended today (local date).
     Uses host/system timezone (e.g. TZ env) for 'today'. Each event capped at MAX_MINUTES_PER_EVENT."""
     now_utc = datetime.now(UTC)
-    # Local "today" boundaries (uses process timezone, typically from host TZ)
     try:
         local_now = now_utc.astimezone()
     except Exception:
