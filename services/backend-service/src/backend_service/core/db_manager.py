@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -63,14 +63,14 @@ class DatabaseManager:
         logger.debug("db_connected_successfully", database_url=database_url)
 
     def _close_orphaned_playback_events(self) -> None:
-        """Close any PlaybackEvents that were left open by an unclean shutdown.
+        """Close any PlaybackEvents left open by an unclean shutdown.
 
-        The periodic flush (every 60s) already wrote the best-known listened_ms
-        to the DB. We just need to set ended_at = now so the event is counted
-        in stats. At most 60s of play time is lost per unclean shutdown.
+        ended_at is set to started_at + listened_ms so the event is assigned
+        to the correct day regardless of when the service restarts.
+        This avoids inflated stats when the box is off for hours before restarting.
 
-        Events with listened_ms = NULL are closed with listened_ms = 0 — they
-        represent sessions that ended before the first flush (< 60s played).
+        Events with listened_ms = NULL (crashed before first 60s flush) are
+        closed with listened_ms = 0 and ended_at = started_at.
         """
         session = self.get_session()
         try:
@@ -81,12 +81,15 @@ class DatabaseManager:
             )
             if not open_events:
                 return
-            now = datetime.now(UTC)
             for ev in open_events:
-                ev.ended_at = now
-                # listened_ms already set by periodic flush; if NULL treat as 0
+                listened = ev.listened_ms or 0
                 if ev.listened_ms is None:
                     ev.listened_ms = 0
+                # ended_at = when playback actually stopped (not when we restarted)
+                if ev.started_at is not None:
+                    ev.ended_at = ev.started_at + timedelta(milliseconds=listened)
+                else:
+                    ev.ended_at = datetime.now(UTC)
             session.commit()
             logger.info(
                 "startup_cleanup_closed_orphaned_events",
@@ -166,7 +169,6 @@ class DatabaseManager:
             session.close()
 
     def disconnect(self) -> None:
-        """Disconnect from database."""
         if self.engine:
             logger.info("db_disconnecting")
             self.engine.dispose()
@@ -206,7 +208,6 @@ class DatabaseManager:
             raise
 
 
-# Global database manager instance
 db_manager: DatabaseManager | None = None
 
 
