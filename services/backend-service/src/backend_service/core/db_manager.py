@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from backend_service.models.database import Base, PlaylistTrack, Stream, Track
+from backend_service.models.database import Base, PlaybackEvent, PlaylistTrack, Stream, Track
 
 logger = structlog.get_logger(__name__)
 
@@ -19,11 +20,6 @@ class DatabaseManager:
     """Manages database connection and sessions."""
 
     def __init__(self, database_path: str) -> None:
-        """Initialize database manager.
-
-        Args:
-            database_path: Path to SQLite database file
-        """
         self.database_path = Path(database_path)
         self.engine: Engine | None = None
         self.SessionLocal: sessionmaker | None = None
@@ -33,50 +29,75 @@ class DatabaseManager:
         """Connect to database and create tables if needed."""
         logger.debug("db_connecting", path=str(self.database_path))
 
-        # Ensure database directory exists
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Create engine
-        # SQLite timeout=30 increases busy_timeout to 30 seconds to prevent "database is locked" errors
-        # when concurrent processes/threads try to write.
         database_url = f"sqlite:///{self.database_path}"
         self.engine = create_engine(
             database_url,
-            echo=False,  # Set to True for SQL query logging
+            echo=False,
             connect_args={"check_same_thread": False, "timeout": 30.0},
         )
 
-        # Enable foreign keys and WAL mode for SQLite
         @event.listens_for(Engine, "connect")
         def set_sqlite_pragma(dbapi_conn: Any, connection_record: Any) -> None:
             cursor = dbapi_conn.cursor()
-            # Enable foreign keys
             cursor.execute("PRAGMA foreign_keys=ON")
-            # Enable Write-Ahead Logging for better concurrency (readers don't block writers)
             cursor.execute("PRAGMA journal_mode=WAL")
-            # Set synchronous mode to NORMAL (safe with WAL, faster than FULL)
             cursor.execute("PRAGMA synchronous=NORMAL")
-            # Free up space efficiently
             cursor.execute("PRAGMA temp_store=MEMORY")
             cursor.close()
 
-        # Create session factory
         self.SessionLocal = sessionmaker(
             autocommit=False,
             autoflush=False,
             bind=self.engine,
         )
 
-        # Create tables for any models not yet in the DB
         Base.metadata.create_all(bind=self.engine)
-
-        # Add columns introduced after initial schema (idempotent)
         self._apply_column_migrations()
-
-        # One-time: migrate stream-type tracks to streams table, then remove from tracks
         self._migrate_stream_tracks_to_streams()
 
+        # fix #58: close any orphaned open PlaybackEvents from a previous unclean shutdown
+        self._close_orphaned_playback_events()
+
         logger.debug("db_connected_successfully", database_url=database_url)
+
+    def _close_orphaned_playback_events(self) -> None:
+        """Close any PlaybackEvents that were left open by an unclean shutdown.
+
+        The periodic flush (every 60s) already wrote the best-known listened_ms
+        to the DB. We just need to set ended_at = now so the event is counted
+        in stats. At most 60s of play time is lost per unclean shutdown.
+
+        Events with listened_ms = NULL are closed with listened_ms = 0 — they
+        represent sessions that ended before the first flush (< 60s played).
+        """
+        session = self.get_session()
+        try:
+            open_events = (
+                session.query(PlaybackEvent)
+                .filter(PlaybackEvent.ended_at.is_(None))
+                .all()
+            )
+            if not open_events:
+                return
+            now = datetime.now(UTC)
+            for ev in open_events:
+                ev.ended_at = now
+                # listened_ms already set by periodic flush; if NULL treat as 0
+                if ev.listened_ms is None:
+                    ev.listened_ms = 0
+            session.commit()
+            logger.info(
+                "startup_cleanup_closed_orphaned_events",
+                count=len(open_events),
+                event_ids=[e.id for e in open_events],
+            )
+        except Exception as exc:
+            session.rollback()
+            logger.warning("startup_cleanup_failed", error=str(exc))
+        finally:
+            session.close()
 
     def _apply_column_migrations(self) -> None:
         """Add new nullable columns to existing tables (idempotent ALTER TABLE)."""
@@ -101,7 +122,6 @@ class DatabaseManager:
                     conn.commit()
                     logger.debug("db_column_added", table=table, column=column)
                 except Exception:
-                    # Column already exists – silently skip
                     pass
 
     def _migrate_stream_tracks_to_streams(self) -> None:
@@ -116,7 +136,6 @@ class DatabaseManager:
             if not stream_tracks:
                 return
             stream_ids = [t.id for t in stream_tracks]
-            # Remove playlist_tracks that reference these track ids
             session.query(PlaylistTrack).filter(
                 PlaylistTrack.track_id.in_(stream_ids)
             ).delete(synchronize_session=False)
@@ -156,24 +175,11 @@ class DatabaseManager:
             logger.info("db_disconnected")
 
     def get_session(self) -> Session:
-        """Get a new database session.
-
-        Returns:
-            SQLAlchemy session
-
-        Raises:
-            RuntimeError: If database not connected
-        """
         if self.SessionLocal is None:
             raise RuntimeError("Database not connected. Call connect() first.")
         return self.SessionLocal()
 
     def is_connected(self) -> bool:
-        """Check if database is connected.
-
-        Returns:
-            True if connected, False otherwise
-        """
         if self.engine is None:
             return False
         try:
@@ -185,23 +191,14 @@ class DatabaseManager:
             return False
 
     def run_migrations(self) -> None:
-        """Run Alembic migrations to latest version.
-
-        This should be called on service startup to ensure DB schema is up-to-date.
-        """
         logger.debug("db_running_migrations")
         try:
             from alembic.config import Config
-
             from alembic import command
-
-            # Load Alembic config
             alembic_cfg = Config("alembic.ini")
             alembic_cfg.set_main_option(
                 "sqlalchemy.url", f"sqlite:///{self.database_path}"
             )
-
-            # Run migrations
             command.upgrade(alembic_cfg, "head")
             logger.debug("db_migrations_completed")
         except Exception as e:
@@ -214,14 +211,6 @@ db_manager: DatabaseManager | None = None
 
 
 def init_db(database_path: str) -> DatabaseManager:
-    """Initialize global database manager.
-
-    Args:
-        database_path: Path to SQLite database file
-
-    Returns:
-        Initialized DatabaseManager instance
-    """
     global db_manager
     db_manager = DatabaseManager(database_path)
     db_manager.connect()
@@ -229,14 +218,8 @@ def init_db(database_path: str) -> DatabaseManager:
 
 
 def get_db() -> Session:
-    """Get database session for dependency injection.
-
-    Yields:
-        SQLAlchemy session
-    """
     if db_manager is None:
         raise RuntimeError("Database not initialized. Call init_db() first.")
-
     session = db_manager.get_session()
     try:
         yield session
