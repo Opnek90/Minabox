@@ -125,7 +125,6 @@ class AudioHandler:
             self._pause_accumulator()
             accumulated = self._current_accumulated_ms()
 
-            # --- Always persist listened_ms regardless of intent/deliberate flags ---
             if _db_module.db_manager:
                 db_session = _db_module.db_manager.get_session()
                 try:
@@ -135,7 +134,6 @@ class AudioHandler:
                     db_session.close()
             self._reset_accumulator()
 
-            # --- Auto-advance / daily-limit logic (only when intent is active) ---
             if not self.dispatcher.playback_intent_active:
                 logger.info("auto_advance_skipped_no_playback_intent")
 
@@ -186,11 +184,19 @@ class AudioHandler:
                     logger.info("track_ended_naturally_auto_advancing")
                     await self.dispatcher.button_handler._handle_next()
 
-        # Stopped without prior playing state: close any orphaned open event
-        if new_state == "stopped" and prev_state != "playing" and _db_module.db_manager:
+        # Orphaned stop: state=stopped without prior playing state.
+        # Only close open events when intent is NOT active — if intent is active,
+        # this is the known transitional stopped→playing that VLC emits after a
+        # play command, and we must NOT close the freshly created PlaybackEvent.
+        if (
+            new_state == "stopped"
+            and prev_state != "playing"
+            and not self.dispatcher.playback_intent_active
+            and _db_module.db_manager
+        ):
             db_session = _db_module.db_manager.get_session()
             try:
-                close_open_playback_event(db_session, data, accumulated_ms=self._current_accumulated_ms() or None)
+                close_open_playback_event(db_session, data, accumulated_ms=self._current_accumulated_ms() or 0)
                 self._reset_accumulator()
             finally:
                 db_session.close()
