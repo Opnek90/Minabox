@@ -7,27 +7,28 @@ const TICK_MS = 1000;
 
 export const useAudioStatus = (): AudioStatus | null => {
   const { lastAudioStatus } = useWebSocket();
-  const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(null);
-  const interpolatedRef = useRef<AudioStatus | null>(null);
+
+  // fix #56 T4/T5: initialize SYNCHRONOUSLY from WS cache so the very first
+  // render already has correct metadata. useEffect-based init was too late
+  // (fires after render) causing null→cached transition = progress bar jump.
+  const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(
+    () => lastAudioStatus ?? null
+  );
+
+  const interpolatedRef = useRef<AudioStatus | null>(audioStatus);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const initializedRef = useRef(false);
+  const positionPatchedRef = useRef(false);
 
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
+    if (positionPatchedRef.current) return;
+    positionPatchedRef.current = true;
 
     if (lastAudioStatus) {
-      // Phase 1: render metadata immediately from cache (no 'Unknown Track' flash)
-      // position_ms in cache may be stale (up to several seconds old) — patch below.
-      interpolatedRef.current = lastAudioStatus;
-      setAudioStatus(lastAudioStatus);
-
-      // Phase 2: fetch fresh position_ms via REST concurrently and patch it in.
-      // This fixes the progress bar jump (T4) without causing a metadata flicker.
-      // Only patch position_ms (and duration_ms) — leave all other fields from cache.
+      // Cache hit: metadata already rendered correctly.
+      // Patch only position_ms + duration_ms + state via REST to fix stale position.
       audioApi.getStatus().then((fresh) => {
         setAudioStatus((prev) => {
-          if (!prev) return fresh; // fallback: use full REST response
+          if (!prev) return fresh;
           const patched: AudioStatus = {
             ...prev,
             position_ms: fresh.position_ms,
@@ -37,16 +38,16 @@ export const useAudioStatus = (): AudioStatus | null => {
           interpolatedRef.current = patched;
           return patched;
         });
-      }).catch(() => null); // REST failure is non-fatal — cache value stays
+      }).catch(() => null);
     } else {
-      // No cache yet (first app load / hard reload): full REST fetch
+      // No cache (first load / hard reload): full REST fetch
       audioApi.getStatus().then((data) => {
         interpolatedRef.current = data;
         setAudioStatus(data);
       }).catch(() => null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // only on mount — lastAudioStatus intentionally not in deps
+  }, []); // only on mount
 
   // Live updates from WebSocket
   useWebSocketEvent('audio_status', (message: AudioStatusMessage) => {
