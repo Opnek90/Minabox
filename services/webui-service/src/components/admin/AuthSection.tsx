@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { setPassword, updateAuthConfig, resetAuth } from '@/api/auth';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 const PATH_TO_AREA: Record<string, string> = {
   '/admin': 'admin',
@@ -150,48 +151,36 @@ export const AuthSection: React.FC = () => {
         {t('auth.tab_title')}
       </Typography>
 
+      {/* ── Geschützte Bereiche ────────────────────────────────────────────── */}
       <Box>
         <Typography variant="subtitle2" gutterBottom>
           {t('auth.protected_areas_title')}
         </Typography>
         <FormControlLabel
-          control={
-            <Switch
-              checked={adminProtected}
-              onChange={(_, v) => setAdminProtected(v)}
-            />
-          }
+          control={<Switch checked={adminProtected} onChange={(_, v) => setAdminProtected(v)} />}
           label={t('auth.protected_admin')}
         />
         <FormControlLabel
-          control={
-            <Switch
-              checked={mediaProtected}
-              onChange={(_, v) => setMediaProtected(v)}
-            />
-          }
+          control={<Switch checked={mediaProtected} onChange={(_, v) => setMediaProtected(v)} />}
           label={t('auth.protected_media')}
         />
         <FormControlLabel
-          control={
-            <Switch
-              checked={dashboardProtected}
-              onChange={(_, v) => setDashboardProtected(v)}
-            />
-          }
+          control={<Switch checked={dashboardProtected} onChange={(_, v) => setDashboardProtected(v)} />}
           label={t('auth.protected_dashboard')}
         />
         <Box sx={{ mt: 1 }}>
-          <Button
-            variant="contained"
+          <ActionButton
+            actionType="primary"
             onClick={handleSaveAreas}
             disabled={savingAreas}
+            loading={savingAreas}
           >
             {t('auth.save_areas')}
-          </Button>
+          </ActionButton>
         </Box>
       </Box>
 
+      {/* ── Passwort festlegen / ändern ───────────────────────────────────── */}
       <Box component="form" onSubmit={handleSetPassword} sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400 }}>
         <Typography variant="subtitle2">
           {authEnabled ? t('auth.change_password') : t('auth.set_password')}
@@ -224,36 +213,40 @@ export const AuthSection: React.FC = () => {
           margin="dense"
           required
         />
-        <Button type="submit" variant="contained" disabled={savingPassword}>
+        <ActionButton
+          actionType="primary"
+          onClick={() => {}}
+          loading={savingPassword}
+          disabled={savingPassword}
+        >
           {authEnabled ? t('auth.change_password_submit') : t('auth.set_password_submit')}
-        </Button>
+        </ActionButton>
         <Box sx={{ mt: 1 }}>
-          <Button
+          <ActionButton
+            actionType="destructive"
             startIcon={<DeleteForeverIcon />}
-            variant="outlined"
-            color="error"
             onClick={() => setResetDialogOpen(true)}
             disabled={resetting || !authEnabled}
           >
             {t('auth.reset_button')}
-          </Button>
+          </ActionButton>
         </Box>
       </Box>
 
+      {/* ── Logout ────────────────────────────────────────────────────────── */}
       {authEnabled && (
         <Box>
-          <Button variant="outlined" color="secondary" onClick={() => logout()}>
+          <ActionButton actionType="secondary" onClick={() => logout()}>
             {t('auth.logout')}
-          </Button>
+          </ActionButton>
         </Box>
       )}
 
+      {/* ── Reset Dialog ──────────────────────────────────────────────────── */}
       <Dialog open={resetDialogOpen} onClose={() => setResetDialogOpen(false)}>
         <DialogTitle>{t('auth.reset_button')}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            {t('auth.reset_confirm_text')}
-          </DialogContentText>
+          <DialogContentText>{t('auth.reset_confirm_text')}</DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setResetDialogOpen(false)}>
@@ -266,4 +259,4 @@ export const AuthSection: React.FC = () => {
       </Dialog>
     </Box>
   );
-}
+};
