@@ -6,16 +6,13 @@ import { cn } from '@/lib/utils';
  * Shadcn-style Button primitive powered by CVA.
  *
  * Variants map directly to the Minabox ActionType convention:
- *   default     → primary action
- *   outline     → secondary action
- *   ghost       → icon / subtle action
- *   destructive → dangerous / irreversible action
+ *   default     → primary action   (filled accent, pill)
+ *   outline     → secondary action  (soft tinted fill, no border, pill)
+ *   ghost       → icon / subtle     (transparent, circular)
+ *   destructive → dangerous action  (filled red, pill)
  *
- * Colors are driven by CSS custom properties defined in index.css and
- * updated at runtime by ThemeContext (accent color + dark/light mode).
- *
- * Visual language: rounded-lg corners, font-semibold, consistent height,
- * matches the existing "Playlist hinzufügen" button style.
+ * Visual language: pill shape (rounded-full), no outlines on text buttons,
+ * consistent with the existing orange "Playlist hinzufügen" button.
  */
 const buttonVariants = cva(
   [
@@ -29,28 +26,37 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        /** Primary: filled accent – matches existing "Playlist hinzufügen" look */
+        /**
+         * Primary: fully filled with accent color.
+         * Identical to existing "Playlist hinzufügen" button.
+         */
         default:
-          'rounded-lg bg-[--color-accent] text-[--color-accent-contrast] hover:bg-[--color-accent-dark]',
+          'rounded-full bg-[--color-accent] text-[--color-accent-contrast] hover:bg-[--color-accent-dark]',
 
-        /** Secondary: subtle outline, slight tinted background */
+        /**
+         * Secondary: soft tinted fill, NO border.
+         * Reads as secondary without looking dated/boxed.
+         */
         outline:
-          'rounded-lg border border-[--color-accent] text-[--color-accent] bg-[--color-surface]/5 hover:bg-[--color-accent]/15',
+          'rounded-full bg-[--color-accent]/20 text-[--color-accent] hover:bg-[--color-accent]/30',
 
-        /** Ghost / Icon: circular, transparent – for icon-only buttons */
+        /**
+         * Ghost / Icon: circular transparent button for icon-only use.
+         */
         ghost:
           'rounded-full bg-transparent text-[--color-accent] hover:bg-[--color-accent]/15',
 
-        /** Destructive: fixed red palette */
+        /**
+         * Destructive: filled red pill for delete / irreversible actions.
+         */
         destructive:
-          'rounded-lg bg-[--color-destructive] text-[--color-destructive-contrast] hover:bg-[--color-destructive-dark] focus-visible:ring-[--color-destructive]',
+          'rounded-full bg-[--color-destructive] text-[--color-destructive-contrast] hover:bg-[--color-destructive-dark] focus-visible:ring-[--color-destructive]',
       },
       size: {
-        /** Default: matches height of existing action buttons in PageShell */
-        default: 'h-9 px-4 py-2 text-sm',
-        sm:      'h-9 px-4 py-2 text-sm',
-        lg:      'h-11 px-6 py-2.5 text-base',
-        /** Icon: circular, tight – pairs with ghost variant */
+        default: 'h-9 px-5 py-2 text-sm',
+        sm:      'h-9 px-5 py-2 text-sm',
+        lg:      'h-11 px-7 py-2.5 text-base',
+        /** Icon: fixed square – use with ghost variant */
         icon:    'h-8 w-8 p-0',
       },
     },
@@ -70,10 +76,6 @@ export interface ButtonProps
   asChild?: boolean;
 }
 
-/**
- * Base Button component.
- * Prefer using ActionButton with actionType instead of this directly.
- */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild: _asChild, ...props }, ref) => {
     return (
