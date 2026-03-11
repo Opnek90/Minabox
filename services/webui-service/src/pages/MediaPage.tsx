@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -16,6 +15,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
 import { PlaylistList } from '@/components/media/PlaylistList';
 import { RemoteTrackDialog } from '@/components/media/RemoteTrackDialog';
@@ -171,41 +171,37 @@ export const MediaPage: React.FC = () => {
       actions={
         tab === 1 ? (
           <>
-            <Button
-              variant="outlined"
-              size="small"
+            <ActionButton
+              actionType="secondary"
               startIcon={<LinkIcon />}
               onClick={() => setRemoteTrackOpen(true)}
             >
               {t('tracks.add_remote', { defaultValue: 'Remote-Track' })}
-            </Button>
-            <Button
-              variant="contained"
-              size="small"
+            </ActionButton>
+            <ActionButton
+              actionType="primary"
               startIcon={<CloudUploadIcon />}
               onClick={() => setUploadOpen(true)}
             >
               {t('tracks.upload')}
-            </Button>
+            </ActionButton>
           </>
         ) : tab === 2 ? (
-          <Button
-            variant="contained"
-            size="small"
+          <ActionButton
+            actionType="primary"
             startIcon={<StreamIcon />}
             onClick={() => setStreamOpen(true)}
           >
             {t('tracks.add_stream')}
-          </Button>
+          </ActionButton>
         ) : tab === 3 ? (
-          <Button
-            variant="contained"
-            size="small"
+          <ActionButton
+            actionType="primary"
             startIcon={<PodcastsIcon />}
             onClick={() => setPodcastOpen(true)}
           >
             {t('podcasts.add')}
-          </Button>
+          </ActionButton>
         ) : undefined
       }
     >
@@ -269,7 +265,12 @@ export const MediaPage: React.FC = () => {
       </TabPanel>
 
       {/* Track Edit Dialog */}
-      <Dialog open={!!editTrack} onClose={() => { setEditTrack(null); setEditCoverFile(null); }} maxWidth="sm" fullWidth>
+      <Dialog
+        open={!!editTrack}
+        onClose={() => { setEditTrack(null); setEditCoverFile(null); }}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>{t('tracks.edit')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           <CoverUploadField
@@ -306,16 +307,20 @@ export const MediaPage: React.FC = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditTrack(null)}>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => setEditTrack(null)}
+          >
             {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleTrackEditSave}
+          </ActionButton>
+          <ActionButton
+            actionType="primary"
+            loading={editSaving}
             disabled={editSaving || !editForm.title.trim()}
+            onClick={handleTrackEditSave}
           >
             {t('save', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
