@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -12,6 +11,7 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTranslation } from 'react-i18next';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { TagList } from '@/components/rfid/TagList';
 import { TagEditDialog } from '@/components/rfid/TagEditDialog';
 import { LearnModeButton } from '@/components/rfid/LearnModeButton';
@@ -84,7 +84,6 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     loadData();
   }, [loadData]);
 
-  // Lern-Modus: Karte gescannt → TagEditDialog öffnen
   const handleRfidLearning = useCallback((msg: RFIDScannedMessage) => {
     setScannedTagId(msg.data.tag_id);
     setLearnModeLoading(false);
@@ -94,7 +93,6 @@ export const RfidPage: React.FC<RfidPageProps> = ({
 
   useWebSocketEvent('rfid_scanned_learning', handleRfidLearning);
 
-  // Drawer → "Zuweisen" gedrückt: pendingTagId kommt rein
   useEffect(() => {
     if (!pendingTagId) return;
     setScannedTagId(pendingTagId);
@@ -258,12 +256,18 @@ export const RfidPage: React.FC<RfidPageProps> = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTag(null)}>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => setDeleteTag(null)}
+          >
             {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
+            onClick={handleDeleteConfirm}
+          >
             {t('delete', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </PageShell>
