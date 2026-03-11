@@ -13,39 +13,45 @@ import { cn } from '@/lib/utils';
  *
  * Colors are driven by CSS custom properties defined in index.css and
  * updated at runtime by ThemeContext (accent color + dark/light mode).
+ *
+ * Visual language: rounded-lg corners, font-semibold, consistent height,
+ * matches the existing "Playlist hinzufügen" button style.
  */
 const buttonVariants = cva(
-  // Base styles shared by all variants
   [
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap',
-    'rounded-md font-medium transition-colors duration-150',
+    'inline-flex items-center justify-center gap-1.5 whitespace-nowrap',
+    'font-semibold transition-colors duration-150',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
     'focus-visible:ring-[--color-accent]',
     'disabled:pointer-events-none disabled:opacity-50',
-    'select-none',
+    'cursor-pointer select-none',
   ],
   {
     variants: {
       variant: {
-        /** Primary: filled with accent color */
+        /** Primary: filled accent – matches existing "Playlist hinzufügen" look */
         default:
-          'bg-[--color-accent] text-[--color-accent-contrast] hover:bg-[--color-accent-dark] focus-visible:ring-[--color-accent]',
-        /** Secondary: outlined with accent color */
+          'rounded-lg bg-[--color-accent] text-[--color-accent-contrast] hover:bg-[--color-accent-dark]',
+
+        /** Secondary: subtle outline, slight tinted background */
         outline:
-          'border border-[--color-accent] text-[--color-accent] bg-transparent hover:bg-[--color-accent]/10',
-        /** Ghost / Icon: transparent background, subtle hover */
+          'rounded-lg border border-[--color-accent] text-[--color-accent] bg-[--color-surface]/5 hover:bg-[--color-accent]/15',
+
+        /** Ghost / Icon: circular, transparent – for icon-only buttons */
         ghost:
-          'bg-transparent text-[--color-accent] hover:bg-[--color-accent]/10 focus-visible:ring-[--color-accent]',
-        /** Destructive: fixed red palette, not accent-dependent */
+          'rounded-full bg-transparent text-[--color-accent] hover:bg-[--color-accent]/15',
+
+        /** Destructive: fixed red palette */
         destructive:
-          'bg-[--color-destructive] text-[--color-destructive-contrast] hover:bg-[--color-destructive-dark] focus-visible:ring-[--color-destructive]',
+          'rounded-lg bg-[--color-destructive] text-[--color-destructive-contrast] hover:bg-[--color-destructive-dark] focus-visible:ring-[--color-destructive]',
       },
       size: {
-        default: 'h-10 px-4 py-2 text-sm',
-        sm:      'h-8  px-3 py-1 text-xs',
-        lg:      'h-12 px-6 py-3 text-base',
-        /** Icon: square, no padding text – use with a single icon child */
-        icon:    'h-9 w-9 p-0',
+        /** Default: matches height of existing action buttons in PageShell */
+        default: 'h-9 px-4 py-2 text-sm',
+        sm:      'h-9 px-4 py-2 text-sm',
+        lg:      'h-11 px-6 py-2.5 text-base',
+        /** Icon: circular, tight – pairs with ghost variant */
+        icon:    'h-8 w-8 p-0',
       },
     },
     defaultVariants: {
@@ -61,7 +67,6 @@ export type ButtonSize    = 'default' | 'sm' | 'lg' | 'icon';
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
-  /** Render as child element (Radix asChild pattern) */
   asChild?: boolean;
 }
 
