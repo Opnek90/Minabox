@@ -49,14 +49,13 @@ const ThemedApp: React.FC = () => {
           h5: { fontWeight: 700 },
           h6: { fontWeight: 600 },
         },
-        // Leicht erhöhter Radius: Buttons werden runder (Pill-ähnlich)
-        shape: { borderRadius: 20 },
+        shape: { borderRadius: 8 },
         components: {
           MuiButton: {
             styleOverrides: {
               root: {
                 textTransform: 'none',
-                borderRadius: 20,
+                borderRadius: 8,
                 fontWeight: 600,
               },
             },
