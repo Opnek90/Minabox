@@ -8,7 +8,6 @@ import {
   Collapse,
   Fade,
   FormControl,
-  IconButton,
   List,
   ListItemButton,
   MenuItem,
@@ -30,6 +29,7 @@ import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { TrackInfo } from '@/components/player/TrackInfo';
 import { PlaybackControls } from '@/components/player/PlaybackControls';
 import { ProgressBar } from '@/components/player/ProgressBar';
@@ -38,6 +38,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useThemeContext } from '@/contexts/ThemeContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type {
@@ -104,6 +105,7 @@ export const PlayerPage: React.FC = () => {
   const queryClient = useQueryClient();
   const audioStatus = useAudioStatus();
   const { sleepTimerStatus, isConnected } = useWebSocket();
+  const { primaryColor } = useThemeContext();
   const [error, setError] = useState<string | null>(null);
   
   const [optimisticVolume, setOptimisticVolume] = useState<number | null>(null);
@@ -336,8 +338,10 @@ export const PlayerPage: React.FC = () => {
 
   const { state, track_title, track_artist, track_album, track_cover_art_url, position_ms, duration_ms, volume } = audioStatus;
   const displayVolume = optimisticVolume ?? volume ?? 0;
-  // Seek is only available when duration is known (i.e. not a live stream)
   const canSeek = Boolean(duration_ms && duration_ms > 0);
+
+  // Active-state colorOverride: use accent color from ThemeContext
+  const activeColorOverride = { main: primaryColor.main, dark: primaryColor.dark, foreground: primaryColor.contrastText };
 
   return (
     <Box
@@ -397,21 +401,29 @@ export const PlayerPage: React.FC = () => {
                   deleteIcon={<CancelIcon />}
                 />
               ) : (
-                <IconButton
-                  size="small"
-                  onClick={(e) => setSleepAnchor(e.currentTarget)}
-                  title={t('sleep_timer.title')}
-                >
-                  <HotelIcon fontSize="small" />
-                </IconButton>
+                <Tooltip title={t('sleep_timer.title')}>
+                  <span>
+                    <ActionButton
+                      actionType="icon"
+                      aria-label={t('sleep_timer.title')}
+                      onClick={(e) => setSleepAnchor(e.currentTarget)}
+                    >
+                      <HotelIcon fontSize="small" />
+                    </ActionButton>
+                  </span>
+                </Tooltip>
               )}
-              <IconButton
-                size="small"
-                onClick={() => navigate('/kiosk')}
-                title={t('kiosk_mode')}
-              >
-                <FullscreenIcon fontSize="small" />
-              </IconButton>
+              <Tooltip title={t('kiosk_mode')}>
+                <span>
+                  <ActionButton
+                    actionType="icon"
+                    aria-label={t('kiosk_mode')}
+                    onClick={() => navigate('/kiosk')}
+                  >
+                    <FullscreenIcon fontSize="small" />
+                  </ActionButton>
+                </span>
+              </Tooltip>
             </Box>
           </Box>
 
@@ -445,7 +457,7 @@ export const PlayerPage: React.FC = () => {
             stopped={state === 'stopped'}
           />
 
-          {/* Progress Bar — seekable for tracks/podcasts, read-only for streams */}
+          {/* Progress Bar */}
           <ProgressBar
             positionMs={position_ms}
             durationMs={duration_ms}
@@ -496,14 +508,16 @@ export const PlayerPage: React.FC = () => {
               </Select>
             </FormControl>
             <Tooltip title={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}>
-              <IconButton
-                size="small"
-                onClick={() => refetchDevices()}
-                disabled={outputDevicesLoading}
-                aria-label={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}
-              >
-                <RefreshIcon fontSize="small" />
-              </IconButton>
+              <span>
+                <ActionButton
+                  actionType="icon"
+                  onClick={() => refetchDevices()}
+                  disabled={outputDevicesLoading}
+                  aria-label={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}
+                >
+                  <RefreshIcon fontSize="small" />
+                </ActionButton>
+              </span>
             </Tooltip>
           </Box>
 
@@ -511,31 +525,41 @@ export const PlayerPage: React.FC = () => {
           {session && (
             <Box sx={{ pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" gap={0.5} sx={{ mb: 0.5 }}>
-                <Tooltip title={session.repeat_mode === 'all' ? t('player.repeat_all', { defaultValue: 'Repeat all' }) : t('player.repeat_off', { defaultValue: 'Repeat off' })}>
-                  <IconButton
-                    size="small"
-                    color={session.repeat_mode === 'all' ? 'primary' : 'default'}
-                    onClick={() => {
-                      const mode = session.repeat_mode === 'all' ? 'none' : 'all';
-                      repeatMutation.mutate(mode);
-                    }}
-                    aria-label={session.repeat_mode === 'all' ? 'Repeat all' : 'Repeat off'}
-                  >
-                    <RepeatIcon fontSize="small" />
-                  </IconButton>
+                <Tooltip title={session.repeat_mode === 'all'
+                  ? t('player.repeat_all', { defaultValue: 'Repeat all' })
+                  : t('player.repeat_off', { defaultValue: 'Repeat off' })
+                }>
+                  <span>
+                    <ActionButton
+                      actionType="icon"
+                      aria-label={session.repeat_mode === 'all' ? 'Repeat all' : 'Repeat off'}
+                      colorOverride={session.repeat_mode === 'all' ? activeColorOverride : undefined}
+                      onClick={() => {
+                        const mode = session.repeat_mode === 'all' ? 'none' : 'all';
+                        repeatMutation.mutate(mode);
+                      }}
+                    >
+                      <RepeatIcon fontSize="small" />
+                    </ActionButton>
+                  </span>
                 </Tooltip>
-                <Tooltip title={session.shuffle ? t('player.shuffle_on', { defaultValue: 'Shuffle on' }) : t('player.shuffle_off', { defaultValue: 'Shuffle off' })}>
-                  <IconButton
-                    size="small"
-                    color={session.shuffle ? 'primary' : 'default'}
-                    onClick={() => {
-                      const next = !session.shuffle;
-                      shuffleMutation.mutate(next);
-                    }}
-                    aria-label={session.shuffle ? 'Shuffle on' : 'Shuffle off'}
-                  >
-                    <ShuffleIcon fontSize="small" />
-                  </IconButton>
+                <Tooltip title={session.shuffle
+                  ? t('player.shuffle_on',  { defaultValue: 'Shuffle on' })
+                  : t('player.shuffle_off', { defaultValue: 'Shuffle off' })
+                }>
+                  <span>
+                    <ActionButton
+                      actionType="icon"
+                      aria-label={session.shuffle ? 'Shuffle on' : 'Shuffle off'}
+                      colorOverride={session.shuffle ? activeColorOverride : undefined}
+                      onClick={() => {
+                        const next = !session.shuffle;
+                        shuffleMutation.mutate(next);
+                      }}
+                    >
+                      <ShuffleIcon fontSize="small" />
+                    </ActionButton>
+                  </span>
                 </Tooltip>
               </Box>
               {session.queue.filter((q) => !q.is_current).length > 0 && (
