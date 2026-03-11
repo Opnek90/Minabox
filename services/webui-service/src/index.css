@@ -1,26 +1,18 @@
-@import "tailwindcss";
-
 /*
   Minabox Design Tokens
-  These CSS custom properties are set dynamically by ThemeContext via
-  applyTokens() in ThemeContextProvider whenever mode or colorPreset changes.
-  They bridge Tailwind utility classes with the runtime accent color.
-
-  Usage in Tailwind:  bg-[--color-accent]  text-[--color-accent-contrast]
+  CSS custom properties set dynamically by ThemeContext via applyTokens().
+  Used by MUI theme (primaryColor) and directly by non-MUI elements.
 */
 :root {
-  /* Accent palette – defaults to orange, overridden at runtime */
   --color-accent:          #e65100;
   --color-accent-light:    #ff8a50;
   --color-accent-dark:     #ac1900;
   --color-accent-contrast: #ffffff;
 
-  /* Destructive palette – fixed, not theme-dependent */
   --color-destructive:          #b91c1c;
   --color-destructive-dark:     #991b1b;
   --color-destructive-contrast: #ffffff;
 
-  /* Surface tokens: light mode defaults */
   --color-surface:     #ffffff;
   --color-on-surface:  #1c1c1e;
   --color-border:      #e5e7eb;
@@ -28,11 +20,6 @@
   --color-muted-text:  #6b7280;
 }
 
-/*
-  Dark mode tokens – applied via data-theme="dark" set by ThemeContext.
-  This ensures buttons, surfaces and text automatically adapt without
-  needing dark: Tailwind variants.
-*/
 [data-theme="dark"] {
   --color-surface:    #1c1c1e;
   --color-on-surface: #f5f5f7;
@@ -41,10 +28,6 @@
   --color-muted-text: #a1a1aa;
 }
 
-/*
-  Ensure html/body fill the viewport and inherit the correct background
-  in dark mode so MUI and Tailwind components share the same surface.
-*/
 html, body, #root {
   min-height: 100%;
 }

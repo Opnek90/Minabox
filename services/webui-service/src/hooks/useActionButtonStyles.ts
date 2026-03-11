@@ -1,35 +1,29 @@
 import { useThemeContext } from '@/contexts/ThemeContext';
-import type { ButtonVariant, ButtonSize } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import type { ButtonProps as MuiButtonProps } from '@mui/material/Button';
+import type { SxProps, Theme } from '@mui/material/styles';
 
 export type ActionType = 'primary' | 'secondary' | 'icon' | 'destructive';
 
 export interface ColorOverride {
-  /** Override the main/background color (hex or CSS value) */
+  /** Main/background color (hex or CSS value) */
   main: string;
-  /** Override the hover/dark shade */
+  /** Hover/dark shade */
   dark?: string;
-  /** Override the foreground/text color */
+  /** Foreground/text color */
   foreground?: string;
 }
 
 export interface ActionButtonStyles {
-  variant: ButtonVariant;
-  size: ButtonSize;
-  /** Additional Tailwind classes derived from context + override */
-  className: string;
+  muiVariant: MuiButtonProps['variant'];
+  muiColor: MuiButtonProps['color'];
+  sx: SxProps<Theme>;
 }
 
 /**
- * Maps an ActionType (+ optional ColorOverride) to the concrete
- * shadcn Button variant, size and Tailwind class string.
+ * Maps an ActionType (+ optional ColorOverride) to concrete MUI Button props.
  *
- * Reads ThemeContext so returned styles always reflect the currently
- * active accent color and light/dark mode.
- *
- * @example
- * const { variant, size, className } = useActionButtonStyles('primary');
- * <Button variant={variant} size={size} className={className} />
+ * Uses ThemeContext so active-state overrides (e.g. Repeat/Shuffle) always
+ * reflect the current accent color.
  */
 export function useActionButtonStyles(
   actionType: ActionType,
@@ -37,44 +31,60 @@ export function useActionButtonStyles(
 ): ActionButtonStyles {
   const { mode } = useThemeContext();
 
-  const variantMap: Record<ActionType, ButtonVariant> = {
-    primary:     'default',
-    secondary:   'outline',
-    icon:        'ghost',
-    destructive: 'destructive',
+  // Base MUI variant + color per actionType
+  const variantMap: Record<ActionType, MuiButtonProps['variant']> = {
+    primary:     'contained',
+    secondary:   'outlined',
+    icon:        'text',      // not used for MuiButton, only for reference
+    destructive: 'contained',
   };
 
-  const sizeMap: Record<ActionType, ButtonSize> = {
-    primary:     'default',
-    secondary:   'default',
-    icon:        'icon',
-    destructive: 'default',
+  const colorMap: Record<ActionType, MuiButtonProps['color']> = {
+    primary:     'primary',
+    secondary:   'primary',
+    icon:        'primary',
+    destructive: 'error',
   };
 
-  const variant = variantMap[actionType];
-  const size    = sizeMap[actionType];
+  const muiVariant = variantMap[actionType];
+  const muiColor   = colorMap[actionType];
 
-  // Build override classes when colorOverride is provided.
-  // We use inline CSS vars scoped to the element via style, but for
-  // className we only add dark-mode-aware utility tweaks here.
-  const overrideClasses = colorOverride
-    ? cn(
-        // Replace accent with override main color via arbitrary value
-        actionType === 'primary'   && `bg-[${colorOverride.main}] hover:bg-[${colorOverride.dark ?? colorOverride.main}]`,
-        actionType === 'secondary' && `border-[${colorOverride.main}] text-[${colorOverride.main}]`,
-        actionType === 'icon'      && `text-[${colorOverride.main}] hover:bg-[${colorOverride.main}]/10`,
-        colorOverride.foreground   && `text-[${colorOverride.foreground}]`,
-      )
-    : '';
+  // Build sx override when colorOverride is provided
+  // (used e.g. for active Repeat/Shuffle icon buttons)
+  let sx: SxProps<Theme> = {};
 
-  // Dark mode: icon buttons get slightly lighter text for contrast
-  const modeClasses = cn(
-    actionType === 'icon' && mode === 'dark' && 'text-[--color-accent-light]',
-  );
+  if (colorOverride) {
+    if (actionType === 'icon') {
+      sx = {
+        color: colorOverride.main,
+        '&:hover': {
+          backgroundColor: `${colorOverride.main}1a`, // ~10% opacity
+        },
+      };
+    } else if (actionType === 'primary') {
+      sx = {
+        backgroundColor: colorOverride.main,
+        color: colorOverride.foreground ?? '#ffffff',
+        '&:hover': {
+          backgroundColor: colorOverride.dark ?? colorOverride.main,
+        },
+      };
+    } else if (actionType === 'secondary') {
+      sx = {
+        borderColor: colorOverride.main,
+        color: colorOverride.main,
+        '&:hover': {
+          borderColor: colorOverride.dark ?? colorOverride.main,
+          backgroundColor: `${colorOverride.main}1a`,
+        },
+      };
+    }
+  }
 
-  return {
-    variant,
-    size,
-    className: cn(overrideClasses, modeClasses),
-  };
+  // In dark mode, icon buttons get slightly more opacity on hover for contrast
+  if (actionType === 'icon' && mode === 'dark' && !colorOverride) {
+    sx = { ...sx, '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' } };
+  }
+
+  return { muiVariant, muiColor, sx };
 }

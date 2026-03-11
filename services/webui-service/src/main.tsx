@@ -10,22 +10,21 @@ import App from '@/App';
 import '@/i18n';
 
 // ============================================================================
-// Setup React Query Client
+// React Query Client
 // ============================================================================
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: true,
       retry: 2,
-      staleTime: 5 * 60 * 1000, // Data stays fresh for 5 minutes by default
+      staleTime: 5 * 60 * 1000,
     },
   },
 });
 
 // ============================================================================
-// Themed wrapper – reads ThemeContext and builds the MUI theme dynamically
+// Themed wrapper – reads ThemeContext and builds MUI theme dynamically
 // ============================================================================
-
 const ThemedApp: React.FC = () => {
   const { mode, primaryColor } = useThemeContext();
 
@@ -42,23 +41,31 @@ const ThemedApp: React.FC = () => {
             contrastText: '#ffffff',
           },
           ...(mode === 'dark'
-            ? {
-                background: { default: '#121212', paper: '#1e1e1e' },
-              }
-            : {
-                background: { default: '#f5f5f5', paper: '#ffffff' },
-              }),
+            ? { background: { default: '#121212', paper: '#1e1e1e' } }
+            : { background: { default: '#f5f5f5', paper: '#ffffff' } }),
         },
         typography: {
           fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
           h5: { fontWeight: 700 },
           h6: { fontWeight: 600 },
         },
-        shape: { borderRadius: 8 },
+        // Leicht erhöhter Radius: Buttons werden runder (Pill-ähnlich)
+        shape: { borderRadius: 20 },
         components: {
           MuiButton: {
             styleOverrides: {
-              root: { textTransform: 'none', borderRadius: 8 },
+              root: {
+                textTransform: 'none',
+                borderRadius: 20,
+                fontWeight: 600,
+              },
+            },
+          },
+          MuiIconButton: {
+            styleOverrides: {
+              root: {
+                borderRadius: '50%',
+              },
             },
           },
           MuiCard: {
@@ -66,8 +73,6 @@ const ThemedApp: React.FC = () => {
               root: { borderRadius: 12 },
             },
           },
-
-          // ── Globale Dialog-Standards ──────────────────────────────────────
           MuiDialogTitle: {
             styleOverrides: {
               root: {
@@ -92,8 +97,6 @@ const ThemedApp: React.FC = () => {
               },
             },
           },
-
-          // ── Typografie: verhindert Textüberlauf aus Containern ────────────
           MuiTypography: {
             styleOverrides: {
               root: {
@@ -102,13 +105,9 @@ const ThemedApp: React.FC = () => {
               },
             },
           },
-
-          // ── Chip: kein ungewolltes Schrumpfen (z.B. im Header) ────────────
           MuiChip: {
             styleOverrides: {
-              root: {
-                flexShrink: 0,
-              },
+              root: { flexShrink: 0 },
             },
           },
         },
@@ -131,7 +130,6 @@ const ThemedApp: React.FC = () => {
 // ============================================================================
 // Entry Point
 // ============================================================================
-
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
 

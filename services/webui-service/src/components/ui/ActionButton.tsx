@@ -1,68 +1,43 @@
 import * as React from 'react';
-import { Button } from '@/components/ui/button';
+import MuiButton from '@mui/material/Button';
+import MuiIconButton from '@mui/material/IconButton';
+import CircularProgress from '@mui/material/CircularProgress';
 import {
   useActionButtonStyles,
   type ActionType,
   type ColorOverride,
 } from '@/hooks/useActionButtonStyles';
-import { cn } from '@/lib/utils';
 
 export type { ActionType, ColorOverride };
 
 export interface ActionButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /**
-   * Semantic action type – drives variant, size and color automatically.
+   * Semantic action type – drives MUI variant + color automatically.
    *
-   * - primary:     main call-to-action (Play, Save, Upload …)
-   * - secondary:   supporting action (Cancel, Back …)
-   * - icon:        icon-only compact button (Repeat, Refresh, Kiosk …)
-   * - destructive: irreversible / dangerous action (Delete, Reset …)
+   * - primary:     main CTA – MUI contained primary
+   * - secondary:   supporting action – MUI outlined primary
+   * - icon:        icon-only – MUI IconButton
+   * - destructive: irreversible action – MUI contained error
    */
   actionType: ActionType;
-
-  /** Optional icon rendered before the label */
   startIcon?: React.ReactNode;
-
-  /** Optional icon rendered after the label */
   endIcon?: React.ReactNode;
-
-  /**
-   * Shows a loading spinner in place of startIcon and disables the button.
-   * Useful for async mutations (save, upload, delete …).
-   */
+  /** Shows a spinner and disables the button during async operations */
   loading?: boolean;
-
-  /**
-   * Override the accent color for special one-off cases.
-   * The actionType semantics (variant, size, hover logic) still apply.
-   */
+  /** One-off color override (e.g. active-state for Repeat/Shuffle) */
   colorOverride?: ColorOverride;
-
-  /** Additional Tailwind classes */
   className?: string;
+  disabled?: boolean;
+  children?: React.ReactNode;
+  'aria-label'?: string;
 }
 
 /**
- * Minabox ActionButton
+ * Minabox ActionButton – MUI-backed, themed via ThemeContext.
  *
- * The single button component to use across the entire WebUI.
- * Derive visual appearance solely from `actionType` + ThemeContext;
- * only use `colorOverride` for genuine edge cases.
- *
- * @example
- * // Primary action
- * <ActionButton actionType="primary" onClick={handleSave}>Save</ActionButton>
- *
- * // Icon-only
- * <ActionButton actionType="icon" aria-label="Refresh" onClick={refetch}>
- *   <RefreshIcon />
- * </ActionButton>
- *
- * // Destructive with loading state
- * <ActionButton actionType="destructive" loading={deleting} onClick={handleDelete}>
- *   Delete
- * </ActionButton>
+ * Single button component for the entire WebUI.
+ * Visual appearance is derived solely from `actionType`.
  */
 export const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(
   (
@@ -75,37 +50,54 @@ export const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProp
       className,
       children,
       disabled,
-      ...props
+      onClick,
+      'aria-label': ariaLabel,
+      ...rest
     },
     ref,
   ) => {
-    const { variant, size, className: styleClass } = useActionButtonStyles(
-      actionType,
-      colorOverride,
-    );
+    const { muiVariant, muiColor, sx } = useActionButtonStyles(actionType, colorOverride);
 
     const isDisabled = disabled || loading;
 
+    // Icon-only button
+    if (actionType === 'icon') {
+      return (
+        <MuiIconButton
+          ref={ref as React.Ref<HTMLButtonElement>}
+          size="small"
+          disabled={isDisabled}
+          onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
+          aria-label={ariaLabel}
+          className={className}
+          sx={sx}
+        >
+          {loading
+            ? <CircularProgress size={16} color="inherit" />
+            : children
+          }
+        </MuiIconButton>
+      );
+    }
+
+    // Text / contained / outlined button
     return (
-      <Button
-        ref={ref}
-        variant={variant}
-        size={size}
+      <MuiButton
+        ref={ref as React.Ref<HTMLButtonElement>}
+        variant={muiVariant}
+        color={muiColor}
+        size="small"
         disabled={isDisabled}
-        className={cn(styleClass, className)}
-        {...props}
+        onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
+        aria-label={ariaLabel}
+        className={className}
+        startIcon={loading ? <CircularProgress size={14} color="inherit" /> : startIcon}
+        endIcon={endIcon}
+        sx={sx}
+        {...(rest as any)}
       >
-        {loading ? (
-          <span
-            className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-            aria-hidden="true"
-          />
-        ) : (
-          startIcon
-        )}
         {children}
-        {endIcon}
-      </Button>
+      </MuiButton>
     );
   },
 );
