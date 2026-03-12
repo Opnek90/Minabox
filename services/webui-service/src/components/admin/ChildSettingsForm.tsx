@@ -70,6 +70,7 @@ export const ChildSettingsForm: React.FC = () => {
         daily_limit_minutes: general.daily_limit_minutes,
       });
       await configApi.updateAudio({
+        min_volume: audioConfig.min_volume,
         max_volume: audioConfig.max_volume,
         default_volume: audioConfig.default_volume,
       });
@@ -184,15 +185,35 @@ export const ChildSettingsForm: React.FC = () => {
       <Divider />
 
       <Typography variant="subtitle1" color="text.secondary">
-        {t('audio.max_volume')}
+        {t('audio.volume_settings')}
       </Typography>
+
+      {/* min_volume slider */}
+      <Box>
+        <Typography variant="body2" gutterBottom>
+          {t('audio.min_volume')}: {audioConfig.min_volume ?? 5}%
+        </Typography>
+        <Slider
+          value={audioConfig.min_volume ?? 5}
+          min={0}
+          max={audioConfig.max_volume - 1}
+          step={5}
+          marks
+          valueLabelDisplay="auto"
+          onChange={(_, v) =>
+            setAudioConfig((p) => (p ? { ...p, min_volume: v as number } : p))
+          }
+        />
+      </Box>
+
+      {/* max_volume slider */}
       <Box>
         <Typography variant="body2" gutterBottom>
           {t('audio.max_volume')}: {audioConfig.max_volume}%
         </Typography>
         <Slider
           value={audioConfig.max_volume}
-          min={0}
+          min={(audioConfig.min_volume ?? 5) + 1}
           max={100}
           step={5}
           marks
@@ -202,13 +223,15 @@ export const ChildSettingsForm: React.FC = () => {
           }
         />
       </Box>
+
+      {/* default_volume slider — lower bound tracks min_volume dynamically */}
       <Box>
         <Typography variant="body2" gutterBottom>
           {t('audio.default_volume')}: {audioConfig.default_volume}%
         </Typography>
         <Slider
           value={audioConfig.default_volume}
-          min={0}
+          min={audioConfig.min_volume ?? 5}
           max={audioConfig.max_volume}
           step={5}
           marks

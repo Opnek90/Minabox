@@ -7,12 +7,14 @@ import { useTranslation } from 'react-i18next';
 
 interface VolumeControlProps {
   volume: number;
+  minVolume?: number;
   maxVolume?: number;
   onVolumeChange: (volume: number) => void;
 }
 
 export const VolumeControl: React.FC<VolumeControlProps> = ({
   volume,
+  minVolume = 0,
   maxVolume = 100,
   onVolumeChange,
 }) => {
@@ -41,7 +43,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
   );
 
   const VolumeIcon =
-    localVolume === 0 ? VolumeMuteIcon : localVolume < 50 ? VolumeDownIcon : VolumeUpIcon;
+    localVolume <= minVolume ? VolumeMuteIcon : localVolume < 50 ? VolumeDownIcon : VolumeUpIcon;
 
   return (
     <Box display="flex" alignItems="center" gap={1} sx={{ width: '100%', px: 1 }}>
@@ -50,7 +52,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
       </Tooltip>
       <Slider
         value={localVolume}
-        min={0}
+        min={minVolume}
         max={maxVolume}
         step={1}
         onChange={handleChange}

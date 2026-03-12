@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from shared_lib.config import EnvConfigBase
 
@@ -45,6 +45,12 @@ class AudioConfig(BaseModel):
         default_factory=dict,
         description="Sink name -> custom display name (optional).",
     )
+    min_volume: int = Field(
+        default=5,
+        ge=0,
+        le=100,
+        description="Minimum volume level (prevents accidental silencing)",
+    )
     max_volume: int = Field(
         default=70,
         ge=0,
@@ -58,14 +64,18 @@ class AudioConfig(BaseModel):
         description="Default volume on service start",
     )
 
-    @field_validator("default_volume")
-    @classmethod
-    def validate_default_volume(cls, v: int, info) -> int:
-        """Ensure default_volume doesn't exceed max_volume."""
-        max_vol = info.data.get("max_volume", 100)
-        if v > max_vol:
-            return max_vol
-        return v
+    @model_validator(mode="after")
+    def validate_volume_bounds(self) -> "AudioConfig":
+        """Ensure min_volume < max_volume and min_volume <= default_volume <= max_volume."""
+        # Clamp min_volume below max_volume
+        if self.min_volume >= self.max_volume:
+            self.min_volume = max(0, self.max_volume - 1)
+        # Clamp default_volume within [min_volume, max_volume]
+        if self.default_volume > self.max_volume:
+            self.default_volume = self.max_volume
+        if self.default_volume < self.min_volume:
+            self.default_volume = self.min_volume
+        return self
 
 
 class EnvConfig(EnvConfigBase):
