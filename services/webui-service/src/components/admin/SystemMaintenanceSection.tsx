@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Checkbox,
   Chip,
   Dialog,
@@ -298,8 +297,12 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.restart')}</DialogTitle>
         <DialogContent><DialogContentText>{t('system.restart_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setRestartDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleRestart} color="warning" variant="contained">{t('actions.confirm', { ns: 'common' })}</Button>
+          <ActionButton actionType="secondary" onClick={() => setRestartDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={handleRestart}>
+            {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -307,8 +310,12 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.reboot')}</DialogTitle>
         <DialogContent><DialogContentText>{t('system.reboot_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setRebootDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleReboot} color="error" variant="contained">{t('actions.confirm', { ns: 'common' })}</Button>
+          <ActionButton actionType="secondary" onClick={() => setRebootDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={handleReboot}>
+            {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -316,8 +323,12 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.shutdown')}</DialogTitle>
         <DialogContent><DialogContentText>{t('system.shutdown_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setShutdownDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleShutdown} color="error" variant="contained">{t('actions.confirm', { ns: 'common' })}</Button>
+          <ActionButton actionType="secondary" onClick={() => setShutdownDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={handleShutdown}>
+            {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -330,8 +341,19 @@ export const SystemMaintenanceSection: React.FC = () => {
           <TextField fullWidth size="small" value={factoryResetConfirmText} onChange={(e) => setFactoryResetConfirmText(e.target.value)} placeholder={t('system.factory_reset_confirm_word')} autoComplete="off" />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setFactoryResetDialogOpen(false); setFactoryResetConfirmText(''); }}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleFactoryReset} color="error" variant="contained" disabled={!factoryResetConfirmValid || factoryResetPending}>{t('actions.confirm', { ns: 'common' })}</Button>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => { setFactoryResetDialogOpen(false); setFactoryResetConfirmText(''); }}
+          >
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
+            onClick={handleFactoryReset}
+            disabled={!factoryResetConfirmValid || factoryResetPending}
+          >
+            {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -339,15 +361,37 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.backup_restore')}</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>{t('system.backup_restore_confirm')}</DialogContentText>
-          <Button variant="outlined" component="label" size="small" fullWidth>
+          <ActionButton
+            actionType="secondary"
+            size="small"
+            onClick={() => undefined}
+            component="label"
+            fullWidth
+          >
             {t('system.backup_restore_select')}
-            <input type="file" hidden accept=".zip" onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)} />
-          </Button>
+            <input
+              type="file"
+              hidden
+              accept=".zip"
+              onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
+            />
+          </ActionButton>
           {restoreFile && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{restoreFile.name}</Typography>}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setRestoreDialogOpen(false); setRestoreFile(null); }}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleRestoreBackup} color="warning" variant="contained" disabled={!restoreFile}>{t('system.backup_restore')}</Button>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => { setRestoreDialogOpen(false); setRestoreFile(null); }}
+          >
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
+            onClick={handleRestoreBackup}
+            disabled={!restoreFile}
+          >
+            {t('system.backup_restore')}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -355,8 +399,12 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.update_minabox')}</DialogTitle>
         <DialogContent><DialogContentText>{t('system.update_minabox_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setUpdateDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleUpdateMinabox} color="primary" variant="contained">{t('actions.confirm', { ns: 'common' })}</Button>
+          <ActionButton actionType="secondary" onClick={() => setUpdateDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="primary" onClick={handleUpdateMinabox}>
+            {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -364,8 +412,16 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.update_os')}</DialogTitle>
         <DialogContent><DialogContentText>{t('system.update_os_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setUpdateOsDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleUpdateOs} color="primary" variant="contained" disabled={updatingOs}>{t('actions.confirm', { ns: 'common' })}</Button>
+          <ActionButton actionType="secondary" onClick={() => setUpdateOsDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="primary"
+            onClick={handleUpdateOs}
+            disabled={updatingOs}
+          >
+            {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -378,7 +434,9 @@ export const SystemMaintenanceSection: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUpdateOsLogOpen(false)}>{t('actions.close', { ns: 'common' })}</Button>
+          <ActionButton actionType="secondary" onClick={() => setUpdateOsLogOpen(false)}>
+            {t('actions.close', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -386,8 +444,16 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.cleanup')}</DialogTitle>
         <DialogContent><DialogContentText>{t('system.cleanup_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setDockerPruneDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleDockerPrune} color="primary" variant="contained" disabled={dockerPrunePending}>{t('actions.confirm', { ns: 'common' })}</Button>
+          <ActionButton actionType="secondary" onClick={() => setDockerPruneDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
+            onClick={handleDockerPrune}
+            disabled={dockerPrunePending}
+          >
+            {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

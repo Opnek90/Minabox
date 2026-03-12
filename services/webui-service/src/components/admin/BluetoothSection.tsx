@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
   Box,
-  Button,
   Card,
   CardContent,
   Dialog,
@@ -19,6 +18,7 @@ import BluetoothIcon from '@mui/icons-material/Bluetooth';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { systemApi } from '@/api/system';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 type PairedDevice = { address: string; name: string | null; connected?: boolean };
 type ScanDevice = { address: string; name: string | null };
@@ -171,7 +171,8 @@ export const BluetoothSection: React.FC = () => {
                   secondaryAction={
                     <Stack direction="row" spacing={0.5} flexShrink={0}>
                       {d.connected ? (
-                        <Button
+                        <ActionButton
+                          actionType="primary"
                           size="small"
                           onClick={() => handleDisconnect(d.address)}
                           disabled={busy(d.address)}
@@ -179,9 +180,10 @@ export const BluetoothSection: React.FC = () => {
                           {disconnecting === d.address
                             ? t('system.bluetooth_disconnecting')
                             : t('system.bluetooth_disconnect')}
-                        </Button>
+                        </ActionButton>
                       ) : (
-                        <Button
+                        <ActionButton
+                          actionType="primary"
                           size="small"
                           onClick={() => handleConnect(d.address)}
                           disabled={busy(d.address)}
@@ -189,18 +191,18 @@ export const BluetoothSection: React.FC = () => {
                           {connecting === d.address
                             ? t('system.bluetooth_connecting')
                             : t('system.bluetooth_connect')}
-                        </Button>
+                        </ActionButton>
                       )}
-                      <Button
+                      <ActionButton
+                        actionType="destructive"
                         size="small"
-                        color="secondary"
                         onClick={() => handleRemoveClick(d)}
                         disabled={busy(d.address)}
                       >
                         {removing === d.address
                           ? t('system.bluetooth_removing')
                           : t('system.bluetooth_remove')}
-                      </Button>
+                      </ActionButton>
                     </Stack>
                   }
                 >
@@ -236,15 +238,15 @@ export const BluetoothSection: React.FC = () => {
         {t('system.bluetooth_discover')}
       </Typography>
       <Box display="flex" flexDirection="column" gap={1}>
-        <Button
+        <ActionButton
+          actionType="secondary"
           size="small"
-          variant="outlined"
           startIcon={<BluetoothIcon />}
           onClick={handleScan}
           disabled={scanning}
         >
           {scanning ? '…' : t('system.bluetooth_scan')}
-        </Button>
+        </ActionButton>
         <Typography variant="caption" color="text.secondary">
           {t('system.bluetooth_hint')}
         </Typography>
@@ -253,19 +255,20 @@ export const BluetoothSection: React.FC = () => {
             <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
               <List dense disablePadding>
                 {scanDevices.map((d) => (
-                  <ListItem
-                    key={d.address}
-                    disablePadding
-                    secondaryAction={
-                      <Button
-                        size="small"
-                        onClick={() => handlePair(d.address)}
-                        disabled={pairing === d.address}
-                      >
-                        {pairing === d.address ? '…' : t('system.bluetooth_pair')}
-                      </Button>
-                    }
-                  >
+                    <ListItem
+                      key={d.address}
+                      disablePadding
+                      secondaryAction={
+                        <ActionButton
+                          actionType="primary"
+                          size="small"
+                          onClick={() => handlePair(d.address)}
+                          disabled={pairing === d.address}
+                        >
+                          {pairing === d.address ? '…' : t('system.bluetooth_pair')}
+                        </ActionButton>
+                      }
+                    >
                     <ListItemText
                       primary={d.name || d.address}
                       secondary={d.address}
@@ -292,15 +295,16 @@ export const BluetoothSection: React.FC = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRemoveConfirm(null)}>{t('general.cancel')}</Button>
-          <Button
-            color="error"
-            variant="contained"
+          <ActionButton actionType="secondary" onClick={() => setRemoveConfirm(null)}>
+            {t('general.cancel')}
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
             onClick={handleRemoveConfirm}
             disabled={removing !== null}
           >
             {removing ? t('system.bluetooth_removing') : t('system.bluetooth_remove')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

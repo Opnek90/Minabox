@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -14,6 +13,7 @@ import {
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { Tag, ContentType, Playlist, Podcast, Stream, Track } from '@/types/api';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 interface TagEditDialogProps {
   open: boolean;
@@ -149,12 +149,12 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
         </FormControl>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>
+        <ActionButton actionType="secondary" onClick={onClose}>
           {t('cancel', { ns: 'common' })}
-        </Button>
-        <Button onClick={handleSave} variant="contained" disabled={!isValid}>
+        </ActionButton>
+        <ActionButton actionType="primary" onClick={handleSave} disabled={!isValid}>
           {t('save', { ns: 'common' })}
-        </Button>
+        </ActionButton>
       </DialogActions>
     </Dialog>
   );

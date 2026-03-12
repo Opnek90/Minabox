@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -15,6 +14,7 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from 'react-i18next';
 import { systemApi } from '@/api/system';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 interface SyslogModalProps {
   open: boolean;
@@ -63,9 +63,15 @@ export const SyslogModal: React.FC<SyslogModalProps> = ({ open, onClose }) => {
               <MenuItem value="docker">{t('system.syslog_docker')}</MenuItem>
             </Select>
           </FormControl>
-          <Button startIcon={<RefreshIcon />} onClick={load} disabled={loading} size="small">
+          <ActionButton
+            actionType="secondary"
+            size="small"
+            startIcon={<RefreshIcon />}
+            onClick={load}
+            disabled={loading}
+          >
             {t('system.view_logs')}
-          </Button>
+          </ActionButton>
         </Box>
         {error && (
           <Typography color="error" variant="body2" sx={{ mb: 1 }}>
@@ -90,7 +96,9 @@ export const SyslogModal: React.FC<SyslogModalProps> = ({ open, onClose }) => {
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t('actions.close', { ns: 'common' })}</Button>
+        <ActionButton actionType="secondary" onClick={onClose}>
+          {t('actions.close', { ns: 'common' })}
+        </ActionButton>
       </DialogActions>
     </Dialog>
   );

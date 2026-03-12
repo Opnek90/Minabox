@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -126,12 +125,19 @@ export const SecurityPanel: React.FC = () => {
           <TextField fullWidth margin="dense" type="password" label={t('system.password_confirm')} value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}
+          >
             {t('actions.cancel', { ns: 'common' })}
-          </Button>
-          <Button onClick={handleOpenPasswordConfirm} color="primary" variant="contained" disabled={passwordSaving || passwordNew.length < 8 || passwordNew !== passwordConfirm}>
+          </ActionButton>
+          <ActionButton
+            actionType="primary"
+            onClick={handleOpenPasswordConfirm}
+            disabled={passwordSaving || passwordNew.length < 8 || passwordNew !== passwordConfirm}
+          >
             {t('system.password_apply')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -141,10 +147,15 @@ export const SecurityPanel: React.FC = () => {
           <DialogContentText>{t('system.password_confirm_dialog')}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPasswordConfirmDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleApplyPassword} color="primary" variant="contained">
+          <ActionButton
+            actionType="secondary"
+            onClick={() => setPasswordConfirmDialogOpen(false)}
+          >
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="primary" onClick={handleApplyPassword}>
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

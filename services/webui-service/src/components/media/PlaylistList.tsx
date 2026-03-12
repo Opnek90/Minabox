@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
   Box,
-  Button,
   Card,
   CardActions,
   CardContent,
@@ -39,6 +38,7 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Playlist, PlaylistDetail, Track } from '@/types/api';
 import { playlistsApi } from '@/api/playlists';
 import { audioApi } from '@/api/audio';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
 import { PlaylistTracksDialog } from './PlaylistTracksDialog';
 
@@ -202,9 +202,13 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
             <ViewListIcon />
           </ToggleButton>
         </ToggleButtonGroup>
-        <Button variant="contained" startIcon={<PlaylistAddIcon />} onClick={handleOpenCreate}>
+        <ActionButton
+          actionType="primary"
+          startIcon={<PlaylistAddIcon />}
+          onClick={handleOpenCreate}
+        >
           {t('playlists.add_playlist')}
-        </Button>
+        </ActionButton>
       </Box>
 
       {playlists.length === 0 ? (
@@ -426,16 +430,16 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setFormOpen(false)}>
+          <ActionButton actionType="secondary" onClick={() => setFormOpen(false)}>
             {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button
+          </ActionButton>
+          <ActionButton
+            actionType="primary"
             onClick={handleSave}
-            variant="contained"
             disabled={!formData.name.trim() || loading}
           >
             {t('save', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -462,12 +466,12 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>
+          <ActionButton actionType="secondary" onClick={() => setDeleteTarget(null)}>
             {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={handleDeleteConfirm}>
             {t('delete', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

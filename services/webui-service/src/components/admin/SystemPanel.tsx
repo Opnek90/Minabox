@@ -495,10 +495,16 @@ export const SystemPanel: React.FC = () => {
           <TextField autoFocus fullWidth margin="dense" label={t('system.host_hostname')} value={hostnameEdit} onChange={(e) => setHostnameEdit(e.target.value)} placeholder="minabox" inputProps={{ maxLength: 63 }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setHostnameDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleApplyHostname} color="primary" variant="contained" disabled={hostnameSaving || !hostnameEdit.trim()}>
+          <ActionButton actionType="secondary" onClick={() => setHostnameDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="primary"
+            onClick={handleApplyHostname}
+            disabled={hostnameSaving || !hostnameEdit.trim()}
+          >
             {t('system.hostname_apply')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

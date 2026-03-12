@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Box,
-  Button,
   Card,
   CardContent,
   Grid,
@@ -11,6 +10,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { HeatmapItem, MinutesPerDayItem, TopPlaylistItem, TopTagItem } from '@/types/api';
 import { useStatsDashboard } from '@/hooks/useStatsDashboard';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 const WEEKDAY_KEYS = [
   'weekday_0',
@@ -78,9 +78,9 @@ export const StatsDashboard: React.FC = () => {
           InputLabelProps={{ shrink: true }}
           sx={{ width: 160 }}
         />
-        <Button variant="contained" onClick={load} disabled={loading}>
+        <ActionButton actionType="primary" onClick={load} disabled={loading}>
           {loading ? '\u2026' : t('stats.load')}
-        </Button>
+        </ActionButton>
       </Box>
 
       {error && (

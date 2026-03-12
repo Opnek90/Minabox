@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -16,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import type { Track } from '@/types/api';
 import { tracksApi } from '@/api/tracks';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 
 interface UploadDialogProps {
@@ -189,12 +189,16 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose} disabled={uploading}>
+        <ActionButton actionType="secondary" onClick={handleClose} disabled={uploading}>
           {t('cancel', { ns: 'common' })}
-        </Button>
-        <Button onClick={handleUpload} variant="contained" disabled={!file || uploading}>
+        </ActionButton>
+        <ActionButton
+          actionType="primary"
+          onClick={handleUpload}
+          disabled={!file || uploading}
+        >
           {uploading ? t('upload.uploading') : t('upload.title')}
-        </Button>
+        </ActionButton>
       </DialogActions>
     </Dialog>
   );

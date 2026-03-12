@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -12,6 +11,7 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Stream } from '@/types/api';
 import { streamsApi } from '@/api/streams';
 import { isValidUrl } from '@/utils/validators';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
 
 interface StreamDialogProps {
@@ -102,10 +102,16 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose}>{t('cancel', { ns: 'common' })}</Button>
-        <Button onClick={handleSave} variant="contained" disabled={!isValid || loading}>
+        <ActionButton actionType="secondary" onClick={handleClose}>
+          {t('cancel', { ns: 'common' })}
+        </ActionButton>
+        <ActionButton
+          actionType="primary"
+          onClick={handleSave}
+          disabled={!isValid || loading}
+        >
           {t('add', { ns: 'common' })}
-        </Button>
+        </ActionButton>
       </DialogActions>
     </Dialog>
   );

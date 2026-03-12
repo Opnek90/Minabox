@@ -249,12 +249,12 @@ export const AuthSection: React.FC = () => {
           <DialogContentText>{t('auth.reset_confirm_text')}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setResetDialogOpen(false)}>
+          <ActionButton actionType="secondary" onClick={() => setResetDialogOpen(false)}>
             {t('actions.cancel', { ns: 'common' })}
-          </Button>
-          <Button onClick={handleResetAuth} color="error" variant="contained">
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={handleResetAuth}>
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

@@ -49,13 +49,28 @@ export function useActionButtonStyles(
   const muiVariant = variantMap[actionType];
   const muiColor   = colorMap[actionType];
 
-  // Build sx override when colorOverride is provided
-  // (used e.g. for active Repeat/Shuffle icon buttons)
+  // Base sizing / typography for visual consistency
+  // - Non-icon buttons: einheitliche Höhe, Padding, Schriftgröße
+  // - Icon-Buttons: MUI-Defaults, nur Hover leicht angepasst (s.u.)
   let sx: SxProps<Theme> = {};
 
+  if (actionType !== 'icon') {
+    sx = {
+      minHeight: 40,           // ca. 40px hoch auf allen Breakpoints
+      px: 2.5,                 // horizontales Padding
+      py: 0.75,                // vertikales Padding
+      fontSize: '0.9rem',
+      fontWeight: 600,
+      letterSpacing: 0,
+    };
+  }
+
+  // Build color/style overrides when colorOverride is provided
+  // (used e.g. for active Repeat/Shuffle icon buttons)
   if (colorOverride) {
     if (actionType === 'icon') {
       sx = {
+        ...sx,
         color: colorOverride.main,
         '&:hover': {
           backgroundColor: `${colorOverride.main}1a`, // ~10% opacity
@@ -63,6 +78,7 @@ export function useActionButtonStyles(
       };
     } else if (actionType === 'primary') {
       sx = {
+        ...sx,
         backgroundColor: colorOverride.main,
         color: colorOverride.foreground ?? '#ffffff',
         '&:hover': {
@@ -71,6 +87,7 @@ export function useActionButtonStyles(
       };
     } else if (actionType === 'secondary') {
       sx = {
+        ...sx,
         borderColor: colorOverride.main,
         color: colorOverride.main,
         '&:hover': {

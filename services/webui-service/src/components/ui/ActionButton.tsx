@@ -1,5 +1,5 @@
 import * as React from 'react';
-import MuiButton from '@mui/material/Button';
+import MuiButton, { type ButtonProps as MuiButtonProps } from '@mui/material/Button';
 import MuiIconButton from '@mui/material/IconButton';
 import CircularProgress from '@mui/material/CircularProgress';
 import {
@@ -23,6 +23,8 @@ export interface ActionButtonProps
   actionType: ActionType;
   startIcon?: React.ReactNode;
   endIcon?: React.ReactNode;
+  /** Visual size of the button – maps to MUI Button/IconButton size (default: small) */
+  size?: MuiButtonProps['size'];
   /** Shows a spinner and disables the button during async operations */
   loading?: boolean;
   /** One-off color override (e.g. active-state for Repeat/Shuffle) */
@@ -45,6 +47,7 @@ export const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProp
       actionType,
       startIcon,
       endIcon,
+      size = 'small',
       loading = false,
       colorOverride,
       className,
@@ -65,7 +68,7 @@ export const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProp
       return (
         <MuiIconButton
           ref={ref as React.Ref<HTMLButtonElement>}
-          size="small"
+          size={size}
           disabled={isDisabled}
           onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
           aria-label={ariaLabel}
@@ -86,7 +89,7 @@ export const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProp
         ref={ref as React.Ref<HTMLButtonElement>}
         variant={muiVariant}
         color={muiColor}
-        size="small"
+        size={size}
         disabled={isDisabled}
         onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
         aria-label={ariaLabel}
