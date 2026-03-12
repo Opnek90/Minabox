@@ -20,15 +20,68 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+_FLUSH_INTERVAL_SEC = 60
+
 
 class AudioHandler:
-    # Stream reconnect tuning constants (issue #29)
     MAX_RECONNECT_ATTEMPTS: int = 5
     MAX_RECONNECT_DELAY_SEC: float = 30.0
     RECONNECT_BASE_DELAY_SEC: float = 2.0
 
     def __init__(self, dispatcher: "MQTTHandlers") -> None:
         self.dispatcher = dispatcher
+        self._play_started_at: datetime | None = None
+        self._active_event_id: int | None = None
+        self._accumulated_ms: int = 0
+        self._flush_task: asyncio.Task | None = None  # type: ignore[type-arg]
+
+    def _start_accumulator(self, event_id: int | None) -> None:
+        self._play_started_at = datetime.now(UTC)
+        if event_id is not None:
+            self._active_event_id = event_id
+        if self._flush_task is None or self._flush_task.done():
+            self._flush_task = asyncio.create_task(self._flush_loop())
+
+    def _pause_accumulator(self) -> None:
+        if self._play_started_at is not None:
+            elapsed_ms = int((datetime.now(UTC) - self._play_started_at).total_seconds() * 1000)
+            self._accumulated_ms += elapsed_ms
+            self._play_started_at = None
+
+    def _reset_accumulator(self) -> None:
+        self._play_started_at = None
+        self._active_event_id = None
+        self._accumulated_ms = 0
+        if self._flush_task and not self._flush_task.done():
+            self._flush_task.cancel()
+            self._flush_task = None
+
+    def _current_accumulated_ms(self) -> int:
+        total = self._accumulated_ms
+        if self._play_started_at is not None:
+            total += int((datetime.now(UTC) - self._play_started_at).total_seconds() * 1000)
+        return total
+
+    async def _flush_loop(self) -> None:
+        while True:
+            await asyncio.sleep(_FLUSH_INTERVAL_SEC)
+            if self._active_event_id is None:
+                continue
+            current_total = self._current_accumulated_ms()
+            if current_total <= 0 or not _db_module.db_manager:
+                continue
+            db_session = _db_module.db_manager.get_session()
+            try:
+                from backend_service.models.database import PlaybackEvent
+                event = db_session.query(PlaybackEvent).get(self._active_event_id)
+                if event and event.ended_at is None:
+                    event.listened_ms = current_total
+                    db_session.commit()
+                    logger.debug("playback_stats_flushed", event_id=self._active_event_id, ms=current_total)
+            except Exception as exc:
+                logger.warning("playback_stats_flush_error", error=str(exc))
+            finally:
+                db_session.close()
 
     async def handle_audio_status(self, topic: str, data: dict[str, Any]) -> None:
         logger.debug("audio_status_received", data=data)
@@ -40,34 +93,64 @@ class AudioHandler:
         self.dispatcher._last_audio_status.clear()
         self.dispatcher._last_audio_status.update(data)
 
-        if new_state == "playing":
+        # Transition into playing: start accumulator
+        if new_state == "playing" and prev_state != "playing":
+            if self.dispatcher.stream_reconnect_task and not self.dispatcher.stream_reconnect_task.done():
+                self.dispatcher.stream_reconnect_task.cancel()
+            self.dispatcher.stream_reconnect_attempts = 0
+            if _db_module.db_manager:
+                _db = _db_module.db_manager.get_session()
+                try:
+                    from backend_service.models.database import PlaybackEvent
+                    open_ev = (
+                        _db.query(PlaybackEvent)
+                        .filter(PlaybackEvent.ended_at.is_(None))
+                        .order_by(PlaybackEvent.started_at.desc())
+                        .first()
+                    )
+                    ev_id = open_ev.id if open_ev else None
+                finally:
+                    _db.close()
+            else:
+                ev_id = None
+            self._start_accumulator(ev_id)
+
+        elif new_state == "playing" and prev_state == "playing":
             if self.dispatcher.stream_reconnect_task and not self.dispatcher.stream_reconnect_task.done():
                 self.dispatcher.stream_reconnect_task.cancel()
             self.dispatcher.stream_reconnect_attempts = 0
 
+        # Transition out of playing: ALWAYS persist stats, then decide auto-advance
         if prev_state == "playing" and new_state in ("stopped", "error"):
+            self._pause_accumulator()
+            accumulated = self._current_accumulated_ms()
+
+            if _db_module.db_manager:
+                db_session = _db_module.db_manager.get_session()
+                try:
+                    close_open_playback_event(db_session, data, accumulated_ms=accumulated)
+                    logger.debug("playback_event_closed", accumulated_ms=accumulated)
+                finally:
+                    db_session.close()
+            self._reset_accumulator()
+
             if not self.dispatcher.playback_intent_active:
                 logger.info("auto_advance_skipped_no_playback_intent")
+
             elif self.dispatcher.deliberate_stop:
                 self.dispatcher.deliberate_stop = False
                 logger.info("auto_advance_skipped_deliberate_stop")
+
             else:
                 daily_enabled, daily_minutes = read_daily_limit_settings()
                 if daily_enabled and _db_module.db_manager:
                     db_session = _db_module.db_manager.get_session()
                     try:
-                        close_open_playback_event(db_session, data)
                         today_min = get_today_listened_minutes(db_session)
                         if today_min >= daily_minutes:
                             logger.info("daily_limit_exceeded_fadeout")
                             await self.dispatcher.timer_handler._trigger_daily_limit_fade()
                             return
-                    finally:
-                        db_session.close()
-                elif _db_module.db_manager:
-                    db_session = _db_module.db_manager.get_session()
-                    try:
-                        close_open_playback_event(db_session, data)
                     finally:
                         db_session.close()
 
@@ -101,13 +184,24 @@ class AudioHandler:
                     logger.info("track_ended_naturally_auto_advancing")
                     await self.dispatcher.button_handler._handle_next()
 
-        if new_state == "stopped" and prev_state != "playing" and _db_module.db_manager:
+        # Orphaned stop: state=stopped without prior playing state.
+        # Only close open events when intent is NOT active — if intent is active,
+        # this is the known transitional stopped→playing that VLC emits after a
+        # play command, and we must NOT close the freshly created PlaybackEvent.
+        if (
+            new_state == "stopped"
+            and prev_state != "playing"
+            and not self.dispatcher.playback_intent_active
+            and _db_module.db_manager
+        ):
             db_session = _db_module.db_manager.get_session()
             try:
-                close_open_playback_event(db_session, data)
+                close_open_playback_event(db_session, data, accumulated_ms=self._current_accumulated_ms() or 0)
+                self._reset_accumulator()
             finally:
                 db_session.close()
 
+        # Enrich payload with track metadata and broadcast via WebSocket
         payload = dict(data)
         track_id_raw = payload.get("track_id")
         if track_id_raw is not None and _db_module.db_manager:
@@ -172,8 +266,5 @@ class AudioHandler:
         if self.dispatcher.websocket_manager:
             self.dispatcher.websocket_manager.set_last_audio_status_payload(payload)
             await self.dispatcher.websocket_manager.broadcast(
-                {
-                    "type": "audio_status",
-                    "data": payload,
-                }
+                {"type": "audio_status", "data": payload}
             )

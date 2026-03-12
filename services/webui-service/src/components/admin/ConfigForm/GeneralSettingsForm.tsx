@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -27,6 +26,7 @@ import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import { systemApi } from '@/api/system';
 import type { GeneralConfig, AllowedUsageTimeSlot } from '@/types/api';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 export const GeneralSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -188,14 +188,14 @@ export const GeneralSettingsForm: React.FC = () => {
         fullWidth
         helperText={t('general.media_path_restart_hint')}
       />
-      <Button
-        variant="outlined"
+      <ActionButton
+        actionType="secondary"
         startIcon={<SaveIcon />}
         onClick={() => setMediaPathDialogOpen(true)}
         disabled={audioPathSaving || !newAudioPath.trim()}
       >
         {t('general.media_path_save')}
-      </Button>
+      </ActionButton>
       {audioPathError && <Alert severity="error">{audioPathError}</Alert>}
 
       <Dialog open={mediaPathDialogOpen} onClose={() => setMediaPathDialogOpen(false)}>
@@ -206,20 +206,32 @@ export const GeneralSettingsForm: React.FC = () => {
           <DialogContentText>{t('general.media_path_restart_dialog_message')}</DialogContentText>
         </DialogContent>
         <DialogActions sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-          <Button onClick={() => setMediaPathDialogOpen(false)}>
+          <ActionButton actionType="secondary" onClick={() => setMediaPathDialogOpen(false)}>
             {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button onClick={() => saveAudioPathAndMaybeRestart(false)} disabled={audioPathSaving}>
+          </ActionButton>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => saveAudioPathAndMaybeRestart(false)}
+            disabled={audioPathSaving}
+          >
             {t('general.media_path_save_only')}
-          </Button>
+          </ActionButton>
           {audioPath && (
-            <Button onClick={runMoveAndRestart} variant="contained" disabled={audioPathSaving}>
+            <ActionButton
+              actionType="primary"
+              onClick={runMoveAndRestart}
+              disabled={audioPathSaving}
+            >
               {t('general.media_path_move_and_restart')}
-            </Button>
+            </ActionButton>
           )}
-          <Button onClick={() => saveAudioPathAndMaybeRestart(true)} variant="contained" disabled={audioPathSaving}>
+          <ActionButton
+            actionType="primary"
+            onClick={() => saveAudioPathAndMaybeRestart(true)}
+            disabled={audioPathSaving}
+          >
             {t('general.media_path_save_and_restart')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
@@ -280,9 +292,9 @@ export const GeneralSettingsForm: React.FC = () => {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 0 }}>
           {moveProgress.status === 'error' && (
-            <Button variant="contained" onClick={() => setMoveProgressOpen(false)}>
+            <ActionButton actionType="primary" onClick={() => setMoveProgressOpen(false)}>
               {t('close', { ns: 'common' })}
-            </Button>
+            </ActionButton>
           )}
         </DialogActions>
       </Dialog>
@@ -335,9 +347,14 @@ export const GeneralSettingsForm: React.FC = () => {
             {t('general.restart_required')}
           </Typography>
           {error && <Alert severity="error">{error}</Alert>}
-          <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSaveGeneral} disabled={saving}>
+          <ActionButton
+            actionType="primary"
+            startIcon={<SaveIcon />}
+            onClick={handleSaveGeneral}
+            disabled={saving}
+          >
             {t('save', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </>
       )}
     </Box>

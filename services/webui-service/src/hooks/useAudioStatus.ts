@@ -1,39 +1,44 @@
 import { useEffect, useRef, useState } from 'react';
-import { useWebSocketEvent } from '@/contexts/WebSocketContext';
-import { audioApi } from '@/api/audio';
+import { useWebSocket, useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { AudioStatus, AudioStatusMessage } from '@/types/api';
 
 const TICK_MS = 1000;
 
+/**
+ * Extrapolate the current position_ms from a cached status.
+ * When state === 'playing', add the elapsed time since the cache was received.
+ * This corrects the stale position without any network call.
+ */
+function extrapolatePosition(status: AudioStatus, receivedAt: number): AudioStatus {
+  if (status.state !== 'playing' || status.position_ms == null) return status;
+  const elapsedMs = Math.round(performance.now() - receivedAt);
+  if (elapsedMs <= 0) return status;
+  const duration = status.duration_ms ?? Infinity;
+  const correctedMs = Math.min((status.position_ms ?? 0) + elapsedMs, duration);
+  return { ...status, position_ms: correctedMs };
+}
+
 export const useAudioStatus = (): AudioStatus | null => {
-  const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(null);
-  const interpolatedRef = useRef<AudioStatus | null>(null);
+  const { cachedAudioStatus } = useWebSocket();
+
+  // Synchronous lazy initializer: compute the correct position_ms immediately
+  // on first render using the WS cache + elapsed time since it was received.
+  const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(() => {
+    if (!cachedAudioStatus) return null;
+    return extrapolatePosition(cachedAudioStatus.status, cachedAudioStatus.receivedAt);
+  });
+
+  const interpolatedRef = useRef<AudioStatus | null>(audioStatus);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const initialFetchDone = useRef(false);
 
-  // Fallback: fetch current status via REST on mount so the Player page
-  // renders immediately even when no MQTT event has been received yet.
-  useEffect(() => {
-    if (initialFetchDone.current) return;
-    initialFetchDone.current = true;
-    audioApi.getStatus().then((data) => {
-      setAudioStatus((prev) => {
-        // Don't overwrite if a WS message already arrived first
-        if (prev !== null) return prev;
-        interpolatedRef.current = data;
-        return data;
-      });
-    }).catch(() => null);
-  }, []);
-
-  // Update from WebSocket using the new Pub/Sub hook
+  // Live updates from WebSocket
   useWebSocketEvent('audio_status', (message: AudioStatusMessage) => {
     const data = message.data;
     interpolatedRef.current = { ...data };
     setAudioStatus({ ...data });
   });
 
-  // While playing, tick every second to advance position_ms for smoother progress bar
+  // Client-side tick: advance position_ms every second while playing
   useEffect(() => {
     if (!audioStatus || audioStatus.state !== 'playing') {
       if (tickRef.current) {
@@ -41,6 +46,10 @@ export const useAudioStatus = (): AudioStatus | null => {
         tickRef.current = null;
       }
       return;
+    }
+    if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
     }
     tickRef.current = setInterval(() => {
       setAudioStatus((prev) => {

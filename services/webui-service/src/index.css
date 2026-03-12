@@ -1,0 +1,33 @@
+/*
+  Minabox Design Tokens
+  CSS custom properties set dynamically by ThemeContext via applyTokens().
+  Used by MUI theme (primaryColor) and directly by non-MUI elements.
+*/
+:root {
+  --color-accent:          #e65100;
+  --color-accent-light:    #ff8a50;
+  --color-accent-dark:     #ac1900;
+  --color-accent-contrast: #ffffff;
+
+  --color-destructive:          #b91c1c;
+  --color-destructive-dark:     #991b1b;
+  --color-destructive-contrast: #ffffff;
+
+  --color-surface:     #ffffff;
+  --color-on-surface:  #1c1c1e;
+  --color-border:      #e5e7eb;
+  --color-muted:       #f3f4f6;
+  --color-muted-text:  #6b7280;
+}
+
+[data-theme="dark"] {
+  --color-surface:    #1c1c1e;
+  --color-on-surface: #f5f5f7;
+  --color-border:     #3a3a3c;
+  --color-muted:      #2c2c2e;
+  --color-muted-text: #a1a1aa;
+}
+
+html, body, #root {
+  min-height: 100%;
+}

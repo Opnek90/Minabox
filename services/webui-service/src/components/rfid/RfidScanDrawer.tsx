@@ -1,13 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Drawer,
-  IconButton,
-  Typography,
-} from '@mui/material';
+import { Box, Chip, CircularProgress, Drawer, IconButton, Typography } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import NfcIcon from '@mui/icons-material/Nfc';
 import EditIcon from '@mui/icons-material/Edit';
@@ -17,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import type { RFIDScannedMessage, Tag } from '@/types/api';
 import { tagsApi } from '@/api/tags';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 const AUTO_CLOSE_SEC = 5;
 
@@ -236,13 +229,12 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
 
       {/* Actions */}
       <Box display="flex" gap={1} justifyContent="flex-end">
-        <Button onClick={handleClose} size="small">
+        <ActionButton actionType="secondary" onClick={handleClose}>
           {t('cancel', { ns: 'common' })}
-        </Button>
+        </ActionButton>
         {existingTag ? (
-          <Button
-            variant="outlined"
-            size="small"
+          <ActionButton
+            actionType="secondary"
             startIcon={<EditIcon />}
             onClick={() => {
               handleClose();
@@ -250,16 +242,15 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
             }}
           >
             {t('edit_tag')}
-          </Button>
+          </ActionButton>
         ) : (
-          <Button
-            variant="contained"
-            size="small"
+          <ActionButton
+            actionType="primary"
             startIcon={<EditIcon />}
             onClick={handleAssign}
           >
             {t('notification.assign_now')}
-          </Button>
+          </ActionButton>
         )}
       </Box>
     </Drawer>

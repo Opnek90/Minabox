@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Divider,
   FormControlLabel,
   List,
@@ -11,13 +10,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import SaveIcon from '@mui/icons-material/Save';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { useFormState } from '@/hooks/useFormState';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type { AudioConfig, AudioDeviceItem } from '@/types/api';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 function getDeviceKey(device: AudioDeviceItem): string {
   return device.sink_name ?? device.alsa_device ?? device.id;
@@ -123,15 +122,14 @@ export const AudioConfigForm: React.FC = () => {
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
         {t('audio.output_devices_bluetooth_hint')}
       </Typography>
-      <Button
-        variant="outlined"
+      <ActionButton
+        actionType="secondary"
         size="small"
         onClick={handleRefreshDevices}
         disabled={devicesLoading}
-        sx={{ alignSelf: 'flex-start' }}
       >
         {devicesLoading ? '...' : t('audio.output_devices_refresh')}
-      </Button>
+      </ActionButton>
       {devices.length === 0 && !devicesLoading ? (
         <Typography variant="body2" color="text.secondary">
           {t('audio.output_devices_empty')}
@@ -206,9 +204,9 @@ export const AudioConfigForm: React.FC = () => {
       )}
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
+        <ActionButton actionType="primary" onClick={handleSave} disabled={saving}>
           {t('save', { ns: 'common' })}
-        </Button>
+        </ActionButton>
       </Box>
     </Box>
   );

@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -21,6 +20,7 @@ import RadioIcon from '@mui/icons-material/Radio';
 import NfcIcon from '@mui/icons-material/Nfc';
 import { useTranslation } from 'react-i18next';
 import { useDashboardOverview } from '@/hooks/useDashboardOverview';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 interface StatTileProps {
   icon: React.ReactNode;
@@ -89,23 +89,23 @@ export const DashboardOverview: React.FC = () => {
   return (
       <Box>
       <Box display="flex" justifyContent="flex-end" alignItems="center" gap={1} mb={1.5} flexWrap="wrap">
-        <Button
-          variant="outlined"
-          color="error"
+        <ActionButton
+          actionType="destructive"
           size="small"
           startIcon={<DeleteSweepIcon />}
           onClick={openResetDialog}
         >
           {t('dashboard.reset_listening')}
-        </Button>
-        <Button
+        </ActionButton>
+        <ActionButton
+          actionType="secondary"
+          size="small"
           startIcon={<RefreshIcon />}
           onClick={() => void load()}
-          size="small"
           disabled={refreshing}
         >
           {t('actions.refresh')}
-        </Button>
+        </ActionButton>
       </Box>
 
       <Dialog open={resetDialogOpen} onClose={closeResetDialog}>
@@ -118,17 +118,16 @@ export const DashboardOverview: React.FC = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeResetDialog} disabled={resetting}>
+          <ActionButton actionType="secondary" onClick={closeResetDialog} disabled={resetting}>
             {t('actions.cancel')}
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
             onClick={() => void confirmReset()}
             disabled={resetting}
           >
             {t('actions.confirm')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
       <Grid container spacing={1.5}>

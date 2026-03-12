@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Avatar,
   Box,
-  Button,
   Card,
   CardActions,
   CardContent,
@@ -40,6 +39,7 @@ import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { audioApi } from '@/api/audio';
 import type { Track } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 
 type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
@@ -242,7 +242,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   );
 
   // Item renderer for grid view
-  const renderGridItem = (index: number, track: Track) => (
+  const renderGridItem = (_index: number, track: Track) => (
     <Box sx={{ p: 1, height: '100%' }}>
       <Card
         variant="outlined"
@@ -410,21 +410,20 @@ export const TrackList: React.FC<TrackListProps> = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTrackToDelete(null)}>
+          <ActionButton actionType="secondary" onClick={() => setTrackToDelete(null)}>
             {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
             onClick={() => {
               if (trackToDelete) {
                 onDelete(trackToDelete);
                 setTrackToDelete(null);
               }
             }}
-            color="error"
-            variant="contained"
           >
             {t('delete', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

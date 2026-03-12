@@ -1,9 +1,10 @@
 import React from 'react';
-import { Box, Button, CircularProgress, Dialog, DialogContent, Typography } from '@mui/material';
+import { Box, CircularProgress, Dialog, DialogContent, Typography } from '@mui/material';
 import NfcIcon from '@mui/icons-material/Nfc';
 import CancelIcon from '@mui/icons-material/Cancel';
 import { keyframes } from '@mui/system';
 import { useTranslation } from 'react-i18next';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 const pulse = keyframes`
   0%   { transform: scale(1);    opacity: 1; }
@@ -28,15 +29,15 @@ export const LearnModeButton: React.FC<LearnModeButtonProps> = ({
 
   return (
     <>
-      <Button
-        variant="contained"
-        color="primary"
+      <ActionButton
+        actionType="primary"
+        size="medium"
         startIcon={<NfcIcon />}
         onClick={onActivate}
         disabled={loading || active}
       >
         {t('learn_mode')}
-      </Button>
+      </ActionButton>
 
       {/* Full-screen overlay while waiting for a tag */}
       <Dialog
@@ -79,15 +80,13 @@ export const LearnModeButton: React.FC<LearnModeButtonProps> = ({
             {t('learn_mode_waiting')}
           </Typography>
 
-          <Button
-            variant="outlined"
-            color="inherit"
+          <ActionButton
+            actionType="secondary"
             startIcon={<CancelIcon />}
             onClick={onDeactivate}
-            sx={{ mt: 1 }}
           >
             {t('learn_mode_cancel')}
-          </Button>
+          </ActionButton>
         </DialogContent>
       </Dialog>
     </>

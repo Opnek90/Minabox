@@ -1,4 +1,11 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 export type ThemeMode = 'light' | 'dark';
 export type ColorPresetKey = 'orange' | 'blue' | 'green' | 'purple' | 'red';
@@ -37,6 +44,17 @@ const ThemeCtx = createContext<ThemeContextType>({
   primaryColor: COLOR_PRESETS.orange,
 });
 
+/** Apply design tokens as CSS custom properties on <html> so Tailwind
+ *  utility classes like bg-[--color-accent] resolve at runtime. */
+function applyTokens(preset: ColorPreset, mode: ThemeMode): void {
+  const root = document.documentElement;
+  root.style.setProperty('--color-accent',          preset.main);
+  root.style.setProperty('--color-accent-light',    preset.light);
+  root.style.setProperty('--color-accent-dark',     preset.dark);
+  root.style.setProperty('--color-accent-contrast', preset.contrastText);
+  root.setAttribute('data-theme', mode);
+}
+
 export const ThemeContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => {
     const stored = localStorage.getItem(LS_MODE);
@@ -47,6 +65,13 @@ export const ThemeContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const stored = localStorage.getItem(LS_COLOR);
     return (stored && stored in COLOR_PRESETS) ? (stored as ColorPresetKey) : 'orange';
   });
+
+  const primaryColor = useMemo(() => COLOR_PRESETS[colorPreset], [colorPreset]);
+
+  // Sync CSS custom properties whenever mode or colorPreset changes
+  useEffect(() => {
+    applyTokens(primaryColor, mode);
+  }, [primaryColor, mode]);
 
   const toggleMode = useCallback(() => {
     setMode((prev) => {
@@ -60,8 +85,6 @@ export const ThemeContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
     localStorage.setItem(LS_COLOR, preset);
     setColorPresetState(preset);
   }, []);
-
-  const primaryColor = useMemo(() => COLOR_PRESETS[colorPreset], [colorPreset]);
 
   return (
     <ThemeCtx.Provider value={{ mode, colorPreset, toggleMode, setColorPreset, primaryColor }}>

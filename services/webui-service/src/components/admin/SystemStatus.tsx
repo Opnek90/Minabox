@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -21,16 +20,17 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ComputerIcon from '@mui/icons-material/Computer';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import MemoryIcon from '@mui/icons-material/Memory';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import RouterIcon from '@mui/icons-material/Router';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StorageIcon from '@mui/icons-material/Storage';
 import TerminalIcon from '@mui/icons-material/Terminal';
 import ThermostatIcon from '@mui/icons-material/Thermostat';
 import { useTranslation } from 'react-i18next';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { ServiceLogsModal } from './ServiceLogsModal';
 import { SyslogModal } from './SyslogModal';
 import { ServiceStatusCard } from './ServiceStatus';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { systemApi, type HostStatusResponse, type TemperatureHistoryResponse } from '@/api/system';
 import type { SystemStatus as SystemStatusType } from '@/types/api';
 import { formatUptime } from '@/utils/formatTime';
@@ -139,22 +139,23 @@ export const SystemStatusPanel: React.FC = () => {
         flexWrap="wrap"
         gap={1}
       >
-        <Button
+        <ActionButton
+          actionType="secondary"
+          size="small"
           startIcon={<RefreshIcon />}
           onClick={loadStatus}
-          size="small"
           disabled={loading || refreshing}
         >
           {t('refresh', { ns: 'common' })}
-        </Button>
-        <Button
+        </ActionButton>
+        <ActionButton
+          actionType="secondary"
+          size="small"
           startIcon={<TerminalIcon />}
           onClick={() => setSyslogModalOpen(true)}
-          size="small"
-          variant="outlined"
         >
           {t('system.syslog')}
-        </Button>
+        </ActionButton>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}

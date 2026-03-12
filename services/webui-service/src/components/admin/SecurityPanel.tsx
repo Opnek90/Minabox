@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -17,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { AuthSection } from '@/components/admin/AuthSection';
 import { systemApi } from '@/api/system';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 export const SecurityPanel: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -106,70 +106,56 @@ export const SecurityPanel: React.FC = () => {
           </>
         )}
         <Box display="flex" flexWrap="wrap" gap={1}>
-          <Button
+          <ActionButton
+            actionType="secondary"
             startIcon={<LockResetIcon />}
-            size="small"
-            variant="outlined"
             onClick={() => setPasswordDialogOpen(true)}
           >
             {t('system.password_change')}
-          </Button>
+          </ActionButton>
         </Box>
       </Box>
 
+      {/* ── Passwort Dialog ────────────────────────────────────────────────── */}
       <Dialog open={passwordDialogOpen} onClose={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
         <DialogTitle>{t('system.password_change')}</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            fullWidth
-            margin="dense"
-            label={t('system.password_user')}
-            value={passwordUser}
-            onChange={(e) => setPasswordUser(e.target.value)}
-            sx={{ mt: 1 }}
-          />
-          <TextField
-            fullWidth
-            margin="dense"
-            type="password"
-            label={t('system.password_new')}
-            value={passwordNew}
-            onChange={(e) => setPasswordNew(e.target.value)}
-          />
-          <TextField
-            fullWidth
-            margin="dense"
-            type="password"
-            label={t('system.password_confirm')}
-            value={passwordConfirm}
-            onChange={(e) => setPasswordConfirm(e.target.value)}
-          />
+          <TextField autoFocus fullWidth margin="dense" label={t('system.password_user')} value={passwordUser} onChange={(e) => setPasswordUser(e.target.value)} sx={{ mt: 1 }} />
+          <TextField fullWidth margin="dense" type="password" label={t('system.password_new')} value={passwordNew} onChange={(e) => setPasswordNew(e.target.value)} />
+          <TextField fullWidth margin="dense" type="password" label={t('system.password_confirm')} value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}
+          >
             {t('actions.cancel', { ns: 'common' })}
-          </Button>
-          <Button
+          </ActionButton>
+          <ActionButton
+            actionType="primary"
             onClick={handleOpenPasswordConfirm}
-            color="primary"
-            variant="contained"
             disabled={passwordSaving || passwordNew.length < 8 || passwordNew !== passwordConfirm}
           >
             {t('system.password_apply')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
+
       <Dialog open={passwordConfirmDialogOpen} onClose={() => setPasswordConfirmDialogOpen(false)}>
         <DialogTitle>{t('system.password_apply')}</DialogTitle>
         <DialogContent>
           <DialogContentText>{t('system.password_confirm_dialog')}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPasswordConfirmDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleApplyPassword} color="primary" variant="contained">
+          <ActionButton
+            actionType="secondary"
+            onClick={() => setPasswordConfirmDialogOpen(false)}
+          >
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="primary" onClick={handleApplyPassword}>
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

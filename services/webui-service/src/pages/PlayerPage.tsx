@@ -8,7 +8,6 @@ import {
   Collapse,
   Fade,
   FormControl,
-  IconButton,
   List,
   ListItemButton,
   MenuItem,
@@ -30,6 +29,7 @@ import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { TrackInfo } from '@/components/player/TrackInfo';
 import { PlaybackControls } from '@/components/player/PlaybackControls';
 import { ProgressBar } from '@/components/player/ProgressBar';
@@ -38,9 +38,11 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useThemeContext } from '@/contexts/ThemeContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type {
+  AudioDeviceItem,
   QueueItem,
   RepeatMode,
 } from '@/types/api';
@@ -104,6 +106,7 @@ export const PlayerPage: React.FC = () => {
   const queryClient = useQueryClient();
   const audioStatus = useAudioStatus();
   const { sleepTimerStatus, isConnected } = useWebSocket();
+  const { primaryColor } = useThemeContext();
   const [error, setError] = useState<string | null>(null);
   
   const [optimisticVolume, setOptimisticVolume] = useState<number | null>(null);
@@ -256,7 +259,7 @@ export const PlayerPage: React.FC = () => {
   
   const volumeMutation = useMutation({ 
     mutationFn: audioApi.setVolume,
-    onError: (err) => setError(err instanceof Error ? err.message : 'Error') 
+    onError: (err: Error) => setError(err instanceof Error ? err.message : 'Error') 
   });
   
   const startSleepTimerMutation = useMutation({
@@ -271,9 +274,11 @@ export const PlayerPage: React.FC = () => {
 
   const switchDeviceMutation = useMutation({
     mutationFn: audioApi.switchDevice,
-    onSuccess: (_, variables) => {
-      queryClient.setQueryData(['config', 'audio'], (old: any) => 
-        old ? { ...old, output_device_name: variables } : old
+    onSuccess: (_: unknown, variables: string) => {
+      queryClient.setQueryData(['config', 'audio'], (old: unknown) => 
+        old && typeof old === 'object' && 'output_device_name' in old
+          ? { ...(old as Record<string, unknown>), output_device_name: variables }
+          : old
       );
     },
     onError: () => showError(t('player.output_device', { defaultValue: 'Could not switch device' }))
@@ -281,18 +286,18 @@ export const PlayerPage: React.FC = () => {
 
   const repeatMutation = useMutation({
     mutationFn: audioApi.setRepeatMode,
-    onSuccess: (_, mode) => {
-      queryClient.setQueryData(['audio', 'session'], (old: any) => 
-        old ? { ...old, repeat_mode: mode } : old
+    onSuccess: (_: unknown, mode: RepeatMode) => {
+      queryClient.setQueryData(['audio', 'session'], (old: unknown) => 
+        old && typeof old === 'object' ? { ...(old as Record<string, unknown>), repeat_mode: mode } : old
       );
     }
   });
 
   const shuffleMutation = useMutation({
     mutationFn: audioApi.setShuffle,
-    onSuccess: (_, shuffle) => {
-      queryClient.setQueryData(['audio', 'session'], (old: any) => 
-        old ? { ...old, shuffle } : old
+    onSuccess: (_: unknown, shuffle: boolean) => {
+      queryClient.setQueryData(['audio', 'session'], (old: unknown) => 
+        old && typeof old === 'object' ? { ...(old as Record<string, unknown>), shuffle } : old
       );
     }
   });
@@ -312,7 +317,7 @@ export const PlayerPage: React.FC = () => {
     return `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  const handlePlay     = () => playMutation.mutate();
+  const handlePlay     = () => playMutation.mutate(undefined);
   const handlePause    = () => pauseMutation.mutate();
   const handleStop     = () => stopMutation.mutate();
   const handleNext     = () => nextMutation.mutate();
@@ -336,8 +341,10 @@ export const PlayerPage: React.FC = () => {
 
   const { state, track_title, track_artist, track_album, track_cover_art_url, position_ms, duration_ms, volume } = audioStatus;
   const displayVolume = optimisticVolume ?? volume ?? 0;
-  // Seek is only available when duration is known (i.e. not a live stream)
   const canSeek = Boolean(duration_ms && duration_ms > 0);
+
+  // Active-state colorOverride: use accent color from ThemeContext
+  const activeColorOverride = { main: primaryColor.main, dark: primaryColor.dark, foreground: primaryColor.contrastText };
 
   return (
     <Box
@@ -397,21 +404,29 @@ export const PlayerPage: React.FC = () => {
                   deleteIcon={<CancelIcon />}
                 />
               ) : (
-                <IconButton
-                  size="small"
-                  onClick={(e) => setSleepAnchor(e.currentTarget)}
-                  title={t('sleep_timer.title')}
-                >
-                  <HotelIcon fontSize="small" />
-                </IconButton>
+                <Tooltip title={t('sleep_timer.title')}>
+                  <span>
+                    <ActionButton
+                      actionType="icon"
+                      aria-label={t('sleep_timer.title')}
+                      onClick={(e) => setSleepAnchor(e.currentTarget)}
+                    >
+                      <HotelIcon fontSize="small" />
+                    </ActionButton>
+                  </span>
+                </Tooltip>
               )}
-              <IconButton
-                size="small"
-                onClick={() => navigate('/kiosk')}
-                title={t('kiosk_mode')}
-              >
-                <FullscreenIcon fontSize="small" />
-              </IconButton>
+              <Tooltip title={t('kiosk_mode')}>
+                <span>
+                  <ActionButton
+                    actionType="icon"
+                    aria-label={t('kiosk_mode')}
+                    onClick={() => navigate('/kiosk')}
+                  >
+                    <FullscreenIcon fontSize="small" />
+                  </ActionButton>
+                </span>
+              </Tooltip>
             </Box>
           </Box>
 
@@ -445,7 +460,7 @@ export const PlayerPage: React.FC = () => {
             stopped={state === 'stopped'}
           />
 
-          {/* Progress Bar — seekable for tracks/podcasts, read-only for streams */}
+          {/* Progress Bar */}
           <ProgressBar
             positionMs={position_ms}
             durationMs={duration_ms}
@@ -477,7 +492,7 @@ export const PlayerPage: React.FC = () => {
                 value={audioConfig?.output_device_name ?? ''}
                 displayEmpty
                 renderValue={(v) => {
-                  const d = outputDevices.find((x) => x.alsa_device === v);
+                  const d = outputDevices.find((x: AudioDeviceItem) => x.alsa_device === v);
                   return d ? d.name : (v || t('player.output_device', { defaultValue: 'Output device' }));
                 }}
                 onChange={(e) => {
@@ -488,7 +503,7 @@ export const PlayerPage: React.FC = () => {
                 disabled={outputDevicesLoading || switchDeviceMutation.isPending}
                 aria-label={t('player.output_device', { defaultValue: 'Output device' })}
               >
-                {outputDevices.map((d) => (
+                {outputDevices.map((d: AudioDeviceItem) => (
                   <MenuItem key={d.alsa_device} value={d.alsa_device}>
                     {d.name}
                   </MenuItem>
@@ -496,14 +511,16 @@ export const PlayerPage: React.FC = () => {
               </Select>
             </FormControl>
             <Tooltip title={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}>
-              <IconButton
-                size="small"
-                onClick={() => refetchDevices()}
-                disabled={outputDevicesLoading}
-                aria-label={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}
-              >
-                <RefreshIcon fontSize="small" />
-              </IconButton>
+              <span>
+                <ActionButton
+                  actionType="icon"
+                  onClick={() => refetchDevices()}
+                  disabled={outputDevicesLoading}
+                  aria-label={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}
+                >
+                  <RefreshIcon fontSize="small" />
+                </ActionButton>
+              </span>
             </Tooltip>
           </Box>
 
@@ -511,35 +528,45 @@ export const PlayerPage: React.FC = () => {
           {session && (
             <Box sx={{ pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
               <Box display="flex" alignItems="center" gap={0.5} sx={{ mb: 0.5 }}>
-                <Tooltip title={session.repeat_mode === 'all' ? t('player.repeat_all', { defaultValue: 'Repeat all' }) : t('player.repeat_off', { defaultValue: 'Repeat off' })}>
-                  <IconButton
-                    size="small"
-                    color={session.repeat_mode === 'all' ? 'primary' : 'default'}
-                    onClick={() => {
-                      const mode = session.repeat_mode === 'all' ? 'none' : 'all';
-                      repeatMutation.mutate(mode);
-                    }}
-                    aria-label={session.repeat_mode === 'all' ? 'Repeat all' : 'Repeat off'}
-                  >
-                    <RepeatIcon fontSize="small" />
-                  </IconButton>
+                <Tooltip title={session.repeat_mode === 'all'
+                  ? t('player.repeat_all', { defaultValue: 'Repeat all' })
+                  : t('player.repeat_off', { defaultValue: 'Repeat off' })
+                }>
+                  <span>
+                    <ActionButton
+                      actionType="icon"
+                      aria-label={session.repeat_mode === 'all' ? 'Repeat all' : 'Repeat off'}
+                      colorOverride={session.repeat_mode === 'all' ? activeColorOverride : undefined}
+                      onClick={() => {
+                        const mode = session.repeat_mode === 'all' ? 'none' : 'all';
+                        repeatMutation.mutate(mode);
+                      }}
+                    >
+                      <RepeatIcon fontSize="small" />
+                    </ActionButton>
+                  </span>
                 </Tooltip>
-                <Tooltip title={session.shuffle ? t('player.shuffle_on', { defaultValue: 'Shuffle on' }) : t('player.shuffle_off', { defaultValue: 'Shuffle off' })}>
-                  <IconButton
-                    size="small"
-                    color={session.shuffle ? 'primary' : 'default'}
-                    onClick={() => {
-                      const next = !session.shuffle;
-                      shuffleMutation.mutate(next);
-                    }}
-                    aria-label={session.shuffle ? 'Shuffle on' : 'Shuffle off'}
-                  >
-                    <ShuffleIcon fontSize="small" />
-                  </IconButton>
+                <Tooltip title={session.shuffle
+                  ? t('player.shuffle_on',  { defaultValue: 'Shuffle on' })
+                  : t('player.shuffle_off', { defaultValue: 'Shuffle off' })
+                }>
+                  <span>
+                    <ActionButton
+                      actionType="icon"
+                      aria-label={session.shuffle ? 'Shuffle on' : 'Shuffle off'}
+                      colorOverride={session.shuffle ? activeColorOverride : undefined}
+                      onClick={() => {
+                        const next = !session.shuffle;
+                        shuffleMutation.mutate(next);
+                      }}
+                    >
+                      <ShuffleIcon fontSize="small" />
+                    </ActionButton>
+                  </span>
                 </Tooltip>
               </Box>
-              {session.queue.filter((q) => !q.is_current).length > 0 && (
-                <UpNextCollapse queue={session.queue.filter((q) => !q.is_current).slice(0, 8)} />
+              {session.queue.filter((q: QueueItem) => !q.is_current).length > 0 && (
+                <UpNextCollapse queue={session.queue.filter((q: QueueItem) => !q.is_current).slice(0, 8)} />
               )}
             </Box>
           )}

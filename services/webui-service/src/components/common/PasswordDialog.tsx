@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Button,
   Dialog,
   DialogActions,
   DialogContent,
@@ -11,6 +10,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 interface PasswordDialogProps {
   open: boolean;
@@ -62,10 +62,12 @@ export const PasswordDialog: React.FC<PasswordDialogProps> = ({ open }) => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCancel}>{t('auth.cancel')}</Button>
-          <Button type="submit" variant="contained" disabled={!password.trim()}>
+          <ActionButton actionType="secondary" onClick={handleCancel}>
+            {t('auth.cancel')}
+          </ActionButton>
+          <ActionButton actionType="primary" type="submit" disabled={!password.trim()}>
             {t('auth.submit')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </form>
     </Dialog>

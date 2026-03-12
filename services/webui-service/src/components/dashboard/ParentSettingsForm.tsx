@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Divider,
   FormControlLabel,
   Slider,
@@ -10,12 +9,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import SaveIcon from '@mui/icons-material/Save';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import type { AudioConfig, GeneralConfig, AllowedUsageTimeSlot } from '@/types/api';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 const WEEKDAY_KEYS = [
   'weekday_mo',
@@ -248,14 +247,9 @@ export const ParentSettingsForm: React.FC = () => {
 
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <Button
-          variant="contained"
-          startIcon={<SaveIcon />}
-          onClick={handleSave}
-          disabled={saving}
-        >
+        <ActionButton actionType="primary" onClick={handleSave} disabled={saving}>
           {tCommon('actions.save')}
-        </Button>
+        </ActionButton>
       </Box>
     </Box>
   );

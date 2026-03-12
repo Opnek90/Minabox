@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Checkbox,
   Chip,
   Dialog,
@@ -23,6 +22,7 @@ import RestoreIcon from '@mui/icons-material/Restore';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { systemApi, type VersionResponse } from '@/api/system';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 export const SystemMaintenanceSection: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -62,9 +62,7 @@ export const SystemMaintenanceSection: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadVersion();
-  }, [loadVersion]);
+  useEffect(() => { loadVersion(); }, [loadVersion]);
 
   const fetchUpdateOsLog = useCallback(async () => {
     try {
@@ -85,29 +83,17 @@ export const SystemMaintenanceSection: React.FC = () => {
 
   const handleRestart = async () => {
     setRestartDialogOpen(false);
-    try {
-      await systemApi.restart();
-    } catch {
-      /* restarting */
-    }
+    try { await systemApi.restart(); } catch { /* restarting */ }
   };
 
   const handleReboot = async () => {
     setRebootDialogOpen(false);
-    try {
-      await systemApi.rebootHost();
-    } catch {
-      /* connection drops */
-    }
+    try { await systemApi.rebootHost(); } catch { /* connection drops */ }
   };
 
   const handleShutdown = async () => {
     setShutdownDialogOpen(false);
-    try {
-      await systemApi.shutdownHost();
-    } catch {
-      /* connection drops */
-    }
+    try { await systemApi.shutdownHost(); } catch { /* connection drops */ }
   };
 
   const handleDownloadBackup = async () => {
@@ -218,31 +204,29 @@ export const SystemMaintenanceSection: React.FC = () => {
           {t('system.backup_title')}
         </Typography>
         <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
-          <Button
+          <ActionButton
+            actionType="secondary"
             startIcon={<CloudDownloadIcon />}
             onClick={handleDownloadBackup}
-            size="small"
-            variant="outlined"
           >
             {t('system.backup_download')}
-          </Button>
-          <Button
+          </ActionButton>
+          <ActionButton
+            actionType="secondary"
             startIcon={<BackupIcon />}
             onClick={() => setRestoreDialogOpen(true)}
-            size="small"
-            color="warning"
-            variant="outlined"
             disabled={restorePending}
+            loading={restorePending}
           >
             {t('system.backup_restore')}
-          </Button>
+          </ActionButton>
           <Typography component="span" variant="caption" color="text.secondary">
             {restoreFile ? restoreFile.name : t('system.backup_restore_select')}
           </Typography>
         </Box>
       </Box>
 
-      {/* ── Wartung: Version, System-Update, Cleanup ─────────────────────────── */}
+      {/* ── Wartung ──────────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
           {t('system.maintenance_title')}
@@ -254,166 +238,150 @@ export const SystemMaintenanceSection: React.FC = () => {
           {version?.update_available && (
             <>
               <Chip label={t('system.update_available')} color="primary" size="small" />
-              <Button
-                size="small"
-                variant="contained"
-                color="primary"
+              <ActionButton
+                actionType="primary"
                 onClick={() => setUpdateDialogOpen(true)}
                 disabled={updating}
+                loading={updating}
               >
                 {t('system.update_minabox')}
-              </Button>
+              </ActionButton>
             </>
           )}
-          <Button
-            size="small"
-            variant="outlined"
+          <ActionButton
+            actionType="secondary"
             onClick={() => setUpdateOsDialogOpen(true)}
             disabled={updatingOs}
+            loading={updatingOs}
           >
             {t('system.update_os')}
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
             onClick={() => setDockerPruneDialogOpen(true)}
             disabled={dockerPrunePending}
           >
             {t('system.cleanup')}
-          </Button>
+          </ActionButton>
         </Box>
       </Box>
 
-      {/* ── Neustart: Service, Pi, Herunterfahren ───────────────────────────── */}
+      {/* ── Neustart ─────────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
           {t('system.restart_group')}
         </Typography>
         <Box display="flex" flexWrap="wrap" gap={1}>
-          <Button
-            startIcon={<RestartAltIcon />}
-            onClick={() => setRestartDialogOpen(true)}
-            size="small"
-            color="warning"
-            variant="outlined"
-          >
+          <ActionButton actionType="secondary" startIcon={<RestartAltIcon />} onClick={() => setRestartDialogOpen(true)}>
             {t('system.restart')}
-          </Button>
-          <Button
-            startIcon={<ComputerIcon />}
-            onClick={() => setRebootDialogOpen(true)}
-            size="small"
-            color="error"
-            variant="outlined"
-          >
+          </ActionButton>
+          <ActionButton actionType="secondary" startIcon={<ComputerIcon />} onClick={() => setRebootDialogOpen(true)}>
             {t('system.reboot')}
-          </Button>
-          <Button
-            startIcon={<PowerSettingsNewIcon />}
-            onClick={() => setShutdownDialogOpen(true)}
-            size="small"
-            color="error"
-            variant="outlined"
-          >
+          </ActionButton>
+          <ActionButton actionType="destructive" startIcon={<PowerSettingsNewIcon />} onClick={() => setShutdownDialogOpen(true)}>
             {t('system.shutdown')}
-          </Button>
-          <Button
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
             startIcon={<RestoreIcon />}
             onClick={() => { setFactoryResetDialogOpen(true); setFactoryResetConfirmText(''); }}
-            size="small"
-            color="error"
-            variant="outlined"
             disabled={factoryResetPending}
           >
             {t('system.factory_reset')}
-          </Button>
+          </ActionButton>
         </Box>
       </Box>
 
-      {/* ── Restart Dialog ─────────────────────────────────────────────────── */}
+      {/* ── Dialogs (native MUI – kein ActionButton nötig) ─────────────────── */}
       <Dialog open={restartDialogOpen} onClose={() => setRestartDialogOpen(false)}>
         <DialogTitle>{t('system.restart')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('system.restart_confirm')}</DialogContentText>
-        </DialogContent>
+        <DialogContent><DialogContentText>{t('system.restart_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setRestartDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleRestart} color="warning" variant="contained">
+          <ActionButton actionType="secondary" onClick={() => setRestartDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={handleRestart}>
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* ── Reboot Dialog ───────────────────────────────────────────────────── */}
       <Dialog open={rebootDialogOpen} onClose={() => setRebootDialogOpen(false)}>
         <DialogTitle>{t('system.reboot')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('system.reboot_confirm')}</DialogContentText>
-        </DialogContent>
+        <DialogContent><DialogContentText>{t('system.reboot_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setRebootDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleReboot} color="error" variant="contained">
+          <ActionButton actionType="secondary" onClick={() => setRebootDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={handleReboot}>
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* ── Shutdown Dialog ────────────────────────────────────────────────── */}
       <Dialog open={shutdownDialogOpen} onClose={() => setShutdownDialogOpen(false)}>
         <DialogTitle>{t('system.shutdown')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('system.shutdown_confirm')}</DialogContentText>
-        </DialogContent>
+        <DialogContent><DialogContentText>{t('system.shutdown_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setShutdownDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleShutdown} color="error" variant="contained">
+          <ActionButton actionType="secondary" onClick={() => setShutdownDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={handleShutdown}>
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* ── Factory Reset Dialog ───────────────────────────────────────────── */}
       <Dialog open={factoryResetDialogOpen} onClose={() => { setFactoryResetDialogOpen(false); setFactoryResetConfirmText(''); }}>
         <DialogTitle>{t('system.factory_reset')}</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>{t('system.factory_reset_warning')}</DialogContentText>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={factoryResetDeleteAudio}
-                onChange={(_, c) => setFactoryResetDeleteAudio(c)}
-                color="primary"
-              />
-            }
-            label={t('system.factory_reset_delete_audio')}
-            sx={{ display: 'block', mb: 2 }}
-          />
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            {t('system.factory_reset_type_prompt')}
-          </Typography>
-          <TextField
-            fullWidth
-            size="small"
-            value={factoryResetConfirmText}
-            onChange={(e) => setFactoryResetConfirmText(e.target.value)}
-            placeholder={t('system.factory_reset_confirm_word')}
-            autoComplete="off"
-          />
+          <FormControlLabel control={<Checkbox checked={factoryResetDeleteAudio} onChange={(_, c) => setFactoryResetDeleteAudio(c)} color="primary" />} label={t('system.factory_reset_delete_audio')} sx={{ display: 'block', mb: 2 }} />
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{t('system.factory_reset_type_prompt')}</Typography>
+          <TextField fullWidth size="small" value={factoryResetConfirmText} onChange={(e) => setFactoryResetConfirmText(e.target.value)} placeholder={t('system.factory_reset_confirm_word')} autoComplete="off" />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setFactoryResetDialogOpen(false); setFactoryResetConfirmText(''); }}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleFactoryReset} color="error" variant="contained" disabled={!factoryResetConfirmValid || factoryResetPending}>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => { setFactoryResetDialogOpen(false); setFactoryResetConfirmText(''); }}
+          >
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
+            onClick={handleFactoryReset}
+            disabled={!factoryResetConfirmValid || factoryResetPending}
+          >
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* ── Restore Backup Dialog ──────────────────────────────────────────── */}
       <Dialog open={restoreDialogOpen} onClose={() => { setRestoreDialogOpen(false); setRestoreFile(null); }}>
         <DialogTitle>{t('system.backup_restore')}</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>{t('system.backup_restore_confirm')}</DialogContentText>
-          <Button variant="outlined" component="label" size="small" fullWidth>
+          <Box
+            component="label"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 40,
+              px: 2.5,
+              py: 0.75,
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              letterSpacing: 0,
+              border: '1px solid',
+              borderColor: 'primary.main',
+              color: 'primary.main',
+              borderRadius: 1,
+              cursor: 'pointer',
+              width: '100%',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
             {t('system.backup_restore_select')}
             <input
               type="file"
@@ -421,92 +389,85 @@ export const SystemMaintenanceSection: React.FC = () => {
               accept=".zip"
               onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
             />
-          </Button>
-          {restoreFile && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              {restoreFile.name}
-            </Typography>
-          )}
+          </Box>
+          {restoreFile && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{restoreFile.name}</Typography>}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setRestoreDialogOpen(false); setRestoreFile(null); }}>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => { setRestoreDialogOpen(false); setRestoreFile(null); }}
+          >
             {t('actions.cancel', { ns: 'common' })}
-          </Button>
-          <Button onClick={handleRestoreBackup} color="warning" variant="contained" disabled={!restoreFile}>
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
+            onClick={handleRestoreBackup}
+            disabled={!restoreFile}
+          >
             {t('system.backup_restore')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* ── Update Minabox Dialog ──────────────────────────────────────────── */}
       <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)}>
         <DialogTitle>{t('system.update_minabox')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('system.update_minabox_confirm')}</DialogContentText>
-        </DialogContent>
+        <DialogContent><DialogContentText>{t('system.update_minabox_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setUpdateDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleUpdateMinabox} color="primary" variant="contained">
+          <ActionButton actionType="secondary" onClick={() => setUpdateDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="primary" onClick={handleUpdateMinabox}>
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* ── Update OS Dialog ───────────────────────────────────────────────── */}
       <Dialog open={updateOsDialogOpen} onClose={() => setUpdateOsDialogOpen(false)}>
         <DialogTitle>{t('system.update_os')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('system.update_os_confirm')}</DialogContentText>
-        </DialogContent>
+        <DialogContent><DialogContentText>{t('system.update_os_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setUpdateOsDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleUpdateOs} color="primary" variant="contained" disabled={updatingOs}>
+          <ActionButton actionType="secondary" onClick={() => setUpdateOsDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="primary"
+            onClick={handleUpdateOs}
+            disabled={updatingOs}
+          >
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* ── OS Update Log Dialog ───────────────────────────────────────────── */}
       <Dialog open={updateOsLogOpen} onClose={() => setUpdateOsLogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>{t('system.update_os_log_title')}</DialogTitle>
         <DialogContent>
-          {updateOsLogRunning && (
-            <Typography variant="caption" color="primary" display="block" sx={{ mb: 1 }}>
-              {t('system.update_os_log_running')}
-            </Typography>
-          )}
-          <Box
-            component="pre"
-            sx={{
-              whiteSpace: 'pre-wrap',
-              fontFamily: 'monospace',
-              fontSize: '0.75rem',
-              maxHeight: 400,
-              overflow: 'auto',
-              p: 1,
-              bgcolor: 'action.hover',
-              borderRadius: 1,
-            }}
-          >
+          {updateOsLogRunning && <Typography variant="caption" color="primary" display="block" sx={{ mb: 1 }}>{t('system.update_os_log_running')}</Typography>}
+          <Box component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.75rem', maxHeight: 400, overflow: 'auto', p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
             {updateOsLog || t('system.update_os_log_empty')}
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUpdateOsLogOpen(false)}>{t('actions.close', { ns: 'common' })}</Button>
+          <ActionButton actionType="secondary" onClick={() => setUpdateOsLogOpen(false)}>
+            {t('actions.close', { ns: 'common' })}
+          </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* ── Cleanup (Docker Prune) Dialog ───────────────────────────────────── */}
       <Dialog open={dockerPruneDialogOpen} onClose={() => setDockerPruneDialogOpen(false)}>
         <DialogTitle>{t('system.cleanup')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('system.cleanup_confirm')}</DialogContentText>
-        </DialogContent>
+        <DialogContent><DialogContentText>{t('system.cleanup_confirm')}</DialogContentText></DialogContent>
         <DialogActions>
-          <Button onClick={() => setDockerPruneDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleDockerPrune} color="primary" variant="contained" disabled={dockerPrunePending}>
+          <ActionButton actionType="secondary" onClick={() => setDockerPruneDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
+            onClick={handleDockerPrune}
+            disabled={dockerPrunePending}
+          >
             {t('actions.confirm', { ns: 'common' })}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

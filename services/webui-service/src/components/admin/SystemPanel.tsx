@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Checkbox,
   Chip,
   Dialog,
@@ -30,6 +29,7 @@ import {
   type NetworkResponse,
 } from '@/api/system';
 import { SystemMaintenanceSection } from '@/components/admin/SystemMaintenanceSection';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 export const SystemPanel: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -92,9 +92,7 @@ export const SystemPanel: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleStealthChange = async (on: boolean) => {
     try {
@@ -107,20 +105,14 @@ export const SystemPanel: React.FC = () => {
   };
 
   const handleWifiScan = async () => {
-    // #region agent log
     fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'handleWifiScan called', data: {}, timestamp: Date.now(), hypothesisId: 'H3' }) }).catch(() => {});
-    // #endregion
     setWifiScanning(true);
     try {
       const data = await systemApi.wifiScan();
-      // #region agent log
       fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'wifiScan response', data: { networksLength: data?.networks?.length ?? -1 }, timestamp: Date.now(), hypothesisId: 'H4,H5' }) }).catch(() => {});
-      // #endregion
       setWifiNetworks(data.networks ?? []);
     } catch (err) {
-      // #region agent log
       fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'wifiScan error', data: { err: String(err) }, timestamp: Date.now(), hypothesisId: 'H4' }) }).catch(() => {});
-      // #endregion
       setWifiNetworks([]);
     } finally {
       setWifiScanning(false);
@@ -134,10 +126,8 @@ export const SystemPanel: React.FC = () => {
       await systemApi.wifiConnect(wifiConnectSsid.trim(), wifiConnectPassword);
       showSuccess(t('system.wifi_connect'));
     } catch (err: unknown) {
-      // #region agent log
       const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { detail?: string } } }).response : undefined;
       fetch('http://localhost:7587/ingest/956f1dfb-30a2-4644-a364-2be2e1ac338d', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '771350' }, body: JSON.stringify({ sessionId: '771350', location: 'SystemPanel.tsx:handleWifiConnect', message: 'wifiConnect error', data: { status: ax?.status, detail: ax?.data?.detail }, timestamp: Date.now(), hypothesisId: 'H2,H3,H5' }) }).catch(() => {});
-      // #endregion
       const detail = ax?.data?.detail;
       showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
     } finally {
@@ -289,20 +279,14 @@ export const SystemPanel: React.FC = () => {
     <Box>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* ── Hardware ─────────────────────────────────────────────────────────── */}
+      {/* ── Hardware ────────────────────────────────────────────────────────── */}
       {boardLeds != null && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
             {t('system.hardware_title')}
           </Typography>
           <FormControlLabel
-            control={
-              <Switch
-                checked={boardLeds.stealth}
-                onChange={(_, checked) => handleStealthChange(checked)}
-                color="primary"
-              />
-            }
+            control={<Switch checked={boardLeds.stealth} onChange={(_, checked) => handleStealthChange(checked)} color="primary" />}
             label={t('system.stealth_mode')}
           />
           <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -318,36 +302,35 @@ export const SystemPanel: React.FC = () => {
         </Typography>
         <Box display="flex" flexDirection="column" gap={1.5}>
           <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
-            <Button
-              size="small"
-              variant="outlined"
+            <ActionButton
+              actionType="secondary"
               startIcon={<WifiIcon />}
               onClick={handleWifiScan}
               disabled={wifiScanning}
+              loading={wifiScanning}
             >
               {t('system.wifi_scan')}
-            </Button>
+            </ActionButton>
             {hotspotStatus.active ? (
-              <Button
-                size="small"
-                color="warning"
-                variant="outlined"
+              <ActionButton
+                actionType="secondary"
                 startIcon={<WifiOffIcon />}
                 onClick={handleHotspotStop}
                 disabled={hotspotLoading}
+                loading={hotspotLoading}
               >
                 {t('system.wifi_hotspot_stop')}
-              </Button>
+              </ActionButton>
             ) : (
-              <Button
-                size="small"
-                variant="outlined"
+              <ActionButton
+                actionType="secondary"
                 startIcon={<WifiIcon />}
                 onClick={handleHotspotStart}
                 disabled={hotspotLoading}
+                loading={hotspotLoading}
               >
                 {t('system.wifi_hotspot_start')}
-              </Button>
+              </ActionButton>
             )}
           </Box>
           {hotspotInfo && (
@@ -366,24 +349,16 @@ export const SystemPanel: React.FC = () => {
                 {t('system.wifi_ssid')}
               </Typography>
               <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center">
-                <TextField
-                  size="small"
-                  placeholder={t('system.wifi_ssid')}
-                  value={wifiConnectSsid}
-                  onChange={(e) => setWifiConnectSsid(e.target.value)}
-                  sx={{ minWidth: 180 }}
-                />
-                <TextField
-                  size="small"
-                  type="password"
-                  placeholder={t('system.wifi_password')}
-                  value={wifiConnectPassword}
-                  onChange={(e) => setWifiConnectPassword(e.target.value)}
-                  sx={{ minWidth: 140 }}
-                />
-                <Button size="small" variant="contained" onClick={handleWifiConnect} disabled={wifiConnecting || !wifiConnectSsid.trim()}>
+                <TextField size="small" placeholder={t('system.wifi_ssid')} value={wifiConnectSsid} onChange={(e) => setWifiConnectSsid(e.target.value)} sx={{ minWidth: 180 }} />
+                <TextField size="small" type="password" placeholder={t('system.wifi_password')} value={wifiConnectPassword} onChange={(e) => setWifiConnectPassword(e.target.value)} sx={{ minWidth: 140 }} />
+                <ActionButton
+                  actionType="primary"
+                  onClick={handleWifiConnect}
+                  disabled={wifiConnecting || !wifiConnectSsid.trim()}
+                  loading={wifiConnecting}
+                >
                   {t('system.wifi_connect')}
-                </Button>
+                </ActionButton>
               </Stack>
               <Box sx={{ mt: 1 }} component="ul" style={{ margin: 0, paddingLeft: 20 }}>
                 {wifiNetworks.slice(0, 15).map((n) => (
@@ -400,15 +375,13 @@ export const SystemPanel: React.FC = () => {
         </Box>
       </Box>
 
-      {/* ── Netzwerk (IP) ─────────────────────────────────────────────────────── */}
+      {/* ── Netzwerk (IP) ────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
           {t('system.network_title')}
         </Typography>
         {network === null && !loading ? (
-          <Typography variant="body2" color="text.secondary">
-            {t('system.network_no_connection')}
-          </Typography>
+          <Typography variant="body2" color="text.secondary">{t('system.network_no_connection')}</Typography>
         ) : (
           <Box display="flex" flexDirection="column" gap={1.5}>
             <Typography variant="caption" color="text.secondary">{t('system.network_method_label')}</Typography>
@@ -418,50 +391,22 @@ export const SystemPanel: React.FC = () => {
             </RadioGroup>
             {networkMethod === 'manual' && (
               <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" sx={{ mt: 0.5 }}>
-                <TextField
-                  size="small"
-                  label={t('system.network_address')}
-                  value={networkAddress}
-                  onChange={(e) => setNetworkAddress(e.target.value)}
-                  placeholder="192.168.1.10"
-                  sx={{ minWidth: 140 }}
-                />
-                <TextField
-                  size="small"
-                  label={t('system.network_netmask')}
-                  value={networkNetmask}
-                  onChange={(e) => setNetworkNetmask(e.target.value)}
-                  placeholder="24"
-                  sx={{ width: 72 }}
-                />
-                <TextField
-                  size="small"
-                  label={t('system.network_gateway')}
-                  value={networkGateway}
-                  onChange={(e) => setNetworkGateway(e.target.value)}
-                  placeholder="192.168.1.1"
-                  sx={{ minWidth: 120 }}
-                />
-                <TextField
-                  size="small"
-                  label={t('system.network_dns')}
-                  value={networkDns}
-                  onChange={(e) => setNetworkDns(e.target.value)}
-                  placeholder="192.168.1.1"
-                  sx={{ minWidth: 120 }}
-                />
+                <TextField size="small" label={t('system.network_address')} value={networkAddress} onChange={(e) => setNetworkAddress(e.target.value)} placeholder="192.168.1.10" sx={{ minWidth: 140 }} />
+                <TextField size="small" label={t('system.network_netmask')} value={networkNetmask} onChange={(e) => setNetworkNetmask(e.target.value)} placeholder="24" sx={{ width: 72 }} />
+                <TextField size="small" label={t('system.network_gateway')} value={networkGateway} onChange={(e) => setNetworkGateway(e.target.value)} placeholder="192.168.1.1" sx={{ minWidth: 120 }} />
+                <TextField size="small" label={t('system.network_dns')} value={networkDns} onChange={(e) => setNetworkDns(e.target.value)} placeholder="192.168.1.1" sx={{ minWidth: 120 }} />
               </Stack>
             )}
             <Box display="flex" flexWrap="wrap" gap={1}>
-              <Button
+              <ActionButton
+                actionType="primary"
                 startIcon={<SaveIcon />}
-                size="small"
-                variant="outlined"
                 onClick={handleNetworkApply}
                 disabled={networkSaving || network === null}
+                loading={networkSaving}
               >
                 {t('system.network_apply')}
-              </Button>
+              </ActionButton>
             </Box>
           </Box>
         )}
@@ -474,13 +419,15 @@ export const SystemPanel: React.FC = () => {
         </Typography>
         <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
           {hostname != null && (
-            <Typography variant="body2" color="text.secondary">
-              {hostname}
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{hostname}</Typography>
           )}
-          <Button size="small" variant="outlined" onClick={handleOpenHostnameDialog} disabled={hostnameSaving}>
+          <ActionButton
+            actionType="secondary"
+            onClick={handleOpenHostnameDialog}
+            disabled={hostnameSaving}
+          >
             {t('system.hostname_edit')}
-          </Button>
+          </ActionButton>
         </Box>
       </Box>
 
@@ -491,54 +438,44 @@ export const SystemPanel: React.FC = () => {
         </Typography>
         <Box display="flex" flexDirection="column" gap={1.5}>
           <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
-            <Button size="small" variant="outlined" startIcon={<UsbIcon />} onClick={handleUsbLoadDevices} disabled={usbLoading}>
+            <ActionButton
+              actionType="secondary"
+              startIcon={<UsbIcon />}
+              onClick={handleUsbLoadDevices}
+              disabled={usbLoading}
+              loading={usbLoading}
+            >
               {t('system.usb_devices')}
-            </Button>
+            </ActionButton>
           </Box>
           {usbDevices.length > 0 && (
             <>
               <Box display="flex" flexWrap="wrap" gap={1}>
                 {usbDevices.map((d) => (
-                  <Chip
-                    key={d.id}
-                    label={`${d.id} ${d.size} ${d.label || ''}`.trim()}
-                    onClick={() => handleUsbSelectDevice(d.id)}
-                    color={usbSelectedId === d.id ? 'primary' : 'default'}
-                    variant={usbSelectedId === d.id ? 'filled' : 'outlined'}
-                  />
+                  <Chip key={d.id} label={`${d.id} ${d.size} ${d.label || ''}`.trim()} onClick={() => handleUsbSelectDevice(d.id)} color={usbSelectedId === d.id ? 'primary' : 'default'} variant={usbSelectedId === d.id ? 'filled' : 'outlined'} />
                 ))}
               </Box>
               {usbSelectedId && (
                 <>
-                  <Typography variant="caption" color="text.secondary">
-                    {t('system.usb_files')}
-                  </Typography>
+                  <Typography variant="caption" color="text.secondary">{t('system.usb_files')}</Typography>
                   <Box display="flex" flexWrap="wrap" gap={0.5}>
                     {usbEntries.map((e) => (
                       <FormControlLabel
                         key={e.path}
                         control={
-                          <Checkbox
-                            size="small"
-                            checked={usbSelectedPaths.includes(e.path)}
-                            onChange={(_, checked) =>
-                              setUsbSelectedPaths((prev) =>
-                                checked ? [...prev, e.path] : prev.filter((p) => p !== e.path),
-                              )
-                            }
-                          />
+                          <Checkbox size="small" checked={usbSelectedPaths.includes(e.path)} onChange={(_, checked) => setUsbSelectedPaths((prev) => checked ? [...prev, e.path] : prev.filter((p) => p !== e.path))} />
                         }
                         label={e.name + (e.type === 'dir' ? ' (Ordner)' : '')}
                       />
                     ))}
                   </Box>
                   <Box display="flex" gap={1}>
-                    <Button size="small" variant="contained" onClick={handleUsbImport} disabled={usbImporting || usbSelectedPaths.length === 0}>
+                    <ActionButton actionType="primary" onClick={handleUsbImport} disabled={usbImporting || usbSelectedPaths.length === 0} loading={usbImporting}>
                       {t('system.usb_import')}
-                    </Button>
-                    <Button size="small" variant="outlined" onClick={handleUsbEject}>
+                    </ActionButton>
+                    <ActionButton actionType="secondary" onClick={handleUsbEject}>
                       {t('system.usb_eject')}
-                    </Button>
+                    </ActionButton>
                   </Box>
                 </>
               )}
@@ -554,22 +491,19 @@ export const SystemPanel: React.FC = () => {
         <DialogTitle>{t('system.hostname_dialog_title')}</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 1 }}>{t('system.hostname_reconnect_hint')}</DialogContentText>
-          <TextField
-            autoFocus
-            fullWidth
-            margin="dense"
-            label={t('system.host_hostname')}
-            value={hostnameEdit}
-            onChange={(e) => setHostnameEdit(e.target.value)}
-            placeholder="minabox"
-            inputProps={{ maxLength: 63 }}
-          />
+          <TextField autoFocus fullWidth margin="dense" label={t('system.host_hostname')} value={hostnameEdit} onChange={(e) => setHostnameEdit(e.target.value)} placeholder="minabox" inputProps={{ maxLength: 63 }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setHostnameDialogOpen(false)}>{t('actions.cancel', { ns: 'common' })}</Button>
-          <Button onClick={handleApplyHostname} color="primary" variant="contained" disabled={hostnameSaving || !hostnameEdit.trim()}>
+          <ActionButton actionType="secondary" onClick={() => setHostnameDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton
+            actionType="primary"
+            onClick={handleApplyHostname}
+            disabled={hostnameSaving || !hostnameEdit.trim()}
+          >
             {t('system.hostname_apply')}
-          </Button>
+          </ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

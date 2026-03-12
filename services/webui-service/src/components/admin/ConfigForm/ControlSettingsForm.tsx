@@ -2,18 +2,17 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   FormControlLabel,
   Switch,
   TextField,
   Typography,
 } from '@mui/material';
-import SaveIcon from '@mui/icons-material/Save';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import type { GeneralConfig } from '@/types/api';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 export const ControlSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -195,14 +194,9 @@ export const ControlSettingsForm: React.FC = () => {
 
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <Button
-          variant="contained"
-          startIcon={<SaveIcon />}
-          onClick={handleSave}
-          disabled={saving}
-        >
+        <ActionButton actionType="primary" onClick={handleSave} disabled={saving}>
           {t('save', { ns: 'common' })}
-        </Button>
+        </ActionButton>
       </Box>
     </Box>
   );
