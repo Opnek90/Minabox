@@ -29,6 +29,8 @@ export interface Tag {
   created_at: string;
   updated_at: string;
   last_scanned_at: string | null;
+  /** When true, tag is blocked: no playback, fires tag_blocked MQTT event instead */
+  disabled?: boolean;
 }
 
 export interface TagCreate {
@@ -36,12 +38,14 @@ export interface TagCreate {
   name?: string | null;
   content_type: ContentType;
   content_id: number;
+  disabled?: boolean;
 }
 
 export interface TagUpdate {
   name?: string | null;
   content_type?: ContentType;
   content_id?: number;
+  disabled?: boolean;
 }
 
 export interface TagWithContent extends Tag {
@@ -282,6 +286,7 @@ export interface AudioConfig {
   output_device_name: string;
   enabled_output_devices?: string[];
   device_display_names?: Record<string, string>;
+  min_volume?: number;
   max_volume: number;
   default_volume: number;
   resume_on_startup?: boolean;
@@ -305,6 +310,8 @@ export interface LED {
   name: string;
   gpio: number;
   bindings: Record<string, LEDPattern>;
+  /** When false, LED ignores all state changes and stays off */
+  enabled?: boolean;
 }
 
 export interface LEDConfig {
@@ -330,6 +337,8 @@ export interface Button {
   sw?: number | null;
   action?: string | null;
   actions?: Record<string, string> | null;
+  /** When false, button fires no MQTT action (raw-event still published for test-mode) */
+  enabled?: boolean;
 }
 
 // ============================================================================
@@ -362,18 +371,6 @@ export interface DisplayElement {
 /** Font size: small (9px), medium (12px), large (14px) */
 export type DisplayFontSize = 'small' | 'medium' | 'large';
 
-/**
- * Font family for the OLED display.
- * - default : PIL built-in bitmap font, always available
- * - sans     : DejaVu Sans          (apt: fonts-dejavu-core, usually pre-installed)
- * - mono     : DejaVu Sans Mono     (apt: fonts-dejavu-core)
- * - roboto   : Roboto Regular       (apt: fonts-roboto)
- * - ubuntu   : Ubuntu Regular       (apt: fonts-ubuntu)
- * - noto     : Noto Sans Regular    (apt: fonts-noto)
- * - liberation: Liberation Sans     (apt: fonts-liberation, often pre-installed)
- * - terminus : Terminus TTF         (apt: fonts-terminus)
- * Falls back to 'default' if the chosen font is not installed on the device.
- */
 export type DisplayFont =
   | 'default'
   | 'sans'
@@ -455,6 +452,7 @@ export type WebSocketMessageType =
   | 'rfid_scanned_learning'
   | 'rfid_removed'
   | 'tag_not_found'
+  | 'tag_blocked'
   | 'usage_denied'
   | 'button_action'
   | 'button_raw_event'
@@ -482,6 +480,16 @@ export interface RFIDScannedMessage extends WebSocketMessage {
   type: 'rfid_scanned' | 'rfid_scanned_learning';
   data: {
     tag_id: string;
+  };
+}
+
+/** Emitted when a disabled/blocked tag is placed on the reader */
+export interface TagBlockedMessage extends WebSocketMessage {
+  type: 'tag_blocked';
+  data: {
+    tag_id: string;
+    name: string | null;
+    timestamp: string;
   };
 }
 
