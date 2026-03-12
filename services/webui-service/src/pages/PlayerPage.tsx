@@ -42,6 +42,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type {
+  AudioDeviceItem,
   QueueItem,
   RepeatMode,
 } from '@/types/api';
@@ -258,7 +259,7 @@ export const PlayerPage: React.FC = () => {
   
   const volumeMutation = useMutation({ 
     mutationFn: audioApi.setVolume,
-    onError: (err) => setError(err instanceof Error ? err.message : 'Error') 
+    onError: (err: Error) => setError(err instanceof Error ? err.message : 'Error') 
   });
   
   const startSleepTimerMutation = useMutation({
@@ -273,9 +274,11 @@ export const PlayerPage: React.FC = () => {
 
   const switchDeviceMutation = useMutation({
     mutationFn: audioApi.switchDevice,
-    onSuccess: (_, variables) => {
-      queryClient.setQueryData(['config', 'audio'], (old: any) => 
-        old ? { ...old, output_device_name: variables } : old
+    onSuccess: (_: unknown, variables: string) => {
+      queryClient.setQueryData(['config', 'audio'], (old: unknown) => 
+        old && typeof old === 'object' && 'output_device_name' in old
+          ? { ...(old as Record<string, unknown>), output_device_name: variables }
+          : old
       );
     },
     onError: () => showError(t('player.output_device', { defaultValue: 'Could not switch device' }))
@@ -283,18 +286,18 @@ export const PlayerPage: React.FC = () => {
 
   const repeatMutation = useMutation({
     mutationFn: audioApi.setRepeatMode,
-    onSuccess: (_, mode) => {
-      queryClient.setQueryData(['audio', 'session'], (old: any) => 
-        old ? { ...old, repeat_mode: mode } : old
+    onSuccess: (_: unknown, mode: RepeatMode) => {
+      queryClient.setQueryData(['audio', 'session'], (old: unknown) => 
+        old && typeof old === 'object' ? { ...(old as Record<string, unknown>), repeat_mode: mode } : old
       );
     }
   });
 
   const shuffleMutation = useMutation({
     mutationFn: audioApi.setShuffle,
-    onSuccess: (_, shuffle) => {
-      queryClient.setQueryData(['audio', 'session'], (old: any) => 
-        old ? { ...old, shuffle } : old
+    onSuccess: (_: unknown, shuffle: boolean) => {
+      queryClient.setQueryData(['audio', 'session'], (old: unknown) => 
+        old && typeof old === 'object' ? { ...(old as Record<string, unknown>), shuffle } : old
       );
     }
   });
@@ -314,7 +317,7 @@ export const PlayerPage: React.FC = () => {
     return `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  const handlePlay     = () => playMutation.mutate();
+  const handlePlay     = () => playMutation.mutate(undefined);
   const handlePause    = () => pauseMutation.mutate();
   const handleStop     = () => stopMutation.mutate();
   const handleNext     = () => nextMutation.mutate();
@@ -489,7 +492,7 @@ export const PlayerPage: React.FC = () => {
                 value={audioConfig?.output_device_name ?? ''}
                 displayEmpty
                 renderValue={(v) => {
-                  const d = outputDevices.find((x) => x.alsa_device === v);
+                  const d = outputDevices.find((x: AudioDeviceItem) => x.alsa_device === v);
                   return d ? d.name : (v || t('player.output_device', { defaultValue: 'Output device' }));
                 }}
                 onChange={(e) => {
@@ -500,7 +503,7 @@ export const PlayerPage: React.FC = () => {
                 disabled={outputDevicesLoading || switchDeviceMutation.isPending}
                 aria-label={t('player.output_device', { defaultValue: 'Output device' })}
               >
-                {outputDevices.map((d) => (
+                {outputDevices.map((d: AudioDeviceItem) => (
                   <MenuItem key={d.alsa_device} value={d.alsa_device}>
                     {d.name}
                   </MenuItem>
@@ -562,8 +565,8 @@ export const PlayerPage: React.FC = () => {
                   </span>
                 </Tooltip>
               </Box>
-              {session.queue.filter((q) => !q.is_current).length > 0 && (
-                <UpNextCollapse queue={session.queue.filter((q) => !q.is_current).slice(0, 8)} />
+              {session.queue.filter((q: QueueItem) => !q.is_current).length > 0 && (
+                <UpNextCollapse queue={session.queue.filter((q: QueueItem) => !q.is_current).slice(0, 8)} />
               )}
             </Box>
           )}

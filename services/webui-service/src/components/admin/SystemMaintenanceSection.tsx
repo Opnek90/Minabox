@@ -361,12 +361,26 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.backup_restore')}</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>{t('system.backup_restore_confirm')}</DialogContentText>
-          <ActionButton
-            actionType="secondary"
-            size="small"
-            onClick={() => undefined}
+          <Box
             component="label"
-            fullWidth
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 40,
+              px: 2.5,
+              py: 0.75,
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              letterSpacing: 0,
+              border: '1px solid',
+              borderColor: 'primary.main',
+              color: 'primary.main',
+              borderRadius: 1,
+              cursor: 'pointer',
+              width: '100%',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
           >
             {t('system.backup_restore_select')}
             <input
@@ -375,7 +389,7 @@ export const SystemMaintenanceSection: React.FC = () => {
               accept=".zip"
               onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
             />
-          </ActionButton>
+          </Box>
           {restoreFile && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{restoreFile.name}</Typography>}
         </DialogContent>
         <DialogActions>

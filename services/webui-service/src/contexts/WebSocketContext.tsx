@@ -14,6 +14,8 @@ interface WebSocketContextType {
   isConnected: boolean;
   sleepTimerStatus: SleepTimerStatus | null;
   cachedAudioStatus: CachedAudioStatus | null;
+  /** Last raw WebSocket message (e.g. for rfid_scanned, tag_not_found, system_alert). */
+  lastMessage: WebSocketMessage | null;
   sendMessage: (message: unknown) => void;
 }
 
@@ -21,6 +23,7 @@ const WebSocketContext = createContext<WebSocketContextType>({
   isConnected: false,
   sleepTimerStatus: null,
   cachedAudioStatus: null,
+  lastMessage: null,
   sendMessage: () => undefined,
 });
 
@@ -33,6 +36,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isConnected, setIsConnected] = useState(false);
   const [sleepTimerStatus, setSleepTimerStatus] = useState<SleepTimerStatus | null>(null);
   const [cachedAudioStatus, setCachedAudioStatus] = useState<CachedAudioStatus | null>(null);
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef<number>(RECONNECT_DELAY_INITIAL);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,6 +61,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!mountedRef.current) return;
       try {
         const message = JSON.parse(event.data as string) as WebSocketMessage;
+        setLastMessage(message);
         const customEvent = new CustomEvent(WS_EVENT_MESSAGE, { detail: message });
         wsEventTarget.dispatchEvent(customEvent);
 
@@ -75,7 +80,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     };
 
-    ws.onclose = (event) => {
+    ws.onclose = () => {
       if (!mountedRef.current) return;
       setIsConnected(false);
       socketRef.current = null;
@@ -115,7 +120,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   return (
-    <WebSocketContext.Provider value={{ isConnected, sleepTimerStatus, cachedAudioStatus, sendMessage }}>
+    <WebSocketContext.Provider value={{ isConnected, sleepTimerStatus, cachedAudioStatus, lastMessage, sendMessage }}>
       {children}
     </WebSocketContext.Provider>
   );

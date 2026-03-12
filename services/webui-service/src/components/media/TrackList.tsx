@@ -242,7 +242,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   );
 
   // Item renderer for grid view
-  const renderGridItem = (index: number, track: Track) => (
+  const renderGridItem = (_index: number, track: Track) => (
     <Box sx={{ p: 1, height: '100%' }}>
       <Card
         variant="outlined"

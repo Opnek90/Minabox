@@ -36,7 +36,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
-import type { ButtonConfig, Button as ButtonType } from '@/types/api';
+import type { ButtonConfig, Button as ButtonType, ButtonRawEventMessage } from '@/types/api';
 
 
 export const ButtonConfigPanel: React.FC = () => {
@@ -83,14 +83,9 @@ export const ButtonConfigPanel: React.FC = () => {
   // regardless of whether an action mapping exists.
   useWebSocketEvent(
     'button_raw_event',
-    useCallback((msg) => {
+    useCallback((msg: ButtonRawEventMessage) => {
       if (!testBtnRef.current) return;
-      const data = msg.data as {
-        button_id?: string;
-        name?: string;
-        event_type?: string;
-        timestamp?: string;
-      };
+      const data = msg.data;
       const ts = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '';
       const label = data.name ?? data.button_id ?? '?';
       const evType = data.event_type ?? '?';
