@@ -145,6 +145,7 @@ class AudioService:
             await self._vlc_backend.initialize()
 
             audio_cfg = self._get_audio_config()
+            min_vol = getattr(audio_cfg, "min_volume", 0)
             state = self._state_manager.get_state()
             if state.last_volume > 0:
                 initial_volume = min(state.last_volume, audio_cfg.max_volume)
@@ -153,11 +154,11 @@ class AudioService:
                     audio_cfg.default_volume,
                     audio_cfg.max_volume,
                 )
-            initial_volume = max(initial_volume, 0)
+            initial_volume = max(initial_volume, min_vol)
             _agent_log(
                 "service.py:start",
                 "initial_volume",
-                {"initial_volume": initial_volume, "state_last_volume": state.last_volume, "max_volume": audio_cfg.max_volume},
+                {"initial_volume": initial_volume, "state_last_volume": state.last_volume, "max_volume": audio_cfg.max_volume, "min_volume": min_vol},
                 "B",
             )
             logger.debug("setting_service_initial_volume", volume=initial_volume)
@@ -260,7 +261,7 @@ class AudioService:
             await self._mqtt_client.subscribe(topic)
 
     async def _status_publish_loop(self) -> None:
-        """Periodically publish audio status to MQTT – only on state changes."""
+        """Periodically publish audio status to MQTT - only on state changes."""
         while self._running:
             try:
                 await asyncio.sleep(2.0)
@@ -415,7 +416,7 @@ class AudioService:
 
     async def _handle_play(self, command: PlayCommand | None) -> None:
         """Handle play command with race condition protection.
-        
+
         Fixes issue #61: Multiple rapid play commands (from button mashing) used to
         corrupt VLC's pipeline, causing "LED on, no sound" symptom. Now protected by
         a lock that cancels any in-progress play operation when a new one arrives.
@@ -549,7 +550,8 @@ class AudioService:
         """Handle volume down command."""
         try:
             current_volume = await self._vlc_backend.get_volume()
-            new_volume = max(current_volume - command.step, 0)
+            min_vol = getattr(self._get_audio_config(), "min_volume", 0)
+            new_volume = max(current_volume - command.step, min_vol)
             await self._vlc_backend.set_volume(new_volume)
             await self._save_current_state()
             await self._publish_status()
@@ -561,10 +563,13 @@ class AudioService:
         """Toggle between muted and unmuted."""
         try:
             if self._muted:
+                audio_cfg = self._get_audio_config()
+                min_vol = getattr(audio_cfg, "min_volume", 0)
                 volume = min(
                     self._volume_before_mute,
-                    self._get_audio_config().max_volume,
+                    audio_cfg.max_volume,
                 )
+                volume = max(volume, min_vol)
                 await self._vlc_backend.set_volume(volume)
                 self._muted = False
                 logger.debug("mute_toggle_unmuted", volume=volume)
