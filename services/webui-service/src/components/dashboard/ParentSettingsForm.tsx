@@ -78,6 +78,7 @@ export const ParentSettingsForm: React.FC = () => {
         daily_limit_minutes: general.daily_limit_minutes,
       });
       await configApi.updateAudio({
+        min_volume: audioConfig.min_volume ?? 5,
         max_volume: audioConfig.max_volume,
         default_volume: audioConfig.default_volume,
       });
@@ -218,7 +219,7 @@ export const ParentSettingsForm: React.FC = () => {
         </Typography>
         <Slider
           value={audioConfig.max_volume}
-          min={0}
+          min={(audioConfig.min_volume ?? 5) + 1}
           max={100}
           step={5}
           marks
@@ -234,7 +235,7 @@ export const ParentSettingsForm: React.FC = () => {
         </Typography>
         <Slider
           value={audioConfig.default_volume}
-          min={0}
+          min={audioConfig.min_volume ?? 5}
           max={audioConfig.max_volume}
           step={5}
           marks

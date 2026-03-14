@@ -11,6 +11,8 @@
     "output_devices_current": "Current",
     "output_devices_empty": "No Pulse sinks detected. Click Refresh (Pulse/PipeWire must be available).",
     "device_display_name_placeholder": "Custom name (optional)",
+    "volume_settings": "Volume limits",
+    "min_volume": "Minimum volume",
     "max_volume": "Maximum Volume (Child Safety)",
     "default_volume": "Default Volume",
     "resume_on_startup": "Resume playback on startup",
