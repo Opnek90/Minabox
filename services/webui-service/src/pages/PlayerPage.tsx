@@ -481,6 +481,7 @@ export const PlayerPage: React.FC = () => {
           {/* Volume Control */}
           <VolumeControl
             volume={displayVolume}
+            minVolume={audioConfig?.min_volume ?? 0}
             maxVolume={audioConfig?.max_volume ?? 100}
             onVolumeChange={handleVolumeChange}
           />

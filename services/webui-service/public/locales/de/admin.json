@@ -11,6 +11,8 @@
     "output_devices_current": "Aktuell",
     "output_devices_empty": "Keine Pulse-Sinks erkannt. Auf Aktualisieren klicken (Pulse/PipeWire muss verfügbar sein).",
     "device_display_name_placeholder": "Klartextname (optional)",
+    "volume_settings": "Lautstärke-Grenzen",
+    "min_volume": "Mindestlautstärke",
     "max_volume": "Maximale Lautstärke (Kinderschutz)",
     "default_volume": "Standard-Lautstärke",
     "resume_on_startup": "Wiedergabe beim Start fortsetzen",

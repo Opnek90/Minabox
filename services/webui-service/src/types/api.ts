@@ -282,6 +282,7 @@ export interface AudioConfig {
   output_device_name: string;
   enabled_output_devices?: string[];
   device_display_names?: Record<string, string>;
+  min_volume?: number;
   max_volume: number;
   default_volume: number;
   resume_on_startup?: boolean;

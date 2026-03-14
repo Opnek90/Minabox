@@ -113,11 +113,12 @@ class VLCBackend(AudioBackend):
             if self._player is None:
                 raise VLCError("Failed to create VLC media player")
 
+            min_vol = getattr(self._config, "min_volume", 0)
             initial_volume = getattr(self._config, "default_volume", 40)
             if initial_volume is None:
                 initial_volume = 40
             initial_volume = min(initial_volume, self._config.max_volume)
-            initial_volume = max(initial_volume, 0)
+            initial_volume = max(initial_volume, min_vol)
 
             logger.debug("setting_initial_volume", volume=initial_volume)
             result = self._player.audio_set_volume(initial_volume)
@@ -285,7 +286,7 @@ class VLCBackend(AudioBackend):
             await self._wait_for_state(vlc.State.Playing)
 
             if self._pending_volume is not None:
-                applied = min(max(self._pending_volume, 0), self._config.max_volume)
+                applied = min(max(self._pending_volume, getattr(self._config, "min_volume", 0)), self._config.max_volume)
                 self._player.audio_set_volume(applied)
                 self._pending_volume = None
 
@@ -348,7 +349,7 @@ class VLCBackend(AudioBackend):
         if saved_position < 0:
             saved_position = 0
 
-        self._player.pause()  # Toggle: Paused → Playing
+        self._player.pause()  # Toggle: Paused -> Playing
 
         await asyncio.sleep(0.3)
 
@@ -401,8 +402,10 @@ class VLCBackend(AudioBackend):
         self._last_stop_time = time.monotonic()
 
     async def set_volume(self, volume: int) -> None:
-        if not self._player: return
-        clamped = min(max(volume, 0), self._config.max_volume)
+        if not self._player:
+            return
+        min_vol = getattr(self._config, "min_volume", 0)
+        clamped = min(max(volume, min_vol), self._config.max_volume)
         if self._player.audio_set_volume(clamped) == -1:
             self._pending_volume = clamped
         else:
