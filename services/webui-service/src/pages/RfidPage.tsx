@@ -36,7 +36,7 @@ import { tracksApi } from '@/api/tracks';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
 
-type DisabledFilter = 'all' | 'active' | 'blocked';
+type TagFilter = 'all' | 'active' | 'blocked' | 'unassigned';
 type SortKey = 'name' | 'last_scanned_at';
 
 interface RfidPageProps {
@@ -62,7 +62,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
   const sortKey = (prefs.sort['rfid']?.key ?? 'name') as SortKey;
   const sortDir = prefs.sort['rfid']?.dir ?? 'asc';
   const viewMode = (prefs.viewMode['rfid'] ?? 'list') as 'card' | 'list';
-  const disabledFilter = (prefs.filter['rfid'] ?? 'all') as DisabledFilter;
+  const tagFilter = (prefs.filter['rfid'] ?? 'all') as TagFilter;
 
   const [learnModeActive, setLearnModeActive] = useState(false);
   const [learnModeLoading, setLearnModeLoading] = useState(false);
@@ -189,7 +189,6 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
     }
   };
 
-  // #81 — all changes go directly into prefs (no local state needed)
   const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
     if (!key) return;
     if (key === sortKey) {
@@ -208,7 +207,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
     setViewMode('rfid', v);
   };
 
-  const handleDisabledFilterChange = (_: React.MouseEvent, val: DisabledFilter | null) => {
+  const handleFilterChange = (_: React.MouseEvent, val: TagFilter | null) => {
     if (val !== null) setFilter('rfid', val);
   };
 
@@ -219,8 +218,9 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
         tag.tag_id.toLowerCase().includes(q) || (tag.name ?? '').toLowerCase().includes(q);
       if (!matchesSearch) return false;
       const isDisabled = tag.disabled ?? false;
-      if (disabledFilter === 'active') return !isDisabled;
-      if (disabledFilter === 'blocked') return isDisabled;
+      if (tagFilter === 'active') return !isDisabled;
+      if (tagFilter === 'blocked') return isDisabled;
+      if (tagFilter === 'unassigned') return !tag.content_id || tag.content_id === 0;
       return true;
     })
     .sort((a, b) => {
@@ -276,23 +276,24 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
         />
 
         <ToggleButtonGroup
-          value={disabledFilter}
+          value={tagFilter}
           exclusive
-          onChange={handleDisabledFilterChange}
+          onChange={handleFilterChange}
           size="small"
           aria-label={t('filter.label')}
         >
           <ToggleButton value="all">{t('filter.all')}</ToggleButton>
           <ToggleButton value="active">{t('filter.active')}</ToggleButton>
           <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+          <ToggleButton value="unassigned">{t('filter.unassigned')}</ToggleButton>
         </ToggleButtonGroup>
 
         <Box display="flex" alignItems="center" gap={0.5} ml="auto">
           <ToggleButtonGroup value={sortKey} exclusive onChange={handleSortKey} size="small">
-            <ToggleButton value="name">{t('sort.name', { defaultValue: 'Name' })}</ToggleButton>
-            <ToggleButton value="last_scanned_at">{t('sort.last_scanned', { defaultValue: 'Zuletzt gespielt' })}</ToggleButton>
+            <ToggleButton value="name">{t('sort.name')}</ToggleButton>
+            <ToggleButton value="last_scanned_at">{t('sort.last_scanned')}</ToggleButton>
           </ToggleButtonGroup>
-          <Tooltip title={sortDir === 'asc' ? t('sort.ascending', { defaultValue: 'Aufsteigend' }) : t('sort.descending', { defaultValue: 'Absteigend' })}>
+          <Tooltip title={sortDir === 'asc' ? t('sort.ascending') : t('sort.descending')}>
             <IconButton size="small" onClick={handleSortDirToggle}>
               {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
             </IconButton>
