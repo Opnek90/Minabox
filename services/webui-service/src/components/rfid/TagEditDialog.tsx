@@ -5,9 +5,11 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Select,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -28,6 +30,7 @@ interface TagEditDialogProps {
     name: string | null;
     content_type: ContentType;
     content_id: number;
+    disabled: boolean;
   }) => void;
   onClose: () => void;
 }
@@ -48,22 +51,25 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
   const [name, setName] = useState<string>('');
   const [contentType, setContentType] = useState<ContentType>('playlist');
   const [contentId, setContentId] = useState<number | ''>('');
+  const [disabled, setDisabled] = useState<boolean>(false);
 
   useEffect(() => {
     if (tag) {
       setName(tag.name ?? '');
       setContentType(tag.content_type);
       setContentId(tag.content_id);
+      setDisabled(tag.disabled ?? false);
     } else {
       setName('');
       setContentType('playlist');
       setContentId('');
+      setDisabled(false);
     }
   }, [tag, open]);
 
   const handleSave = () => {
     if (contentId === '') return;
-    onSave({ name: name.trim() || null, content_type: contentType, content_id: contentId });
+    onSave({ name: name.trim() || null, content_type: contentType, content_id: contentId, disabled });
   };
 
   const isNewTag = !tag && !!newTagId;
@@ -147,6 +153,17 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
             ))}
           </Select>
         </FormControl>
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={disabled}
+              onChange={(e) => setDisabled(e.target.checked)}
+              color="warning"
+            />
+          }
+          label={t('disable_tag_label', { defaultValue: 'Tag sperren (kein Abspielen)' })}
+        />
       </DialogContent>
       <DialogActions>
         <ActionButton actionType="secondary" onClick={onClose}>

@@ -134,6 +134,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     name: string | null;
     content_type: ContentType;
     content_id: number;
+    disabled: boolean;
   }) => {
     try {
       if (editTag) {
@@ -153,6 +154,22 @@ export const RfidPage: React.FC<RfidPageProps> = ({
       setEditDialogOpen(false);
       setEditTag(null);
       setScannedTagId(null);
+    }
+  };
+
+  /** Quick-toggle disabled state directly from the card without opening edit dialog */
+  const handleToggleDisabled = async (tag: Tag) => {
+    const newDisabled = !(tag.disabled ?? false);
+    try {
+      const updated = await tagsApi.update(tag.tag_id, { disabled: newDisabled });
+      setTags((prev) => prev.map((t) => (t.tag_id === updated.tag_id ? updated : t)));
+      showSuccess(
+        newDisabled
+          ? t('toast.tag_disabled', { defaultValue: 'Tag gesperrt' })
+          : t('toast.tag_enabled', { defaultValue: 'Tag freigeschaltet' }),
+      );
+    } catch {
+      showError(t('toast.tag_save_error', { defaultValue: 'Tag konnte nicht gespeichert werden' }));
     }
   };
 
@@ -223,6 +240,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         podcasts={podcasts}
         onEdit={handleEditOpen}
         onDelete={setDeleteTag}
+        onToggleDisabled={handleToggleDisabled}
       />
 
       {/* Edit / Create Dialog */}

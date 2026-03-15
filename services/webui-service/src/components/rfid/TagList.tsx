@@ -12,6 +12,7 @@ interface TagListProps {
   podcasts: Podcast[];
   onEdit: (tag: Tag) => void;
   onDelete: (tag: Tag) => void;
+  onToggleDisabled: (tag: Tag) => void;
 }
 
 export const TagList: React.FC<TagListProps> = ({
@@ -22,6 +23,7 @@ export const TagList: React.FC<TagListProps> = ({
   podcasts,
   onEdit,
   onDelete,
+  onToggleDisabled,
 }) => {
   const { t } = useTranslation('rfid');
 
@@ -55,6 +57,7 @@ export const TagList: React.FC<TagListProps> = ({
             contentName={getContentName(tag)}
             onEdit={onEdit}
             onDelete={onDelete}
+            onToggleDisabled={onToggleDisabled}
           />
         </Grid>
       ))}

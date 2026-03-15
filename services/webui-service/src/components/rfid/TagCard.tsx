@@ -12,6 +12,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import NfcIcon from '@mui/icons-material/Nfc';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import BlockIcon from '@mui/icons-material/Block';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useTranslation } from 'react-i18next';
 import type { Tag } from '@/types/api';
 
@@ -20,6 +22,7 @@ interface TagCardProps {
   contentName?: string | null;
   onEdit: (tag: Tag) => void;
   onDelete: (tag: Tag) => void;
+  onToggleDisabled: (tag: Tag) => void;
 }
 
 function formatRelativeTime(isoString: string | null, locale: string): string | null {
@@ -43,27 +46,47 @@ function formatRelativeTime(isoString: string | null, locale: string): string | 
   }
 }
 
-export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDelete }) => {
+export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDelete, onToggleDisabled }) => {
   const { t, i18n } = useTranslation('rfid');
   const relativeTime = formatRelativeTime(tag.last_scanned_at, i18n.language);
+  const isDisabled = tag.disabled ?? false;
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        opacity: isDisabled ? 0.65 : 1,
+        borderColor: isDisabled ? 'text.disabled' : undefined,
+      }}
+    >
       <CardContent>
         <Box display="flex" alignItems="flex-start" justifyContent="space-between" gap={1}>
           <Box flex={1} minWidth={0}>
             <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
-              <NfcIcon fontSize="small" color="primary" />
+              <NfcIcon fontSize="small" color={isDisabled ? 'disabled' : 'primary'} />
               {tag.name ?? tag.tag_id}
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
               {t('fields.tag_id')}: {tag.tag_id}
             </Typography>
+
+            {isDisabled && (
+              <Chip
+                label={t('tag_disabled_label', { defaultValue: 'Gesperrt' })}
+                size="small"
+                color="default"
+                variant="outlined"
+                icon={<BlockIcon />}
+                sx={{ mt: 1, mr: 1 }}
+              />
+            )}
+
             {contentName && (
               <Chip
                 label={`${tag.content_type === 'playlist' ? '▶' : '♪'} ${contentName}`}
                 size="small"
-                color="primary"
+                color={isDisabled ? 'default' : 'primary'}
                 variant="outlined"
                 sx={{ mt: 1 }}
               />
@@ -83,6 +106,18 @@ export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDe
             )}
           </Box>
           <Box display="flex" alignItems="center" sx={{ mt: -0.5, mr: -0.5 }}>
+            <Tooltip title={isDisabled
+              ? t('enable_tag', { defaultValue: 'Tag freischalten' })
+              : t('disable_tag', { defaultValue: 'Tag sperren' })
+            }>
+              <IconButton
+                size="small"
+                color={isDisabled ? 'success' : 'warning'}
+                onClick={() => onToggleDisabled(tag)}
+              >
+                {isDisabled ? <CheckCircleOutlineIcon fontSize="small" /> : <BlockIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
             <Tooltip title={t('edit_tag')}>
               <IconButton size="small" onClick={() => onEdit(tag)}>
                 <EditIcon fontSize="small" />
