@@ -41,6 +41,7 @@ logger = structlog.get_logger(__name__)
 
 TAG_SCAN_COOLDOWN_SEC = 5.0
 
+
 class RFIDHandler:
     def __init__(self, dispatcher: "MQTTHandlers") -> None:
         self.dispatcher = dispatcher
@@ -94,6 +95,24 @@ class RFIDHandler:
                         {
                             "type": "tag_not_found",
                             "data": {"tag_id": tag_id, "timestamp": datetime.now(UTC).isoformat()},
+                        }
+                    )
+                return
+
+            # Issue #63: blocked tag — no playback, fire tag_blocked event instead
+            if tag.disabled:
+                logger.info("tag_blocked", tag_id=tag_id, name=tag.name)
+                blocked_topic = self.dispatcher.mqtt_client.config.get_mqtt_topic("rfid", "tag-blocked")
+                now_ts = datetime.now(UTC).isoformat()
+                await self.dispatcher.mqtt_client.publish(
+                    blocked_topic,
+                    {"tag_id": tag_id, "name": tag.name, "timestamp": now_ts},
+                )
+                if self.dispatcher.websocket_manager:
+                    await self.dispatcher.websocket_manager.broadcast(
+                        {
+                            "type": "tag_blocked",
+                            "data": {"tag_id": tag_id, "name": tag.name, "timestamp": now_ts},
                         }
                     )
                 return
