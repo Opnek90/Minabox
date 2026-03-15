@@ -8,6 +8,13 @@
     "streams": "Streams",
     "podcasts": "Podcasts"
   },
+  "media": {
+    "delete_confirm_title": "Medium löschen?",
+    "delete_confirm_text": "Soll dieses Medium wirklich gelöscht werden?",
+    "delete_assigned_warning": "Dieses Medium ist noch folgenden RFID-Tags zugewiesen:",
+    "delete_media_only": "Nur Medium löschen",
+    "delete_media_and_unassign": "Medium + Tag-Zuweisung löschen"
+  },
   "playlists": {
     "title": "Playlists",
     "no_playlists": "Noch keine Playlists vorhanden",
@@ -42,6 +49,7 @@
     "play": "Abspielen",
     "upload": "Track hochladen",
     "add_stream": "Stream hinzufügen",
+    "add_remote": "Remote-Track",
     "edit": "Track bearbeiten",
     "delete": "Track löschen",
     "delete_confirm": "Möchten Sie den Track \"{{title}}\" wirklich löschen?",
@@ -52,10 +60,11 @@
     "updated": "Track aktualisiert",
     "uploaded": "Track hochgeladen",
     "stream_added": "Stream hinzugefügt",
+    "remote_added": "Remote-Track hinzugefügt",
     "filter": {
       "all": "Alle",
       "files": "Dateien",
-      "streams": "Streams"
+      "remote": "Remote"
     },
     "fields": {
       "title": "Titel",
@@ -114,6 +123,8 @@
     "edit": "Stream bearbeiten",
     "delete": "Stream löschen",
     "delete_confirm": "Stream \"{{title}}\" wirklich löschen?",
+    "deleted": "Stream gelöscht",
+    "delete_error": "Stream konnte nicht gelöscht werden",
     "search_placeholder": "Streams suchen...",
     "cover": "Cover",
     "upload_cover": "Cover hochladen",

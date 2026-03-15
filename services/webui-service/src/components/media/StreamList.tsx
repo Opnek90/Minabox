@@ -1,16 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
-  Button,
   Card,
   CardActions,
   CardContent,
   CardMedia,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   Divider,
   Grid,
   IconButton,
@@ -44,32 +38,42 @@ interface StreamListProps {
   streams: Stream[];
   onDelete: (stream: Stream) => void;
   onUpdate: (stream: Stream) => void;
+  // Persisted state — controlled by parent
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onSortChange: (key: string, dir: 'asc' | 'desc') => void;
+  viewMode: 'card' | 'list';
+  onViewModeChange: (mode: 'card' | 'list') => void;
 }
 
-export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpdate }) => {
+export const StreamList: React.FC<StreamListProps> = ({
+  streams,
+  onDelete,
+  onUpdate,
+  sortKey,
+  sortDir,
+  onSortChange,
+  viewMode,
+  onViewModeChange,
+}) => {
   const { t } = useTranslation('media');
-  const [search, setSearch] = useState('');
-  const [streamToDelete, setStreamToDelete] = useState<Stream | null>(null);
-  const [streamToEdit, setStreamToEdit] = useState<Stream | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('title');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
+  const [search, setSearch] = React.useState('');
+  const [streamToEdit, setStreamToEdit] = React.useState<Stream | null>(null);
+
+  const typedSortKey = sortKey as SortKey;
 
   const filtered = streams.filter((s) => {
     const q = search.toLowerCase();
-    return (
-      s.title.toLowerCase().includes(q) ||
-      (s.artist ?? '').toLowerCase().includes(q)
-    );
+    return s.title.toLowerCase().includes(q) || (s.artist ?? '').toLowerCase().includes(q);
   });
 
   const sorted = [...filtered].sort((a, b) => {
     let aVal: string | number;
     let bVal: string | number;
-    if (sortKey === 'last_played_at') {
+    if (typedSortKey === 'last_played_at') {
       aVal = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
       bVal = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
-    } else if (sortKey === 'artist') {
+    } else if (typedSortKey === 'artist') {
       aVal = (a.artist ?? '').toLowerCase();
       bVal = (b.artist ?? '').toLowerCase();
     } else {
@@ -83,11 +87,10 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
 
   const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
     if (!key) return;
-    if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    if (key === typedSortKey) {
+      onSortChange(key, sortDir === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortKey(key);
-      setSortDir('asc');
+      onSortChange(key, 'asc');
     }
   };
 
@@ -102,55 +105,29 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
   return (
     <Box>
       <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
-        <ToggleButtonGroup
-          value={viewMode}
-          exclusive
-          onChange={(_, v) => v && setViewMode(v)}
-          size="small"
-        >
-          <ToggleButton value="card" aria-label={t('view_mode_card')}>
-            <ViewModuleIcon />
-          </ToggleButton>
-          <ToggleButton value="list" aria-label={t('view_mode_list')}>
-            <ViewListIcon />
-          </ToggleButton>
+        <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
+          <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon /></ToggleButton>
+          <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon /></ToggleButton>
         </ToggleButtonGroup>
+
         <TextField
           placeholder={t('streams.search_placeholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           size="small"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
           sx={{ minWidth: 200 }}
         />
 
         <Box display="flex" alignItems="center" gap={0.5} ml="auto">
-          <ToggleButtonGroup
-            value={sortKey}
-            exclusive
-            onChange={handleSortKey}
-            size="small"
-          >
+          <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey} size="small">
             <ToggleButton value="title">{t('streams.fields.title')}</ToggleButton>
             <ToggleButton value="artist">{t('streams.fields.artist')}</ToggleButton>
             <ToggleButton value="last_played_at">{t('streams.fields.last_played')}</ToggleButton>
           </ToggleButtonGroup>
           <Tooltip title={t(`streams.sort.${sortDir}`)}>
-            <IconButton
-              size="small"
-              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            >
-              {sortDir === 'asc' ? (
-                <ArrowUpwardIcon fontSize="small" />
-              ) : (
-                <ArrowDownwardIcon fontSize="small" />
-              )}
+            <IconButton size="small" onClick={() => onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc')}>
+              {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
         </Box>
@@ -160,18 +137,9 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
         <Grid container spacing={2}>
           {sorted.map((stream) => (
             <Grid item xs={12} sm={6} md={4} key={stream.id}>
-              <Card
-                variant="outlined"
-                sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
-              >
+              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {stream.cover_art_url && (
-                  <CardMedia
-                    component="img"
-                    height="120"
-                    image={stream.cover_art_url}
-                    alt={stream.title}
-                    sx={{ objectFit: 'cover' }}
-                  />
+                  <CardMedia component="img" height="120" image={stream.cover_art_url} alt={stream.title} sx={{ objectFit: 'cover' }} />
                 )}
                 <CardContent sx={{ pb: 0, flex: 1 }}>
                   <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
@@ -179,9 +147,7 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
                     {stream.title}
                   </Typography>
                   {stream.artist && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
-                      {stream.artist}
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>{stream.artist}</Typography>
                   )}
                 </CardContent>
                 <CardActions sx={{ pt: 0 }}>
@@ -191,14 +157,10 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('streams.edit', { defaultValue: 'Bearbeiten' })}>
-                    <IconButton size="small" onClick={() => setStreamToEdit(stream)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
+                    <IconButton size="small" onClick={() => setStreamToEdit(stream)}><EditIcon fontSize="small" /></IconButton>
                   </Tooltip>
                   <Tooltip title={t('tracks.delete')}>
-                    <IconButton size="small" color="error" onClick={() => setStreamToDelete(stream)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    <IconButton size="small" color="error" onClick={() => onDelete(stream)}><DeleteIcon fontSize="small" /></IconButton>
                   </Tooltip>
                 </CardActions>
               </Card>
@@ -206,125 +168,61 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
           ))}
         </Grid>
       ) : (
-      <List dense>
-        {sorted.map((stream, idx) => (
-          <React.Fragment key={stream.id}>
-            {idx > 0 && <Divider component="li" />}
-            <ListItem
-              secondaryAction={
-                <Box>
-                  <Tooltip title={t('tracks.play')}>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => audioApi.play({ stream_id: stream.id })}
-                    >
-                      <PlayArrowIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('streams.edit', { defaultValue: 'Bearbeiten' })}>
-                    <IconButton size="small" onClick={() => setStreamToEdit(stream)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('tracks.delete')}>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => setStreamToDelete(stream)}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              }
-            >
-              {stream.cover_art_url ? (
-                <Box
-                  component="img"
-                  src={stream.cover_art_url}
-                  alt=""
-                  sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1 }}
-                />
-              ) : (
-                <Box mr={1} color="text.secondary">
-                  <StreamIcon fontSize="small" />
-                </Box>
-              )}
-              <ListItemText
-                primary={stream.title}
-                secondary={
-                  <Box
-                    component="span"
-                    display="flex"
-                    gap={1}
-                    alignItems="center"
-                    flexWrap="wrap"
-                  >
-                    {stream.artist && (
-                      <Typography component="span" variant="caption">
-                        {stream.artist}
-                      </Typography>
-                    )}
-                    {stream.last_played_at && (
-                      <Typography component="span" variant="caption" color="text.disabled">
-                        ·{' '}
-                        {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                          -Math.round(
-                            (Date.now() - new Date(stream.last_played_at).getTime()) /
-                              3_600_000
-                          ),
-                          'hour'
-                        )}
-                      </Typography>
-                    )}
+        <List dense>
+          {sorted.map((stream, idx) => (
+            <React.Fragment key={stream.id}>
+              {idx > 0 && <Divider component="li" />}
+              <ListItem
+                secondaryAction={
+                  <Box>
+                    <Tooltip title={t('tracks.play')}>
+                      <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}>
+                        <PlayArrowIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('streams.edit', { defaultValue: 'Bearbeiten' })}>
+                      <IconButton size="small" onClick={() => setStreamToEdit(stream)}><EditIcon fontSize="small" /></IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('tracks.delete')}>
+                      <IconButton size="small" color="error" onClick={() => onDelete(stream)}><DeleteIcon fontSize="small" /></IconButton>
+                    </Tooltip>
                   </Box>
                 }
-              />
-            </ListItem>
-          </React.Fragment>
-        ))}
-      </List>
+              >
+                {stream.cover_art_url ? (
+                  <Box component="img" src={stream.cover_art_url} alt=""
+                    sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1 }} />
+                ) : (
+                  <Box mr={1} color="text.secondary"><StreamIcon fontSize="small" /></Box>
+                )}
+                <ListItemText
+                  primary={stream.title}
+                  secondary={
+                    <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
+                      {stream.artist && <Typography component="span" variant="caption">{stream.artist}</Typography>}
+                      {stream.last_played_at && (
+                        <Typography component="span" variant="caption" color="text.disabled">
+                          ·{' '}
+                          {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+                            -Math.round((Date.now() - new Date(stream.last_played_at).getTime()) / 3_600_000),
+                            'hour'
+                          )}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                />
+              </ListItem>
+            </React.Fragment>
+          ))}
+        </List>
       )}
-
-      <Dialog open={!!streamToDelete} onClose={() => setStreamToDelete(null)}>
-        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-          {t('streams.delete')}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {t('streams.delete_confirm', {
-              title: streamToDelete?.title,
-            })}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setStreamToDelete(null)}>
-            {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button
-            onClick={() => {
-              if (streamToDelete) {
-                onDelete(streamToDelete);
-                setStreamToDelete(null);
-              }
-            }}
-            color="error"
-            variant="contained"
-          >
-            {t('delete', { ns: 'common' })}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <StreamEditDialog
         open={!!streamToEdit}
         stream={streamToEdit}
         onClose={() => setStreamToEdit(null)}
-        onSuccess={(updated) => {
-          onUpdate(updated);
-          setStreamToEdit(null);
-        }}
+        onSuccess={(updated) => { onUpdate(updated); setStreamToEdit(null); }}
       />
     </Box>
   );

@@ -34,7 +34,8 @@
     "label": "Anzeigen",
     "all": "Alle",
     "active": "Nur aktive",
-    "blocked": "Nur gesperrte"
+    "blocked": "Nur gesperrte",
+    "unassigned": "Ohne Inhalt"
   },
   "fields": {
     "tag_id": "Tag-ID",
@@ -69,6 +70,9 @@
   "search_placeholder": "Tags suchen...",
   "sort": {
     "name": "Nach Name",
-    "date": "Nach Datum"
+    "date": "Nach Datum",
+    "last_scanned": "Zuletzt gescannt",
+    "ascending": "Aufsteigend",
+    "descending": "Absteigend"
   }
 }

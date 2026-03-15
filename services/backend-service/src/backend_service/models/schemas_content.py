@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from .schemas_enums import ContentType, SourceType
+
+# Sentinel to distinguish "field not provided" from "field explicitly set to null"
+_UNSET: Any = object()
 
 
 class TagBase(BaseModel):
@@ -12,10 +16,12 @@ class TagBase(BaseModel):
 
     tag_id: str = Field(..., description="RFID tag UID (e.g., 04A224BC19)")
     name: str | None = Field(None, description="Human-readable name")
-    content_type: ContentType = Field(
-        ..., description="Type of content (playlist/track/stream)"
+    content_type: ContentType | None = Field(
+        None, description="Type of content (playlist/track/stream/podcast), null if unassigned"
     )
-    content_id: int = Field(..., description="ID of playlist, track or stream", gt=0)
+    content_id: int | None = Field(
+        None, description="ID of playlist, track, stream or podcast; null if unassigned", gt=0
+    )
     disabled: bool = Field(
         default=False,
         description="When True, tag is blocked: no playback, fires tag_blocked MQTT event instead.",
@@ -29,7 +35,11 @@ class TagCreate(TagBase):
 
 
 class TagUpdate(BaseModel):
-    """Schema for updating an existing tag."""
+    """Schema for updating an existing tag.
+
+    To explicitly clear content assignment, pass content_id=null and
+    content_type=null. Fields omitted entirely are left unchanged.
+    """
 
     name: str | None = None
     content_type: ContentType | None = None
@@ -39,11 +49,21 @@ class TagUpdate(BaseModel):
         description="Set to True to block the tag, False to re-enable it.",
     )
 
+    # Flag set by the route handler after parsing the raw request body,
+    # so we know whether content_id was explicitly included as null.
+    _content_id_explicit_null: bool = False
+    _content_type_explicit_null: bool = False
 
-class TagResponse(TagBase):
+
+class TagResponse(BaseModel):
     """Schema for tag API response."""
 
     id: int
+    tag_id: str
+    name: str | None = None
+    content_type: ContentType | None = None
+    content_id: int | None = None
+    disabled: bool = False
     created_at: datetime
     updated_at: datetime | None = None
     last_scanned_at: datetime | None = None

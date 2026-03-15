@@ -8,6 +8,13 @@
     "streams": "Streams",
     "podcasts": "Podcasts"
   },
+  "media": {
+    "delete_confirm_title": "Delete media?",
+    "delete_confirm_text": "Do you really want to delete this media?",
+    "delete_assigned_warning": "This media is still assigned to the following RFID tags:",
+    "delete_media_only": "Delete media only",
+    "delete_media_and_unassign": "Delete media and remove tag assignments"
+  },
   "playlists": {
     "title": "Playlists",
     "no_playlists": "No playlists yet",
@@ -42,6 +49,7 @@
     "play": "Play",
     "upload": "Upload Track",
     "add_stream": "Add Stream",
+    "add_remote": "Remote Track",
     "edit": "Edit Track",
     "delete": "Delete Track",
     "delete_confirm": "Do you really want to delete the track \"{{title}}\"?",
@@ -52,10 +60,11 @@
     "updated": "Track updated",
     "uploaded": "Track uploaded",
     "stream_added": "Stream added",
+    "remote_added": "Remote track added",
     "filter": {
       "all": "All",
       "files": "Files",
-      "streams": "Streams"
+      "remote": "Remote"
     },
     "fields": {
       "title": "Title",
@@ -114,6 +123,8 @@
     "edit": "Edit Stream",
     "delete": "Delete Stream",
     "delete_confirm": "Really delete stream \"{{title}}\"?",
+    "deleted": "Stream deleted",
+    "delete_error": "Could not delete stream",
     "search_placeholder": "Search streams...",
     "cover": "Cover",
     "upload_cover": "Upload cover",

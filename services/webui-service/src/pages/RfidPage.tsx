@@ -27,6 +27,7 @@ import { LearnModeButton } from '@/components/rfid/LearnModeButton';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageShell } from '@/components/common/PageShell';
 import { useToast } from '@/contexts/ToastContext';
+import { useUserPrefs } from '@/contexts/UserPrefsContext';
 import { tagsApi } from '@/api/tags';
 import { playlistsApi } from '@/api/playlists';
 import { podcastsApi } from '@/api/podcasts';
@@ -35,7 +36,7 @@ import { tracksApi } from '@/api/tracks';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
 
-type DisabledFilter = 'all' | 'active' | 'blocked';
+type TagFilter = 'all' | 'active' | 'blocked' | 'unassigned';
 type SortKey = 'name' | 'last_scanned_at';
 
 interface RfidPageProps {
@@ -43,12 +44,10 @@ interface RfidPageProps {
   onPendingTagHandled?: () => void;
 }
 
-export const RfidPage: React.FC<RfidPageProps> = ({
-  pendingTagId,
-  onPendingTagHandled,
-}) => {
+export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHandled }) => {
   const { t } = useTranslation('rfid');
   const { showSuccess, showError } = useToast();
+  const { prefs, setViewMode, setSort, setFilter } = useUserPrefs();
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -58,15 +57,16 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [disabledFilter, setDisabledFilter] = useState<DisabledFilter>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
+
+  // #81 — all view state read from persistent prefs
+  const sortKey = (prefs.sort['rfid']?.key ?? 'name') as SortKey;
+  const sortDir = prefs.sort['rfid']?.dir ?? 'asc';
+  const viewMode = (prefs.viewMode['rfid'] ?? 'list') as 'card' | 'list';
+  const tagFilter = (prefs.filter['rfid'] ?? 'all') as TagFilter;
 
   const [learnModeActive, setLearnModeActive] = useState(false);
   const [learnModeLoading, setLearnModeLoading] = useState(false);
   const [scannedTagId, setScannedTagId] = useState<string | null>(null);
-
   const [editTag, setEditTag] = useState<Tag | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteTag, setDeleteTag] = useState<Tag | null>(null);
@@ -94,9 +94,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     }
   }, [t]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleRfidLearning = useCallback((msg: RFIDScannedMessage) => {
     setScannedTagId(msg.data.tag_id);
@@ -127,11 +125,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   };
 
   const handleLearnModeDeactivate = async () => {
-    try {
-      await tagsApi.setLearningMode(false);
-    } catch {
-      // ignore
-    } finally {
+    try { await tagsApi.setLearningMode(false); } catch { /* ignore */ } finally {
       setLearnModeActive(false);
       setLearnModeLoading(false);
       setScannedTagId(null);
@@ -198,23 +192,35 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
     if (!key) return;
     if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      setSort('rfid', key, sortDir === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortKey(key);
-      setSortDir('asc');
+      setSort('rfid', key, 'asc');
     }
+  };
+
+  const handleSortDirToggle = () => {
+    setSort('rfid', sortKey, sortDir === 'asc' ? 'desc' : 'asc');
+  };
+
+  const handleViewModeChange = (_: React.MouseEvent, v: 'card' | 'list' | null) => {
+    if (!v) return;
+    setViewMode('rfid', v);
+  };
+
+  const handleFilterChange = (_: React.MouseEvent, val: TagFilter | null) => {
+    if (val !== null) setFilter('rfid', val);
   };
 
   const filteredAndSorted = [...tags]
     .filter((tag) => {
       const q = searchQuery.toLowerCase();
       const matchesSearch =
-        tag.tag_id.toLowerCase().includes(q) ||
-        (tag.name ?? '').toLowerCase().includes(q);
+        tag.tag_id.toLowerCase().includes(q) || (tag.name ?? '').toLowerCase().includes(q);
       if (!matchesSearch) return false;
       const isDisabled = tag.disabled ?? false;
-      if (disabledFilter === 'active') return !isDisabled;
-      if (disabledFilter === 'blocked') return isDisabled;
+      if (tagFilter === 'active') return !isDisabled;
+      if (tagFilter === 'blocked') return isDisabled;
+      if (tagFilter === 'unassigned') return !tag.content_id || tag.content_id === 0;
       return true;
     })
     .sort((a, b) => {
@@ -246,21 +252,10 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         />
       }
     >
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Toolbar – 1:1 StreamList pattern */}
       <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
-        {/* View toggle */}
-        <ToggleButtonGroup
-          value={viewMode}
-          exclusive
-          onChange={(_, v) => v && setViewMode(v)}
-          size="small"
-        >
+        <ToggleButtonGroup value={viewMode} exclusive onChange={handleViewModeChange} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card', { defaultValue: 'Kachelansicht' })}>
             <ViewModuleIcon />
           </ToggleButton>
@@ -269,66 +264,38 @@ export const RfidPage: React.FC<RfidPageProps> = ({
           </ToggleButton>
         </ToggleButtonGroup>
 
-        {/* Search */}
         <TextField
           placeholder={t('search_placeholder')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           size="small"
           InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
+            startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
           }}
           sx={{ minWidth: 200 }}
         />
 
-        {/* Filter */}
         <ToggleButtonGroup
-          value={disabledFilter}
+          value={tagFilter}
           exclusive
-          onChange={(_e, val: DisabledFilter | null) => {
-            if (val !== null) setDisabledFilter(val);
-          }}
+          onChange={handleFilterChange}
           size="small"
           aria-label={t('filter.label')}
         >
           <ToggleButton value="all">{t('filter.all')}</ToggleButton>
           <ToggleButton value="active">{t('filter.active')}</ToggleButton>
           <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+          <ToggleButton value="unassigned">{t('filter.unassigned')}</ToggleButton>
         </ToggleButtonGroup>
 
-        {/* Sort – right-aligned */}
         <Box display="flex" alignItems="center" gap={0.5} ml="auto">
-          <ToggleButtonGroup
-            value={sortKey}
-            exclusive
-            onChange={handleSortKey}
-            size="small"
-          >
-            <ToggleButton value="name">
-              {t('sort.name', { defaultValue: 'Name' })}
-            </ToggleButton>
-            <ToggleButton value="last_scanned_at">
-              {t('sort.last_scanned', { defaultValue: 'Zuletzt gespielt' })}
-            </ToggleButton>
+          <ToggleButtonGroup value={sortKey} exclusive onChange={handleSortKey} size="small">
+            <ToggleButton value="name">{t('sort.name')}</ToggleButton>
+            <ToggleButton value="last_scanned_at">{t('sort.last_scanned')}</ToggleButton>
           </ToggleButtonGroup>
-          <Tooltip title={
-            sortDir === 'asc'
-              ? t('sort.ascending', { defaultValue: 'Aufsteigend' })
-              : t('sort.descending', { defaultValue: 'Absteigend' })
-          }>
-            <IconButton
-              size="small"
-              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            >
-              {sortDir === 'asc' ? (
-                <ArrowUpwardIcon fontSize="small" />
-              ) : (
-                <ArrowDownwardIcon fontSize="small" />
-              )}
+          <Tooltip title={sortDir === 'asc' ? t('sort.ascending') : t('sort.descending')}>
+            <IconButton size="small" onClick={handleSortDirToggle}>
+              {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
         </Box>

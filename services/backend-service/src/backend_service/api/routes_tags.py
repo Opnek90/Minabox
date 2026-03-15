@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
@@ -67,7 +67,7 @@ async def create_tag(
     tag = Tag(
         tag_id=tag_data.tag_id,
         name=tag_data.name,
-        content_type=tag_data.content_type.value,
+        content_type=tag_data.content_type.value if tag_data.content_type else None,
         content_id=tag_data.content_id,
         disabled=tag_data.disabled,
     )
@@ -82,10 +82,15 @@ async def create_tag(
 @router.put("/{tag_id}", response_model=TagResponse)
 async def update_tag(
     tag_id: str,
+    request: Request,
     tag_data: TagUpdate,
     db: Session = Depends(get_db),
 ) -> TagResponse:
-    """Update existing RFID tag mapping."""
+    """Update existing RFID tag mapping.
+
+    Passing content_id=null and content_type=null explicitly clears the
+    content assignment (unassigns the tag).
+    """
     logger.info("api_update_tag", tag_id=tag_id)
 
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()
@@ -101,12 +106,27 @@ async def update_tag(
             },
         )
 
+    # Parse raw body once to detect explicit null vs omitted fields
+    try:
+        raw_body: dict = await request.json()
+    except Exception:
+        raw_body = {}
+
     if tag_data.name is not None:
         tag.name = tag_data.name
+
+    # content_type: update if provided; clear if explicitly null in body
     if tag_data.content_type is not None:
         tag.content_type = tag_data.content_type.value
+    elif "content_type" in raw_body and raw_body["content_type"] is None:
+        tag.content_type = None
+
+    # content_id: update if provided; clear if explicitly null in body
     if tag_data.content_id is not None:
         tag.content_id = tag_data.content_id
+    elif "content_id" in raw_body and raw_body["content_id"] is None:
+        tag.content_id = None
+
     if tag_data.disabled is not None:
         tag.disabled = tag_data.disabled
         logger.info(
@@ -118,7 +138,7 @@ async def update_tag(
     db.commit()
     db.refresh(tag)
 
-    logger.info("api_tag_updated", tag_id=tag_id)
+    logger.info("api_update_tag_completed", tag_id=tag_id, content_id=tag.content_id)
     return TagResponse.model_validate(tag)
 
 

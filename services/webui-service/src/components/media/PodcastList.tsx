@@ -1,16 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
-  Button,
   Card,
   CardActions,
   CardContent,
   CardMedia,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   Divider,
   Grid,
   IconButton,
@@ -44,32 +38,42 @@ interface PodcastListProps {
   podcasts: Podcast[];
   onDelete: (podcast: Podcast) => void;
   onUpdate: (podcast: Podcast) => void;
+  // Persisted state — controlled by parent
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onSortChange: (key: string, dir: 'asc' | 'desc') => void;
+  viewMode: 'card' | 'list';
+  onViewModeChange: (mode: 'card' | 'list') => void;
 }
 
-export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, onUpdate }) => {
+export const PodcastList: React.FC<PodcastListProps> = ({
+  podcasts,
+  onDelete,
+  onUpdate,
+  sortKey,
+  sortDir,
+  onSortChange,
+  viewMode,
+  onViewModeChange,
+}) => {
   const { t } = useTranslation('media');
-  const [search, setSearch] = useState('');
-  const [podcastToDelete, setPodcastToDelete] = useState<Podcast | null>(null);
-  const [podcastToEdit, setPodcastToEdit] = useState<Podcast | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('title');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
+  const [search, setSearch] = React.useState('');
+  const [podcastToEdit, setPodcastToEdit] = React.useState<Podcast | null>(null);
+
+  const typedSortKey = sortKey as SortKey;
 
   const filtered = podcasts.filter((p) => {
     const q = search.toLowerCase();
-    return (
-      p.title.toLowerCase().includes(q) ||
-      (p.description ?? '').toLowerCase().includes(q)
-    );
+    return p.title.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q);
   });
 
   const sorted = [...filtered].sort((a, b) => {
     let aVal: string | number;
     let bVal: string | number;
-    if (sortKey === 'last_fetched_at') {
+    if (typedSortKey === 'last_fetched_at') {
       aVal = a.last_fetched_at ? new Date(a.last_fetched_at).getTime() : 0;
       bVal = b.last_fetched_at ? new Date(b.last_fetched_at).getTime() : 0;
-    } else if (sortKey === 'last_played_at') {
+    } else if (typedSortKey === 'last_played_at') {
       aVal = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
       bVal = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
     } else {
@@ -83,11 +87,10 @@ export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, on
 
   const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
     if (!key) return;
-    if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    if (key === typedSortKey) {
+      onSortChange(key, sortDir === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortKey(key);
-      setSortDir('asc');
+      onSortChange(key, 'asc');
     }
   };
 
@@ -102,55 +105,29 @@ export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, on
   return (
     <Box>
       <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
-        <ToggleButtonGroup
-          value={viewMode}
-          exclusive
-          onChange={(_, v) => v && setViewMode(v)}
-          size="small"
-        >
-          <ToggleButton value="card" aria-label={t('view_mode_card')}>
-            <ViewModuleIcon />
-          </ToggleButton>
-          <ToggleButton value="list" aria-label={t('view_mode_list')}>
-            <ViewListIcon />
-          </ToggleButton>
+        <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
+          <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon /></ToggleButton>
+          <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon /></ToggleButton>
         </ToggleButtonGroup>
+
         <TextField
           placeholder={t('podcasts.search_placeholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           size="small"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
           sx={{ minWidth: 200 }}
         />
 
         <Box display="flex" alignItems="center" gap={0.5} ml="auto">
-          <ToggleButtonGroup
-            value={sortKey}
-            exclusive
-            onChange={handleSortKey}
-            size="small"
-          >
+          <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey} size="small">
             <ToggleButton value="title">{t('podcasts.fields.title')}</ToggleButton>
             <ToggleButton value="last_played_at">{t('podcasts.fields.last_played')}</ToggleButton>
             <ToggleButton value="last_fetched_at">{t('podcasts.fields.last_fetched')}</ToggleButton>
           </ToggleButtonGroup>
           <Tooltip title={t(`podcasts.sort.${sortDir}`)}>
-            <IconButton
-              size="small"
-              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            >
-              {sortDir === 'asc' ? (
-                <ArrowUpwardIcon fontSize="small" />
-              ) : (
-                <ArrowDownwardIcon fontSize="small" />
-              )}
+            <IconButton size="small" onClick={() => onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc')}>
+              {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
         </Box>
@@ -160,18 +137,9 @@ export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, on
         <Grid container spacing={2}>
           {sorted.map((podcast) => (
             <Grid item xs={12} sm={6} md={4} key={podcast.id}>
-              <Card
-                variant="outlined"
-                sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
-              >
+              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {podcast.cover_art_url && (
-                  <CardMedia
-                    component="img"
-                    height="120"
-                    image={podcast.cover_art_url}
-                    alt={podcast.title}
-                    sx={{ objectFit: 'cover' }}
-                  />
+                  <CardMedia component="img" height="120" image={podcast.cover_art_url} alt={podcast.title} sx={{ objectFit: 'cover' }} />
                 )}
                 <CardContent sx={{ pb: 0, flex: 1 }}>
                   <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
@@ -191,14 +159,10 @@ export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, on
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('podcasts.edit', { defaultValue: 'Bearbeiten' })}>
-                    <IconButton size="small" onClick={() => setPodcastToEdit(podcast)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
+                    <IconButton size="small" onClick={() => setPodcastToEdit(podcast)}><EditIcon fontSize="small" /></IconButton>
                   </Tooltip>
                   <Tooltip title={t('tracks.delete')}>
-                    <IconButton size="small" color="error" onClick={() => setPodcastToDelete(podcast)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    <IconButton size="small" color="error" onClick={() => onDelete(podcast)}><DeleteIcon fontSize="small" /></IconButton>
                   </Tooltip>
                 </CardActions>
               </Card>
@@ -206,136 +170,80 @@ export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, on
           ))}
         </Grid>
       ) : (
-      <List dense>
-        {sorted.map((podcast, idx) => (
-          <React.Fragment key={podcast.id}>
-            {idx > 0 && <Divider component="li" />}
-            <ListItem
-              secondaryAction={
-                <Box>
-                  <Tooltip title={t('tracks.play')}>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => audioApi.play({ podcast_id: podcast.id })}
-                    >
-                      <PlayArrowIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('podcasts.edit', { defaultValue: 'Bearbeiten' })}>
-                    <IconButton size="small" onClick={() => setPodcastToEdit(podcast)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('tracks.delete')}>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => setPodcastToDelete(podcast)}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              }
-            >
-              {podcast.cover_art_url ? (
-                <Box
-                  component="img"
-                  src={podcast.cover_art_url}
-                  alt=""
-                  sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1 }}
-                />
-              ) : (
-                <Box mr={1} color="text.secondary">
-                  <PodcastsIcon fontSize="small" />
-                </Box>
-              )}
-              <ListItemText
-              primary={podcast.title}
-              secondary={
-                podcast.latest_episode_title ||
-                podcast.last_played_at ||
-                podcast.last_fetched_at ? (
-                  <Box component="span" display="flex" flexDirection="column" gap={0.25}>
-                    {podcast.latest_episode_title && (
-                      <Typography component="span" variant="caption" display="block">
-                        {t('podcasts.latest_episode')}: {podcast.latest_episode_title}
-                        {podcast.latest_episode_published_at &&
-                          ` (${new Date(podcast.latest_episode_published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })})`}
-                      </Typography>
-                    )}
-                    <Box component="span" display="flex" gap={1} flexWrap="wrap" alignItems="center">
-                      {podcast.last_played_at && (
-                        <Typography component="span" variant="caption" color="text.disabled">
-                          {t('podcasts.last_played')}:{' '}
-                          {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                            -Math.round(
-                              (Date.now() - new Date(podcast.last_played_at).getTime()) / 60_000
-                            ),
-                            'minute'
-                          )}
-                        </Typography>
-                      )}
-                      {podcast.last_fetched_at && (
-                        <Typography component="span" variant="caption" color="text.disabled">
-                          {t('podcasts.last_fetched_label')}:{' '}
-                          {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                            -Math.round(
-                              (Date.now() - new Date(podcast.last_fetched_at).getTime()) /
-                                86_400_000
-                            ),
-                            'day'
-                          )}
-                        </Typography>
-                      )}
-                    </Box>
+        <List dense>
+          {sorted.map((podcast, idx) => (
+            <React.Fragment key={podcast.id}>
+              {idx > 0 && <Divider component="li" />}
+              <ListItem
+                secondaryAction={
+                  <Box>
+                    <Tooltip title={t('tracks.play')}>
+                      <IconButton size="small" color="primary" onClick={() => audioApi.play({ podcast_id: podcast.id })}>
+                        <PlayArrowIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('podcasts.edit', { defaultValue: 'Bearbeiten' })}>
+                      <IconButton size="small" onClick={() => setPodcastToEdit(podcast)}><EditIcon fontSize="small" /></IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('tracks.delete')}>
+                      <IconButton size="small" color="error" onClick={() => onDelete(podcast)}><DeleteIcon fontSize="small" /></IconButton>
+                    </Tooltip>
                   </Box>
-                ) : null
-              }
-            />
-          </ListItem>
-          </React.Fragment>
-        ))}
-      </List>
+                }
+              >
+                {podcast.cover_art_url ? (
+                  <Box component="img" src={podcast.cover_art_url} alt=""
+                    sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1 }} />
+                ) : (
+                  <Box mr={1} color="text.secondary"><PodcastsIcon fontSize="small" /></Box>
+                )}
+                <ListItemText
+                  primary={podcast.title}
+                  secondary={
+                    podcast.latest_episode_title || podcast.last_played_at || podcast.last_fetched_at ? (
+                      <Box component="span" display="flex" flexDirection="column" gap={0.25}>
+                        {podcast.latest_episode_title && (
+                          <Typography component="span" variant="caption" display="block">
+                            {t('podcasts.latest_episode')}: {podcast.latest_episode_title}
+                            {podcast.latest_episode_published_at &&
+                              ` (${new Date(podcast.latest_episode_published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })})`}
+                          </Typography>
+                        )}
+                        <Box component="span" display="flex" gap={1} flexWrap="wrap" alignItems="center">
+                          {podcast.last_played_at && (
+                            <Typography component="span" variant="caption" color="text.disabled">
+                              {t('podcasts.last_played')}:{' '}
+                              {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+                                -Math.round((Date.now() - new Date(podcast.last_played_at).getTime()) / 60_000),
+                                'minute'
+                              )}
+                            </Typography>
+                          )}
+                          {podcast.last_fetched_at && (
+                            <Typography component="span" variant="caption" color="text.disabled">
+                              {t('podcasts.last_fetched_label')}:{' '}
+                              {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+                                -Math.round((Date.now() - new Date(podcast.last_fetched_at).getTime()) / 86_400_000),
+                                'day'
+                              )}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    ) : null
+                  }
+                />
+              </ListItem>
+            </React.Fragment>
+          ))}
+        </List>
       )}
-
-      <Dialog open={!!podcastToDelete} onClose={() => setPodcastToDelete(null)}>
-        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-          {t('podcasts.delete')}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {t('podcasts.delete_confirm', { title: podcastToDelete?.title })}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPodcastToDelete(null)}>
-            {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() => {
-              if (podcastToDelete) {
-                onDelete(podcastToDelete);
-                setPodcastToDelete(null);
-              }
-            }}
-          >
-            {t('delete', { ns: 'common' })}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <PodcastEditDialog
         open={!!podcastToEdit}
         podcast={podcastToEdit}
         onClose={() => setPodcastToEdit(null)}
-        onSuccess={(updated) => {
-          onUpdate(updated);
-          setPodcastToEdit(null);
-        }}
+        onSuccess={(updated) => { onUpdate(updated); setPodcastToEdit(null); }}
       />
     </Box>
   );
