@@ -10,6 +10,7 @@ import { MiniPlayer } from '@/components/common/MiniPlayer';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { RfidScanDrawer } from '@/components/rfid/RfidScanDrawer';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { UserPrefsProvider } from '@/contexts/UserPrefsContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { useTranslation } from 'react-i18next';
 
@@ -45,7 +46,6 @@ const RfidNotifications: React.FC = () => {
 
   useEffect(() => {
     if (!lastMessage) return;
-    // rfid_scanned wird jetzt vom Drawer behandelt – hier nur tag_not_found
     if (lastMessage.type === 'tag_not_found') {
       setNotification({
         type: 'warning',
@@ -92,7 +92,6 @@ const MainLayout: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // pendingTagId: wenn Drawer "Zuweisen" gedrückt wird, RfidPage öffnet direkt TagEditDialog
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
 
   const location = useLocation();
@@ -188,17 +187,19 @@ const MainLayout: React.FC = () => {
 
 const App: React.FC = () => (
   <ToastProvider>
-    <Routes>
-      <Route
-        path="/kiosk"
-        element={
-          <Suspense fallback={<LoadingSpinner fullPage />}>
-            <KioskPage />
-          </Suspense>
-        }
-      />
-      <Route path="/*" element={<MainLayout />} />
-    </Routes>
+    <UserPrefsProvider>
+      <Routes>
+        <Route
+          path="/kiosk"
+          element={
+            <Suspense fallback={<LoadingSpinner fullPage />}>
+              <KioskPage />
+            </Suspense>
+          }
+        />
+        <Route path="/*" element={<MainLayout />} />
+      </Routes>
+    </UserPrefsProvider>
   </ToastProvider>
 );
 

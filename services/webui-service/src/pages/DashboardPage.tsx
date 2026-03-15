@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { PageShell } from '@/components/common/PageShell';
 import { StatsDashboard } from '@/components/admin/StatsDashboard';
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
+import { ScanHistoryPanel } from '@/components/dashboard/ScanHistoryPanel';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -30,12 +31,16 @@ export const DashboardPage: React.FC = () => {
       >
         <Tab label={t('dashboard.tabs.overview')} />
         <Tab label={t('dashboard.tabs.stats')} />
+        <Tab label={t('dashboard.tabs.scan_history', { defaultValue: 'Scan-Verlauf' })} />
       </Tabs>
       <TabPanel value={tab} index={0}>
         <DashboardOverview />
       </TabPanel>
       <TabPanel value={tab} index={1}>
         <StatsDashboard />
+      </TabPanel>
+      <TabPanel value={tab} index={2}>
+        <ScanHistoryPanel />
       </TabPanel>
     </PageShell>
   );

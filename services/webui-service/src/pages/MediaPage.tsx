@@ -5,6 +5,7 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   Tab,
   Tabs,
@@ -28,10 +29,12 @@ import { UploadDialog } from '@/components/media/UploadDialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageShell } from '@/components/common/PageShell';
 import { useToast } from '@/contexts/ToastContext';
+import { useUserPrefs } from '@/contexts/UserPrefsContext';
 import { playlistsApi } from '@/api/playlists';
 import { podcastsApi } from '@/api/podcasts';
 import { streamsApi } from '@/api/streams';
 import { tracksApi } from '@/api/tracks';
+import { tagsApi } from '@/api/tags';
 import type { Playlist, Podcast, Stream, Track } from '@/types/api';
 
 
@@ -48,10 +51,15 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
   </Box>
 );
 
+// Maps tab index to scope key used in UserPrefs
+const TAB_SCOPES = ['playlists', 'tracks', 'streams', 'podcasts'] as const;
+type TabScope = typeof TAB_SCOPES[number];
+
 
 export const MediaPage: React.FC = () => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
+  const { prefs, setSort } = useUserPrefs();
   const [tab, setTab] = useState(0);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -68,6 +76,13 @@ export const MediaPage: React.FC = () => {
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
   const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+
+  // #64 — delete confirmation state
+  const [deleteTarget, setDeleteTarget] = useState<
+    { type: 'track'; item: Track } | { type: 'podcast'; item: Podcast } | null
+  >(null);
+  const [assignedTagNames, setAssignedTagNames] = useState<string[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -94,14 +109,72 @@ export const MediaPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  const handleTrackDelete = async (track: Track) => {
+  // #64 — check tag assignments before deleting
+  const checkAndConfirmDelete = async (
+    target: { type: 'track'; item: Track } | { type: 'podcast'; item: Podcast }
+  ) => {
     try {
-      await tracksApi.delete(track.id);
-      setTracks((prev) => prev.filter((tr) => tr.id !== track.id));
-      showSuccess(t('tracks.deleted'));
+      const allTags = await tagsApi.getAll();
+      const mediaType = target.type;
+      const mediaId = target.item.id;
+      const affected = allTags.filter(
+        (tag) => tag.content_type === mediaType && tag.content_id === mediaId
+      );
+      setAssignedTagNames(affected.map((tg) => tg.name ?? tg.tag_id));
+      setDeleteTarget(target);
+      setDeleteDialogOpen(true);
     } catch {
-      showError(t('tracks.delete_error'));
+      // Fall through: open dialog without tag list
+      setAssignedTagNames([]);
+      setDeleteTarget(target);
+      setDeleteDialogOpen(true);
     }
+  };
+
+  // #64 — perform deletion, optionally unassign tags first
+  const performDelete = async (unassignTags: boolean) => {
+    if (!deleteTarget) return;
+    try {
+      if (unassignTags && assignedTagNames.length > 0) {
+        const allTags = await tagsApi.getAll();
+        const affected = allTags.filter(
+          (tag) =>
+            tag.content_type === deleteTarget.type &&
+            tag.content_id === deleteTarget.item.id
+        );
+        await Promise.all(
+          affected.map((tag) =>
+            tagsApi.update(tag.tag_id, {
+              content_type: tag.content_type,
+              content_id: 0,
+              name: tag.name ?? null,
+              disabled: tag.disabled ?? false,
+            })
+          )
+        );
+      }
+      if (deleteTarget.type === 'track') {
+        await tracksApi.delete(deleteTarget.item.id);
+        setTracks((prev) => prev.filter((tr) => tr.id !== deleteTarget.item.id));
+        showSuccess(t('tracks.deleted'));
+      } else {
+        await podcastsApi.delete(deleteTarget.item.id);
+        setPodcasts((prev) => prev.filter((p) => p.id !== deleteTarget.item.id));
+        showSuccess(t('podcasts.deleted'));
+      }
+    } catch {
+      showError(
+        deleteTarget.type === 'track' ? t('tracks.delete_error') : t('podcasts.delete_error')
+      );
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeleteTarget(null);
+      setAssignedTagNames([]);
+    }
+  };
+
+  const handleTrackDelete = async (track: Track) => {
+    await checkAndConfirmDelete({ type: 'track', item: track });
   };
 
   const handleTrackEdit = (track: Track) => {
@@ -161,6 +234,12 @@ export const MediaPage: React.FC = () => {
         })
         .catch(() => showError(t('tracks.update_error')));
     }
+  };
+
+  // #81 — persist sort state per tab scope
+  const getSortForScope = (scope: TabScope) => prefs.sort[scope] ?? { key: 'title', dir: 'asc' as const };
+  const handleSortChange = (scope: TabScope, key: string, dir: 'asc' | 'desc') => {
+    setSort(scope, key, dir);
   };
 
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
@@ -237,6 +316,9 @@ export const MediaPage: React.FC = () => {
           tracks={tracks}
           onDelete={handleTrackDelete}
           onEdit={handleTrackEdit}
+          sortKey={getSortForScope('tracks').key}
+          sortDir={getSortForScope('tracks').dir}
+          onSortChange={(key, dir) => handleSortChange('tracks', key, dir)}
         />
       </TabPanel>
 
@@ -245,6 +327,9 @@ export const MediaPage: React.FC = () => {
           streams={streams}
           onDelete={handleStreamDelete}
           onUpdate={(s) => setStreams((prev) => prev.map((x) => (x.id === s.id ? s : x)))}
+          sortKey={getSortForScope('streams').key}
+          sortDir={getSortForScope('streams').dir}
+          onSortChange={(key, dir) => handleSortChange('streams', key, dir)}
         />
       </TabPanel>
 
@@ -252,17 +337,62 @@ export const MediaPage: React.FC = () => {
         <PodcastList
           podcasts={podcasts}
           onDelete={async (podcast) => {
-            try {
-              await podcastsApi.delete(podcast.id);
-              setPodcasts((prev) => prev.filter((p) => p.id !== podcast.id));
-              showSuccess(t('podcasts.deleted'));
-            } catch {
-              showError(t('podcasts.delete_error'));
-            }
+            await checkAndConfirmDelete({ type: 'podcast', item: podcast });
           }}
           onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
+          sortKey={getSortForScope('podcasts').key}
+          sortDir={getSortForScope('podcasts').dir}
+          onSortChange={(key, dir) => handleSortChange('podcasts', key, dir)}
         />
       </TabPanel>
+
+      {/* #64 — Delete with tag assignment warning */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>
+          {t('media.delete_confirm_title', { defaultValue: 'Medium löschen?' })}
+        </DialogTitle>
+        <DialogContent>
+          {assignedTagNames.length > 0 ? (
+            <DialogContentText>
+              {t('media.delete_assigned_warning', {
+                defaultValue:
+                  'Dieses Medium ist noch folgenden RFID-Tags zugewiesen:',
+              })}
+              <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                {assignedTagNames.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </Box>
+            </DialogContentText>
+          ) : (
+            <DialogContentText>
+              {t('media.delete_confirm_text', {
+                defaultValue: 'Soll dieses Medium wirklich gelöscht werden?',
+              })}
+            </DialogContentText>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ flexWrap: 'wrap', gap: 1, p: 2 }}>
+          <ActionButton actionType="secondary" onClick={() => setDeleteDialogOpen(false)}>
+            {t('cancel', { ns: 'common' })}
+          </ActionButton>
+          {assignedTagNames.length > 0 && (
+            <ActionButton actionType="destructive" onClick={() => void performDelete(false)}>
+              {t('media.delete_media_only', { defaultValue: 'Nur Medium löschen' })}
+            </ActionButton>
+          )}
+          <ActionButton
+            actionType="destructive"
+            onClick={() => void performDelete(assignedTagNames.length > 0)}
+          >
+            {assignedTagNames.length > 0
+              ? t('media.delete_media_and_unassign', {
+                  defaultValue: 'Medium + Tag-Zuweisung löschen',
+                })
+              : t('delete', { ns: 'common' })}
+          </ActionButton>
+        </DialogActions>
+      </Dialog>
 
       {/* Track Edit Dialog */}
       <Dialog

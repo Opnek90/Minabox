@@ -27,6 +27,7 @@ import { LearnModeButton } from '@/components/rfid/LearnModeButton';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageShell } from '@/components/common/PageShell';
 import { useToast } from '@/contexts/ToastContext';
+import { useUserPrefs } from '@/contexts/UserPrefsContext';
 import { tagsApi } from '@/api/tags';
 import { playlistsApi } from '@/api/playlists';
 import { podcastsApi } from '@/api/podcasts';
@@ -49,6 +50,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
 }) => {
   const { t } = useTranslation('rfid');
   const { showSuccess, showError } = useToast();
+  const { prefs, setViewMode, setSort } = useUserPrefs();
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -59,9 +61,17 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [disabledFilter, setDisabledFilter] = useState<DisabledFilter>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
+
+  // #81 — read initial values from persistent prefs
+  const [sortKey, setSortKey] = useState<SortKey>(
+    (prefs.sort['rfid']?.key as SortKey | undefined) ?? 'name'
+  );
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(
+    prefs.sort['rfid']?.dir ?? 'asc'
+  );
+  const [viewMode, setLocalViewMode] = useState<'card' | 'list'>(
+    (prefs.viewMode['rfid'] as 'card' | 'list' | undefined) ?? 'list'
+  );
 
   const [learnModeActive, setLearnModeActive] = useState(false);
   const [learnModeLoading, setLearnModeLoading] = useState(false);
@@ -195,14 +205,31 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     }
   };
 
+  // #81 — persist sort changes
   const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
     if (!key) return;
     if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      const newDir = sortDir === 'asc' ? 'desc' : 'asc';
+      setSortDir(newDir);
+      setSort('rfid', key, newDir);
     } else {
       setSortKey(key);
       setSortDir('asc');
+      setSort('rfid', key, 'asc');
     }
+  };
+
+  const handleSortDirToggle = () => {
+    const newDir = sortDir === 'asc' ? 'desc' : 'asc';
+    setSortDir(newDir);
+    setSort('rfid', sortKey, newDir);
+  };
+
+  // #81 — persist view mode change
+  const handleViewModeChange = (_: React.MouseEvent, v: 'card' | 'list' | null) => {
+    if (!v) return;
+    setLocalViewMode(v);
+    setViewMode('rfid', v);
   };
 
   const filteredAndSorted = [...tags]
@@ -252,13 +279,13 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         </Alert>
       )}
 
-      {/* Toolbar – 1:1 StreamList pattern */}
+      {/* Toolbar */}
       <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
         {/* View toggle */}
         <ToggleButtonGroup
           value={viewMode}
           exclusive
-          onChange={(_, v) => v && setViewMode(v)}
+          onChange={handleViewModeChange}
           size="small"
         >
           <ToggleButton value="card" aria-label={t('view_mode_card', { defaultValue: 'Kachelansicht' })}>
@@ -300,7 +327,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
           <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
         </ToggleButtonGroup>
 
-        {/* Sort – right-aligned */}
+        {/* Sort */}
         <Box display="flex" alignItems="center" gap={0.5} ml="auto">
           <ToggleButtonGroup
             value={sortKey}
@@ -320,10 +347,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
               ? t('sort.ascending', { defaultValue: 'Aufsteigend' })
               : t('sort.descending', { defaultValue: 'Absteigend' })
           }>
-            <IconButton
-              size="small"
-              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            >
+            <IconButton size="small" onClick={handleSortDirToggle}>
               {sortDir === 'asc' ? (
                 <ArrowUpwardIcon fontSize="small" />
               ) : (
