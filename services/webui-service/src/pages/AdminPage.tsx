@@ -88,6 +88,7 @@ export const AdminPage: React.FC = () => {
             onChange={(_, v) => setHardwareSubTab(v)}
             variant="scrollable"
             scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{
               borderBottom: 1,
               borderColor: 'divider',

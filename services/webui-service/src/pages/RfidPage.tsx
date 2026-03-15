@@ -13,6 +13,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -48,6 +50,8 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
   const { t } = useTranslation('rfid');
   const { showSuccess, showError } = useToast();
   const { prefs, setViewMode, setSort, setFilter } = useUserPrefs();
+  const theme = useTheme();
+  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -254,7 +258,8 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
     >
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
-      <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
+      {/* Toolbar: view mode + search — always in one row */}
+      <Box display="flex" gap={1} mb={1.5} alignItems="center" flexWrap="wrap">
         <ToggleButtonGroup value={viewMode} exclusive onChange={handleViewModeChange} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card', { defaultValue: 'Kachelansicht' })}>
             <ViewModuleIcon />
@@ -272,15 +277,26 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
           InputProps={{
             startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
           }}
-          sx={{ minWidth: 200 }}
+          sx={{ flex: 1, minWidth: 120 }}
         />
+      </Box>
 
+      {/* Toolbar: filter + sort — wraps to own row on mobile */}
+      <Box display="flex" gap={1} mb={2} alignItems="center" flexWrap="wrap">
         <ToggleButtonGroup
           value={tagFilter}
           exclusive
           onChange={handleFilterChange}
           size="small"
           aria-label={t('filter.label')}
+          sx={{
+            flexWrap: 'wrap',
+            '& .MuiToggleButton-root': {
+              px: isSmall ? 1 : 1.5,
+              fontSize: isSmall ? '0.7rem' : undefined,
+              minWidth: isSmall ? 'unset' : undefined,
+            },
+          }}
         >
           <ToggleButton value="all">{t('filter.all')}</ToggleButton>
           <ToggleButton value="active">{t('filter.active')}</ToggleButton>
@@ -289,7 +305,18 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
         </ToggleButtonGroup>
 
         <Box display="flex" alignItems="center" gap={0.5} ml="auto">
-          <ToggleButtonGroup value={sortKey} exclusive onChange={handleSortKey} size="small">
+          <ToggleButtonGroup
+            value={sortKey}
+            exclusive
+            onChange={handleSortKey}
+            size="small"
+            sx={{
+              '& .MuiToggleButton-root': {
+                px: isSmall ? 1 : 1.5,
+                fontSize: isSmall ? '0.7rem' : undefined,
+              },
+            }}
+          >
             <ToggleButton value="name">{t('sort.name')}</ToggleButton>
             <ToggleButton value="last_scanned_at">{t('sort.last_scanned')}</ToggleButton>
           </ToggleButtonGroup>

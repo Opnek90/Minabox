@@ -257,7 +257,14 @@ export const MediaPage: React.FC = () => {
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>
       )}
 
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <Tabs
+        value={tab}
+        onChange={(_, v) => setTab(v)}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+        sx={{ borderBottom: 1, borderColor: 'divider' }}
+      >
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />
         <Tab label={t('tabs.streams', { defaultValue: 'Streams' })} />
