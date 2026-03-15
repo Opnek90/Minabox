@@ -38,6 +38,29 @@ class PlaybackEvent(Base):
     listened_ms = Column(Integer, nullable=True)
 
 
+class TagScanEvent(Base):
+    """One RFID scan event — recorded for every tag scan attempt (issue #72)."""
+
+    __tablename__ = "tag_scan_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # Raw tag UID (always present, even if tag is unknown)
+    tag_uid = Column(String(32), nullable=False, index=True)
+    # Denormalised snapshot so history survives tag renames / deletions
+    tag_name = Column(String(255), nullable=True)
+    media_title = Column(String(512), nullable=True)
+    media_type = Column(String(16), nullable=True)  # 'track', 'stream', 'playlist', 'podcast', None
+    # 'play' | 'blocked' | 'unassigned'
+    action = Column(String(16), nullable=False)
+    scanned_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    def __repr__(self) -> str:
+        return (
+            f"<TagScanEvent(id={self.id}, tag_uid={self.tag_uid!r}, "
+            f"action={self.action!r}, scanned_at={self.scanned_at})>"
+        )
+
+
 class Tag(Base):
     """RFID tag to content mapping."""
 

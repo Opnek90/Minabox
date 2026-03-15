@@ -10,6 +10,7 @@ from backend_service.api import (
     routes_playlists,
     routes_podcasts,
     routes_rfid,
+    routes_scan_history,
     routes_streams,
     routes_stats,
     routes_system,
@@ -35,5 +36,8 @@ api_router.include_router(routes_config.router, prefix="/config", tags=["Config"
 api_router.include_router(routes_stats.router, prefix="/stats", tags=["Stats"])
 api_router.include_router(routes_system.router, prefix="/system", tags=["System"])
 api_router.include_router(routes_host.router, prefix="/system", tags=["System"])
+api_router.include_router(
+    routes_scan_history.router, prefix="/scan-history", tags=["Scan History"]
+)
 
 __all__ = ["api_router"]

@@ -31,6 +31,7 @@ from backend_service.models.database import (
     PodcastEpisode,
     Stream,
     Tag,
+    TagScanEvent,
     Track,
 )
 
@@ -40,6 +41,31 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 TAG_SCAN_COOLDOWN_SEC = 5.0
+
+
+def _record_scan_event(
+    session: Session,
+    tag_uid: str,
+    action: str,
+    tag_name: str | None = None,
+    media_title: str | None = None,
+    media_type: str | None = None,
+) -> None:
+    """Persist a TagScanEvent row. Silently swallows errors so it never breaks playback."""
+    try:
+        event = TagScanEvent(
+            tag_uid=tag_uid,
+            tag_name=tag_name,
+            media_title=media_title,
+            media_type=media_type,
+            action=action,
+            scanned_at=datetime.now(UTC),
+        )
+        session.add(event)
+        session.commit()
+    except Exception as exc:  # pragma: no cover
+        logger.warning("scan_event_record_failed", error=str(exc))
+        session.rollback()
 
 
 class RFIDHandler:
@@ -85,6 +111,8 @@ class RFIDHandler:
 
             if not tag:
                 logger.warning("tag_not_found", tag_id=tag_id)
+                # Record scan event: unassigned
+                _record_scan_event(session, tag_uid=tag_id, action="unassigned")
                 unknown_tag_topic = self.dispatcher.mqtt_client.config.get_mqtt_topic("rfid", "unknown-tag")
                 await self.dispatcher.mqtt_client.publish(
                     unknown_tag_topic,
@@ -102,6 +130,8 @@ class RFIDHandler:
             # Issue #63: blocked tag — no playback, fire tag_blocked event instead
             if tag.disabled:
                 logger.info("tag_blocked", tag_id=tag_id, name=tag.name)
+                # Record scan event: blocked
+                _record_scan_event(session, tag_uid=tag_id, action="blocked", tag_name=tag.name)
                 blocked_topic = self.dispatcher.mqtt_client.config.get_mqtt_topic("rfid", "tag-blocked")
                 now_ts = datetime.now(UTC).isoformat()
                 await self.dispatcher.mqtt_client.publish(
@@ -147,6 +177,31 @@ class RFIDHandler:
             self.tag_scan_cooldown_until = {
                 tid: until for tid, until in self.tag_scan_cooldown_until.items() if until > now_sec
             }
+
+            # Resolve media title for scan event (best-effort)
+            media_title: str | None = None
+            if tag.content_type == "track":
+                track_obj = session.query(Track).filter(Track.id == tag.content_id).first()
+                media_title = track_obj.title if track_obj else None
+            elif tag.content_type == "stream":
+                stream_obj = session.query(Stream).filter(Stream.id == tag.content_id).first()
+                media_title = stream_obj.title if stream_obj else None
+            elif tag.content_type == "playlist":
+                pl_obj = session.query(Playlist).filter(Playlist.id == tag.content_id).first()
+                media_title = pl_obj.name if pl_obj else None
+            elif tag.content_type == "podcast":
+                pod_obj = session.query(Podcast).filter(Podcast.id == tag.content_id).first()
+                media_title = pod_obj.title if pod_obj else None
+
+            # Record scan event: play
+            _record_scan_event(
+                session,
+                tag_uid=tag_id,
+                action="play",
+                tag_name=tag.name,
+                media_title=media_title,
+                media_type=tag.content_type,
+            )
 
             tag_db_id = tag.id
             if tag.content_type == "playlist":
