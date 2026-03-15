@@ -11,6 +11,7 @@ export interface SortState {
 export interface UserPrefs {
   viewMode: Record<string, ViewMode>;
   sort: Record<string, SortState>;
+  filter: Record<string, string>;
 }
 
 const STORAGE_KEY = 'minabox.prefs';
@@ -21,13 +22,17 @@ const DEFAULTS: UserPrefs = {
     tracks: 'list',
     playlists: 'card',
     streams: 'list',
-    podcasts: 'card',
+    podcasts: 'list',
   },
   sort: {
     rfid: { key: 'name', dir: 'asc' },
     tracks: { key: 'title', dir: 'asc' },
     streams: { key: 'title', dir: 'asc' },
     podcasts: { key: 'title', dir: 'asc' },
+  },
+  filter: {
+    rfid: 'all',
+    tracks: 'all',
   },
 };
 
@@ -39,6 +44,7 @@ function loadPrefs(): UserPrefs {
     return {
       viewMode: { ...DEFAULTS.viewMode, ...(parsed.viewMode ?? {}) },
       sort: { ...DEFAULTS.sort, ...(parsed.sort ?? {}) },
+      filter: { ...DEFAULTS.filter, ...(parsed.filter ?? {}) },
     };
   } catch {
     return DEFAULTS;
@@ -49,6 +55,7 @@ interface UserPrefsContextType {
   prefs: UserPrefs;
   setViewMode: (scope: string, mode: ViewMode) => void;
   setSort: (scope: string, key: string, dir: SortDir) => void;
+  setFilter: (scope: string, value: string) => void;
   resetPrefs: () => void;
 }
 
@@ -56,11 +63,11 @@ const UserPrefsCtx = createContext<UserPrefsContextType>({
   prefs: DEFAULTS,
   setViewMode: () => undefined,
   setSort: () => undefined,
+  setFilter: () => undefined,
   resetPrefs: () => undefined,
 });
 
 export const UserPrefsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Synchronous read from localStorage on first render — no flash
   const [prefs, setPrefs] = useState<UserPrefs>(loadPrefs);
 
   useEffect(() => {
@@ -81,13 +88,20 @@ export const UserPrefsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   }, []);
 
+  const setFilter = useCallback((scope: string, value: string) => {
+    setPrefs((prev) => ({
+      ...prev,
+      filter: { ...prev.filter, [scope]: value },
+    }));
+  }, []);
+
   const resetPrefs = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setPrefs(DEFAULTS);
   }, []);
 
   return (
-    <UserPrefsCtx.Provider value={{ prefs, setViewMode, setSort, resetPrefs }}>
+    <UserPrefsCtx.Provider value={{ prefs, setViewMode, setSort, setFilter, resetPrefs }}>
       {children}
     </UserPrefsCtx.Provider>
   );

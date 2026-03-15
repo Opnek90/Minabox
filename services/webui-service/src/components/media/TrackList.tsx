@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Avatar,
   Box,
@@ -38,12 +38,22 @@ import { ActionButton } from '@/components/ui/ActionButton';
 
 
 type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
+type FilterSource = 'all' | 'file' | 'remote';
 
 
 interface TrackListProps {
   tracks: Track[];
   onDelete: (track: Track) => void;
   onEdit?: (track: Track) => void;
+  // Persisted state — controlled by parent
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onSortChange: (key: string, dir: 'asc' | 'desc') => void;
+  viewMode: 'card' | 'list';
+  onViewModeChange: (mode: 'card' | 'list') => void;
+  filter: string;
+  onFilterChange: (filter: string) => void;
+  // Selection mode
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
 }
@@ -67,15 +77,22 @@ export const TrackList: React.FC<TrackListProps> = ({
   tracks,
   onDelete,
   onEdit,
+  sortKey,
+  sortDir,
+  onSortChange,
+  viewMode,
+  onViewModeChange,
+  filter,
+  onFilterChange,
   selectionMode = false,
   onSelect,
 }) => {
   const { t } = useTranslation('media');
-  const [search, setSearch] = useState('');
-  const [filterSource, setFilterSource] = useState<'all' | 'file' | 'remote'>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('title');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
+  // search is intentionally NOT persisted (ephemeral)
+  const [search, setSearch] = React.useState('');
+
+  const typedSortKey = sortKey as SortKey;
+  const typedFilter = filter as FilterSource;
 
   const filtered = tracks.filter((tr) => {
     const q = search.toLowerCase();
@@ -83,21 +100,20 @@ export const TrackList: React.FC<TrackListProps> = ({
       tr.title.toLowerCase().includes(q) ||
       (tr.artist ?? '').toLowerCase().includes(q) ||
       (tr.album ?? '').toLowerCase().includes(q);
-    const matchesFilter =
-      filterSource === 'all' || tr.source_type === filterSource;
+    const matchesFilter = typedFilter === 'all' || tr.source_type === typedFilter;
     return matchesSearch && matchesFilter;
   });
 
   const sorted = [...filtered].sort((a, b) => {
     let aVal: string | number;
     let bVal: string | number;
-    if (sortKey === 'duration_ms') {
+    if (typedSortKey === 'duration_ms') {
       aVal = a.duration_ms ?? 0;
       bVal = b.duration_ms ?? 0;
-    } else if (sortKey === 'last_played_at') {
+    } else if (typedSortKey === 'last_played_at') {
       aVal = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
       bVal = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
-    } else if (sortKey === 'artist') {
+    } else if (typedSortKey === 'artist') {
       aVal = (a.artist ?? '').toLowerCase();
       bVal = (b.artist ?? '').toLowerCase();
     } else {
@@ -111,11 +127,10 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
     if (!key) return;
-    if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    if (key === typedSortKey) {
+      onSortChange(key, sortDir === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortKey(key);
-      setSortDir('asc');
+      onSortChange(key, 'asc');
     }
   };
 
@@ -127,7 +142,6 @@ export const TrackList: React.FC<TrackListProps> = ({
     );
   }
 
-  // Row renderer for standard list view
   const renderListItem = (index: number, track: Track) => (
     <ListItem
       key={track.id}
@@ -136,11 +150,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         !selectionMode && (
           <Box>
             <Tooltip title={t('tracks.play')}>
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => audioApi.play({ track_id: track.id })}
-              >
+              <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
                 <PlayArrowIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -152,79 +162,41 @@ export const TrackList: React.FC<TrackListProps> = ({
               </Tooltip>
             )}
             <Tooltip title={t('tracks.delete')}>
-              <IconButton
-                size="small"
-                color="error"
-                onClick={() => onDelete(track)}
-              >
+              <IconButton size="small" color="error" onClick={() => onDelete(track)}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
         )
       }
-      sx={
-        selectionMode
-          ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }
-          : undefined
-      }
+      sx={selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : undefined}
       onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
     >
       <ListItemAvatar sx={{ minWidth: 44 }}>
         {track.cover_art_url ? (
-          <Avatar
-            src={track.cover_art_url}
-            variant="rounded"
-            sx={{ width: 40, height: 40 }}
-          >
+          <Avatar src={track.cover_art_url} variant="rounded" sx={{ width: 40, height: 40 }}>
             <AudiotrackIcon />
           </Avatar>
         ) : (
           <Avatar variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'action.selected' }}>
-            {track.source_type === 'remote' ? (
-              <LinkIcon fontSize="small" />
-            ) : (
-              <AudiotrackIcon fontSize="small" />
-            )}
+            {track.source_type === 'remote' ? <LinkIcon fontSize="small" /> : <AudiotrackIcon fontSize="small" />}
           </Avatar>
         )}
       </ListItemAvatar>
       <ListItemText
         primary={track.title}
         secondary={
-          <Box
-            component="span"
-            display="flex"
-            gap={1}
-            alignItems="center"
-            flexWrap="wrap"
-          >
-            {track.artist && (
-              <Typography component="span" variant="caption">
-                {track.artist}
-              </Typography>
-            )}
-            {track.album && (
-              <Typography component="span" variant="caption" color="text.disabled">
-                · {track.album}
-              </Typography>
-            )}
+          <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
+            {track.artist && <Typography component="span" variant="caption">{track.artist}</Typography>}
+            {track.album && <Typography component="span" variant="caption" color="text.disabled">· {track.album}</Typography>}
             {track.duration_ms != null && (
-              <Chip
-                label={formatTime(track.duration_ms)}
-                size="small"
-                variant="outlined"
-                sx={{ height: 18, fontSize: '0.65rem' }}
-              />
+              <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
             )}
             {track.last_played_at && (
               <Typography component="span" variant="caption" color="text.disabled">
                 ·{' '}
                 {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                  -Math.round(
-                    (Date.now() - new Date(track.last_played_at).getTime()) /
-                      3_600_000
-                  ),
+                  -Math.round((Date.now() - new Date(track.last_played_at).getTime()) / 3_600_000),
                   'hour'
                 )}
               </Typography>
@@ -235,29 +207,15 @@ export const TrackList: React.FC<TrackListProps> = ({
     </ListItem>
   );
 
-  // Item renderer for grid view
   const renderGridItem = (_index: number, track: Track) => (
     <Box sx={{ p: 1, height: '100%' }}>
-      <Card
-        variant="outlined"
-        sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
-      >
+      <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {track.cover_art_url && (
-          <CardMedia
-            component="img"
-            height="120"
-            image={track.cover_art_url}
-            alt={track.title}
-            sx={{ objectFit: 'cover' }}
-          />
+          <CardMedia component="img" height="120" image={track.cover_art_url} alt={track.title} sx={{ objectFit: 'cover' }} />
         )}
         <CardContent sx={{ pb: 0, flex: 1 }}>
           <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
-            {track.source_type === 'remote' ? (
-              <LinkIcon fontSize="small" color="primary" />
-            ) : (
-              <AudiotrackIcon fontSize="small" color="primary" />
-            )}
+            {track.source_type === 'remote' ? <LinkIcon fontSize="small" color="primary" /> : <AudiotrackIcon fontSize="small" color="primary" />}
             {track.title}
           </Typography>
           {(track.artist || track.album) && (
@@ -266,23 +224,14 @@ export const TrackList: React.FC<TrackListProps> = ({
             </Typography>
           )}
           {track.duration_ms != null && (
-            <Chip
-              label={formatTime(track.duration_ms)}
-              size="small"
-              variant="outlined"
-              sx={{ mt: 1 }}
-            />
+            <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined" sx={{ mt: 1 }} />
           )}
         </CardContent>
         <CardActions sx={{ pt: 0 }}>
           {!selectionMode && (
             <>
               <Tooltip title={t('tracks.play')}>
-                <IconButton
-                  size="small"
-                  color="primary"
-                  onClick={() => audioApi.play({ track_id: track.id })}
-                >
+                <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
                   <PlayArrowIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -311,34 +260,28 @@ export const TrackList: React.FC<TrackListProps> = ({
         <ToggleButtonGroup
           value={viewMode}
           exclusive
-          onChange={(_, v) => v && setViewMode(v)}
+          onChange={(_, v) => v && onViewModeChange(v)}
           size="small"
         >
-          <ToggleButton value="card" aria-label={t('view_mode_card')}>
-            <ViewModuleIcon />
-          </ToggleButton>
-          <ToggleButton value="list" aria-label={t('view_mode_list')}>
-            <ViewListIcon />
-          </ToggleButton>
+          <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon /></ToggleButton>
+          <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon /></ToggleButton>
         </ToggleButtonGroup>
+
         <TextField
           placeholder={t('track_selector.search_placeholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           size="small"
           InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
+            startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
           }}
           sx={{ minWidth: 200 }}
         />
+
         <ToggleButtonGroup
-          value={filterSource}
+          value={typedFilter}
           exclusive
-          onChange={(_, v) => v && setFilterSource(v)}
+          onChange={(_, v) => v && onFilterChange(v)}
           size="small"
         >
           <ToggleButton value="all">{t('tracks.filter.all')}</ToggleButton>
@@ -346,29 +289,16 @@ export const TrackList: React.FC<TrackListProps> = ({
           <ToggleButton value="remote">{t('tracks.filter.remote', { defaultValue: 'Remote' })}</ToggleButton>
         </ToggleButtonGroup>
 
-        {/* Sort controls */}
         <Box display="flex" alignItems="center" gap={0.5} ml="auto">
-          <ToggleButtonGroup
-            value={sortKey}
-            exclusive
-            onChange={handleSortKey}
-            size="small"
-          >
+          <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey} size="small">
             <ToggleButton value="title">{t('tracks.fields.title')}</ToggleButton>
             <ToggleButton value="artist">{t('tracks.fields.artist')}</ToggleButton>
             <ToggleButton value="duration_ms">{t('tracks.fields.duration')}</ToggleButton>
             <ToggleButton value="last_played_at">{t('tracks.fields.last_played')}</ToggleButton>
           </ToggleButtonGroup>
           <Tooltip title={t(`tracks.sort.${sortDir}`)}>
-            <IconButton
-              size="small"
-              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            >
-              {sortDir === 'asc' ? (
-                <ArrowUpwardIcon fontSize="small" />
-              ) : (
-                <ArrowDownwardIcon fontSize="small" />
-              )}
+            <IconButton size="small" onClick={() => onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc')}>
+              {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
         </Box>
