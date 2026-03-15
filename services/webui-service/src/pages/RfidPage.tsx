@@ -1,16 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  Box,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
+  IconButton,
   InputAdornment,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
 } from '@mui/material';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
@@ -29,6 +34,7 @@ import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
 
 type DisabledFilter = 'all' | 'active' | 'blocked';
+type SortKey = 'name' | 'last_scanned_at';
 
 interface RfidPageProps {
   pendingTagId?: string | null;
@@ -51,6 +57,8 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [disabledFilter, setDisabledFilter] = useState<DisabledFilter>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [learnModeActive, setLearnModeActive] = useState(false);
   const [learnModeLoading, setLearnModeLoading] = useState(false);
@@ -184,18 +192,42 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     }
   };
 
-  const filteredTags = tags.filter((tag) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      tag.tag_id.toLowerCase().includes(q) ||
-      (tag.name ?? '').toLowerCase().includes(q);
-    if (!matchesSearch) return false;
+  const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
+    if (!key) return;
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
-    const isDisabled = tag.disabled ?? false;
-    if (disabledFilter === 'active') return !isDisabled;
-    if (disabledFilter === 'blocked') return isDisabled;
-    return true;
-  });
+  const filteredAndSorted = [...tags]
+    .filter((tag) => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        tag.tag_id.toLowerCase().includes(q) ||
+        (tag.name ?? '').toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+      const isDisabled = tag.disabled ?? false;
+      if (disabledFilter === 'active') return !isDisabled;
+      if (disabledFilter === 'blocked') return isDisabled;
+      return true;
+    })
+    .sort((a, b) => {
+      let aVal: string | number;
+      let bVal: string | number;
+      if (sortKey === 'last_scanned_at') {
+        aVal = a.last_scanned_at ? new Date(a.last_scanned_at).getTime() : 0;
+        bVal = b.last_scanned_at ? new Date(b.last_scanned_at).getTime() : 0;
+      } else {
+        aVal = (a.name ?? a.tag_id).toLowerCase();
+        bVal = (b.name ?? b.tag_id).toLowerCase();
+      }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
 
@@ -217,40 +249,72 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         </Alert>
       )}
 
-      {/* Filter + Search */}
-      <ToggleButtonGroup
-        value={disabledFilter}
-        exclusive
-        onChange={(_e, val: DisabledFilter | null) => {
-          if (val !== null) setDisabledFilter(val);
-        }}
-        size="small"
-        sx={{ mb: 2 }}
-        aria-label={t('filter.label')}
-      >
-        <ToggleButton value="all">{t('filter.all')}</ToggleButton>
-        <ToggleButton value="active">{t('filter.active')}</ToggleButton>
-        <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
-      </ToggleButtonGroup>
+      {/* Toolbar: Filter + Search */}
+      <Box display="flex" alignItems="center" gap={1} mb={2} flexWrap="wrap">
+        <ToggleButtonGroup
+          value={disabledFilter}
+          exclusive
+          onChange={(_e, val: DisabledFilter | null) => {
+            if (val !== null) setDisabledFilter(val);
+          }}
+          size="small"
+          aria-label={t('filter.label')}
+        >
+          <ToggleButton value="all">{t('filter.all')}</ToggleButton>
+          <ToggleButton value="active">{t('filter.active')}</ToggleButton>
+          <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+        </ToggleButtonGroup>
 
-      <TextField
-        placeholder={t('search_placeholder')}
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        size="small"
-        fullWidth
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon />
-            </InputAdornment>
-          ),
-        }}
-        sx={{ mb: 3, maxWidth: 400 }}
-      />
+        <TextField
+          placeholder={t('search_placeholder')}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          size="small"
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ minWidth: 200 }}
+        />
+
+        {/* Sort controls – rechts bündig */}
+        <Box display="flex" alignItems="center" gap={0.5} ml="auto">
+          <ToggleButtonGroup
+            value={sortKey}
+            exclusive
+            onChange={handleSortKey}
+            size="small"
+          >
+            <ToggleButton value="name">
+              {t('sort.name', { defaultValue: 'Name' })}
+            </ToggleButton>
+            <ToggleButton value="last_scanned_at">
+              {t('sort.last_scanned', { defaultValue: 'Zuletzt gespielt' })}
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <Tooltip title={sortDir === 'asc'
+            ? t('sort.ascending', { defaultValue: 'Aufsteigend' })
+            : t('sort.descending', { defaultValue: 'Absteigend' })
+          }>
+            <IconButton
+              size="small"
+              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            >
+              {sortDir === 'asc' ? (
+                <ArrowUpwardIcon fontSize="small" />
+              ) : (
+                <ArrowDownwardIcon fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
 
       <TagList
-        tags={filteredTags}
+        tags={filteredAndSorted}
         playlists={playlists}
         tracks={tracks}
         streams={streams}
