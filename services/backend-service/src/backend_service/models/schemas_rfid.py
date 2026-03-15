@@ -1,47 +1,31 @@
-"""Pydantic schemas for RFID-related endpoints."""
-
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from .schemas_enums import RFIDMode
 
 
-class TagBase(BaseModel):
-    """Base schema for RFID tags."""
+class RFIDLearningModeCommand(BaseModel):
+    """Schema for RFID learning mode command."""
 
-    name: Optional[str] = None
-    content_type: str
-    content_id: int
-    disabled: bool = False
+    enabled: bool = Field(..., description="Enable/disable learning mode")
 
 
-class TagCreate(TagBase):
-    """Schema for creating a new tag."""
+class RFIDScanEvent(BaseModel):
+    """Schema for RFID scan event."""
 
     tag_id: str
+    reader_id: str = "pn532_01"
+    timestamp: datetime
 
 
-class TagUpdate(BaseModel):
-    """Schema for updating an existing tag."""
+class RFIDModeResponse(BaseModel):
+    """Schema representing the current RFID reader mode."""
 
-    name: Optional[str] = None
-    content_type: Optional[str] = None
-    content_id: Optional[int] = None
-    disabled: Optional[bool] = None
-
-
-class TagResponse(TagBase):
-    """Schema for returning a tag."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    tag_id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    last_scanned_at: Optional[datetime] = None
+    mode: RFIDMode
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +39,7 @@ class TagScanEventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    tag_id: str  # exposed as tag_id for frontend consistency (maps from tag_uid)
+    tag_id: str  # maps from DB column tag_uid
     tag_name: Optional[str] = None
     media_title: Optional[str] = None
     media_type: Optional[str] = None
@@ -74,3 +58,11 @@ class TagScanEventResponse(BaseModel):
             action=event.action,  # type: ignore[attr-defined]
             scanned_at=event.scanned_at,  # type: ignore[attr-defined]
         )
+
+
+__all__ = [
+    "RFIDLearningModeCommand",
+    "RFIDScanEvent",
+    "RFIDModeResponse",
+    "TagScanEventResponse",
+]
