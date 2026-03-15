@@ -7,11 +7,6 @@ import {
   CardContent,
   CardMedia,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   Grid,
   IconButton,
   InputAdornment,
@@ -78,7 +73,6 @@ export const TrackList: React.FC<TrackListProps> = ({
   const { t } = useTranslation('media');
   const [search, setSearch] = useState('');
   const [filterSource, setFilterSource] = useState<'all' | 'file' | 'remote'>('all');
-  const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
@@ -161,7 +155,7 @@ export const TrackList: React.FC<TrackListProps> = ({
               <IconButton
                 size="small"
                 color="error"
-                onClick={() => setTrackToDelete(track)}
+                onClick={() => onDelete(track)}
               >
                 <DeleteIcon fontSize="small" />
               </IconButton>
@@ -300,7 +294,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </Tooltip>
               )}
               <Tooltip title={t('tracks.delete')}>
-                <IconButton size="small" color="error" onClick={() => setTrackToDelete(track)}>
+                <IconButton size="small" color="error" onClick={() => onDelete(track)}>
                   <DeleteIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -365,9 +359,7 @@ export const TrackList: React.FC<TrackListProps> = ({
             <ToggleButton value="duration_ms">{t('tracks.fields.duration')}</ToggleButton>
             <ToggleButton value="last_played_at">{t('tracks.fields.last_played')}</ToggleButton>
           </ToggleButtonGroup>
-          <Tooltip
-            title={t(`tracks.sort.${sortDir}`)}
-          >
+          <Tooltip title={t(`tracks.sort.${sortDir}`)}>
             <IconButton
               size="small"
               onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
@@ -398,34 +390,6 @@ export const TrackList: React.FC<TrackListProps> = ({
           />
         )}
       </Box>
-
-      {/* Delete Confirmation */}
-      <Dialog open={!!trackToDelete} onClose={() => setTrackToDelete(null)}>
-        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-          {t('tracks.delete')}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {t('tracks.delete_confirm', { title: trackToDelete?.title })}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <ActionButton actionType="secondary" onClick={() => setTrackToDelete(null)}>
-            {t('cancel', { ns: 'common' })}
-          </ActionButton>
-          <ActionButton
-            actionType="destructive"
-            onClick={() => {
-              if (trackToDelete) {
-                onDelete(trackToDelete);
-                setTrackToDelete(null);
-              }
-            }}
-          >
-            {t('delete', { ns: 'common' })}
-          </ActionButton>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

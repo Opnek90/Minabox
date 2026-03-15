@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Button,
   Card,
   CardActions,
   CardContent,
   CardMedia,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   Divider,
   Grid,
   IconButton,
@@ -49,7 +43,6 @@ interface PodcastListProps {
 export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, onUpdate }) => {
   const { t } = useTranslation('media');
   const [search, setSearch] = useState('');
-  const [podcastToDelete, setPodcastToDelete] = useState<Podcast | null>(null);
   const [podcastToEdit, setPodcastToEdit] = useState<Podcast | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -196,7 +189,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, on
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('tracks.delete')}>
-                    <IconButton size="small" color="error" onClick={() => setPodcastToDelete(podcast)}>
+                    <IconButton size="small" color="error" onClick={() => onDelete(podcast)}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -231,7 +224,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, on
                     <IconButton
                       size="small"
                       color="error"
-                      onClick={() => setPodcastToDelete(podcast)}
+                      onClick={() => onDelete(podcast)}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -299,34 +292,6 @@ export const PodcastList: React.FC<PodcastListProps> = ({ podcasts, onDelete, on
         ))}
       </List>
       )}
-
-      <Dialog open={!!podcastToDelete} onClose={() => setPodcastToDelete(null)}>
-        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-          {t('podcasts.delete')}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {t('podcasts.delete_confirm', { title: podcastToDelete?.title })}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPodcastToDelete(null)}>
-            {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() => {
-              if (podcastToDelete) {
-                onDelete(podcastToDelete);
-                setPodcastToDelete(null);
-              }
-            }}
-          >
-            {t('delete', { ns: 'common' })}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <PodcastEditDialog
         open={!!podcastToEdit}

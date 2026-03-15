@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Button,
   Card,
   CardActions,
   CardContent,
   CardMedia,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   Divider,
   Grid,
   IconButton,
@@ -49,7 +43,6 @@ interface StreamListProps {
 export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpdate }) => {
   const { t } = useTranslation('media');
   const [search, setSearch] = useState('');
-  const [streamToDelete, setStreamToDelete] = useState<Stream | null>(null);
   const [streamToEdit, setStreamToEdit] = useState<Stream | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -196,7 +189,7 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('tracks.delete')}>
-                    <IconButton size="small" color="error" onClick={() => setStreamToDelete(stream)}>
+                    <IconButton size="small" color="error" onClick={() => onDelete(stream)}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -231,7 +224,7 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
                     <IconButton
                       size="small"
                       color="error"
-                      onClick={() => setStreamToDelete(stream)}
+                      onClick={() => onDelete(stream)}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -286,36 +279,6 @@ export const StreamList: React.FC<StreamListProps> = ({ streams, onDelete, onUpd
         ))}
       </List>
       )}
-
-      <Dialog open={!!streamToDelete} onClose={() => setStreamToDelete(null)}>
-        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-          {t('streams.delete')}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {t('streams.delete_confirm', {
-              title: streamToDelete?.title,
-            })}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setStreamToDelete(null)}>
-            {t('cancel', { ns: 'common' })}
-          </Button>
-          <Button
-            onClick={() => {
-              if (streamToDelete) {
-                onDelete(streamToDelete);
-                setStreamToDelete(null);
-              }
-            }}
-            color="error"
-            variant="contained"
-          >
-            {t('delete', { ns: 'common' })}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <StreamEditDialog
         open={!!streamToEdit}
