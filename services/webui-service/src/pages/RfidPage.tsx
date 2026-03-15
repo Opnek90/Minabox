@@ -17,6 +17,8 @@ import {
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import SearchIcon from '@mui/icons-material/Search';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { TagList } from '@/components/rfid/TagList';
@@ -59,6 +61,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   const [disabledFilter, setDisabledFilter] = useState<DisabledFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
 
   const [learnModeActive, setLearnModeActive] = useState(false);
   const [learnModeLoading, setLearnModeLoading] = useState(false);
@@ -249,22 +252,24 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         </Alert>
       )}
 
-      {/* Toolbar: Filter + Search */}
-      <Box display="flex" alignItems="center" gap={1} mb={2} flexWrap="wrap">
+      {/* Toolbar – 1:1 StreamList pattern */}
+      <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
+        {/* View toggle */}
         <ToggleButtonGroup
-          value={disabledFilter}
+          value={viewMode}
           exclusive
-          onChange={(_e, val: DisabledFilter | null) => {
-            if (val !== null) setDisabledFilter(val);
-          }}
+          onChange={(_, v) => v && setViewMode(v)}
           size="small"
-          aria-label={t('filter.label')}
         >
-          <ToggleButton value="all">{t('filter.all')}</ToggleButton>
-          <ToggleButton value="active">{t('filter.active')}</ToggleButton>
-          <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+          <ToggleButton value="card" aria-label={t('view_mode_card', { defaultValue: 'Kachelansicht' })}>
+            <ViewModuleIcon />
+          </ToggleButton>
+          <ToggleButton value="list" aria-label={t('view_mode_list', { defaultValue: 'Listenansicht' })}>
+            <ViewListIcon />
+          </ToggleButton>
         </ToggleButtonGroup>
 
+        {/* Search */}
         <TextField
           placeholder={t('search_placeholder')}
           value={searchQuery}
@@ -280,7 +285,22 @@ export const RfidPage: React.FC<RfidPageProps> = ({
           sx={{ minWidth: 200 }}
         />
 
-        {/* Sort controls – rechts bündig */}
+        {/* Filter */}
+        <ToggleButtonGroup
+          value={disabledFilter}
+          exclusive
+          onChange={(_e, val: DisabledFilter | null) => {
+            if (val !== null) setDisabledFilter(val);
+          }}
+          size="small"
+          aria-label={t('filter.label')}
+        >
+          <ToggleButton value="all">{t('filter.all')}</ToggleButton>
+          <ToggleButton value="active">{t('filter.active')}</ToggleButton>
+          <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+        </ToggleButtonGroup>
+
+        {/* Sort – right-aligned */}
         <Box display="flex" alignItems="center" gap={0.5} ml="auto">
           <ToggleButtonGroup
             value={sortKey}
@@ -295,9 +315,10 @@ export const RfidPage: React.FC<RfidPageProps> = ({
               {t('sort.last_scanned', { defaultValue: 'Zuletzt gespielt' })}
             </ToggleButton>
           </ToggleButtonGroup>
-          <Tooltip title={sortDir === 'asc'
-            ? t('sort.ascending', { defaultValue: 'Aufsteigend' })
-            : t('sort.descending', { defaultValue: 'Absteigend' })
+          <Tooltip title={
+            sortDir === 'asc'
+              ? t('sort.ascending', { defaultValue: 'Aufsteigend' })
+              : t('sort.descending', { defaultValue: 'Absteigend' })
           }>
             <IconButton
               size="small"
@@ -319,6 +340,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         tracks={tracks}
         streams={streams}
         podcasts={podcasts}
+        viewMode={viewMode}
         onEdit={handleEditOpen}
         onDelete={setDeleteTag}
         onToggleDisabled={handleToggleDisabled}

@@ -56,15 +56,35 @@ export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDe
       variant="outlined"
       sx={{
         borderRadius: 2,
-        opacity: isDisabled ? 0.65 : 1,
-        borderColor: isDisabled ? 'text.disabled' : undefined,
+        position: 'relative',
+        overflow: 'hidden',
+        borderColor: isDisabled ? 'error.main' : undefined,
+        bgcolor: isDisabled ? 'error.50' : undefined,
+        // Fallback for themes without error.50 token
+        background: isDisabled
+          ? (theme) => `color-mix(in srgb, ${theme.palette.error.main} 8%, ${theme.palette.background.paper})`
+          : undefined,
       }}
     >
-      <CardContent>
+      {/* Red accent bar at top when blocked */}
+      {isDisabled && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            bgcolor: 'error.main',
+          }}
+        />
+      )}
+
+      <CardContent sx={{ pt: isDisabled ? 2.5 : 2 }}>
         <Box display="flex" alignItems="flex-start" justifyContent="space-between" gap={1}>
           <Box flex={1} minWidth={0}>
             <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
-              <NfcIcon fontSize="small" color={isDisabled ? 'disabled' : 'primary'} />
+              <NfcIcon fontSize="small" color={isDisabled ? 'error' : 'primary'} />
               {tag.name ?? tag.tag_id}
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
@@ -75,8 +95,8 @@ export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDe
               <Chip
                 label={t('tag_disabled_label')}
                 size="small"
-                color="default"
-                variant="outlined"
+                color="error"
+                variant="filled"
                 icon={<BlockIcon />}
                 sx={{ mt: 1, mr: 1 }}
               />
@@ -84,7 +104,7 @@ export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDe
 
             {contentName && (
               <Chip
-                label={`${tag.content_type === 'playlist' ? '▶' : '♪'} ${contentName}`}
+                label={`${tag.content_type === 'playlist' ? '\u25B6' : '\u266A'} ${contentName}`}
                 size="small"
                 color={isDisabled ? 'default' : 'primary'}
                 variant="outlined"
