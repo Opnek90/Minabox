@@ -131,8 +131,11 @@ export const MediaPage: React.FC = () => {
 
   const performDelete = async (unassignTags: boolean) => {
     if (!deleteTarget) return;
-    try {
-      if (unassignTags && assignedTagNames.length > 0) {
+
+    // #64 fix: unassign tags in a separate try/catch so a tag-update
+    // failure never prevents the actual media delete from running.
+    if (unassignTags && assignedTagNames.length > 0) {
+      try {
         const allTags = await tagsApi.getAll();
         const affected = allTags.filter(
           (tag) => tag.content_type === deleteTarget.type && tag.content_id === deleteTarget.item.id
@@ -140,14 +143,18 @@ export const MediaPage: React.FC = () => {
         await Promise.all(
           affected.map((tag) =>
             tagsApi.update(tag.tag_id, {
-              content_type: tag.content_type,
-              content_id: 0,
+              content_id: null,
               name: tag.name ?? null,
               disabled: tag.disabled ?? false,
             })
           )
         );
+      } catch {
+        // tag unassign failed — log silently, still proceed with delete
       }
+    }
+
+    try {
       if (deleteTarget.type === 'track') {
         await tracksApi.delete(deleteTarget.item.id);
         setTracks((prev) => prev.filter((tr) => tr.id !== deleteTarget.item.id));
@@ -155,7 +162,7 @@ export const MediaPage: React.FC = () => {
       } else if (deleteTarget.type === 'stream') {
         await streamsApi.delete(deleteTarget.item.id);
         setStreams((prev) => prev.filter((s) => s.id !== deleteTarget.item.id));
-        showSuccess(t('streams.deleted', { defaultValue: 'Stream gelöscht' }));
+        showSuccess(t('streams.deleted'));
       } else {
         await podcastsApi.delete(deleteTarget.item.id);
         setPodcasts((prev) => prev.filter((p) => p.id !== deleteTarget.item.id));
@@ -166,7 +173,7 @@ export const MediaPage: React.FC = () => {
         deleteTarget.type === 'track'
           ? t('tracks.delete_error')
           : deleteTarget.type === 'stream'
-          ? t('streams.delete_error', { defaultValue: 'Stream konnte nicht gelöscht werden' })
+          ? t('streams.delete_error')
           : t('podcasts.delete_error')
       );
     } finally {
