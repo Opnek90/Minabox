@@ -20,7 +20,6 @@ import { ActionButton } from '@/components/ui/ActionButton';
 interface TagEditDialogProps {
   open: boolean;
   tag: Tag | null;
-  /** For learning mode: tag_id of newly scanned tag */
   newTagId?: string | null;
   playlists: Playlist[];
   tracks: Track[];
@@ -73,9 +72,7 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
   };
 
   const isNewTag = !tag && !!newTagId;
-  const title = isNewTag
-    ? t('new_tag_dialog.title')
-    : t('edit_tag');
+  const title = isNewTag ? t('new_tag_dialog.title') : t('edit_tag');
 
   const contentOptions =
     contentType === 'playlist'
@@ -118,8 +115,8 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
           >
             <MenuItem value="playlist">{t('new_tag_dialog.content_type_playlist')}</MenuItem>
             <MenuItem value="track">{t('new_tag_dialog.content_type_track')}</MenuItem>
-            <MenuItem value="stream">{t('new_tag_dialog.content_type_stream', { defaultValue: 'Stream' })}</MenuItem>
-            <MenuItem value="podcast">{t('new_tag_dialog.content_type_podcast', { defaultValue: 'Podcast' })}</MenuItem>
+            <MenuItem value="stream">{t('new_tag_dialog.content_type_stream')}</MenuItem>
+            <MenuItem value="podcast">{t('new_tag_dialog.content_type_podcast')}</MenuItem>
           </Select>
         </FormControl>
 
@@ -128,9 +125,9 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
             {contentType === 'playlist'
               ? t('new_tag_dialog.select_playlist')
               : contentType === 'stream'
-                ? t('new_tag_dialog.select_stream', { defaultValue: 'Stream wählen' })
+                ? t('new_tag_dialog.select_stream')
                 : contentType === 'podcast'
-                  ? t('new_tag_dialog.select_podcast', { defaultValue: 'Podcast wählen' })
+                  ? t('new_tag_dialog.select_podcast')
                   : t('new_tag_dialog.select_track')}
           </InputLabel>
           <Select
@@ -139,9 +136,9 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
               contentType === 'playlist'
                 ? t('new_tag_dialog.select_playlist')
                 : contentType === 'stream'
-                  ? t('new_tag_dialog.select_stream', { defaultValue: 'Stream wählen' })
+                  ? t('new_tag_dialog.select_stream')
                   : contentType === 'podcast'
-                    ? t('new_tag_dialog.select_podcast', { defaultValue: 'Podcast wählen' })
+                    ? t('new_tag_dialog.select_podcast')
                     : t('new_tag_dialog.select_track')
             }
             onChange={(e) => setContentId(e.target.value as number)}
@@ -162,7 +159,7 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
               color="warning"
             />
           }
-          label={t('disable_tag_label', { defaultValue: 'Tag sperren (kein Abspielen)' })}
+          label={t('disable_tag_label')}
         />
       </DialogContent>
       <DialogActions>

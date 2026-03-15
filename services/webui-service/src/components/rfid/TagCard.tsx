@@ -73,7 +73,7 @@ export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDe
 
             {isDisabled && (
               <Chip
-                label={t('tag_disabled_label', { defaultValue: 'Gesperrt' })}
+                label={t('tag_disabled_label')}
                 size="small"
                 color="default"
                 variant="outlined"
@@ -106,10 +106,7 @@ export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDe
             )}
           </Box>
           <Box display="flex" alignItems="center" sx={{ mt: -0.5, mr: -0.5 }}>
-            <Tooltip title={isDisabled
-              ? t('enable_tag', { defaultValue: 'Tag freischalten' })
-              : t('disable_tag', { defaultValue: 'Tag sperren' })
-            }>
+            <Tooltip title={isDisabled ? t('enable_tag') : t('disable_tag')}>
               <IconButton
                 size="small"
                 color={isDisabled ? 'success' : 'warning'}

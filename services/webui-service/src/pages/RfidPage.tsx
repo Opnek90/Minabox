@@ -8,6 +8,8 @@ import {
   DialogTitle,
   InputAdornment,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTranslation } from 'react-i18next';
@@ -26,12 +28,12 @@ import { tracksApi } from '@/api/tracks';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
 
+type DisabledFilter = 'all' | 'active' | 'blocked';
 
 interface RfidPageProps {
   pendingTagId?: string | null;
   onPendingTagHandled?: () => void;
 }
-
 
 export const RfidPage: React.FC<RfidPageProps> = ({
   pendingTagId,
@@ -48,6 +50,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [disabledFilter, setDisabledFilter] = useState<DisabledFilter>('all');
 
   const [learnModeActive, setLearnModeActive] = useState(false);
   const [learnModeLoading, setLearnModeLoading] = useState(false);
@@ -74,11 +77,11 @@ export const RfidPage: React.FC<RfidPageProps> = ({
       setStreams(streamsData);
       setPodcasts(podcastsData);
     } catch {
-      setError('Fehler beim Laden der Daten');
+      setError(t('toast.tag_save_error'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadData();
@@ -107,7 +110,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
       await tagsApi.setLearningMode(true);
       setLearnModeActive(true);
     } catch {
-      setError('Lern-Modus konnte nicht aktiviert werden');
+      setError(t('toast.tag_save_error'));
       setLearnModeLoading(false);
     }
   };
@@ -139,17 +142,17 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     try {
       if (editTag) {
         const updated = await tagsApi.update(editTag.tag_id, data);
-        setTags((prev) => prev.map((t) => (t.tag_id === updated.tag_id ? updated : t)));
-        showSuccess(t('toast.tag_updated', { defaultValue: 'Tag aktualisiert' }));
+        setTags((prev) => prev.map((tg) => (tg.tag_id === updated.tag_id ? updated : tg)));
+        showSuccess(t('toast.tag_updated'));
       } else if (scannedTagId) {
         const newTag = await tagsApi.create({ tag_id: scannedTagId, ...data });
         setTags((prev) => [...prev, newTag]);
-        showSuccess(t('toast.tag_saved', { defaultValue: 'Tag gespeichert' }));
+        showSuccess(t('toast.tag_saved'));
         setLearnModeActive(false);
         await tagsApi.setLearningMode(false);
       }
     } catch {
-      showError(t('toast.tag_save_error', { defaultValue: 'Tag konnte nicht gespeichert werden' }));
+      showError(t('toast.tag_save_error'));
     } finally {
       setEditDialogOpen(false);
       setEditTag(null);
@@ -157,19 +160,14 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     }
   };
 
-  /** Quick-toggle disabled state directly from the card without opening edit dialog */
   const handleToggleDisabled = async (tag: Tag) => {
     const newDisabled = !(tag.disabled ?? false);
     try {
       const updated = await tagsApi.update(tag.tag_id, { disabled: newDisabled });
-      setTags((prev) => prev.map((t) => (t.tag_id === updated.tag_id ? updated : t)));
-      showSuccess(
-        newDisabled
-          ? t('toast.tag_disabled', { defaultValue: 'Tag gesperrt' })
-          : t('toast.tag_enabled', { defaultValue: 'Tag freigeschaltet' }),
-      );
+      setTags((prev) => prev.map((tg) => (tg.tag_id === updated.tag_id ? updated : tg)));
+      showSuccess(newDisabled ? t('toast.tag_disabled') : t('toast.tag_enabled'));
     } catch {
-      showError(t('toast.tag_save_error', { defaultValue: 'Tag konnte nicht gespeichert werden' }));
+      showError(t('toast.tag_save_error'));
     }
   };
 
@@ -177,10 +175,10 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     if (!deleteTag) return;
     try {
       await tagsApi.delete(deleteTag.tag_id);
-      setTags((prev) => prev.filter((t) => t.tag_id !== deleteTag.tag_id));
-      showSuccess(t('toast.tag_deleted', { defaultValue: 'Tag gelöscht' }));
+      setTags((prev) => prev.filter((tg) => tg.tag_id !== deleteTag.tag_id));
+      showSuccess(t('toast.tag_deleted'));
     } catch {
-      showError(t('toast.tag_delete_error', { defaultValue: 'Tag konnte nicht gelöscht werden' }));
+      showError(t('toast.tag_delete_error'));
     } finally {
       setDeleteTag(null);
     }
@@ -188,10 +186,15 @@ export const RfidPage: React.FC<RfidPageProps> = ({
 
   const filteredTags = tags.filter((tag) => {
     const q = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       tag.tag_id.toLowerCase().includes(q) ||
-      (tag.name ?? '').toLowerCase().includes(q)
-    );
+      (tag.name ?? '').toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+
+    const isDisabled = tag.disabled ?? false;
+    if (disabledFilter === 'active') return !isDisabled;
+    if (disabledFilter === 'blocked') return isDisabled;
+    return true;
   });
 
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
@@ -214,7 +217,22 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         </Alert>
       )}
 
-      {/* Search */}
+      {/* Filter + Search */}
+      <ToggleButtonGroup
+        value={disabledFilter}
+        exclusive
+        onChange={(_e, val: DisabledFilter | null) => {
+          if (val !== null) setDisabledFilter(val);
+        }}
+        size="small"
+        sx={{ mb: 2 }}
+        aria-label={t('filter.label')}
+      >
+        <ToggleButton value="all">{t('filter.all')}</ToggleButton>
+        <ToggleButton value="active">{t('filter.active')}</ToggleButton>
+        <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+      </ToggleButtonGroup>
+
       <TextField
         placeholder={t('search_placeholder')}
         value={searchQuery}
@@ -231,7 +249,6 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         sx={{ mb: 3, maxWidth: 400 }}
       />
 
-      {/* Tag List */}
       <TagList
         tags={filteredTags}
         playlists={playlists}
@@ -243,7 +260,6 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         onToggleDisabled={handleToggleDisabled}
       />
 
-      {/* Edit / Create Dialog */}
       <TagEditDialog
         open={editDialogOpen}
         tag={editTag}
@@ -265,7 +281,6 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         }}
       />
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteTag} onClose={() => setDeleteTag(null)}>
         <DialogTitle>{t('delete_tag')}</DialogTitle>
         <DialogContent>
@@ -274,16 +289,10 @@ export const RfidPage: React.FC<RfidPageProps> = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <ActionButton
-            actionType="secondary"
-            onClick={() => setDeleteTag(null)}
-          >
+          <ActionButton actionType="secondary" onClick={() => setDeleteTag(null)}>
             {t('cancel', { ns: 'common' })}
           </ActionButton>
-          <ActionButton
-            actionType="destructive"
-            onClick={handleDeleteConfirm}
-          >
+          <ActionButton actionType="destructive" onClick={handleDeleteConfirm}>
             {t('delete', { ns: 'common' })}
           </ActionButton>
         </DialogActions>
