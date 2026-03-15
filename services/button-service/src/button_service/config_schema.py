@@ -66,6 +66,14 @@ class ButtonConfig(BaseModel):
             "logical action name in advanced mode."
         ),
     )
+    enabled: bool = Field(
+        default=True,
+        description=(
+            "When False, the button fires no MQTT action. "
+            "The raw-event is still published so hardware test-mode keeps working. "
+            "Defaults to True so existing configs are unaffected."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_mode_and_type(self) -> "ButtonConfig":

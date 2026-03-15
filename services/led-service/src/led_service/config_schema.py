@@ -62,6 +62,13 @@ class LEDConfig(BaseModel):
             "to a concrete LED pattern."
         ),
     )
+    enabled: bool = Field(
+        default=True,
+        description=(
+            "When False the LED ignores all state changes and stays off. "
+            "Defaults to True so existing configs are unaffected."
+        ),
+    )
 
 class LEDServiceConfig(BaseModel):
     """Top-level LED configuration loaded from config/leds.json."""
