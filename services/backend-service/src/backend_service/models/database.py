@@ -44,13 +44,10 @@ class TagScanEvent(Base):
     __tablename__ = "tag_scan_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # Raw tag UID (always present, even if tag is unknown)
     tag_uid = Column(String(32), nullable=False, index=True)
-    # Denormalised snapshot so history survives tag renames / deletions
     tag_name = Column(String(255), nullable=True)
     media_title = Column(String(512), nullable=True)
-    media_type = Column(String(16), nullable=True)  # 'track', 'stream', 'playlist', 'podcast', None
-    # 'play' | 'blocked' | 'unassigned'
+    media_type = Column(String(16), nullable=True)
     action = Column(String(16), nullable=False)
     scanned_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
@@ -69,12 +66,12 @@ class Tag(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tag_id = Column(String(32), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=True)
-    content_type = Column(String(16), nullable=False)  # 'playlist', 'track' or 'stream'
-    content_id = Column(Integer, nullable=False)
+    # content_type and content_id are nullable to support unassigned tags
+    content_type = Column(String(16), nullable=True)
+    content_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
     last_scanned_at = Column(DateTime, nullable=True)
-    # Issue #63: when True, tag is blocked — no playback, fires tag_blocked MQTT event
     disabled = Column(Boolean, nullable=False, default=False, server_default="0")
 
     def __repr__(self) -> str:
@@ -128,7 +125,7 @@ class Track(Base):
     artist = Column(String(255), nullable=True)
     album = Column(String(255), nullable=True)
     duration_ms = Column(Integer, nullable=True)
-    source_type = Column(String(16), nullable=False)  # 'file' or 'remote'
+    source_type = Column(String(16), nullable=False)
     source_uri = Column(String(1024), nullable=False)
     cover_art_url = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
