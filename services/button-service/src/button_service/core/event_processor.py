@@ -87,6 +87,10 @@ async def run_event_processor(
     - Only accepted events trigger raw-event publish (for LED feedback)
     - Only accepted events trigger action publish (for audio commands)
 
+    For disabled buttons (issue #62):
+    - The raw-event IS still published so hardware test-mode keeps working.
+    - The action publish is skipped.
+
     This prevents LED "Kirmis" (flicker) during rapid button presses while
     still providing visual feedback for registered events.
 
@@ -132,13 +136,24 @@ async def run_event_processor(
                 )
                 continue  # Event completely dropped, no MQTT publish
 
-            # Now publish raw event (for LED service and WebUI hardware test-mode)
+            # Publish raw event (for LED service and WebUI hardware test-mode).
+            # This happens BEFORE the enabled-check so test-mode always works
+            # even for disabled buttons (issue #62).
             await mqtt_client.publish_raw_event(
                 button_id=button.id,
                 name=button.name,
                 button_type=button.type,
                 event_type=event_type_str,
             )
+
+            # Skip action dispatch for disabled buttons (issue #62)
+            if not button.enabled:
+                logger.debug(
+                    "button_action_skipped_disabled",
+                    button_id=button.id,
+                    event_type=event_type_str,
+                )
+                continue
 
             # Resolve action and publish
             action = _resolve_action(button, event_type_str)

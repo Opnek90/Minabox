@@ -12,6 +12,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import NfcIcon from '@mui/icons-material/Nfc';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import BlockIcon from '@mui/icons-material/Block';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useTranslation } from 'react-i18next';
 import type { Tag } from '@/types/api';
 
@@ -20,6 +22,7 @@ interface TagCardProps {
   contentName?: string | null;
   onEdit: (tag: Tag) => void;
   onDelete: (tag: Tag) => void;
+  onToggleDisabled: (tag: Tag) => void;
 }
 
 function formatRelativeTime(isoString: string | null, locale: string): string | null {
@@ -43,27 +46,67 @@ function formatRelativeTime(isoString: string | null, locale: string): string | 
   }
 }
 
-export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDelete }) => {
+export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDelete, onToggleDisabled }) => {
   const { t, i18n } = useTranslation('rfid');
   const relativeTime = formatRelativeTime(tag.last_scanned_at, i18n.language);
+  const isDisabled = tag.disabled ?? false;
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2 }}>
-      <CardContent>
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        position: 'relative',
+        overflow: 'hidden',
+        borderColor: isDisabled ? 'error.main' : undefined,
+        bgcolor: isDisabled ? 'error.50' : undefined,
+        // Fallback for themes without error.50 token
+        background: isDisabled
+          ? (theme) => `color-mix(in srgb, ${theme.palette.error.main} 8%, ${theme.palette.background.paper})`
+          : undefined,
+      }}
+    >
+      {/* Red accent bar at top when blocked */}
+      {isDisabled && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            bgcolor: 'error.main',
+          }}
+        />
+      )}
+
+      <CardContent sx={{ pt: isDisabled ? 2.5 : 2 }}>
         <Box display="flex" alignItems="flex-start" justifyContent="space-between" gap={1}>
           <Box flex={1} minWidth={0}>
             <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
-              <NfcIcon fontSize="small" color="primary" />
+              <NfcIcon fontSize="small" color={isDisabled ? 'error' : 'primary'} />
               {tag.name ?? tag.tag_id}
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
               {t('fields.tag_id')}: {tag.tag_id}
             </Typography>
+
+            {isDisabled && (
+              <Chip
+                label={t('tag_disabled_label')}
+                size="small"
+                color="error"
+                variant="filled"
+                icon={<BlockIcon />}
+                sx={{ mt: 1, mr: 1 }}
+              />
+            )}
+
             {contentName && (
               <Chip
-                label={`${tag.content_type === 'playlist' ? '▶' : '♪'} ${contentName}`}
+                label={`${tag.content_type === 'playlist' ? '\u25B6' : '\u266A'} ${contentName}`}
                 size="small"
-                color="primary"
+                color={isDisabled ? 'default' : 'primary'}
                 variant="outlined"
                 sx={{ mt: 1 }}
               />
@@ -83,6 +126,15 @@ export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDe
             )}
           </Box>
           <Box display="flex" alignItems="center" sx={{ mt: -0.5, mr: -0.5 }}>
+            <Tooltip title={isDisabled ? t('enable_tag') : t('disable_tag')}>
+              <IconButton
+                size="small"
+                color={isDisabled ? 'success' : 'warning'}
+                onClick={() => onToggleDisabled(tag)}
+              >
+                {isDisabled ? <CheckCircleOutlineIcon fontSize="small" /> : <BlockIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
             <Tooltip title={t('edit_tag')}>
               <IconButton size="small" onClick={() => onEdit(tag)}>
                 <EditIcon fontSize="small" />

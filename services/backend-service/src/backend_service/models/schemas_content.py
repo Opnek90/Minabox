@@ -16,6 +16,10 @@ class TagBase(BaseModel):
         ..., description="Type of content (playlist/track/stream)"
     )
     content_id: int = Field(..., description="ID of playlist, track or stream", gt=0)
+    disabled: bool = Field(
+        default=False,
+        description="When True, tag is blocked: no playback, fires tag_blocked MQTT event instead.",
+    )
 
 
 class TagCreate(TagBase):
@@ -30,6 +34,10 @@ class TagUpdate(BaseModel):
     name: str | None = None
     content_type: ContentType | None = None
     content_id: int | None = Field(None, gt=0)
+    disabled: bool | None = Field(
+        None,
+        description="Set to True to block the tag, False to re-enable it.",
+    )
 
 
 class TagResponse(TagBase):
@@ -240,4 +248,3 @@ __all__ = [
     "TrackUpdate",
     "TrackResponse",
 ]
-

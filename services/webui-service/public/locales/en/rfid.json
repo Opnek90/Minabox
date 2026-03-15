@@ -26,6 +26,16 @@
   "edit_tag": "Edit Tag",
   "delete_tag": "Delete Tag",
   "delete_confirm": "Do you really want to delete the tag \"{{name}}\"?",
+  "disable_tag": "Block tag",
+  "enable_tag": "Unblock tag",
+  "disable_tag_label": "Block tag (no playback)",
+  "tag_disabled_label": "Blocked",
+  "filter": {
+    "label": "Show",
+    "all": "All",
+    "active": "Active only",
+    "blocked": "Blocked only"
+  },
   "fields": {
     "tag_id": "Tag ID",
     "name": "Name",
@@ -45,6 +55,15 @@
     "unknown_tag": "Unknown tag scanned",
     "assign_now": "Assign now",
     "unknown": "Unknown"
+  },
+  "toast": {
+    "tag_updated": "Tag updated",
+    "tag_saved": "Tag saved",
+    "tag_save_error": "Failed to save tag",
+    "tag_deleted": "Tag deleted",
+    "tag_delete_error": "Failed to delete tag",
+    "tag_disabled": "Tag blocked",
+    "tag_enabled": "Tag unblocked"
   },
   "search_placeholder": "Search tags...",
   "sort": {

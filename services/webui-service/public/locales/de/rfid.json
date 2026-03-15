@@ -26,6 +26,16 @@
   "edit_tag": "Tag bearbeiten",
   "delete_tag": "Tag löschen",
   "delete_confirm": "Möchten Sie den Tag \"{{name}}\" wirklich löschen?",
+  "disable_tag": "Tag sperren",
+  "enable_tag": "Tag freischalten",
+  "disable_tag_label": "Tag sperren (kein Abspielen)",
+  "tag_disabled_label": "Gesperrt",
+  "filter": {
+    "label": "Anzeigen",
+    "all": "Alle",
+    "active": "Nur aktive",
+    "blocked": "Nur gesperrte"
+  },
   "fields": {
     "tag_id": "Tag-ID",
     "name": "Name",
@@ -46,6 +56,15 @@
     "usage_denied": "Nutzungszeit außerhalb der erlaubten Zeiten oder Limit erreicht",
     "assign_now": "Jetzt zuordnen",
     "unknown": "Unbekannt"
+  },
+  "toast": {
+    "tag_updated": "Tag aktualisiert",
+    "tag_saved": "Tag gespeichert",
+    "tag_save_error": "Tag konnte nicht gespeichert werden",
+    "tag_deleted": "Tag gelöscht",
+    "tag_delete_error": "Tag konnte nicht gelöscht werden",
+    "tag_disabled": "Tag gesperrt",
+    "tag_enabled": "Tag freigeschaltet"
   },
   "search_placeholder": "Tags suchen...",
   "sort": {

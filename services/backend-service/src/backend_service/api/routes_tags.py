@@ -16,11 +16,7 @@ router = APIRouter()
 
 @router.get("", response_model=list[TagResponse])
 async def list_tags(db: Session = Depends(get_db)) -> list[TagResponse]:
-    """List all RFID tags.
-
-    Returns:
-        List of all tags
-    """
+    """List all RFID tags."""
     logger.info("api_list_tags")
     tags: list[Tag] = db.query(Tag).all()
     return [TagResponse.model_validate(tag) for tag in tags]
@@ -28,20 +24,9 @@ async def list_tags(db: Session = Depends(get_db)) -> list[TagResponse]:
 
 @router.get("/{tag_id}", response_model=TagResponse)
 async def get_tag(tag_id: str, db: Session = Depends(get_db)) -> TagResponse:
-    """Get tag by RFID tag ID.
-
-    Args:
-        tag_id: RFID tag UID (e.g., 04A224BC19)
-
-    Returns:
-        Tag details
-
-    Raises:
-        HTTPException: 404 if tag not found
-    """
+    """Get tag by RFID tag ID."""
     logger.info("api_get_tag", tag_id=tag_id)
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()
-
     if not tag:
         logger.warning("api_tag_not_found", tag_id=tag_id)
         raise HTTPException(
@@ -54,7 +39,6 @@ async def get_tag(tag_id: str, db: Session = Depends(get_db)) -> TagResponse:
                 }
             },
         )
-
     return TagResponse.model_validate(tag)
 
 
@@ -63,20 +47,9 @@ async def create_tag(
     tag_data: TagCreate,
     db: Session = Depends(get_db),
 ) -> TagResponse:
-    """Create new RFID tag mapping (learning mode).
-
-    Args:
-        tag_data: Tag data
-
-    Returns:
-        Created tag
-
-    Raises:
-        HTTPException: 400 if tag already exists
-    """
+    """Create new RFID tag mapping (learning mode)."""
     logger.info("api_create_tag", tag_id=tag_data.tag_id)
 
-    # Check if tag already exists
     existing_tag = db.query(Tag).filter(Tag.tag_id == tag_data.tag_id).first()
     if existing_tag:
         logger.warning("api_tag_already_exists", tag_id=tag_data.tag_id)
@@ -91,18 +64,18 @@ async def create_tag(
             },
         )
 
-    # Create tag
     tag = Tag(
         tag_id=tag_data.tag_id,
         name=tag_data.name,
         content_type=tag_data.content_type.value,
         content_id=tag_data.content_id,
+        disabled=tag_data.disabled,
     )
     db.add(tag)
     db.commit()
     db.refresh(tag)
 
-    logger.info("api_tag_created", tag_id=tag_data.tag_id, db_id=tag.id)
+    logger.info("api_tag_created", tag_id=tag_data.tag_id, db_id=tag.id, disabled=tag.disabled)
     return TagResponse.model_validate(tag)
 
 
@@ -112,18 +85,7 @@ async def update_tag(
     tag_data: TagUpdate,
     db: Session = Depends(get_db),
 ) -> TagResponse:
-    """Update existing RFID tag mapping.
-
-    Args:
-        tag_id: RFID tag UID
-        tag_data: Updated tag data
-
-    Returns:
-        Updated tag
-
-    Raises:
-        HTTPException: 404 if tag not found
-    """
+    """Update existing RFID tag mapping."""
     logger.info("api_update_tag", tag_id=tag_id)
 
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()
@@ -139,13 +101,19 @@ async def update_tag(
             },
         )
 
-    # Update fields
     if tag_data.name is not None:
         tag.name = tag_data.name
     if tag_data.content_type is not None:
         tag.content_type = tag_data.content_type.value
     if tag_data.content_id is not None:
         tag.content_id = tag_data.content_id
+    if tag_data.disabled is not None:
+        tag.disabled = tag_data.disabled
+        logger.info(
+            "api_tag_disabled_changed",
+            tag_id=tag_id,
+            disabled=tag_data.disabled,
+        )
 
     db.commit()
     db.refresh(tag)
@@ -156,14 +124,7 @@ async def update_tag(
 
 @router.delete("/{tag_id}", status_code=204)
 async def delete_tag(tag_id: str, db: Session = Depends(get_db)) -> None:
-    """Delete RFID tag mapping.
-
-    Args:
-        tag_id: RFID tag UID
-
-    Raises:
-        HTTPException: 404 if tag not found
-    """
+    """Delete RFID tag mapping."""
     logger.info("api_delete_tag", tag_id=tag_id)
 
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()

@@ -44,6 +44,7 @@ _LED_BINDING_STATES: list[str] = [
     "rfid_scanned",
     "rfid_removed",
     "rfid_unknown_tag",
+    "rfid_tag_blocked",
     "button_pressed",
     "backend_unreachable",
     "usage_denied",

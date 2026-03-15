@@ -32,6 +32,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import ScienceIcon from '@mui/icons-material/Science';
 import SaveIcon from '@mui/icons-material/Save';
+import ToggleOnIcon from '@mui/icons-material/ToggleOn';
+import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
@@ -63,8 +65,6 @@ export const ButtonConfigPanel: React.FC = () => {
   const [btnEvents, setBtnEvents] = useState<string[]>([]);
   const eventsEndRef = useRef<HTMLDivElement>(null);
 
-  // Keep a ref so the WebSocket callback always sees the latest testBtn
-  // without needing to re-register the listener on every state change.
   const testBtnRef = useRef<ButtonType | null>(null);
   testBtnRef.current = testBtn;
 
@@ -78,9 +78,6 @@ export const ButtonConfigPanel: React.FC = () => {
     configApi.getButtonActions().then(setButtonActions).catch(() => {});
   }, []);
 
-  // Listen for raw button events from the hardware test-mode.
-  // `button_raw_event` is emitted by the backend for every physical press,
-  // regardless of whether an action mapping exists.
   useWebSocketEvent(
     'button_raw_event',
     useCallback((msg: ButtonRawEventMessage) => {
@@ -111,12 +108,25 @@ export const ButtonConfigPanel: React.FC = () => {
     }
   };
 
+  // Toggle enabled state inline without opening the edit dialog
+  const handleToggleEnabled = (btn: ButtonType) => {
+    setConfig((prev) =>
+      prev
+        ? {
+            buttons: prev.buttons.map((b) =>
+              b.id === btn.id ? { ...b, enabled: !(b.enabled ?? true) } : b
+            ),
+          }
+        : prev
+    );
+  };
+
   const openAddButton = () => {
     const nextId = config?.buttons.length
       ? `btn_${config.buttons.length + 1}`
       : 'btn_1';
-    setBtnForm({ id: nextId, name: '', mode: 'basic', type: 'push', gpio: undefined });
-    setEditBtn({ id: nextId, name: '', mode: 'basic', type: 'push', gpio: undefined });
+    setBtnForm({ id: nextId, name: '', mode: 'basic', type: 'push', gpio: undefined, enabled: true });
+    setEditBtn({ id: nextId, name: '', mode: 'basic', type: 'push', gpio: undefined, enabled: true });
     setIsNewBtn(true);
     setActiveStep(0);
   };
@@ -161,6 +171,7 @@ export const ButtonConfigPanel: React.FC = () => {
       clk: btnForm.clk ?? editBtn.clk ?? null,
       dt: btnForm.dt ?? editBtn.dt ?? null,
       sw: btnForm.sw ?? editBtn.sw ?? null,
+      enabled: btnForm.enabled ?? editBtn.enabled ?? true,
       ...(mode === 'basic'
         ? { action: btnForm.action ?? editBtn.action ?? null, actions: null }
         : {
@@ -227,61 +238,73 @@ export const ButtonConfigPanel: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {config.buttons.map((btn) => (
-                <TableRow key={btn.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600}>{btn.name}</Typography>
-                    <Typography variant="caption" color="text.secondary">{btn.id}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={t(`buttons.types.${btn.type}`)} size="small" variant="outlined" />
-                  </TableCell>
-                  <TableCell>
-                    {btn.type === 'rotary' ? (
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                        {btn.clk != null && <Chip label={`CLK ${btn.clk}`} size="small" variant="outlined" />}
-                        {btn.dt != null && <Chip label={`DT ${btn.dt}`} size="small" variant="outlined" />}
-                        {btn.sw != null && <Chip label={`SW ${btn.sw}`} size="small" variant="outlined" />}
+              {config.buttons.map((btn) => {
+                const isEnabled = btn.enabled ?? true;
+                return (
+                  <TableRow key={btn.id} hover sx={{ opacity: isEnabled ? 1 : 0.45 }}>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={600}>{btn.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{btn.id}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={t(`buttons.types.${btn.type}`)} size="small" variant="outlined" />
+                    </TableCell>
+                    <TableCell>
+                      {btn.type === 'rotary' ? (
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                          {btn.clk != null && <Chip label={`CLK ${btn.clk}`} size="small" variant="outlined" />}
+                          {btn.dt != null && <Chip label={`DT ${btn.dt}`} size="small" variant="outlined" />}
+                          {btn.sw != null && <Chip label={`SW ${btn.sw}`} size="small" variant="outlined" />}
+                        </Stack>
+                      ) : btn.gpio != null ? (
+                        <Chip label={`GPIO ${btn.gpio}`} size="small" variant="outlined" />
+                      ) : (
+                        <Typography variant="caption" color="text.disabled">–</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={t(`buttons.modes.${btn.mode}`).split(' ')[0]}
+                        size="small"
+                        color={btn.mode === 'advanced' ? 'primary' : 'default'}
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                        <Tooltip title={isEnabled ? t('buttons.disable_button', { defaultValue: 'Deaktivieren' }) : t('buttons.enable_button', { defaultValue: 'Aktivieren' })}>
+                          <IconButton
+                            size="small"
+                            color={isEnabled ? 'success' : 'default'}
+                            onClick={() => handleToggleEnabled(btn)}
+                          >
+                            {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={t('buttons.test_button')}>
+                          <IconButton
+                            size="small"
+                            color="info"
+                            onClick={() => { setBtnEvents([]); setTestBtn(btn); }}
+                          >
+                            <ScienceIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={t('buttons.edit_button')}>
+                          <IconButton size="small" onClick={() => openEditButton(btn)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={t('buttons.delete_button')}>
+                          <IconButton size="small" color="error" onClick={() => setDeleteBtn(btn)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Stack>
-                    ) : btn.gpio != null ? (
-                      <Chip label={`GPIO ${btn.gpio}`} size="small" variant="outlined" />
-                    ) : (
-                      <Typography variant="caption" color="text.disabled">–</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={t(`buttons.modes.${btn.mode}`).split(' ')[0]}
-                      size="small"
-                      color={btn.mode === 'advanced' ? 'primary' : 'default'}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                      <Tooltip title={t('buttons.test_button')}>
-                        <IconButton
-                          size="small"
-                          color="info"
-                          onClick={() => { setBtnEvents([]); setTestBtn(btn); }}
-                        >
-                          <ScienceIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={t('buttons.edit_button')}>
-                        <IconButton size="small" onClick={() => openEditButton(btn)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={t('buttons.delete_button')}>
-                        <IconButton size="small" color="error" onClick={() => setDeleteBtn(btn)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

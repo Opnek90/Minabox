@@ -1,15 +1,24 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  Box,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
+  IconButton,
   InputAdornment,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
 } from '@mui/material';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import SearchIcon from '@mui/icons-material/Search';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { TagList } from '@/components/rfid/TagList';
@@ -26,12 +35,13 @@ import { tracksApi } from '@/api/tracks';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
 
+type DisabledFilter = 'all' | 'active' | 'blocked';
+type SortKey = 'name' | 'last_scanned_at';
 
 interface RfidPageProps {
   pendingTagId?: string | null;
   onPendingTagHandled?: () => void;
 }
-
 
 export const RfidPage: React.FC<RfidPageProps> = ({
   pendingTagId,
@@ -48,6 +58,10 @@ export const RfidPage: React.FC<RfidPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [disabledFilter, setDisabledFilter] = useState<DisabledFilter>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
 
   const [learnModeActive, setLearnModeActive] = useState(false);
   const [learnModeLoading, setLearnModeLoading] = useState(false);
@@ -74,11 +88,11 @@ export const RfidPage: React.FC<RfidPageProps> = ({
       setStreams(streamsData);
       setPodcasts(podcastsData);
     } catch {
-      setError('Fehler beim Laden der Daten');
+      setError(t('toast.tag_save_error'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadData();
@@ -107,7 +121,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({
       await tagsApi.setLearningMode(true);
       setLearnModeActive(true);
     } catch {
-      setError('Lern-Modus konnte nicht aktiviert werden');
+      setError(t('toast.tag_save_error'));
       setLearnModeLoading(false);
     }
   };
@@ -134,21 +148,22 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     name: string | null;
     content_type: ContentType;
     content_id: number;
+    disabled: boolean;
   }) => {
     try {
       if (editTag) {
         const updated = await tagsApi.update(editTag.tag_id, data);
-        setTags((prev) => prev.map((t) => (t.tag_id === updated.tag_id ? updated : t)));
-        showSuccess(t('toast.tag_updated', { defaultValue: 'Tag aktualisiert' }));
+        setTags((prev) => prev.map((tg) => (tg.tag_id === updated.tag_id ? updated : tg)));
+        showSuccess(t('toast.tag_updated'));
       } else if (scannedTagId) {
         const newTag = await tagsApi.create({ tag_id: scannedTagId, ...data });
         setTags((prev) => [...prev, newTag]);
-        showSuccess(t('toast.tag_saved', { defaultValue: 'Tag gespeichert' }));
+        showSuccess(t('toast.tag_saved'));
         setLearnModeActive(false);
         await tagsApi.setLearningMode(false);
       }
     } catch {
-      showError(t('toast.tag_save_error', { defaultValue: 'Tag konnte nicht gespeichert werden' }));
+      showError(t('toast.tag_save_error'));
     } finally {
       setEditDialogOpen(false);
       setEditTag(null);
@@ -156,26 +171,66 @@ export const RfidPage: React.FC<RfidPageProps> = ({
     }
   };
 
+  const handleToggleDisabled = async (tag: Tag) => {
+    const newDisabled = !(tag.disabled ?? false);
+    try {
+      const updated = await tagsApi.update(tag.tag_id, { disabled: newDisabled });
+      setTags((prev) => prev.map((tg) => (tg.tag_id === updated.tag_id ? updated : tg)));
+      showSuccess(newDisabled ? t('toast.tag_disabled') : t('toast.tag_enabled'));
+    } catch {
+      showError(t('toast.tag_save_error'));
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTag) return;
     try {
       await tagsApi.delete(deleteTag.tag_id);
-      setTags((prev) => prev.filter((t) => t.tag_id !== deleteTag.tag_id));
-      showSuccess(t('toast.tag_deleted', { defaultValue: 'Tag gelöscht' }));
+      setTags((prev) => prev.filter((tg) => tg.tag_id !== deleteTag.tag_id));
+      showSuccess(t('toast.tag_deleted'));
     } catch {
-      showError(t('toast.tag_delete_error', { defaultValue: 'Tag konnte nicht gelöscht werden' }));
+      showError(t('toast.tag_delete_error'));
     } finally {
       setDeleteTag(null);
     }
   };
 
-  const filteredTags = tags.filter((tag) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      tag.tag_id.toLowerCase().includes(q) ||
-      (tag.name ?? '').toLowerCase().includes(q)
-    );
-  });
+  const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
+    if (!key) return;
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const filteredAndSorted = [...tags]
+    .filter((tag) => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        tag.tag_id.toLowerCase().includes(q) ||
+        (tag.name ?? '').toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+      const isDisabled = tag.disabled ?? false;
+      if (disabledFilter === 'active') return !isDisabled;
+      if (disabledFilter === 'blocked') return isDisabled;
+      return true;
+    })
+    .sort((a, b) => {
+      let aVal: string | number;
+      let bVal: string | number;
+      if (sortKey === 'last_scanned_at') {
+        aVal = a.last_scanned_at ? new Date(a.last_scanned_at).getTime() : 0;
+        bVal = b.last_scanned_at ? new Date(b.last_scanned_at).getTime() : 0;
+      } else {
+        aVal = (a.name ?? a.tag_id).toLowerCase();
+        bVal = (b.name ?? b.tag_id).toLowerCase();
+      }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
 
@@ -197,35 +252,100 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         </Alert>
       )}
 
-      {/* Search */}
-      <TextField
-        placeholder={t('search_placeholder')}
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        size="small"
-        fullWidth
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon />
-            </InputAdornment>
-          ),
-        }}
-        sx={{ mb: 3, maxWidth: 400 }}
-      />
+      {/* Toolbar – 1:1 StreamList pattern */}
+      <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
+        {/* View toggle */}
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(_, v) => v && setViewMode(v)}
+          size="small"
+        >
+          <ToggleButton value="card" aria-label={t('view_mode_card', { defaultValue: 'Kachelansicht' })}>
+            <ViewModuleIcon />
+          </ToggleButton>
+          <ToggleButton value="list" aria-label={t('view_mode_list', { defaultValue: 'Listenansicht' })}>
+            <ViewListIcon />
+          </ToggleButton>
+        </ToggleButtonGroup>
 
-      {/* Tag List */}
+        {/* Search */}
+        <TextField
+          placeholder={t('search_placeholder')}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          size="small"
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ minWidth: 200 }}
+        />
+
+        {/* Filter */}
+        <ToggleButtonGroup
+          value={disabledFilter}
+          exclusive
+          onChange={(_e, val: DisabledFilter | null) => {
+            if (val !== null) setDisabledFilter(val);
+          }}
+          size="small"
+          aria-label={t('filter.label')}
+        >
+          <ToggleButton value="all">{t('filter.all')}</ToggleButton>
+          <ToggleButton value="active">{t('filter.active')}</ToggleButton>
+          <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+        </ToggleButtonGroup>
+
+        {/* Sort – right-aligned */}
+        <Box display="flex" alignItems="center" gap={0.5} ml="auto">
+          <ToggleButtonGroup
+            value={sortKey}
+            exclusive
+            onChange={handleSortKey}
+            size="small"
+          >
+            <ToggleButton value="name">
+              {t('sort.name', { defaultValue: 'Name' })}
+            </ToggleButton>
+            <ToggleButton value="last_scanned_at">
+              {t('sort.last_scanned', { defaultValue: 'Zuletzt gespielt' })}
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <Tooltip title={
+            sortDir === 'asc'
+              ? t('sort.ascending', { defaultValue: 'Aufsteigend' })
+              : t('sort.descending', { defaultValue: 'Absteigend' })
+          }>
+            <IconButton
+              size="small"
+              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            >
+              {sortDir === 'asc' ? (
+                <ArrowUpwardIcon fontSize="small" />
+              ) : (
+                <ArrowDownwardIcon fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
       <TagList
-        tags={filteredTags}
+        tags={filteredAndSorted}
         playlists={playlists}
         tracks={tracks}
         streams={streams}
         podcasts={podcasts}
+        viewMode={viewMode}
         onEdit={handleEditOpen}
         onDelete={setDeleteTag}
+        onToggleDisabled={handleToggleDisabled}
       />
 
-      {/* Edit / Create Dialog */}
       <TagEditDialog
         open={editDialogOpen}
         tag={editTag}
@@ -247,7 +367,6 @@ export const RfidPage: React.FC<RfidPageProps> = ({
         }}
       />
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteTag} onClose={() => setDeleteTag(null)}>
         <DialogTitle>{t('delete_tag')}</DialogTitle>
         <DialogContent>
@@ -256,16 +375,10 @@ export const RfidPage: React.FC<RfidPageProps> = ({
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <ActionButton
-            actionType="secondary"
-            onClick={() => setDeleteTag(null)}
-          >
+          <ActionButton actionType="secondary" onClick={() => setDeleteTag(null)}>
             {t('cancel', { ns: 'common' })}
           </ActionButton>
-          <ActionButton
-            actionType="destructive"
-            onClick={handleDeleteConfirm}
-          >
+          <ActionButton actionType="destructive" onClick={handleDeleteConfirm}>
             {t('delete', { ns: 'common' })}
           </ActionButton>
         </DialogActions>

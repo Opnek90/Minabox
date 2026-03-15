@@ -101,9 +101,19 @@ class LEDController:
     async def apply_pattern(self, logical_state: str) -> None:
         """Apply the pattern for a given logical state.
 
+        Skips immediately when the LED is disabled (issue #62).
+
         Args:
             logical_state: The logical state to apply (e.g. 'audio_playing').
         """
+        if not self.config.enabled:
+            logger.debug(
+                "pattern_skipped_disabled",
+                led_id=self.config.id,
+                logical_state=logical_state,
+            )
+            return
+
         if not self._gpio_available:
             logger.debug(
                 "pattern_skipped_no_hardware",

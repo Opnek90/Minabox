@@ -37,6 +37,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
 import SaveIcon from '@mui/icons-material/Save';
+import ToggleOnIcon from '@mui/icons-material/ToggleOn';
+import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
@@ -89,13 +91,26 @@ export const LEDConfigPanel: React.FC = () => {
     }
   };
 
+  // Toggle enabled state inline without opening the edit dialog
+  const handleToggleEnabled = (led: LED) => {
+    setConfig((prev) =>
+      prev
+        ? {
+            leds: prev.leds.map((l) =>
+              l.id === led.id ? { ...l, enabled: !(l.enabled ?? true) } : l
+            ),
+          }
+        : prev
+    );
+  };
+
   const openAddLed = () => {
     const nextNum = config?.leds.length
       ? Math.max(...config.leds.map((l) => parseInt(l.id.replace(/\D/g, ''), 10) || 0)) + 1
       : 1;
     setLedForm({ id: `led_${nextNum}`, name: '', gpio: 17 });
     setBindingsForm({ system_online: { pattern_type: 'solid', duration_ms: 0 } });
-    setEditLed({ id: `led_${nextNum}`, name: '', gpio: 17, bindings: {} });
+    setEditLed({ id: `led_${nextNum}`, name: '', gpio: 17, bindings: {}, enabled: true });
     setIsNewLed(true);
     setActiveStep(0);
   };
@@ -147,6 +162,7 @@ export const LEDConfigPanel: React.FC = () => {
       name: ledForm.name,
       gpio: ledForm.gpio,
       bindings: bindingsForm,
+      enabled: editLed.enabled ?? true,
     };
     if (isNewLed) {
       setConfig({ leds: [...config.leds, updatedLed] });
@@ -204,62 +220,78 @@ export const LEDConfigPanel: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {config.leds.map((led) => (
-                <TableRow key={led.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600}>{led.name}</Typography>
-                    <Typography variant="caption" color="text.secondary">{led.id}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={`GPIO ${led.gpio}`} size="small" variant="outlined" />
-                  </TableCell>
-                  <TableCell>
-                    <Box display="flex" flexWrap="wrap" gap={0.5}>
-                      {Object.entries(led.bindings).map(([state, pat]) => (
-                        <Chip
-                          key={state}
-                          label={`${state} → ${pat.pattern_type}`}
-                          size="small"
-                          sx={{ fontSize: '0.7rem' }}
-                        />
-                      ))}
-                      {Object.keys(led.bindings).length === 0 && (
-                        <Typography variant="caption" color="text.disabled">–</Typography>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                      <Tooltip title={t('leds.test_led')}>
-                        <span>
+              {config.leds.map((led) => {
+                const isEnabled = led.enabled ?? true;
+                return (
+                  <TableRow
+                    key={led.id}
+                    hover
+                    sx={{ opacity: isEnabled ? 1 : 0.45 }}
+                  >
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={600}>{led.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{led.id}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={`GPIO ${led.gpio}`} size="small" variant="outlined" />
+                    </TableCell>
+                    <TableCell>
+                      <Box display="flex" flexWrap="wrap" gap={0.5}>
+                        {Object.entries(led.bindings).map(([state, pat]) => (
+                          <Chip
+                            key={state}
+                            label={`${state} → ${pat.pattern_type}`}
+                            size="small"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        ))}
+                        {Object.keys(led.bindings).length === 0 && (
+                          <Typography variant="caption" color="text.disabled">–</Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                        <Tooltip title={isEnabled ? t('leds.disable_led', { defaultValue: 'Deaktivieren' }) : t('leds.enable_led', { defaultValue: 'Aktivieren' })}>
                           <IconButton
                             size="small"
-                            color="warning"
-                            disabled={testingLedId !== null}
-                            onClick={() => handleTestLed(led)}
+                            color={isEnabled ? 'success' : 'default'}
+                            onClick={() => handleToggleEnabled(led)}
                           >
-                            {testingLedId === led.id ? (
-                              <CircularProgress size={16} color="warning" />
-                            ) : (
-                              <ElectricBoltIcon fontSize="small" />
-                            )}
+                            {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
                           </IconButton>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title={t('leds.edit_led')}>
-                        <IconButton size="small" onClick={() => openEditLed(led)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={t('leds.delete_led')}>
-                        <IconButton size="small" color="error" onClick={() => setDeleteLed(led)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        </Tooltip>
+                        <Tooltip title={t('leds.test_led')}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              color="warning"
+                              disabled={testingLedId !== null || !isEnabled}
+                              onClick={() => handleTestLed(led)}
+                            >
+                              {testingLedId === led.id ? (
+                                <CircularProgress size={16} color="warning" />
+                              ) : (
+                                <ElectricBoltIcon fontSize="small" />
+                              )}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title={t('leds.edit_led')}>
+                          <IconButton size="small" onClick={() => openEditLed(led)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={t('leds.delete_led')}>
+                          <IconButton size="small" color="error" onClick={() => setDeleteLed(led)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

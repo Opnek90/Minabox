@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Float,
@@ -34,7 +35,6 @@ class PlaybackEvent(Base):
     tag_id = Column(Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True)
     podcast_id = Column(Integer, ForeignKey("podcasts.id", ondelete="SET NULL"), nullable=True)
     content_type = Column(String(16), nullable=False)  # 'playlist', 'track', 'stream', 'podcast'
-    # Actual listened duration in ms (from position when event closed); used for stats instead of ended_at - started_at
     listened_ms = Column(Integer, nullable=True)
 
 
@@ -51,9 +51,11 @@ class Tag(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
     last_scanned_at = Column(DateTime, nullable=True)
+    # Issue #63: when True, tag is blocked — no playback, fires tag_blocked MQTT event
+    disabled = Column(Boolean, nullable=False, default=False, server_default="0")
 
     def __repr__(self) -> str:
-        return f"<Tag(id={self.id}, tag_id={self.tag_id}, content_type={self.content_type}, content_id={self.content_id})>"
+        return f"<Tag(id={self.id}, tag_id={self.tag_id}, content_type={self.content_type}, content_id={self.content_id}, disabled={self.disabled})>"
 
 
 class Playlist(Base):
@@ -68,7 +70,6 @@ class Playlist(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
 
-    # Relationships
     tracks = relationship(
         "PlaylistTrack", back_populates="playlist", cascade="all, delete-orphan"
     )
@@ -106,7 +107,7 @@ class Track(Base):
     duration_ms = Column(Integer, nullable=True)
     source_type = Column(String(16), nullable=False)  # 'file' or 'remote'
     source_uri = Column(String(1024), nullable=False)
-    cover_art_url = Column(String(512), nullable=True)  # e.g. /static/covers/track_123.jpg
+    cover_art_url = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     last_played_at = Column(DateTime, nullable=True)
 
@@ -128,13 +129,11 @@ class PlaylistTrack(Base):
     track_id = Column(
         Integer, ForeignKey("tracks.id", ondelete="CASCADE"), nullable=False
     )
-    position = Column(Integer, nullable=False)  # 0-based position in playlist
+    position = Column(Integer, nullable=False)
 
-    # Relationships
     playlist = relationship("Playlist", back_populates="tracks")
     track = relationship("Track")
 
-    # Constraints
     __table_args__ = (
         UniqueConstraint("playlist_id", "position", name="unique_playlist_position"),
     )
@@ -171,8 +170,8 @@ class PodcastEpisode(Base):
         Integer, ForeignKey("podcasts.id", ondelete="CASCADE"), nullable=False
     )
     title = Column(String(512), nullable=False)
-    source_uri = Column(String(1024), nullable=False)  # audio URL
-    guid = Column(String(512), nullable=True)  # feed guid for deduplication
+    source_uri = Column(String(1024), nullable=False)
+    guid = Column(String(512), nullable=True)
     published_at = Column(DateTime, nullable=True)
     duration_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
@@ -199,23 +198,14 @@ class TemperatureReading(Base):
 
 
 class TrackResumePosition(Base):
-    """Persisted playback resume position per content URI.
-
-    Stores the last known position for tracks and podcast episodes so
-    the system can resume from where playback was stopped or paused.
-    Keyed by source_uri — the only identifier shared between audio-service
-    and backend-service.
-
-    A row is upserted on every stop/pause event and deleted when a track
-    is played to completion (< MIN_REMAINING_MS remaining).
-    """
+    """Persisted playback resume position per content URI."""
 
     __tablename__ = "track_resume_positions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     source_uri = Column(String(1024), nullable=False, unique=True, index=True)
     position_ms = Column(Integer, nullable=False, default=0)
-    content_type = Column(String(16), nullable=False)  # 'track' or 'podcast'
+    content_type = Column(String(16), nullable=False)
     updated_at = Column(
         DateTime,
         default=lambda: datetime.now(UTC),
