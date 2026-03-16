@@ -68,7 +68,10 @@ interface PlaylistListProps {
   sortKey: string;
   sortDir: 'asc' | 'desc';
   onSortChange: (key: string, dir: 'asc' | 'desc') => void;
-  onOpenCreate: () => void;
+  /** Wenn true, soll der Create-Dialog geöffnet werden. */
+  createOpen: boolean;
+  /** Wird aufgerufen sobald der Dialog geöffnet wurde, damit MediaPage den State zurücksetzen kann. */
+  onCreateOpenHandled: () => void;
 }
 
 interface PlaylistFormData {
@@ -88,7 +91,8 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
   sortKey,
   sortDir,
   onSortChange,
-  onOpenCreate,
+  createOpen,
+  onCreateOpenHandled,
 }) => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
@@ -106,6 +110,16 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
   const [tracksDialogPlaylist, setTracksDialogPlaylist] = useState<PlaylistDetail | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [coverTargetId, setCoverTargetId] = useState<number | null>(null);
+
+  // Öffne Create-Dialog wenn MediaPage den Button oben rechts drückt
+  React.useEffect(() => {
+    if (createOpen) {
+      setEditingPlaylist(null);
+      setFormData({ name: '', description: '', coverFile: null });
+      setFormOpen(true);
+      onCreateOpenHandled();
+    }
+  }, [createOpen, onCreateOpenHandled]);
 
   const typedSortKey = sortKey as SortKey;
   const hasNonDefaultSort = typedSortKey !== DEFAULT_SORT_KEY || sortDir !== DEFAULT_SORT_DIR;
@@ -157,7 +171,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     </Box>
   );
 
-  // ── Dialog helpers ──────────────────────────────────────────────────────────
+  // ── Dialog helpers ────────────────────────────────────────────────────────
   const handleOpenEdit = (pl: Playlist) => {
     setEditingPlaylist(pl);
     setFormData({ name: pl.name, description: pl.description ?? '', coverFile: null });
@@ -432,21 +446,11 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                   )}
                 </CardContent>
                 <CardActions sx={{ pt: 0 }}>
-                  <Tooltip title={t('playlists.play')}>
-                    <IconButton size="small" color="primary" onClick={() => handlePlay(pl)}><PlayArrowIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('playlists.edit_tracks')}>
-                    <IconButton size="small" onClick={() => handleOpenTracksDialog(pl)}><QueueMusicIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('playlists.upload_cover')}>
-                    <IconButton size="small" onClick={() => { setCoverTargetId(pl.id); coverInputRef.current?.click(); }}><UploadIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('playlists.edit')}>
-                    <IconButton size="small" onClick={() => handleOpenEdit(pl)}><EditIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('playlists.delete')}>
-                    <IconButton size="small" color="error" onClick={() => setDeleteTarget(pl)}><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
+                  <Tooltip title={t('playlists.play')}><IconButton size="small" color="primary" onClick={() => handlePlay(pl)}><PlayArrowIcon fontSize="small" /></IconButton></Tooltip>
+                  <Tooltip title={t('playlists.edit_tracks')}><IconButton size="small" onClick={() => handleOpenTracksDialog(pl)}><QueueMusicIcon fontSize="small" /></IconButton></Tooltip>
+                  <Tooltip title={t('playlists.upload_cover')}><IconButton size="small" onClick={() => { setCoverTargetId(pl.id); coverInputRef.current?.click(); }}><UploadIcon fontSize="small" /></IconButton></Tooltip>
+                  <Tooltip title={t('playlists.edit')}><IconButton size="small" onClick={() => handleOpenEdit(pl)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+                  <Tooltip title={t('playlists.delete')}><IconButton size="small" color="error" onClick={() => setDeleteTarget(pl)}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
                 </CardActions>
               </Card>
             </Grid>
@@ -459,7 +463,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); e.target.value = ''; }} />
       )}
 
-      {/* Create / Edit Dialog – wird über onOpenCreate von MediaPage getriggert */}
+      {/* Create / Edit Dialog */}
       <Dialog open={formOpen} onClose={() => setFormOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
           {editingPlaylist ? t('playlists.edit') : t('playlists.create')}

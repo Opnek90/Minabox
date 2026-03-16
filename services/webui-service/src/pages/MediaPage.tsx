@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -72,8 +72,8 @@ export const MediaPage: React.FC = () => {
   const [streamOpen, setStreamOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
 
-  // Ref zum Oeffnen des Playlist-Create-Dialogs von aussen
-  const playlistCreateRef = useRef<(() => void) | null>(null);
+  // Signal an PlaylistList: Create-Dialog öffnen
+  const [playlistCreateOpen, setPlaylistCreateOpen] = useState(false);
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
@@ -223,8 +223,11 @@ export const MediaPage: React.FC = () => {
       title={t('title')}
       actions={
         tab === 0 ? (
-          <ActionButton actionType="primary" startIcon={<PlaylistAddIcon />}
-            onClick={() => playlistCreateRef.current?.()}>
+          <ActionButton
+            actionType="primary"
+            startIcon={<PlaylistAddIcon />}
+            onClick={() => setPlaylistCreateOpen(true)}
+          >
             {t('playlists.add_playlist')}
           </ActionButton>
         ) : tab === 1 ? (
@@ -277,13 +280,8 @@ export const MediaPage: React.FC = () => {
           sortKey={getSort('playlists').key}
           sortDir={getSort('playlists').dir}
           onSortChange={(key, dir) => setSort('playlists', key, dir)}
-          onOpenCreate={() => {
-            // Wir nutzen einen Callback-Ref um den Dialog in PlaylistList zu oeffnen
-            playlistCreateRef.current = null; // reset
-            // PlaylistList steuert den Dialog selbst; wir schicken ein Signal via Ref
-            // Das geht nicht direkt – stattdessen tracken wir den State in MediaPage:
-            setPlaylistCreateOpen(true);
-          }}
+          createOpen={playlistCreateOpen}
+          onCreateOpenHandled={() => setPlaylistCreateOpen(false)}
         />
       </TabPanel>
 
