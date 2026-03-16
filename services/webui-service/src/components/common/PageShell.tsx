@@ -28,8 +28,8 @@ export const PageShell: React.FC<PageShellProps> = ({
         p: isSmall ? 1.5 : 3,
         maxWidth: maxWidth ?? 'none',
         mx: maxWidth ? 'auto' : undefined,
-        // Prevent inner content (Grids, Toolbars) from creating horizontal scroll
-        overflowX: 'hidden',
+        // Kein overflowX:hidden hier – das wuerde Badges und Buttons abschneiden.
+        // Breiten-Overflow wird stattdessen per minWidth:0 auf Grid/Flex-Kinder verhindert.
       }}
     >
       {/* Title row */}
@@ -62,8 +62,6 @@ export const PageShell: React.FC<PageShellProps> = ({
             flexWrap="wrap"
             sx={{
               flex: isSmall ? '1 1 100%' : '0 0 auto',
-              // Buttons sollen nie abgeschnitten werden
-              overflow: 'visible',
             }}
           >
             {actions}

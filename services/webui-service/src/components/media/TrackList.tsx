@@ -49,6 +49,9 @@ const DEFAULT_FILTER: FilterSource = 'all';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
+// 3 Buttons (Play + Edit + Delete) à ~32px + Gaps = ~112px
+const LIST_ITEM_PR = '112px';
+
 interface TrackListProps {
   tracks: Track[];
   onDelete: (track: Track) => void;
@@ -195,7 +198,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       divider={index < sorted.length - 1}
       secondaryAction={
         !selectionMode && (
-          <Box>
+          <Box display="flex" alignItems="center">
             <Tooltip title={t('tracks.play')}>
               <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
                 <PlayArrowIcon fontSize="small" />
@@ -216,7 +219,11 @@ export const TrackList: React.FC<TrackListProps> = ({
           </Box>
         )
       }
-      sx={selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : undefined}
+      sx={{
+        // Genug Platz rechts damit Text nie unter die Buttons rutscht
+        pr: selectionMode ? undefined : LIST_ITEM_PR,
+        ...(selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
+      }}
       onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
     >
       <ListItemAvatar sx={{ minWidth: 44 }}>
@@ -232,15 +239,17 @@ export const TrackList: React.FC<TrackListProps> = ({
       </ListItemAvatar>
       <ListItemText
         primary={track.title}
+        primaryTypographyProps={{ noWrap: true }}
         secondary={
           <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
-            {track.artist && <Typography component="span" variant="caption">{track.artist}</Typography>}
-            {track.album && <Typography component="span" variant="caption" color="text.disabled">· {track.album}</Typography>}
+            {track.artist && <Typography component="span" variant="caption" noWrap>{track.artist}</Typography>}
+            {track.album && <Typography component="span" variant="caption" color="text.disabled" noWrap>· {track.album}</Typography>}
             {track.duration_ms != null && (
-              <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+              <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined"
+                sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
             )}
             {track.last_played_at && (
-              <Typography component="span" variant="caption" color="text.disabled">
+              <Typography component="span" variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
                 ·{' '}
                 {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
                   -Math.round((Date.now() - new Date(track.last_played_at).getTime()) / 3_600_000),
@@ -262,7 +271,9 @@ export const TrackList: React.FC<TrackListProps> = ({
         )}
         <CardContent sx={{ pb: 0, flex: 1 }}>
           <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
-            {track.source_type === 'remote' ? <LinkIcon fontSize="small" color="primary" /> : <AudiotrackIcon fontSize="small" color="primary" />}
+            {track.source_type === 'remote'
+              ? <LinkIcon fontSize="small" color="primary" />
+              : <AudiotrackIcon fontSize="small" color="primary" />}
             {track.title}
           </Typography>
           {(track.artist || track.album) && (
@@ -329,7 +340,8 @@ export const TrackList: React.FC<TrackListProps> = ({
               onClick={() => setPopoverOpen(true)}
               aria-label={t('tracks.filter.open')}
               sx={{
-                position: 'relative',
+                // overflow:visible damit der Badge (top:-6, right:-6) nicht abgeschnitten wird
+                overflow: 'visible',
                 color: activeBadgeCount > 0 ? 'primary.main' : 'text.secondary',
                 border: '1px solid',
                 borderColor: activeBadgeCount > 0 ? 'primary.main' : 'divider',
@@ -345,6 +357,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                   bgcolor: 'primary.main', color: 'primary.contrastText',
                   fontSize: '0.65rem', fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  pointerEvents: 'none',
                 }}>
                   {activeBadgeCount}
                 </Box>
@@ -365,7 +378,8 @@ export const TrackList: React.FC<TrackListProps> = ({
             <Chip size="small"
               icon={sortDir === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
               label={sortKeyLabel[typedSortKey]}
-              onDelete={() => onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR)} color="primary" variant="outlined" />
+              onDelete={() => onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR)}
+              color="primary" variant="outlined" />
           )}
           {hasActiveFilter && hasNonDefaultSort && (
             <Chip size="small" label={t('tracks.filter.reset_all')}
@@ -420,7 +434,8 @@ export const TrackList: React.FC<TrackListProps> = ({
           {hasAnyActiveChip && (
             <>
               <Divider />
-              <Box component="button" onClick={() => { onFilterChange(DEFAULT_FILTER); onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR); setPopoverOpen(false); }}
+              <Box component="button"
+                onClick={() => { onFilterChange(DEFAULT_FILTER); onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR); setPopoverOpen(false); }}
                 sx={{ background: 'none', border: 'none', cursor: 'pointer', color: 'text.secondary', fontSize: '0.8rem', textAlign: 'left', p: 0, '&:hover': { color: 'text.primary' } }}>
                 {t('tracks.filter.reset_all')}
               </Box>

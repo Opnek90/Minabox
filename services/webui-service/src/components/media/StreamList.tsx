@@ -43,6 +43,9 @@ type SortKey = 'title' | 'artist' | 'last_played_at';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
+// 3 Buttons (Play + Edit + Delete) à ~32px + Gaps = ~112px
+const LIST_ITEM_PR = '112px';
+
 interface StreamListProps {
   streams: Stream[];
   onDelete: (stream: Stream) => void;
@@ -138,7 +141,7 @@ export const StreamList: React.FC<StreamListProps> = ({
   return (
     <Box>
       {/* Toolbar */}
-      <Box display="flex" gap={1} mb={1} alignItems="center">
+      <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap">
         <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
           <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon fontSize="small" /></ToggleButton>
@@ -163,7 +166,7 @@ export const StreamList: React.FC<StreamListProps> = ({
               onClick={() => setPopoverOpen(true)}
               aria-label={t('streams.sort.open')}
               sx={{
-                position: 'relative',
+                overflow: 'visible',
                 color: hasNonDefaultSort ? 'primary.main' : 'text.secondary',
                 border: '1px solid',
                 borderColor: hasNonDefaultSort ? 'primary.main' : 'divider',
@@ -178,6 +181,7 @@ export const StreamList: React.FC<StreamListProps> = ({
                   bgcolor: 'primary.main', color: 'primary.contrastText',
                   fontSize: '0.65rem', fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  pointerEvents: 'none',
                 }}>1</Box>
               )}
             </IconButton>
@@ -275,7 +279,7 @@ export const StreamList: React.FC<StreamListProps> = ({
               {idx > 0 && <Divider component="li" />}
               <ListItem
                 secondaryAction={
-                  <Box>
+                  <Box display="flex" alignItems="center">
                     <Tooltip title={t('tracks.play')}>
                       <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}><PlayArrowIcon fontSize="small" /></IconButton>
                     </Tooltip>
@@ -287,19 +291,22 @@ export const StreamList: React.FC<StreamListProps> = ({
                     </Tooltip>
                   </Box>
                 }
+                sx={{ pr: LIST_ITEM_PR }}
               >
                 {stream.cover_art_url ? (
-                  <Box component="img" src={stream.cover_art_url} alt="" sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1 }} />
+                  <Box component="img" src={stream.cover_art_url} alt=""
+                    sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1, flexShrink: 0 }} />
                 ) : (
-                  <Box mr={1} color="text.secondary"><StreamIcon fontSize="small" /></Box>
+                  <Box mr={1} color="text.secondary" sx={{ flexShrink: 0 }}><StreamIcon fontSize="small" /></Box>
                 )}
                 <ListItemText
                   primary={stream.title}
+                  primaryTypographyProps={{ noWrap: true }}
                   secondary={
                     <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
-                      {stream.artist && <Typography component="span" variant="caption">{stream.artist}</Typography>}
+                      {stream.artist && <Typography component="span" variant="caption" noWrap>{stream.artist}</Typography>}
                       {stream.last_played_at && (
-                        <Typography component="span" variant="caption" color="text.disabled">
+                        <Typography component="span" variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
                           ·{' '}{new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
                             -Math.round((Date.now() - new Date(stream.last_played_at).getTime()) / 3_600_000), 'hour'
                           )}

@@ -46,8 +46,6 @@ interface TabPanelProps {
 }
 
 const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  // mx:-1.5/px:1.5 compensation entfernt – PageShell hat overflowX:hidden,
-  // also reicht pt:2 ohne negative margin
   <Box role="tabpanel" hidden={value !== index} sx={{ pt: 2 }}>
     {value === index && children}
   </Box>
@@ -105,9 +103,7 @@ export const MediaPage: React.FC = () => {
     }
   }, [t]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const checkAndConfirmDelete = async (target: DeleteTarget) => {
     try {
@@ -146,9 +142,8 @@ export const MediaPage: React.FC = () => {
             })
           )
         );
-      } catch { /* tag unassign failed — proceed with delete */ }
+      } catch { /* ignore */ }
     }
-
     try {
       if (deleteTarget.type === 'track') {
         await tracksApi.delete(deleteTarget.item.id);
@@ -191,9 +186,7 @@ export const MediaPage: React.FC = () => {
         artist: editForm.artist.trim() || null,
         album: editForm.album.trim() || null,
       });
-      if (editCoverFile) {
-        updated = await tracksApi.uploadCover(editTrack.id, editCoverFile);
-      }
+      if (editCoverFile) updated = await tracksApi.uploadCover(editTrack.id, editCoverFile);
       setTracks((prev) => prev.map((tr) => (tr.id === updated.id ? updated : tr)));
       setEditTrack(null);
       setEditCoverFile(null);
@@ -253,8 +246,8 @@ export const MediaPage: React.FC = () => {
 
       {/*
         variant="scrollable" + scrollButtons="auto" + allowScrollButtonsMobile:
-        Tabs scrollen horizontal auf Mobile statt zu umbrechen.
-        sx: kein overflow-clip hier, damit Scroll-Buttons sichtbar bleiben.
+        Auf schmalen Screens scrollen die Tabs horizontal – kein Umbrechen,
+        kein Overflow aus dem Container.
       */}
       <Tabs
         value={tab}
@@ -262,13 +255,7 @@ export const MediaPage: React.FC = () => {
         variant="scrollable"
         scrollButtons="auto"
         allowScrollButtonsMobile
-        sx={{
-          borderBottom: 1,
-          borderColor: 'divider',
-          // Tabs dürfen horizontal scrollen, aber PageShell schneidet vertikal nicht ab
-          mx: -1.5,
-          px: 1.5,
-        }}
+        sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />

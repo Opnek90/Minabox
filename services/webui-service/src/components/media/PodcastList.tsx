@@ -43,6 +43,9 @@ type SortKey = 'title' | 'last_fetched_at' | 'last_played_at';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
+// 3 Buttons (Play + Edit + Delete) à ~32px + Gaps = ~112px
+const LIST_ITEM_PR = '112px';
+
 interface PodcastListProps {
   podcasts: Podcast[];
   onDelete: (podcast: Podcast) => void;
@@ -73,7 +76,6 @@ export const PodcastList: React.FC<PodcastListProps> = ({
   const [podcastToEdit, setPodcastToEdit] = useState<Podcast | null>(null);
 
   const typedSortKey = sortKey as SortKey;
-
   const hasNonDefaultSort = typedSortKey !== DEFAULT_SORT_KEY || sortDir !== DEFAULT_SORT_DIR;
 
   const sortKeyLabel: Record<SortKey, string> = {
@@ -139,7 +141,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
   return (
     <Box>
       {/* Toolbar */}
-      <Box display="flex" gap={1} mb={1} alignItems="center">
+      <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap">
         <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
           <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon fontSize="small" /></ToggleButton>
@@ -164,7 +166,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
               onClick={() => setPopoverOpen(true)}
               aria-label={t('podcasts.sort.open')}
               sx={{
-                position: 'relative',
+                overflow: 'visible',
                 color: hasNonDefaultSort ? 'primary.main' : 'text.secondary',
                 border: '1px solid',
                 borderColor: hasNonDefaultSort ? 'primary.main' : 'divider',
@@ -179,6 +181,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                   bgcolor: 'primary.main', color: 'primary.contrastText',
                   fontSize: '0.65rem', fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  pointerEvents: 'none',
                 }}>1</Box>
               )}
             </IconButton>
@@ -278,7 +281,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
               {idx > 0 && <Divider component="li" />}
               <ListItem
                 secondaryAction={
-                  <Box>
+                  <Box display="flex" alignItems="center">
                     <Tooltip title={t('tracks.play')}>
                       <IconButton size="small" color="primary" onClick={() => audioApi.play({ podcast_id: podcast.id })}><PlayArrowIcon fontSize="small" /></IconButton>
                     </Tooltip>
@@ -290,19 +293,22 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                     </Tooltip>
                   </Box>
                 }
+                sx={{ pr: LIST_ITEM_PR }}
               >
                 {podcast.cover_art_url ? (
-                  <Box component="img" src={podcast.cover_art_url} alt="" sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1 }} />
+                  <Box component="img" src={podcast.cover_art_url} alt=""
+                    sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, mr: 1, flexShrink: 0 }} />
                 ) : (
-                  <Box mr={1} color="text.secondary"><PodcastsIcon fontSize="small" /></Box>
+                  <Box mr={1} color="text.secondary" sx={{ flexShrink: 0 }}><PodcastsIcon fontSize="small" /></Box>
                 )}
                 <ListItemText
                   primary={podcast.title}
+                  primaryTypographyProps={{ noWrap: true }}
                   secondary={
                     podcast.latest_episode_title || podcast.last_played_at || podcast.last_fetched_at ? (
                       <Box component="span" display="flex" flexDirection="column" gap={0.25}>
                         {podcast.latest_episode_title && (
-                          <Typography component="span" variant="caption" display="block">
+                          <Typography component="span" variant="caption" display="block" noWrap>
                             {t('podcasts.latest_episode')}: {podcast.latest_episode_title}
                             {podcast.latest_episode_published_at &&
                               ` (${new Date(podcast.latest_episode_published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })})`}
@@ -310,7 +316,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                         )}
                         <Box component="span" display="flex" gap={1} flexWrap="wrap" alignItems="center">
                           {podcast.last_played_at && (
-                            <Typography component="span" variant="caption" color="text.disabled">
+                            <Typography component="span" variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
                               {t('podcasts.last_played')}:{' '}
                               {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
                                 -Math.round((Date.now() - new Date(podcast.last_played_at).getTime()) / 60_000), 'minute'
@@ -318,7 +324,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                             </Typography>
                           )}
                           {podcast.last_fetched_at && (
-                            <Typography component="span" variant="caption" color="text.disabled">
+                            <Typography component="span" variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
                               {t('podcasts.last_fetched_label')}:{' '}
                               {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
                                 -Math.round((Date.now() - new Date(podcast.last_fetched_at).getTime()) / 86_400_000), 'day'
