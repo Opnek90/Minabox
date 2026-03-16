@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import LinkIcon from '@mui/icons-material/Link';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
@@ -38,7 +39,6 @@ import { tracksApi } from '@/api/tracks';
 import { tagsApi } from '@/api/tags';
 import type { Playlist, Podcast, Stream, Track } from '@/types/api';
 
-
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -56,7 +56,6 @@ type DeleteTarget =
   | { type: 'stream'; item: Stream }
   | { type: 'podcast'; item: Podcast };
 
-
 export const MediaPage: React.FC = () => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
@@ -72,6 +71,9 @@ export const MediaPage: React.FC = () => {
   const [remoteTrackOpen, setRemoteTrackOpen] = useState(false);
   const [streamOpen, setStreamOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
+
+  // Ref zum Oeffnen des Playlist-Create-Dialogs von aussen
+  const playlistCreateRef = useRef<(() => void) | null>(null);
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
@@ -220,7 +222,12 @@ export const MediaPage: React.FC = () => {
     <PageShell
       title={t('title')}
       actions={
-        tab === 1 ? (
+        tab === 0 ? (
+          <ActionButton actionType="primary" startIcon={<PlaylistAddIcon />}
+            onClick={() => playlistCreateRef.current?.()}>
+            {t('playlists.add_playlist')}
+          </ActionButton>
+        ) : tab === 1 ? (
           <>
             <ActionButton actionType="secondary" startIcon={<LinkIcon />} onClick={() => setRemoteTrackOpen(true)}>
               {t('tracks.add_remote', { defaultValue: 'Remote-Track' })}
@@ -244,11 +251,6 @@ export const MediaPage: React.FC = () => {
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>
       )}
 
-      {/*
-        variant="scrollable" + scrollButtons="auto" + allowScrollButtonsMobile:
-        Auf schmalen Screens scrollen die Tabs horizontal – kein Umbrechen,
-        kein Overflow aus dem Container.
-      */}
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
@@ -270,6 +272,18 @@ export const MediaPage: React.FC = () => {
           onUpdate={(pl) => setPlaylists((prev) => prev.map((p) => (p.id === pl.id ? pl : p)))}
           onDelete={(pl) => setPlaylists((prev) => prev.filter((p) => p.id !== pl.id))}
           onCreate={(pl) => setPlaylists((prev) => [...prev, pl])}
+          viewMode={getViewMode('playlists') as 'card' | 'list'}
+          onViewModeChange={(mode) => setViewMode('playlists', mode)}
+          sortKey={getSort('playlists').key}
+          sortDir={getSort('playlists').dir}
+          onSortChange={(key, dir) => setSort('playlists', key, dir)}
+          onOpenCreate={() => {
+            // Wir nutzen einen Callback-Ref um den Dialog in PlaylistList zu oeffnen
+            playlistCreateRef.current = null; // reset
+            // PlaylistList steuert den Dialog selbst; wir schicken ein Signal via Ref
+            // Das geht nicht direkt – stattdessen tracken wir den State in MediaPage:
+            setPlaylistCreateOpen(true);
+          }}
         />
       </TabPanel>
 
@@ -316,15 +330,11 @@ export const MediaPage: React.FC = () => {
 
       {/* Central delete dialog */}
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          {t('media.delete_confirm_title', { defaultValue: 'Medium löschen?' })}
-        </DialogTitle>
+        <DialogTitle>{t('media.delete_confirm_title', { defaultValue: 'Medium löschen?' })}</DialogTitle>
         <DialogContent>
           {assignedTagNames.length > 0 ? (
             <DialogContentText>
-              {t('media.delete_assigned_warning', {
-                defaultValue: 'Dieses Medium ist noch folgenden RFID-Tags zugewiesen:',
-              })}
+              {t('media.delete_assigned_warning', { defaultValue: 'Dieses Medium ist noch folgenden RFID-Tags zugewiesen:' })}
               <Box component="ul" sx={{ mt: 1, pl: 2 }}>
                 {assignedTagNames.map((name) => <li key={name}>{name}</li>)}
               </Box>
@@ -336,11 +346,7 @@ export const MediaPage: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Stack
-            direction={assignedTagNames.length > 0 ? 'column' : 'row'}
-            spacing={1}
-            sx={{ width: '100%', px: 1, pb: 1 }}
-          >
+          <Stack direction={assignedTagNames.length > 0 ? 'column' : 'row'} spacing={1} sx={{ width: '100%', px: 1, pb: 1 }}>
             <ActionButton actionType="secondary" onClick={closeDeleteDialog} fullWidth>
               {t('cancel', { ns: 'common' })}
             </ActionButton>
@@ -349,11 +355,7 @@ export const MediaPage: React.FC = () => {
                 {t('media.delete_media_only', { defaultValue: 'Nur Medium löschen' })}
               </ActionButton>
             )}
-            <ActionButton
-              actionType="destructive"
-              onClick={() => void performDelete(assignedTagNames.length > 0)}
-              fullWidth
-            >
+            <ActionButton actionType="destructive" onClick={() => void performDelete(assignedTagNames.length > 0)} fullWidth>
               {assignedTagNames.length > 0
                 ? t('media.delete_media_and_unassign', { defaultValue: 'Medium + Tag-Zuweisung löschen' })
                 : t('delete', { ns: 'common' })}
@@ -363,12 +365,7 @@ export const MediaPage: React.FC = () => {
       </Dialog>
 
       {/* Track Edit Dialog */}
-      <Dialog
-        open={!!editTrack}
-        onClose={() => { setEditTrack(null); setEditCoverFile(null); }}
-        maxWidth="sm"
-        fullWidth
-      >
+      <Dialog open={!!editTrack} onClose={() => { setEditTrack(null); setEditCoverFile(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>{t('tracks.edit')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           <CoverUploadField
@@ -377,60 +374,32 @@ export const MediaPage: React.FC = () => {
             onFileSelect={(file) => setEditCoverFile(file)}
             onRemove={handleTrackEditRemoveCover}
           />
-          <TextField
-            label={t('tracks.fields.title')}
-            value={editForm.title}
+          <TextField label={t('tracks.fields.title')} value={editForm.title}
             onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
-            size="small" fullWidth required
-          />
-          <TextField
-            label={t('tracks.fields.artist')}
-            value={editForm.artist}
+            size="small" fullWidth required />
+          <TextField label={t('tracks.fields.artist')} value={editForm.artist}
             onChange={(e) => setEditForm((p) => ({ ...p, artist: e.target.value }))}
-            size="small" fullWidth
-          />
-          <TextField
-            label={t('tracks.fields.album')}
-            value={editForm.album}
+            size="small" fullWidth />
+          <TextField label={t('tracks.fields.album')} value={editForm.album}
             onChange={(e) => setEditForm((p) => ({ ...p, album: e.target.value }))}
-            size="small" fullWidth
-          />
+            size="small" fullWidth />
         </DialogContent>
         <DialogActions>
-          <ActionButton actionType="secondary" onClick={() => setEditTrack(null)}>
-            {t('cancel', { ns: 'common' })}
-          </ActionButton>
-          <ActionButton
-            actionType="primary"
-            loading={editSaving}
-            disabled={editSaving || !editForm.title.trim()}
-            onClick={handleTrackEditSave}
-          >
+          <ActionButton actionType="secondary" onClick={() => setEditTrack(null)}>{t('cancel', { ns: 'common' })}</ActionButton>
+          <ActionButton actionType="primary" loading={editSaving} disabled={editSaving || !editForm.title.trim()} onClick={handleTrackEditSave}>
             {t('save', { ns: 'common' })}
           </ActionButton>
         </DialogActions>
       </Dialog>
 
-      <UploadDialog
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setUploadOpen(false); showSuccess(t('tracks.uploaded')); }}
-      />
-      <RemoteTrackDialog
-        open={remoteTrackOpen}
-        onClose={() => setRemoteTrackOpen(false)}
-        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added', { defaultValue: 'Remote-Track hinzugefügt' })); }}
-      />
-      <StreamDialog
-        open={streamOpen}
-        onClose={() => setStreamOpen(false)}
-        onSuccess={(stream) => { setStreams((prev) => [...prev, stream]); setStreamOpen(false); showSuccess(t('tracks.stream_added')); }}
-      />
-      <PodcastDialog
-        open={podcastOpen}
-        onClose={() => setPodcastOpen(false)}
-        onSuccess={(podcast) => { setPodcasts((prev) => [...prev, podcast]); setPodcastOpen(false); showSuccess(t('podcasts.created')); }}
-      />
+      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)}
+        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setUploadOpen(false); showSuccess(t('tracks.uploaded')); }} />
+      <RemoteTrackDialog open={remoteTrackOpen} onClose={() => setRemoteTrackOpen(false)}
+        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added', { defaultValue: 'Remote-Track hinzugefügt' })); }} />
+      <StreamDialog open={streamOpen} onClose={() => setStreamOpen(false)}
+        onSuccess={(stream) => { setStreams((prev) => [...prev, stream]); setStreamOpen(false); showSuccess(t('tracks.stream_added')); }} />
+      <PodcastDialog open={podcastOpen} onClose={() => setPodcastOpen(false)}
+        onSuccess={(podcast) => { setPodcasts((prev) => [...prev, podcast]); setPodcastOpen(false); showSuccess(t('podcasts.created')); }} />
     </PageShell>
   );
 };
