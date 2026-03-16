@@ -46,6 +46,8 @@ interface TabPanelProps {
 }
 
 const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
+  // mx:-1.5/px:1.5 compensation entfernt – PageShell hat overflowX:hidden,
+  // also reicht pt:2 ohne negative margin
   <Box role="tabpanel" hidden={value !== index} sx={{ pt: 2 }}>
     {value === index && children}
   </Box>
@@ -78,7 +80,6 @@ export const MediaPage: React.FC = () => {
   const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
-  // #64 — central delete dialog state
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [assignedTagNames, setAssignedTagNames] = useState<string[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -108,7 +109,6 @@ export const MediaPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  // #64 — check tag assignments then open central dialog
   const checkAndConfirmDelete = async (target: DeleteTarget) => {
     try {
       const allTags = await tagsApi.getAll();
@@ -131,9 +131,6 @@ export const MediaPage: React.FC = () => {
 
   const performDelete = async (unassignTags: boolean) => {
     if (!deleteTarget) return;
-
-    // #64 fix: unassign tags in a separate try/catch so a tag-update
-    // failure never prevents the actual media delete from running.
     if (unassignTags && assignedTagNames.length > 0) {
       try {
         const allTags = await tagsApi.getAll();
@@ -149,9 +146,7 @@ export const MediaPage: React.FC = () => {
             })
           )
         );
-      } catch {
-        // tag unassign failed — log silently, still proceed with delete
-      }
+      } catch { /* tag unassign failed — proceed with delete */ }
     }
 
     try {
@@ -222,7 +217,6 @@ export const MediaPage: React.FC = () => {
     }
   };
 
-  // #81 — helpers to read prefs per scope
   const getSort = (scope: string) => prefs.sort[scope] ?? { key: 'title', dir: 'asc' as const };
   const getViewMode = (scope: string) => prefs.viewMode[scope] ?? 'list';
   const getFilter = (scope: string) => prefs.filter[scope] ?? 'all';
@@ -257,13 +251,24 @@ export const MediaPage: React.FC = () => {
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>
       )}
 
+      {/*
+        variant="scrollable" + scrollButtons="auto" + allowScrollButtonsMobile:
+        Tabs scrollen horizontal auf Mobile statt zu umbrechen.
+        sx: kein overflow-clip hier, damit Scroll-Buttons sichtbar bleiben.
+      */}
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
         variant="scrollable"
         scrollButtons="auto"
         allowScrollButtonsMobile
-        sx={{ borderBottom: 1, borderColor: 'divider' }}
+        sx={{
+          borderBottom: 1,
+          borderColor: 'divider',
+          // Tabs dürfen horizontal scrollen, aber PageShell schneidet vertikal nicht ab
+          mx: -1.5,
+          px: 1.5,
+        }}
       >
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />
@@ -322,7 +327,7 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      {/* #64 — Central delete dialog */}
+      {/* Central delete dialog */}
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
         <DialogTitle>
           {t('media.delete_confirm_title', { defaultValue: 'Medium löschen?' })}

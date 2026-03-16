@@ -21,6 +21,9 @@ import { useTranslation } from 'react-i18next';
 import { TagCard } from './TagCard';
 import type { Tag, Playlist, Podcast, Stream, Track } from '@/types/api';
 
+// 3 Buttons à ~32px + Gaps = ~104px
+const LIST_ITEM_PR = '112px';
+
 function formatRelativeTime(isoString: string | null, locale: string): string | null {
   if (!isoString) return null;
   try {
@@ -68,15 +71,9 @@ export const TagList: React.FC<TagListProps> = ({
   const { t, i18n } = useTranslation('rfid');
 
   const getContentName = (tag: Tag): string | null => {
-    if (tag.content_type === 'playlist') {
-      return playlists.find((p) => p.id === tag.content_id)?.name ?? null;
-    }
-    if (tag.content_type === 'stream') {
-      return streams.find((s) => s.id === tag.content_id)?.title ?? null;
-    }
-    if (tag.content_type === 'podcast') {
-      return podcasts.find((p) => p.id === tag.content_id)?.title ?? null;
-    }
+    if (tag.content_type === 'playlist') return playlists.find((p) => p.id === tag.content_id)?.name ?? null;
+    if (tag.content_type === 'stream') return streams.find((s) => s.id === tag.content_id)?.title ?? null;
+    if (tag.content_type === 'podcast') return podcasts.find((p) => p.id === tag.content_id)?.title ?? null;
     return tracks.find((tr) => tr.id === tag.content_id)?.title ?? null;
   };
 
@@ -100,31 +97,23 @@ export const TagList: React.FC<TagListProps> = ({
               {idx > 0 && <Divider component="li" />}
               <ListItem
                 secondaryAction={
-                  <Box>
+                  <Box display="flex" alignItems="center">
                     <Tooltip title={isDisabled ? t('enable_tag') : t('disable_tag')}>
-                      <IconButton
-                        size="small"
-                        color={isDisabled ? 'success' : 'warning'}
-                        onClick={() => onToggleDisabled(tag)}
-                      >
-                        {isDisabled
-                          ? <CheckCircleOutlineIcon fontSize="small" />
-                          : <BlockIcon fontSize="small" />}
+                      <IconButton size="small" color={isDisabled ? 'success' : 'warning'} onClick={() => onToggleDisabled(tag)}>
+                        {isDisabled ? <CheckCircleOutlineIcon fontSize="small" /> : <BlockIcon fontSize="small" />}
                       </IconButton>
                     </Tooltip>
                     <Tooltip title={t('edit_tag')}>
-                      <IconButton size="small" onClick={() => onEdit(tag)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
+                      <IconButton size="small" onClick={() => onEdit(tag)}><EditIcon fontSize="small" /></IconButton>
                     </Tooltip>
                     <Tooltip title={t('delete_tag')}>
-                      <IconButton size="small" color="error" onClick={() => onDelete(tag)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => onDelete(tag)}><DeleteIcon fontSize="small" /></IconButton>
                     </Tooltip>
                   </Box>
                 }
                 sx={{
+                  // pr verhindert Überlappung von Text und Buttons
+                  pr: LIST_ITEM_PR,
                   borderLeft: isDisabled ? 4 : 0,
                   borderLeftColor: isDisabled ? 'error.main' : undefined,
                   bgcolor: isDisabled
@@ -139,37 +128,27 @@ export const TagList: React.FC<TagListProps> = ({
                 <ListItemText
                   primary={
                     <Box component="span" display="flex" alignItems="center" gap={1}>
-                      <Typography
-                        component="span"
-                        variant="body2"
-                        fontWeight={600}
-                      >
+                      <Typography component="span" variant="body2" fontWeight={600} noWrap>
                         {tag.name ?? tag.tag_id}
                       </Typography>
                       {isDisabled && (
-                        <Chip
-                          label={t('tag_disabled_label')}
-                          size="small"
-                          color="error"
-                          variant="filled"
-                          icon={<BlockIcon />}
-                          sx={{ height: 18, fontSize: '0.65rem' }}
-                        />
+                        <Chip label={t('tag_disabled_label')} size="small" color="error" variant="filled"
+                          icon={<BlockIcon />} sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
                       )}
                     </Box>
                   }
                   secondary={
                     <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
-                      <Typography component="span" variant="caption" color="text.secondary">
+                      <Typography component="span" variant="caption" color="text.secondary" noWrap>
                         {tag.tag_id}
                       </Typography>
                       {contentName && (
-                        <Typography component="span" variant="caption" color="text.disabled">
+                        <Typography component="span" variant="caption" color="text.disabled" noWrap>
                           · {contentName}
                         </Typography>
                       )}
                       {relativeTime && (
-                        <Box component="span" display="inline-flex" alignItems="center" gap={0.25}>
+                        <Box component="span" display="inline-flex" alignItems="center" gap={0.25} sx={{ flexShrink: 0 }}>
                           <AccessTimeIcon sx={{ fontSize: 10, color: 'text.disabled' }} />
                           <Typography component="span" variant="caption" color="text.disabled">
                             {relativeTime}
@@ -187,18 +166,12 @@ export const TagList: React.FC<TagListProps> = ({
     );
   }
 
-  // Card / grid view
   return (
     <Grid container spacing={2}>
       {tags.map((tag) => (
         <Grid item xs={12} sm={6} md={4} key={tag.id}>
-          <TagCard
-            tag={tag}
-            contentName={getContentName(tag)}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onToggleDisabled={onToggleDisabled}
-          />
+          <TagCard tag={tag} contentName={getContentName(tag)}
+            onEdit={onEdit} onDelete={onDelete} onToggleDisabled={onToggleDisabled} />
         </Grid>
       ))}
     </Grid>

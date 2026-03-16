@@ -42,7 +42,6 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
 import { PlaylistTracksDialog } from './PlaylistTracksDialog';
 
-
 interface PlaylistListProps {
   playlists: Playlist[];
   tracks: Track[];
@@ -57,6 +56,8 @@ interface PlaylistFormData {
   coverFile: File | null;
 }
 
+// 5 Buttons à ~32px + Gaps = ~176px
+const LIST_ITEM_PR = '180px';
 
 export const PlaylistList: React.FC<PlaylistListProps> = ({
   playlists,
@@ -90,22 +91,13 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     setFormOpen(true);
   };
 
-  const handleClearCoverInForm = () => {
-    setFormData((p) => ({ ...p, coverFile: null }));
-  };
+  const handleClearCoverInForm = () => setFormData((p) => ({ ...p, coverFile: null }));
 
   const handleRemoveCoverInForm = () => {
-    if (formData.coverFile) {
-      setFormData((p) => ({ ...p, coverFile: null }));
-      return;
-    }
+    if (formData.coverFile) { setFormData((p) => ({ ...p, coverFile: null })); return; }
     if (editingPlaylist?.cover_art_url) {
-      playlistsApi
-        .deleteCover(editingPlaylist.id)
-        .then((updated) => {
-          onUpdate(updated);
-          setEditingPlaylist(updated);
-        })
+      playlistsApi.deleteCover(editingPlaylist.id)
+        .then((updated) => { onUpdate(updated); setEditingPlaylist(updated); })
         .catch(() => showError(t('playlists.cover_error', { defaultValue: 'Cover konnte nicht entfernt werden' })));
     }
   };
@@ -119,9 +111,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           name: formData.name.trim(),
           description: formData.description.trim() || null,
         });
-        if (formData.coverFile) {
-          updated = await playlistsApi.uploadCover(editingPlaylist.id, formData.coverFile);
-        }
+        if (formData.coverFile) updated = await playlistsApi.uploadCover(editingPlaylist.id, formData.coverFile);
         onUpdate(updated);
         showSuccess(t('playlists.updated', { defaultValue: 'Playlist aktualisiert' }));
       } else {
@@ -188,24 +178,36 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 
   return (
     <Box>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
+      {/* Toolbar */}
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="space-between"
+        mb={2}
+        gap={1}
+        // kein flexWrap – Button soll nie abgeschnitten werden
+        sx={{ flexWrap: 'nowrap', minWidth: 0 }}
+      >
         <ToggleButtonGroup
           value={viewMode}
           exclusive
           onChange={(_, v) => v && setViewMode(v)}
           size="small"
+          sx={{ flexShrink: 0 }}
         >
           <ToggleButton value="card" aria-label={t('view_mode_card')}>
-            <ViewModuleIcon />
+            <ViewModuleIcon fontSize="small" />
           </ToggleButton>
           <ToggleButton value="list" aria-label={t('view_mode_list')}>
-            <ViewListIcon />
+            <ViewListIcon fontSize="small" />
           </ToggleButton>
         </ToggleButtonGroup>
+
         <ActionButton
           actionType="primary"
           startIcon={<PlaylistAddIcon />}
           onClick={handleOpenCreate}
+          sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
         >
           {t('playlists.add_playlist')}
         </ActionButton>
@@ -222,7 +224,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
               {idx > 0 && <Divider component="li" />}
               <ListItem
                 secondaryAction={
-                  <Box>
+                  <Box display="flex" alignItems="center">
                     <Tooltip title={t('playlists.play')}>
                       <IconButton size="small" color="primary" onClick={() => handlePlay(pl)}>
                         <PlayArrowIcon fontSize="small" />
@@ -253,27 +255,18 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                     </Tooltip>
                   </Box>
                 }
+                // pr verhindert, dass Text unter die Buttons rutscht
+                sx={{ pr: LIST_ITEM_PR }}
               >
                 <ListItemAvatar sx={{ minWidth: 52 }}>
                   {pl.cover_art_url ? (
-                    <Box
-                      component="img"
-                      src={pl.cover_art_url}
-                      alt=""
-                      sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1 }}
-                    />
+                    <Box component="img" src={pl.cover_art_url} alt=""
+                      sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1 }} />
                   ) : (
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 1,
-                        bgcolor: 'action.hover',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
+                    <Box sx={{
+                      width: 40, height: 40, borderRadius: 1, bgcolor: 'action.hover',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
                       <PlaylistPlayIcon sx={{ color: 'text.disabled', fontSize: 24 }} />
                     </Box>
                   )}
@@ -281,116 +274,65 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                 <ListItemText
                   primary={pl.name}
                   secondary={pl.description ?? (pl.tracks !== undefined ? `${pl.tracks.length} ${t('playlists.track_count_label')}` : null)}
-                  primaryTypographyProps={{ fontWeight: 600 }}
+                  primaryTypographyProps={{ fontWeight: 600, noWrap: true }}
+                  secondaryTypographyProps={{ noWrap: true }}
                 />
               </ListItem>
             </React.Fragment>
           ))}
         </List>
       ) : (
-        <>
-          <Grid container spacing={2}>
-            {playlists.map((pl) => (
-              <Grid item xs={12} sm={6} md={4} key={pl.id}>
-                <Card
-                  variant="outlined"
-                  sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}
-                >
-                  {pl.cover_art_url && (
-                    <CardMedia
-                      component="img"
-                      height="120"
-                      image={pl.cover_art_url}
-                      alt={pl.name}
-                      sx={{ objectFit: 'cover' }}
-                    />
-                  )}
-
-                  <CardContent sx={{ pb: 0, flex: 1 }}>
-                    <Typography
-                      variant="subtitle1"
-                      fontWeight={600}
-                      display="flex"
-                      alignItems="center"
-                      gap={1}
-                    >
-                      <PlaylistPlayIcon fontSize="small" color="primary" />
-                      {pl.name}
+        <Grid container spacing={2}>
+          {playlists.map((pl) => (
+            <Grid item xs={12} sm={6} md={4} key={pl.id}>
+              <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                {pl.cover_art_url && (
+                  <CardMedia component="img" height="120" image={pl.cover_art_url} alt={pl.name} sx={{ objectFit: 'cover' }} />
+                )}
+                <CardContent sx={{ pb: 0, flex: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
+                    <PlaylistPlayIcon fontSize="small" color="primary" />
+                    {pl.name}
+                  </Typography>
+                  {pl.description && (
+                    <Typography variant="body2" color="text.secondary"
+                      sx={{ mt: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {pl.description}
                     </Typography>
-                    {pl.description && (
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                          mt: 0.5,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {pl.description}
-                      </Typography>
-                    )}
-                    {pl.tracks !== undefined && (
-                      <Chip
-                        label={`${pl.tracks.length} ${t('playlists.track_count_label')}`}
-                        size="small"
-                        variant="outlined"
-                        sx={{ mt: 1 }}
-                      />
-                    )}
-                  </CardContent>
-
-                  <CardActions sx={{ pt: 0 }}>
-                    <Tooltip title={t('playlists.play')}>
-                      <IconButton size="small" color="primary" onClick={() => handlePlay(pl)}>
-                        <PlayArrowIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('playlists.edit_tracks')}>
-                      <IconButton size="small" onClick={() => handleOpenTracksDialog(pl)}>
-                        <QueueMusicIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('playlists.upload_cover')}>
-                      <IconButton
-                        size="small"
-                        onClick={() => { setCoverTargetId(pl.id); coverInputRef.current?.click(); }}
-                      >
-                        <UploadIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('playlists.edit')}>
-                      <IconButton size="small" onClick={() => handleOpenEdit(pl)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('playlists.delete')}>
-                      <IconButton size="small" color="error" onClick={() => setDeleteTarget(pl)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </CardActions>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-
-        </>
+                  )}
+                  {pl.tracks !== undefined && (
+                    <Chip label={`${pl.tracks.length} ${t('playlists.track_count_label')}`}
+                      size="small" variant="outlined" sx={{ mt: 1 }} />
+                  )}
+                </CardContent>
+                <CardActions sx={{ pt: 0 }}>
+                  <Tooltip title={t('playlists.play')}>
+                    <IconButton size="small" color="primary" onClick={() => handlePlay(pl)}><PlayArrowIcon fontSize="small" /></IconButton>
+                  </Tooltip>
+                  <Tooltip title={t('playlists.edit_tracks')}>
+                    <IconButton size="small" onClick={() => handleOpenTracksDialog(pl)}><QueueMusicIcon fontSize="small" /></IconButton>
+                  </Tooltip>
+                  <Tooltip title={t('playlists.upload_cover')}>
+                    <IconButton size="small" onClick={() => { setCoverTargetId(pl.id); coverInputRef.current?.click(); }}>
+                      <UploadIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={t('playlists.edit')}>
+                    <IconButton size="small" onClick={() => handleOpenEdit(pl)}><EditIcon fontSize="small" /></IconButton>
+                  </Tooltip>
+                  <Tooltip title={t('playlists.delete')}>
+                    <IconButton size="small" color="error" onClick={() => setDeleteTarget(pl)}><DeleteIcon fontSize="small" /></IconButton>
+                  </Tooltip>
+                </CardActions>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       )}
 
       {playlists.length > 0 && (
-        <input
-          ref={coverInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleCoverUpload(f);
-            e.target.value = '';
-          }}
-        />
+        <input ref={coverInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); e.target.value = ''; }} />
       )}
 
       {/* Create / Edit Dialog */}
@@ -400,78 +342,40 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           <CoverUploadField
-            displayUrl={
-              formData.coverFile
-                ? URL.createObjectURL(formData.coverFile)
-                : editingPlaylist?.cover_art_url ?? null
-            }
+            displayUrl={formData.coverFile ? URL.createObjectURL(formData.coverFile) : editingPlaylist?.cover_art_url ?? null}
             coverFile={formData.coverFile}
             onFileSelect={(file) => setFormData((p) => ({ ...p, coverFile: file }))}
             onRemove={editingPlaylist ? handleRemoveCoverInForm : handleClearCoverInForm}
           />
-          <TextField
-            label={t('playlists.fields.name')}
-            placeholder={t('playlists.fields.name_placeholder')}
-            value={formData.name}
-            onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-            fullWidth
-            size="small"
-            required
-          />
-          <TextField
-            label={t('playlists.fields.description')}
-            placeholder={t('playlists.fields.description_placeholder')}
-            value={formData.description}
-            onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
-            fullWidth
-            size="small"
-            multiline
-            rows={2}
-          />
+          <TextField label={t('playlists.fields.name')} placeholder={t('playlists.fields.name_placeholder')}
+            value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+            fullWidth size="small" required />
+          <TextField label={t('playlists.fields.description')} placeholder={t('playlists.fields.description_placeholder')}
+            value={formData.description} onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+            fullWidth size="small" multiline rows={2} />
         </DialogContent>
         <DialogActions>
-          <ActionButton actionType="secondary" onClick={() => setFormOpen(false)}>
-            {t('cancel', { ns: 'common' })}
-          </ActionButton>
-          <ActionButton
-            actionType="primary"
-            onClick={handleSave}
-            disabled={!formData.name.trim() || loading}
-          >
+          <ActionButton actionType="secondary" onClick={() => setFormOpen(false)}>{t('cancel', { ns: 'common' })}</ActionButton>
+          <ActionButton actionType="primary" onClick={handleSave} disabled={!formData.name.trim() || loading}>
             {t('save', { ns: 'common' })}
           </ActionButton>
         </DialogActions>
       </Dialog>
 
-      {/* Tracks Dialog */}
       <PlaylistTracksDialog
-        open={!!tracksDialogPlaylist}
-        playlist={tracksDialogPlaylist}
-        allTracks={tracks}
+        open={!!tracksDialogPlaylist} playlist={tracksDialogPlaylist} allTracks={tracks}
         onClose={() => setTracksDialogPlaylist(null)}
-        onSaved={(updated) => {
-          onUpdate(updated);
-          showSuccess(t('playlists.tracks_saved', { defaultValue: 'Tracks gespeichert' }));
-        }}
+        onSaved={(updated) => { onUpdate(updated); showSuccess(t('playlists.tracks_saved', { defaultValue: 'Tracks gespeichert' })); }}
       />
 
-      {/* Delete Confirmation */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
-        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-          {t('playlists.delete')}
-        </DialogTitle>
+        <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('playlists.delete')}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            {t('playlists.delete_confirm', { name: deleteTarget?.name })}
-          </DialogContentText>
+          <DialogContentText>{t('playlists.delete_confirm', { name: deleteTarget?.name })}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <ActionButton actionType="secondary" onClick={() => setDeleteTarget(null)}>
-            {t('cancel', { ns: 'common' })}
-          </ActionButton>
-          <ActionButton actionType="destructive" onClick={handleDeleteConfirm}>
-            {t('delete', { ns: 'common' })}
-          </ActionButton>
+          <ActionButton actionType="secondary" onClick={() => setDeleteTarget(null)}>{t('cancel', { ns: 'common' })}</ActionButton>
+          <ActionButton actionType="destructive" onClick={handleDeleteConfirm}>{t('delete', { ns: 'common' })}</ActionButton>
         </DialogActions>
       </Dialog>
     </Box>

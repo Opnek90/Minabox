@@ -28,6 +28,8 @@ export const PageShell: React.FC<PageShellProps> = ({
         p: isSmall ? 1.5 : 3,
         maxWidth: maxWidth ?? 'none',
         mx: maxWidth ? 'auto' : undefined,
+        // Prevent inner content (Grids, Toolbars) from creating horizontal scroll
+        overflowX: 'hidden',
       }}
     >
       {/* Title row */}
@@ -58,7 +60,11 @@ export const PageShell: React.FC<PageShellProps> = ({
             alignItems="center"
             gap={1}
             flexWrap="wrap"
-            sx={{ flex: isSmall ? '1 1 100%' : '0 0 auto' }}
+            sx={{
+              flex: isSmall ? '1 1 100%' : '0 0 auto',
+              // Buttons sollen nie abgeschnitten werden
+              overflow: 'visible',
+            }}
           >
             {actions}
           </Box>
