@@ -62,9 +62,12 @@
     "stream_added": "Stream added",
     "remote_added": "Remote track added",
     "filter": {
+      "label": "Filter",
       "all": "All",
       "files": "Files",
-      "remote": "Remote"
+      "remote": "Remote",
+      "open": "Filter & Sort",
+      "reset_all": "Reset all"
     },
     "fields": {
       "title": "Title",
@@ -75,6 +78,7 @@
       "source": "Source"
     },
     "sort": {
+      "label": "Sort",
       "asc": "Ascending",
       "desc": "Descending",
       "last_played": "Last played"
@@ -139,9 +143,12 @@
       "last_played": "Last played"
     },
     "sort": {
+      "label": "Sort",
       "asc": "Ascending",
       "desc": "Descending",
-      "last_played": "Last played"
+      "last_played": "Last played",
+      "open": "Sort",
+      "reset": "Reset sort"
     }
   },
   "podcasts": {
@@ -169,8 +176,11 @@
     "last_played": "Last played",
     "last_fetched_label": "Last fetched",
     "sort": {
+      "label": "Sort",
       "asc": "Ascending",
-      "desc": "Descending"
+      "desc": "Descending",
+      "open": "Sort",
+      "reset": "Reset sort"
     },
     "created": "Podcast added",
     "deleted": "Podcast deleted",
