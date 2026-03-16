@@ -33,7 +33,7 @@ const KioskPage = React.lazy(() =>
   import('@/pages/KioskPage').then((m) => ({ default: m.KioskPage }))
 );
 
-// ── RFID global notifications (Snackbar oben – bleibt für tag_not_found) ────
+// ── RFID global notifications ────────────────────────────────────────────────
 const RfidNotifications: React.FC = () => {
   const { t } = useTranslation('rfid');
   const navigate = useNavigate();
@@ -91,7 +91,6 @@ const MainLayout: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
-
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
 
   const location = useLocation();
@@ -112,74 +111,74 @@ const MainLayout: React.FC = () => {
       <Box sx={{ display: 'flex', flexGrow: 1 }}>
         <Header onMenuToggle={() => setDrawerOpen((p) => !p)} showMenuButton={isMobile} />
 
-      {isMobile ? (
-        <Navigation variant="temporary" open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-      ) : (
-        <Navigation variant="permanent" open />
-      )}
+        {isMobile ? (
+          <Navigation variant="temporary" open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+        ) : (
+          <Navigation variant="permanent" open />
+        )}
 
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          minHeight: '100vh',
-          bgcolor: 'background.default',
-          ml: isMobile ? 0 : `${DRAWER_WIDTH}px`,
-          pb: isPlayer ? 0 : '64px',
-        }}
-      >
-        <Toolbar />
-        <ErrorBoundary>
-          <Suspense fallback={<LoadingSpinner fullPage />}>
-            <Routes>
-              <Route path="/" element={<Navigate to="/player" replace />} />
-              <Route path="/player" element={<PlayerPage />} />
-              <Route
-                path="/rfid"
-                element={
-                  <RfidPage
-                    pendingTagId={pendingTagId}
-                    onPendingTagHandled={() => setPendingTagId(null)}
-                  />
-                }
-              />
-              <Route
-                path="/media"
-                element={
-                  <ProtectedRoute path="/media">
-                    <MediaPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute path="/dashboard">
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute path="/admin">
-                    <AdminPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<Navigate to="/player" replace />} />
-            </Routes>
-          </Suspense>
-        </ErrorBoundary>
-      </Box>
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            minHeight: '100vh',
+            // overflowX hier (nicht in PageShell) damit Grid-Margins keinen
+            // horizontalen Scroll erzeugen. Badges/Popovers sind MUI-Portale
+            // und rendern ausserhalb dieses Containers – sie werden nicht abgeschnitten.
+            overflowX: 'hidden',
+            bgcolor: 'background.default',
+            ml: isMobile ? 0 : `${DRAWER_WIDTH}px`,
+            pb: isPlayer ? 0 : '64px',
+          }}
+        >
+          <Toolbar />
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingSpinner fullPage />}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/player" replace />} />
+                <Route path="/player" element={<PlayerPage />} />
+                <Route
+                  path="/rfid"
+                  element={
+                    <RfidPage
+                      pendingTagId={pendingTagId}
+                      onPendingTagHandled={() => setPendingTagId(null)}
+                    />
+                  }
+                />
+                <Route
+                  path="/media"
+                  element={
+                    <ProtectedRoute path="/media">
+                      <MediaPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute path="/dashboard">
+                      <DashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute path="/admin">
+                      <AdminPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/player" replace />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
+        </Box>
 
-      {!isPlayer && <MiniPlayer />}
-
-      {/* RFID Live-Preview Drawer */}
-      <RfidScanDrawer onAssignNew={(tagId) => setPendingTagId(tagId)} />
-
-      {/* tag_not_found Snackbar */}
-      <RfidNotifications />
+        {!isPlayer && <MiniPlayer />}
+        <RfidScanDrawer onAssignNew={(tagId) => setPendingTagId(tagId)} />
+        <RfidNotifications />
       </Box>
     </Box>
   );
