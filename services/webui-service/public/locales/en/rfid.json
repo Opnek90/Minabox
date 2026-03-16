@@ -30,12 +30,16 @@
   "enable_tag": "Unblock tag",
   "disable_tag_label": "Block tag (no playback)",
   "tag_disabled_label": "Blocked",
+  "view_mode_card": "Card view",
+  "view_mode_list": "List view",
   "filter": {
-    "label": "Show",
+    "label": "Filter",
     "all": "All",
-    "active": "Active only",
-    "blocked": "Blocked only",
-    "unassigned": "No content"
+    "active": "Active",
+    "blocked": "Blocked",
+    "unassigned": "No content",
+    "open": "Filter & Sort",
+    "reset_all": "Reset all"
   },
   "fields": {
     "tag_id": "Tag ID",
@@ -68,8 +72,9 @@
   },
   "search_placeholder": "Search tags...",
   "sort": {
-    "name": "By Name",
-    "date": "By Date",
+    "label": "Sort",
+    "name": "Name",
+    "date": "Date",
     "last_scanned": "Last scanned",
     "ascending": "Ascending",
     "descending": "Descending"

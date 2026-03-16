@@ -30,12 +30,16 @@
   "enable_tag": "Tag freischalten",
   "disable_tag_label": "Tag sperren (kein Abspielen)",
   "tag_disabled_label": "Gesperrt",
+  "view_mode_card": "Kachelansicht",
+  "view_mode_list": "Listenansicht",
   "filter": {
-    "label": "Anzeigen",
+    "label": "Filter",
     "all": "Alle",
-    "active": "Nur aktive",
-    "blocked": "Nur gesperrte",
-    "unassigned": "Ohne Inhalt"
+    "active": "Aktiv",
+    "blocked": "Gesperrt",
+    "unassigned": "Ohne Inhalt",
+    "open": "Filter & Sortierung",
+    "reset_all": "Alle zurücksetzen"
   },
   "fields": {
     "tag_id": "Tag-ID",
@@ -69,8 +73,9 @@
   },
   "search_placeholder": "Tags suchen...",
   "sort": {
-    "name": "Nach Name",
-    "date": "Nach Datum",
+    "label": "Sortierung",
+    "name": "Name",
+    "date": "Datum",
     "last_scanned": "Zuletzt gescannt",
     "ascending": "Aufsteigend",
     "descending": "Absteigend"
