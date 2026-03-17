@@ -24,7 +24,6 @@ const WEEKDAY_KEYS = [
   'weekday_6',
 ] as const;
 
-/** fix #59: Format a date string (YYYY-MM-DD) in a locale-aware, user-friendly way. */
 function formatChartDate(dateStr: string, locale: string): string {
   try {
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -59,7 +58,7 @@ export const StatsDashboard: React.FC = () => {
         {t('stats.title')}
       </Typography>
 
-      {/* Date pickers + Load button – stack on mobile */}
+      {/* Date pickers + Load button */}
       <Box
         sx={{
           display: 'flex',
@@ -106,22 +105,17 @@ export const StatsDashboard: React.FC = () => {
 
       {data && (
         <Grid container spacing={3}>
-          {/* Minutes per day */}
+
+          {/* ── Minutes per day ── */}
           <Grid item xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="subtitle2" gutterBottom>
                   {t('stats.minutes_per_day')}
                 </Typography>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    gap: 0.5,
-                    height: 120,
-                    mt: 1,
-                  }}
-                >
+
+                {/* Bars */}
+                <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 0.5, height: 120, mt: 1 }}>
                   {data.minutes_per_day.map((d: MinutesPerDayItem) => (
                     <Box
                       key={d.date}
@@ -138,15 +132,14 @@ export const StatsDashboard: React.FC = () => {
                   ))}
                 </Box>
 
-                {/* Date labels – rotated on mobile to prevent overlap */}
+                {/* Date labels – rotated on mobile, placed clearly below bars */}
                 <Box
                   sx={{
                     display: 'flex',
                     gap: 0.5,
-                    mt: isMobile ? 2 : 0.5,
-                    fontSize: '0.7rem',
-                    height: isMobile ? 36 : 'auto',
-                    alignItems: 'flex-start',
+                    pt: isMobile ? 1.5 : 0.5,   // pushes labels away from bar bottom
+                    pb: isMobile ? 3 : 0,        // reserve space for rotated text height
+                    overflow: 'visible',
                   }}
                 >
                   {data.minutes_per_day.map((d: MinutesPerDayItem) => (
@@ -155,11 +148,12 @@ export const StatsDashboard: React.FC = () => {
                       sx={{
                         flex: 1,
                         minWidth: 8,
+                        fontSize: '0.65rem',
                         textAlign: isMobile ? 'left' : 'center',
                         transformOrigin: 'top left',
-                        transform: isMobile ? 'rotate(-45deg) translateX(6px)' : 'none',
+                        transform: isMobile ? 'rotate(-45deg)' : 'none',
                         whiteSpace: 'nowrap',
-                        fontSize: '0.65rem',
+                        overflow: 'visible',
                       }}
                     >
                       {formatChartDate(d.date, locale)}
@@ -167,7 +161,7 @@ export const StatsDashboard: React.FC = () => {
                   ))}
                 </Box>
 
-                {/* Minutes row – hidden on mobile (too narrow) */}
+                {/* Minutes row – desktop only */}
                 {!isMobile && (
                   <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25, fontSize: '0.7rem', color: 'text.secondary' }}>
                     {data.minutes_per_day.map((d: MinutesPerDayItem) => (
@@ -181,7 +175,7 @@ export const StatsDashboard: React.FC = () => {
             </Card>
           </Grid>
 
-          {/* Top 3 Tags */}
+          {/* ── Top 3 Tags ── */}
           <Grid item xs={12} sm={6}>
             <Card>
               <CardContent>
@@ -197,7 +191,7 @@ export const StatsDashboard: React.FC = () => {
                     {data.top_tags.map((tag: TopTagItem) => (
                       <li key={tag.tag_id}>
                         <Typography variant="body2">
-                          {tag.name || `Tag #${tag.tag_id}`} — {tag.scan_count}{' '}
+                          {tag.name || `Tag #${tag.tag_id}`} \u2014 {tag.scan_count}{' '}
                           {t('stats.top_tags').toLowerCase()}
                         </Typography>
                       </li>
@@ -208,7 +202,7 @@ export const StatsDashboard: React.FC = () => {
             </Card>
           </Grid>
 
-          {/* Top 3 Playlists */}
+          {/* ── Top 3 Playlists ── */}
           <Grid item xs={12} sm={6}>
             <Card>
               <CardContent>
@@ -224,7 +218,7 @@ export const StatsDashboard: React.FC = () => {
                     {data.top_playlists.map((pl: TopPlaylistItem) => (
                       <li key={pl.playlist_id}>
                         <Typography variant="body2">
-                          {pl.name || `Playlist #${pl.playlist_id}`} — {pl.play_count}{' '}
+                          {pl.name || `Playlist #${pl.playlist_id}`} \u2014 {pl.play_count}{' '}
                           plays
                         </Typography>
                       </li>
@@ -235,72 +229,93 @@ export const StatsDashboard: React.FC = () => {
             </Card>
           </Grid>
 
-          {/* Heatmap */}
+          {/* ── Heatmap: stacked mini-heatrows ── */}
           <Grid item xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="subtitle2" gutterBottom>
                   {t('stats.heatmap')}
                 </Typography>
-                {isMobile && (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                    ← scrollbar →
-                  </Typography>
-                )}
-                <Box sx={{ overflowX: 'auto' }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 0.5,
-                      minWidth: isMobile ? 340 : 600,
-                    }}
-                  >
-                    {[0, 1, 2, 3, 4, 5, 6].map((wd) => {
-                      const row = (data.heatmap as HeatmapItem[]).filter(
-                        (h) => h.weekday === wd
-                      );
-                      return (
+
+                {/* Hour axis header */}
+                <Box sx={{ display: 'flex', mb: 0.5, pl: '36px' }}>
+                  <Box sx={{ overflowX: 'auto', flex: 1 }}>
+                    <Box sx={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
+                      {Array.from({ length: 24 }, (_, h) => (
                         <Box
-                          key={wd}
-                          sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}
+                          key={h}
+                          sx={{
+                            width: 20,
+                            textAlign: 'center',
+                            fontSize: '0.6rem',
+                            color: 'text.secondary',
+                            flexShrink: 0,
+                          }}
                         >
-                          <Typography
-                            variant="caption"
-                            sx={{ width: isMobile ? 20 : 28, flexShrink: 0, fontSize: isMobile ? '0.6rem' : undefined }}
-                          >
-                            {t(`stats.${WEEKDAY_KEYS[wd]}`)}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 0.25, flex: 1 }}>
-                            {row
-                              .sort((a, b) => a.hour - b.hour)
-                              .map((h) => (
-                                <Box
-                                  key={`${h.weekday}-${h.hour}`}
-                                  sx={{
-                                    width: isMobile ? 10 : 14,
-                                    height: isMobile ? 10 : 16,
-                                    bgcolor:
-                                      h.minutes > 0
-                                        ? `rgba(25, 118, 210, ${0.2 + (h.minutes / heatmapMax) * 0.8})`
-                                        : 'action.hover',
-                                    borderRadius: 1,
-                                  }}
-                                  title={`${h.hour}:00 \u2013 ${Math.round(h.minutes)} min`}
-                                />
-                              ))}
+                          {h % 6 === 0 ? `${h}h` : ''}
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                </Box>
+
+                {/* One scrollable row per weekday */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {[0, 1, 2, 3, 4, 5, 6].map((wd) => {
+                    const row = (data.heatmap as HeatmapItem[])
+                      .filter((h) => h.weekday === wd)
+                      .sort((a, b) => a.hour - b.hour);
+
+                    // Fill missing hours with 0
+                    const cells = Array.from({ length: 24 }, (_, h) => {
+                      const found = row.find((r) => r.hour === h);
+                      return found ?? { weekday: wd, hour: h, minutes: 0 };
+                    });
+
+                    return (
+                      <Box key={wd} sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {/* Weekday label */}
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            width: 32,
+                            flexShrink: 0,
+                            fontSize: '0.68rem',
+                            color: 'text.secondary',
+                          }}
+                        >
+                          {t(`stats.${WEEKDAY_KEYS[wd]}`)}
+                        </Typography>
+
+                        {/* Scrollable heat cells */}
+                        <Box sx={{ overflowX: 'auto', flex: 1 }}>
+                          <Box sx={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
+                            {cells.map((h) => (
+                              <Box
+                                key={h.hour}
+                                title={`${h.hour}:00 \u2013 ${Math.round(h.minutes)} min`}
+                                sx={{
+                                  width: 20,
+                                  height: 20,
+                                  flexShrink: 0,
+                                  borderRadius: '3px',
+                                  bgcolor:
+                                    h.minutes > 0
+                                      ? `rgba(25, 118, 210, ${0.15 + (h.minutes / heatmapMax) * 0.85})`
+                                      : 'action.hover',
+                                }}
+                              />
+                            ))}
                           </Box>
                         </Box>
-                      );
-                    })}
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    0h \u2026 23h
-                  </Typography>
+                      </Box>
+                    );
+                  })}
                 </Box>
               </CardContent>
             </Card>
           </Grid>
+
         </Grid>
       )}
     </Box>
