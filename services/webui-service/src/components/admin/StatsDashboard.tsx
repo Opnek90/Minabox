@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
   CardContent,
+  Collapse,
   Grid,
   TextField,
   Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useTranslation } from 'react-i18next';
 import type { HeatmapItem, MinutesPerDayItem, TopPlaylistItem, TopTagItem } from '@/types/api';
 import { useStatsDashboard } from '@/hooks/useStatsDashboard';
@@ -39,6 +42,7 @@ export const StatsDashboard: React.FC = () => {
   const locale = i18n.language || 'de-DE';
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [showDateAxis, setShowDateAxis] = useState(false);
   const {
     fromDate,
     toDate,
@@ -132,43 +136,86 @@ export const StatsDashboard: React.FC = () => {
                   ))}
                 </Box>
 
-                {/* Date labels – rotated on mobile, placed clearly below bars */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    gap: 0.5,
-                    pt: isMobile ? 1.5 : 0.5,   // pushes labels away from bar bottom
-                    pb: isMobile ? 3 : 0,        // reserve space for rotated text height
-                    overflow: 'visible',
-                  }}
-                >
-                  {data.minutes_per_day.map((d: MinutesPerDayItem) => (
+                {/* Desktop: labels always visible, inline */}
+                {!isMobile && (
+                  <>
+                    <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
+                      {data.minutes_per_day.map((d: MinutesPerDayItem) => (
+                        <Box key={d.date} sx={{ flex: 1, minWidth: 8, textAlign: 'center', fontSize: '0.7rem' }}>
+                          {formatChartDate(d.date, locale)}
+                        </Box>
+                      ))}
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25, fontSize: '0.7rem', color: 'text.secondary' }}>
+                      {data.minutes_per_day.map((d: MinutesPerDayItem) => (
+                        <Box key={`min-${d.date}`} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
+                          {d.minutes > 0 ? `${Math.round(d.minutes)}\u202fmin` : '\u2013'}
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
+                )}
+
+                {/* Mobile: accordion date axis */}
+                {isMobile && (
+                  <Box sx={{ mt: 1 }}>
                     <Box
-                      key={d.date}
+                      onClick={() => setShowDateAxis((v) => !v)}
                       sx={{
-                        flex: 1,
-                        minWidth: 8,
-                        fontSize: '0.65rem',
-                        textAlign: isMobile ? 'left' : 'center',
-                        transformOrigin: 'top left',
-                        transform: isMobile ? 'rotate(-45deg)' : 'none',
-                        whiteSpace: 'nowrap',
-                        overflow: 'visible',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        cursor: 'pointer',
+                        color: 'text.secondary',
+                        userSelect: 'none',
+                        py: 0.5,
                       }}
                     >
-                      {formatChartDate(d.date, locale)}
+                      {showDateAxis ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                      <Typography variant="caption">
+                        {showDateAxis
+                          ? t('stats.hide_date_axis', { defaultValue: 'Datumsachse ausblenden' })
+                          : t('stats.show_date_axis', { defaultValue: 'Datumsachse anzeigen' })}
+                      </Typography>
                     </Box>
-                  ))}
-                </Box>
-
-                {/* Minutes row – desktop only */}
-                {!isMobile && (
-                  <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25, fontSize: '0.7rem', color: 'text.secondary' }}>
-                    {data.minutes_per_day.map((d: MinutesPerDayItem) => (
-                      <Box key={`min-${d.date}`} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
-                        {d.minutes > 0 ? `${Math.round(d.minutes)}\u202fmin` : '\u2013'}
+                    <Collapse in={showDateAxis}>
+                      {/* Absolutely-safe label row: enough padding, no rotation overlap */}
+                      <Box
+                        sx={{
+                          position: 'relative',
+                          height: 44,          // reserved space for rotated labels
+                          mt: 0.5,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            display: 'flex',
+                            gap: 0.5,
+                          }}
+                        >
+                          {data.minutes_per_day.map((d: MinutesPerDayItem) => (
+                            <Box
+                              key={d.date}
+                              sx={{
+                                flex: 1,
+                                minWidth: 8,
+                                fontSize: '0.65rem',
+                                transformOrigin: '0% 0%',
+                                transform: 'rotate(-45deg)',
+                                whiteSpace: 'nowrap',
+                                color: 'text.primary',
+                              }}
+                            >
+                              {formatChartDate(d.date, locale)}
+                            </Box>
+                          ))}
+                        </Box>
                       </Box>
-                    ))}
+                    </Collapse>
                   </Box>
                 )}
               </CardContent>
@@ -262,32 +309,21 @@ export const StatsDashboard: React.FC = () => {
                 {/* One scrollable row per weekday */}
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {[0, 1, 2, 3, 4, 5, 6].map((wd) => {
-                    const row = (data.heatmap as HeatmapItem[])
-                      .filter((h) => h.weekday === wd)
-                      .sort((a, b) => a.hour - b.hour);
-
-                    // Fill missing hours with 0
                     const cells = Array.from({ length: 24 }, (_, h) => {
-                      const found = row.find((r) => r.hour === h);
+                      const found = (data.heatmap as HeatmapItem[]).find(
+                        (r) => r.weekday === wd && r.hour === h
+                      );
                       return found ?? { weekday: wd, hour: h, minutes: 0 };
                     });
 
                     return (
                       <Box key={wd} sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        {/* Weekday label */}
                         <Typography
                           variant="caption"
-                          sx={{
-                            width: 32,
-                            flexShrink: 0,
-                            fontSize: '0.68rem',
-                            color: 'text.secondary',
-                          }}
+                          sx={{ width: 32, flexShrink: 0, fontSize: '0.68rem', color: 'text.secondary' }}
                         >
                           {t(`stats.${WEEKDAY_KEYS[wd]}`)}
                         </Typography>
-
-                        {/* Scrollable heat cells */}
                         <Box sx={{ overflowX: 'auto', flex: 1 }}>
                           <Box sx={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
                             {cells.map((h) => (
