@@ -37,6 +37,16 @@ function formatChartDate(dateStr: string, locale: string): string {
   }
 }
 
+/** Aggregates heatmap items by weekday, summing all hour-minutes */
+function aggregateByWeekday(heatmap: HeatmapItem[]): { weekday: number; minutes: number }[] {
+  return [0, 1, 2, 3, 4, 5, 6].map((wd) => ({
+    weekday: wd,
+    minutes: heatmap
+      .filter((h) => h.weekday === wd)
+      .reduce((sum, h) => sum + h.minutes, 0),
+  }));
+}
+
 export const StatsDashboard: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const locale = i18n.language || 'de-DE';
@@ -52,7 +62,6 @@ export const StatsDashboard: React.FC = () => {
     error,
     data,
     maxMinutes,
-    heatmapMax,
     load,
   } = useStatsDashboard();
 
@@ -136,7 +145,7 @@ export const StatsDashboard: React.FC = () => {
                   ))}
                 </Box>
 
-                {/* Desktop: labels always visible, inline */}
+                {/* Desktop: labels always visible */}
                 {!isMobile && (
                   <>
                     <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
@@ -159,6 +168,7 @@ export const StatsDashboard: React.FC = () => {
                 {/* Mobile: accordion date axis */}
                 {isMobile && (
                   <Box sx={{ mt: 1 }}>
+                    {/* Toggle row */}
                     <Box
                       onClick={() => setShowDateAxis((v) => !v)}
                       sx={{
@@ -168,7 +178,7 @@ export const StatsDashboard: React.FC = () => {
                         cursor: 'pointer',
                         color: 'text.secondary',
                         userSelect: 'none',
-                        py: 0.5,
+                        py: 0.75,
                       }}
                     >
                       {showDateAxis ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
@@ -178,13 +188,14 @@ export const StatsDashboard: React.FC = () => {
                           : t('stats.show_date_axis', { defaultValue: 'Datumsachse anzeigen' })}
                       </Typography>
                     </Box>
+
+                    {/* Collapsed date labels – mt:4 keeps them well below the toggle */}
                     <Collapse in={showDateAxis}>
-                      {/* Absolutely-safe label row: enough padding, no rotation overlap */}
                       <Box
                         sx={{
                           position: 'relative',
-                          height: 44,          // reserved space for rotated labels
-                          mt: 0.5,
+                          height: 52,
+                          mt: 4,        // pushes label zone clearly below toggle button
                         }}
                       >
                         <Box
@@ -276,7 +287,7 @@ export const StatsDashboard: React.FC = () => {
             </Card>
           </Grid>
 
-          {/* ── Heatmap: stacked mini-heatrows ── */}
+          {/* ── Heatmap: aggregated by weekday ── */}
           <Grid item xs={12}>
             <Card>
               <CardContent>
@@ -284,70 +295,61 @@ export const StatsDashboard: React.FC = () => {
                   {t('stats.heatmap')}
                 </Typography>
 
-                {/* Hour axis header */}
-                <Box sx={{ display: 'flex', mb: 0.5, pl: '36px' }}>
-                  <Box sx={{ overflowX: 'auto', flex: 1 }}>
-                    <Box sx={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
-                      {Array.from({ length: 24 }, (_, h) => (
-                        <Box
-                          key={h}
-                          sx={{
-                            width: 20,
-                            textAlign: 'center',
-                            fontSize: '0.6rem',
-                            color: 'text.secondary',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {h % 6 === 0 ? `${h}h` : ''}
+                {(() => {
+                  const weekdayTotals = aggregateByWeekday(data.heatmap as HeatmapItem[]);
+                  const maxWd = Math.max(...weekdayTotals.map((w) => w.minutes), 1);
+
+                  return (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+                      {weekdayTotals.map((wd) => (
+                        <Box key={wd.weekday} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          {/* Weekday label */}
+                          <Typography
+                            variant="caption"
+                            sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontSize: '0.72rem' }}
+                          >
+                            {t(`stats.${WEEKDAY_KEYS[wd.weekday]}`)}
+                          </Typography>
+
+                          {/* Bar */}
+                          <Box
+                            sx={{
+                              flex: 1,
+                              height: 20,
+                              borderRadius: '4px',
+                              bgcolor: wd.minutes > 0
+                                ? `rgba(25, 118, 210, ${0.15 + (wd.minutes / maxWd) * 0.85})`
+                                : 'action.hover',
+                              position: 'relative',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: `${Math.round((wd.minutes / maxWd) * 100)}%`,
+                                bgcolor: 'primary.main',
+                                opacity: 0.25 + (wd.minutes / maxWd) * 0.75,
+                                borderRadius: '4px',
+                              }}
+                            />
+                          </Box>
+
+                          {/* Minutes value */}
+                          <Typography
+                            variant="caption"
+                            sx={{ width: 48, flexShrink: 0, textAlign: 'right', color: 'text.secondary', fontSize: '0.72rem' }}
+                          >
+                            {wd.minutes > 0 ? `${Math.round(wd.minutes)}\u202fmin` : '\u2013'}
+                          </Typography>
                         </Box>
                       ))}
                     </Box>
-                  </Box>
-                </Box>
-
-                {/* One scrollable row per weekday */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {[0, 1, 2, 3, 4, 5, 6].map((wd) => {
-                    const cells = Array.from({ length: 24 }, (_, h) => {
-                      const found = (data.heatmap as HeatmapItem[]).find(
-                        (r) => r.weekday === wd && r.hour === h
-                      );
-                      return found ?? { weekday: wd, hour: h, minutes: 0 };
-                    });
-
-                    return (
-                      <Box key={wd} sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Typography
-                          variant="caption"
-                          sx={{ width: 32, flexShrink: 0, fontSize: '0.68rem', color: 'text.secondary' }}
-                        >
-                          {t(`stats.${WEEKDAY_KEYS[wd]}`)}
-                        </Typography>
-                        <Box sx={{ overflowX: 'auto', flex: 1 }}>
-                          <Box sx={{ display: 'flex', gap: '2px', minWidth: 'max-content' }}>
-                            {cells.map((h) => (
-                              <Box
-                                key={h.hour}
-                                title={`${h.hour}:00 \u2013 ${Math.round(h.minutes)} min`}
-                                sx={{
-                                  width: 20,
-                                  height: 20,
-                                  flexShrink: 0,
-                                  borderRadius: '3px',
-                                  bgcolor:
-                                    h.minutes > 0
-                                      ? `rgba(25, 118, 210, ${0.15 + (h.minutes / heatmapMax) * 0.85})`
-                                      : 'action.hover',
-                                }}
-                              />
-                            ))}
-                          </Box>
-                        </Box>
-                      </Box>
-                    );
-                  })}
-                </Box>
+                  );
+                })()}
               </CardContent>
             </Card>
           </Grid>
