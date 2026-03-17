@@ -22,7 +22,7 @@ export interface UseStatsDashboardResult {
 function getDefaultDates(): { from: string; to: string } {
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - 13);
+  start.setDate(start.getDate() - 6); // 7 days (today + 6 previous days)
   return {
     from: start.toISOString().slice(0, 10),
     to: end.toISOString().slice(0, 10),
@@ -84,4 +84,3 @@ export function useStatsDashboard(): UseStatsDashboardResult {
     load,
   };
 }
-

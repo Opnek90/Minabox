@@ -6,6 +6,8 @@ import {
   Grid,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { HeatmapItem, MinutesPerDayItem, TopPlaylistItem, TopTagItem } from '@/types/api';
@@ -22,24 +24,22 @@ const WEEKDAY_KEYS = [
   'weekday_6',
 ] as const;
 
-/** fix #59: Format a date string (YYYY-MM-DD) in a locale-aware, user-friendly way.
- * Uses Intl.DateTimeFormat with the active i18n locale so German users see DD.MM.,
- * English users see MM/DD etc. Year is omitted for brevity.
- */
+/** fix #59: Format a date string (YYYY-MM-DD) in a locale-aware, user-friendly way. */
 function formatChartDate(dateStr: string, locale: string): string {
   try {
-    // Parse as local date (avoid UTC offset shifting the day)
     const [year, month, day] = dateStr.split('-').map(Number);
     const date = new Date(year, month - 1, day);
     return new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit' }).format(date);
   } catch {
-    return dateStr.slice(5); // fallback: raw MM-DD
+    return dateStr.slice(5);
   }
 }
 
 export const StatsDashboard: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
-  const locale = i18n.language || 'de-DE'; // fix #59: use active locale for date formatting
+  const locale = i18n.language || 'de-DE';
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const {
     fromDate,
     toDate,
@@ -59,7 +59,17 @@ export const StatsDashboard: React.FC = () => {
         {t('stats.title')}
       </Typography>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 3 }}>
+      {/* Date pickers + Load button – stack on mobile */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          flexWrap: 'wrap',
+          gap: 2,
+          alignItems: { xs: 'stretch', sm: 'center' },
+          mb: 3,
+        }}
+      >
         <TextField
           type="date"
           size="small"
@@ -67,7 +77,7 @@ export const StatsDashboard: React.FC = () => {
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
           InputLabelProps={{ shrink: true }}
-          sx={{ width: 160 }}
+          sx={{ width: { xs: '100%', sm: 160 } }}
         />
         <TextField
           type="date"
@@ -76,9 +86,14 @@ export const StatsDashboard: React.FC = () => {
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
           InputLabelProps={{ shrink: true }}
-          sx={{ width: 160 }}
+          sx={{ width: { xs: '100%', sm: 160 } }}
         />
-        <ActionButton actionType="primary" onClick={load} disabled={loading}>
+        <ActionButton
+          actionType="primary"
+          onClick={load}
+          disabled={loading}
+          sx={{ width: { xs: '100%', sm: 'auto' } }}
+        >
           {loading ? '\u2026' : t('stats.load')}
         </ActionButton>
       </Box>
@@ -123,23 +138,45 @@ export const StatsDashboard: React.FC = () => {
                   ))}
                 </Box>
 
-                {/* fix #59: Localized date row (DD.MM. based on i18n locale) */}
-                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, fontSize: '0.7rem' }}>
+                {/* Date labels – rotated on mobile to prevent overlap */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    gap: 0.5,
+                    mt: isMobile ? 2 : 0.5,
+                    fontSize: '0.7rem',
+                    height: isMobile ? 36 : 'auto',
+                    alignItems: 'flex-start',
+                  }}
+                >
                   {data.minutes_per_day.map((d: MinutesPerDayItem) => (
-                    <Box key={d.date} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
+                    <Box
+                      key={d.date}
+                      sx={{
+                        flex: 1,
+                        minWidth: 8,
+                        textAlign: isMobile ? 'left' : 'center',
+                        transformOrigin: 'top left',
+                        transform: isMobile ? 'rotate(-45deg) translateX(6px)' : 'none',
+                        whiteSpace: 'nowrap',
+                        fontSize: '0.65rem',
+                      }}
+                    >
                       {formatChartDate(d.date, locale)}
                     </Box>
                   ))}
                 </Box>
 
-                {/* fix #59: Minutes row with 'min' unit label — no hover needed, touch-accessible */}
-                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25, fontSize: '0.7rem', color: 'text.secondary' }}>
-                  {data.minutes_per_day.map((d: MinutesPerDayItem) => (
-                    <Box key={`min-${d.date}`} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
-                      {d.minutes > 0 ? `${Math.round(d.minutes)}\u202fmin` : '\u2013'}
-                    </Box>
-                  ))}
-                </Box>
+                {/* Minutes row – hidden on mobile (too narrow) */}
+                {!isMobile && (
+                  <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25, fontSize: '0.7rem', color: 'text.secondary' }}>
+                    {data.minutes_per_day.map((d: MinutesPerDayItem) => (
+                      <Box key={`min-${d.date}`} sx={{ flex: 1, minWidth: 8, textAlign: 'center' }}>
+                        {d.minutes > 0 ? `${Math.round(d.minutes)}\u202fmin` : '\u2013'}
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -205,8 +242,20 @@ export const StatsDashboard: React.FC = () => {
                 <Typography variant="subtitle2" gutterBottom>
                   {t('stats.heatmap')}
                 </Typography>
+                {isMobile && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                    ← scrollbar →
+                  </Typography>
+                )}
                 <Box sx={{ overflowX: 'auto' }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 600 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 0.5,
+                      minWidth: isMobile ? 340 : 600,
+                    }}
+                  >
                     {[0, 1, 2, 3, 4, 5, 6].map((wd) => {
                       const row = (data.heatmap as HeatmapItem[]).filter(
                         (h) => h.weekday === wd
@@ -214,15 +263,11 @@ export const StatsDashboard: React.FC = () => {
                       return (
                         <Box
                           key={wd}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.25,
-                          }}
+                          sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}
                         >
                           <Typography
                             variant="caption"
-                            sx={{ width: 28, flexShrink: 0 }}
+                            sx={{ width: isMobile ? 20 : 28, flexShrink: 0, fontSize: isMobile ? '0.6rem' : undefined }}
                           >
                             {t(`stats.${WEEKDAY_KEYS[wd]}`)}
                           </Typography>
@@ -233,15 +278,15 @@ export const StatsDashboard: React.FC = () => {
                                 <Box
                                   key={`${h.weekday}-${h.hour}`}
                                   sx={{
-                                    width: 14,
-                                    height: 16,
+                                    width: isMobile ? 10 : 14,
+                                    height: isMobile ? 10 : 16,
                                     bgcolor:
                                       h.minutes > 0
                                         ? `rgba(25, 118, 210, ${0.2 + (h.minutes / heatmapMax) * 0.8})`
                                         : 'action.hover',
                                     borderRadius: 1,
                                   }}
-                                  title={`${h.hour}:00 – ${Math.round(h.minutes)} min`}
+                                  title={`${h.hour}:00 \u2013 ${Math.round(h.minutes)} min`}
                                 />
                               ))}
                           </Box>
@@ -250,7 +295,7 @@ export const StatsDashboard: React.FC = () => {
                     })}
                   </Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    0h … 23h
+                    0h \u2026 23h
                   </Typography>
                 </Box>
               </CardContent>
