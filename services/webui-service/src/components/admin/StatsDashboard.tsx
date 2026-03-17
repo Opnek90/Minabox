@@ -40,11 +40,9 @@ function formatChartDate(dateStr: string, locale: string): string {
 
 // ── Timeline Heatmap helpers ────────────────────────────────────────────────
 
-/** Returns rgba color for a single hour cell based on its listening intensity */
-function hourColor(minutes: number, maxMinutes: number, primaryColor: string): string {
+function hourColor(minutes: number, maxMinutes: number): string {
   if (minutes <= 0) return 'transparent';
   const intensity = 0.25 + (minutes / Math.max(maxMinutes, 1)) * 0.75;
-  // Parse primary color or fall back to a default purple
   return `rgba(94, 53, 177, ${intensity})`;
 }
 
@@ -56,15 +54,12 @@ interface TimelineRowProps {
 
 const TimelineRow: React.FC<TimelineRowProps> = ({ label, hours, maxMinutes }) => (
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-    {/* Weekday label */}
     <Typography
       variant="caption"
       sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontSize: '0.72rem' }}
     >
       {label}
     </Typography>
-
-    {/* Timeline bar */}
     <Box
       sx={{
         flex: 1,
@@ -89,15 +84,12 @@ const TimelineRow: React.FC<TimelineRowProps> = ({ label, hours, maxMinutes }) =
               bottom: 0,
               left: `${(h.hour / 24) * 100}%`,
               width: `${(1 / 24) * 100}%`,
-              bgcolor: hourColor(h.minutes, maxMinutes, ''),
-              // subtle border between active segments for definition
+              bgcolor: hourColor(h.minutes, maxMinutes),
               borderRight: h.minutes > 0 ? '1px solid rgba(255,255,255,0.15)' : 'none',
             }}
           />
         </Tooltip>
       ))}
-
-      {/* Hour tick marks at 0, 6, 12, 18 */}
       {[6, 12, 18].map((h) => (
         <Box
           key={`tick-${h}`}
@@ -144,7 +136,6 @@ export const StatsDashboard: React.FC = () => {
         {t('stats.title')}
       </Typography>
 
-      {/* Date pickers + Load button */}
       <Box
         sx={{
           display: 'flex',
@@ -199,8 +190,6 @@ export const StatsDashboard: React.FC = () => {
                 <Typography variant="subtitle2" gutterBottom>
                   {t('stats.minutes_per_day')}
                 </Typography>
-
-                {/* Bars */}
                 <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 0.5, height: 120, mt: 1 }}>
                   {data.minutes_per_day.map((d: MinutesPerDayItem) => (
                     <Box
@@ -218,7 +207,6 @@ export const StatsDashboard: React.FC = () => {
                   ))}
                 </Box>
 
-                {/* Desktop: labels always visible */}
                 {!isMobile && (
                   <>
                     <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
@@ -238,7 +226,6 @@ export const StatsDashboard: React.FC = () => {
                   </>
                 )}
 
-                {/* Mobile: accordion date axis */}
                 {isMobile && (
                   <Box sx={{ mt: 1 }}>
                     <Box
@@ -260,18 +247,12 @@ export const StatsDashboard: React.FC = () => {
                           : t('stats.show_date_axis', { defaultValue: 'Datumsachse anzeigen' })}
                       </Typography>
                     </Box>
-
                     <Collapse in={showDateAxis}>
-                      {/*
-                        paddingTop creates a gap between toggle and labels.
-                        height gives the rotated text enough room without
-                        overlapping anything below.
-                      */}
                       <Box sx={{ pt: 1, pb: 0, height: 48, position: 'relative' }}>
                         <Box
                           sx={{
                             position: 'absolute',
-                            top: 8,           // 8px from top of container = just below toggle
+                            top: 8,
                             left: 0,
                             right: 0,
                             display: 'flex',
@@ -364,8 +345,6 @@ export const StatsDashboard: React.FC = () => {
                 <Typography variant="subtitle2" gutterBottom>
                   {t('stats.heatmap')}
                 </Typography>
-
-                {/* Rows */}
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 1 }}>
                   {[0, 1, 2, 3, 4, 5, 6].map((wd) => {
                     const cells = Array.from({ length: 24 }, (_, h) => {
@@ -385,23 +364,16 @@ export const StatsDashboard: React.FC = () => {
                   })}
                 </Box>
 
-                {/* Hour axis: 0h, 6h, 12h, 18h, 24h */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    mt: 0.5,
-                    pl: '36px', // align with bar start (label width + gap)
-                  }}
-                >
-                  {[0, 6, 12, 18, 24].map((h) => (
+                {/* Hour axis: 0h / 6h / 12h / 18h — no 24h (= 0h next day) */}
+                <Box sx={{ display: 'flex', mt: 0.5, pl: '36px' }}>
+                  {[0, 6, 12, 18].map((h, i) => (
                     <Box
                       key={h}
                       sx={{
-                        flex: h < 24 ? 6 : 0,  // 6 hour segments between ticks
+                        flex: 1,
                         fontSize: '0.65rem',
                         color: 'text.secondary',
-                        // last label right-aligned
-                        textAlign: h === 0 ? 'left' : h === 24 ? 'right' : 'left',
+                        textAlign: i === 0 ? 'left' : 'center',
                       }}
                     >
                       {`${h}h`}
