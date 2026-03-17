@@ -9,6 +9,8 @@ import {
   Grid,
   Skeleton,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import AlbumIcon from '@mui/icons-material/Album';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -58,6 +60,8 @@ const StatTile: React.FC<StatTileProps> = ({ icon, label, value }) => (
 
 export const DashboardOverview: React.FC = () => {
   const { t } = useTranslation('common');
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const {
     data,
     loading,
@@ -75,7 +79,7 @@ export const DashboardOverview: React.FC = () => {
       <Box>
         <Grid container spacing={1.5}>
           {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-          <Grid item xs={12} sm={6} md={4} key={i}>
+            <Grid item xs={6} sm={6} md={4} key={i}>
               <Skeleton variant="rounded" height={56} />
             </Grid>
           ))}
@@ -87,15 +91,22 @@ export const DashboardOverview: React.FC = () => {
   const d = data!;
 
   return (
-      <Box>
-      <Box display="flex" justifyContent="flex-end" alignItems="center" gap={1} mb={1.5} flexWrap="wrap">
+    <Box>
+      <Box
+        display="flex"
+        justifyContent={{ xs: 'stretch', sm: 'flex-end' }}
+        flexDirection={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        gap={1}
+        mb={1.5}
+      >
         <ActionButton
           actionType="destructive"
           size="small"
           startIcon={<DeleteSweepIcon />}
           onClick={openResetDialog}
         >
-          {t('dashboard.reset_listening')}
+          {isMobile ? null : t('dashboard.reset_listening')}
         </ActionButton>
         <ActionButton
           actionType="secondary"
@@ -104,7 +115,7 @@ export const DashboardOverview: React.FC = () => {
           onClick={() => void load()}
           disabled={refreshing}
         >
-          {t('actions.refresh')}
+          {isMobile ? null : t('actions.refresh')}
         </ActionButton>
       </Box>
 
@@ -130,15 +141,16 @@ export const DashboardOverview: React.FC = () => {
           </ActionButton>
         </DialogActions>
       </Dialog>
+
       <Grid container spacing={1.5}>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={4}>
           <StatTile
             icon={<HeadphonesIcon fontSize="small" />}
             label={t('dashboard.minutes_today')}
             value={`${d.minutes_today.toFixed(1)} Min.`}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={4}>
           <StatTile
             icon={<AlbumIcon fontSize="small" />}
             label={t('dashboard.minutes_total')}
@@ -146,7 +158,7 @@ export const DashboardOverview: React.FC = () => {
           />
         </Grid>
         {d.daily_limit_enabled && (
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={6} sm={6} md={4}>
             <StatTile
               icon={<HeadphonesIcon fontSize="small" />}
               label={t('dashboard.remaining_minutes')}
@@ -154,35 +166,35 @@ export const DashboardOverview: React.FC = () => {
             />
           </Grid>
         )}
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={4}>
           <StatTile
             icon={<NfcIcon fontSize="small" />}
             label={t('dashboard.tags_count')}
             value={String(d.tags_count)}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={4}>
           <StatTile
             icon={<LibraryMusicIcon fontSize="small" />}
             label={t('dashboard.tracks_count')}
             value={String(d.tracks_count)}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={4}>
           <StatTile
             icon={<RadioIcon fontSize="small" />}
             label={t('dashboard.streams_count')}
             value={String(d.streams_count)}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={4}>
           <StatTile
             icon={<MicIcon fontSize="small" />}
             label={t('dashboard.podcasts_count')}
             value={String(d.podcasts_count)}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={6} sm={6} md={4}>
           <StatTile
             icon={<LibraryMusicIcon fontSize="small" />}
             label={t('dashboard.playlists_count')}
