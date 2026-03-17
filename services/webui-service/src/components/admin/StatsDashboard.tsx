@@ -6,6 +6,7 @@ import {
   Collapse,
   Grid,
   TextField,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
@@ -37,15 +38,86 @@ function formatChartDate(dateStr: string, locale: string): string {
   }
 }
 
-/** Aggregates heatmap items by weekday, summing all hour-minutes */
-function aggregateByWeekday(heatmap: HeatmapItem[]): { weekday: number; minutes: number }[] {
-  return [0, 1, 2, 3, 4, 5, 6].map((wd) => ({
-    weekday: wd,
-    minutes: heatmap
-      .filter((h) => h.weekday === wd)
-      .reduce((sum, h) => sum + h.minutes, 0),
-  }));
+// ── Timeline Heatmap helpers ────────────────────────────────────────────────
+
+/** Returns rgba color for a single hour cell based on its listening intensity */
+function hourColor(minutes: number, maxMinutes: number, primaryColor: string): string {
+  if (minutes <= 0) return 'transparent';
+  const intensity = 0.25 + (minutes / Math.max(maxMinutes, 1)) * 0.75;
+  // Parse primary color or fall back to a default purple
+  return `rgba(94, 53, 177, ${intensity})`;
 }
+
+interface TimelineRowProps {
+  label: string;
+  hours: { hour: number; minutes: number }[];
+  maxMinutes: number;
+}
+
+const TimelineRow: React.FC<TimelineRowProps> = ({ label, hours, maxMinutes }) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    {/* Weekday label */}
+    <Typography
+      variant="caption"
+      sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontSize: '0.72rem' }}
+    >
+      {label}
+    </Typography>
+
+    {/* Timeline bar */}
+    <Box
+      sx={{
+        flex: 1,
+        height: 18,
+        borderRadius: '4px',
+        bgcolor: 'action.hover',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {hours.map((h) => (
+        <Tooltip
+          key={h.hour}
+          title={`${h.hour}:00\u2013${h.hour + 1}:00 \u2013 ${Math.round(h.minutes)}\u202fmin`}
+          placement="top"
+          arrow
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: `${(h.hour / 24) * 100}%`,
+              width: `${(1 / 24) * 100}%`,
+              bgcolor: hourColor(h.minutes, maxMinutes, ''),
+              // subtle border between active segments for definition
+              borderRight: h.minutes > 0 ? '1px solid rgba(255,255,255,0.15)' : 'none',
+            }}
+          />
+        </Tooltip>
+      ))}
+
+      {/* Hour tick marks at 0, 6, 12, 18 */}
+      {[6, 12, 18].map((h) => (
+        <Box
+          key={`tick-${h}`}
+          sx={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: `${(h / 24) * 100}%`,
+            width: '1px',
+            bgcolor: 'divider',
+            opacity: 0.5,
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
+    </Box>
+  </Box>
+);
+
+// ── Main component ──────────────────────────────────────────────────────────
 
 export const StatsDashboard: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
@@ -62,6 +134,7 @@ export const StatsDashboard: React.FC = () => {
     error,
     data,
     maxMinutes,
+    heatmapMax,
     load,
   } = useStatsDashboard();
 
@@ -168,7 +241,6 @@ export const StatsDashboard: React.FC = () => {
                 {/* Mobile: accordion date axis */}
                 {isMobile && (
                   <Box sx={{ mt: 1 }}>
-                    {/* Toggle row */}
                     <Box
                       onClick={() => setShowDateAxis((v) => !v)}
                       sx={{
@@ -189,19 +261,17 @@ export const StatsDashboard: React.FC = () => {
                       </Typography>
                     </Box>
 
-                    {/* Collapsed date labels – mt:4 keeps them well below the toggle */}
                     <Collapse in={showDateAxis}>
-                      <Box
-                        sx={{
-                          position: 'relative',
-                          height: 52,
-                          mt: 4,        // pushes label zone clearly below toggle button
-                        }}
-                      >
+                      {/*
+                        paddingTop creates a gap between toggle and labels.
+                        height gives the rotated text enough room without
+                        overlapping anything below.
+                      */}
+                      <Box sx={{ pt: 1, pb: 0, height: 48, position: 'relative' }}>
                         <Box
                           sx={{
                             position: 'absolute',
-                            top: 0,
+                            top: 8,           // 8px from top of container = just below toggle
                             left: 0,
                             right: 0,
                             display: 'flex',
@@ -287,7 +357,7 @@ export const StatsDashboard: React.FC = () => {
             </Card>
           </Grid>
 
-          {/* ── Heatmap: aggregated by weekday ── */}
+          {/* ── Heatmap: timeline bars per weekday ── */}
           <Grid item xs={12}>
             <Card>
               <CardContent>
@@ -295,61 +365,49 @@ export const StatsDashboard: React.FC = () => {
                   {t('stats.heatmap')}
                 </Typography>
 
-                {(() => {
-                  const weekdayTotals = aggregateByWeekday(data.heatmap as HeatmapItem[]);
-                  const maxWd = Math.max(...weekdayTotals.map((w) => w.minutes), 1);
+                {/* Rows */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 1 }}>
+                  {[0, 1, 2, 3, 4, 5, 6].map((wd) => {
+                    const cells = Array.from({ length: 24 }, (_, h) => {
+                      const found = (data.heatmap as HeatmapItem[]).find(
+                        (r) => r.weekday === wd && r.hour === h
+                      );
+                      return { hour: h, minutes: found?.minutes ?? 0 };
+                    });
+                    return (
+                      <TimelineRow
+                        key={wd}
+                        label={t(`stats.${WEEKDAY_KEYS[wd]}`)}
+                        hours={cells}
+                        maxMinutes={heatmapMax}
+                      />
+                    );
+                  })}
+                </Box>
 
-                  return (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-                      {weekdayTotals.map((wd) => (
-                        <Box key={wd.weekday} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          {/* Weekday label */}
-                          <Typography
-                            variant="caption"
-                            sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontSize: '0.72rem' }}
-                          >
-                            {t(`stats.${WEEKDAY_KEYS[wd.weekday]}`)}
-                          </Typography>
-
-                          {/* Bar */}
-                          <Box
-                            sx={{
-                              flex: 1,
-                              height: 20,
-                              borderRadius: '4px',
-                              bgcolor: wd.minutes > 0
-                                ? `rgba(25, 118, 210, ${0.15 + (wd.minutes / maxWd) * 0.85})`
-                                : 'action.hover',
-                              position: 'relative',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <Box
-                              sx={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                bottom: 0,
-                                width: `${Math.round((wd.minutes / maxWd) * 100)}%`,
-                                bgcolor: 'primary.main',
-                                opacity: 0.25 + (wd.minutes / maxWd) * 0.75,
-                                borderRadius: '4px',
-                              }}
-                            />
-                          </Box>
-
-                          {/* Minutes value */}
-                          <Typography
-                            variant="caption"
-                            sx={{ width: 48, flexShrink: 0, textAlign: 'right', color: 'text.secondary', fontSize: '0.72rem' }}
-                          >
-                            {wd.minutes > 0 ? `${Math.round(wd.minutes)}\u202fmin` : '\u2013'}
-                          </Typography>
-                        </Box>
-                      ))}
+                {/* Hour axis: 0h, 6h, 12h, 18h, 24h */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    mt: 0.5,
+                    pl: '36px', // align with bar start (label width + gap)
+                  }}
+                >
+                  {[0, 6, 12, 18, 24].map((h) => (
+                    <Box
+                      key={h}
+                      sx={{
+                        flex: h < 24 ? 6 : 0,  // 6 hour segments between ticks
+                        fontSize: '0.65rem',
+                        color: 'text.secondary',
+                        // last label right-aligned
+                        textAlign: h === 0 ? 'left' : h === 24 ? 'right' : 'left',
+                      }}
+                    >
+                      {`${h}h`}
                     </Box>
-                  );
-                })()}
+                  ))}
+                </Box>
               </CardContent>
             </Card>
           </Grid>
