@@ -3,6 +3,9 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardActions,
+  CardContent,
   Chip,
   Dialog,
   DialogActions,
@@ -108,7 +111,6 @@ export const ButtonConfigPanel: React.FC = () => {
     }
   };
 
-  // Toggle enabled state inline without opening the edit dialog
   const handleToggleEnabled = (btn: ButtonType) => {
     setConfig((prev) =>
       prev
@@ -205,6 +207,35 @@ export const ButtonConfigPanel: React.FC = () => {
       ? ['rotate_cw', 'rotate_ccw', 'press']
       : ['short_press', 'long_press', 'double_press'];
 
+  // ── Shared action buttons renderer ────────────────────────────────────
+  const renderBtnActions = (btn: ButtonType) => {
+    const isEnabled = btn.enabled ?? true;
+    return (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title={isEnabled ? t('buttons.disable_button', { defaultValue: 'Deaktivieren' }) : t('buttons.enable_button', { defaultValue: 'Aktivieren' })}>
+          <IconButton size="small" color={isEnabled ? 'success' : 'default'} onClick={() => handleToggleEnabled(btn)}>
+            {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('buttons.test_button')}>
+          <IconButton size="small" color="info" onClick={() => { setBtnEvents([]); setTestBtn(btn); }}>
+            <ScienceIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('buttons.edit_button')}>
+          <IconButton size="small" onClick={() => openEditButton(btn)}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('buttons.delete_button')}>
+          <IconButton size="small" color="error" onClick={() => setDeleteBtn(btn)}>
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    );
+  };
+
   return (
     <Box>
       <Box display="flex" alignItems="center" gap={2} mb={2}>
@@ -223,7 +254,56 @@ export const ButtonConfigPanel: React.FC = () => {
 
       {config.buttons.length === 0 ? (
         <Typography color="text.secondary">{t('buttons.no_buttons')}</Typography>
+      ) : isSmall ? (
+        // ── Mobile: Card list ──────────────────────────────────────────
+        <Stack spacing={1.5}>
+          {config.buttons.map((btn) => {
+            const isEnabled = btn.enabled ?? true;
+            return (
+              <Card
+                key={btn.id}
+                variant="outlined"
+                sx={{ opacity: isEnabled ? 1 : 0.5 }}
+              >
+                <CardContent sx={{ pb: 0 }}>
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        {btn.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {btn.id}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" mt={1} useFlexGap>
+                    <Chip label={t(`buttons.types.${btn.type}`)} size="small" variant="outlined" />
+                    <Chip
+                      label={t(`buttons.modes.${btn.mode}`).split(' ')[0]}
+                      size="small"
+                      color={btn.mode === 'advanced' ? 'primary' : 'default'}
+                      variant="outlined"
+                    />
+                    {btn.type === 'rotary' ? (
+                      <>
+                        {btn.clk != null && <Chip label={`CLK ${btn.clk}`} size="small" variant="outlined" />}
+                        {btn.dt != null && <Chip label={`DT ${btn.dt}`} size="small" variant="outlined" />}
+                        {btn.sw != null && <Chip label={`SW ${btn.sw}`} size="small" variant="outlined" />}
+                      </>
+                    ) : btn.gpio != null ? (
+                      <Chip label={`GPIO ${btn.gpio}`} size="small" variant="outlined" />
+                    ) : null}
+                  </Stack>
+                </CardContent>
+                <CardActions sx={{ pt: 0.5, px: 1.5 }}>
+                  {renderBtnActions(btn)}
+                </CardActions>
+              </Card>
+            );
+          })}
+        </Stack>
       ) : (
+        // ── Desktop: Table ─────────────────────────────────────────────
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
@@ -272,34 +352,7 @@ export const ButtonConfigPanel: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Tooltip title={isEnabled ? t('buttons.disable_button', { defaultValue: 'Deaktivieren' }) : t('buttons.enable_button', { defaultValue: 'Aktivieren' })}>
-                          <IconButton
-                            size="small"
-                            color={isEnabled ? 'success' : 'default'}
-                            onClick={() => handleToggleEnabled(btn)}
-                          >
-                            {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={t('buttons.test_button')}>
-                          <IconButton
-                            size="small"
-                            color="info"
-                            onClick={() => { setBtnEvents([]); setTestBtn(btn); }}
-                          >
-                            <ScienceIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={t('buttons.edit_button')}>
-                          <IconButton size="small" onClick={() => openEditButton(btn)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={t('buttons.delete_button')}>
-                          <IconButton size="small" color="error" onClick={() => setDeleteBtn(btn)}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {renderBtnActions(btn)}
                       </Stack>
                     </TableCell>
                   </TableRow>
