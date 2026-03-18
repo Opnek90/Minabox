@@ -6,7 +6,7 @@
     "output_device_name_placeholder": "Pulse-Sink-Name oder leer für Standard",
     "output_devices_section": "Ausgabegeräte",
     "output_devices_refresh": "Geräte aktualisieren",
-    "output_devices_bluetooth_hint": "Bluetooth-Lautsprecher/Kopfhörer zuerst im Bluetooth-Bereich verbinden, dann hier „Geräte aktualisieren“ wählen.",
+    "output_devices_bluetooth_hint": "Bluetooth-Lautsprecher/Kopfhörer zuerst im Bluetooth-Bereich verbinden, dann hier „Geräte aktualisieren" wählen.",
     "output_devices_enabled": "Aktiviert",
     "output_devices_current": "Aktuell",
     "output_devices_empty": "Keine Pulse-Sinks erkannt. Auf Aktualisieren klicken (Pulse/PipeWire muss verfügbar sein).",
@@ -298,7 +298,9 @@
     "weekday_4": "Fr",
     "weekday_5": "Sa",
     "weekday_6": "So",
-    "no_data": "Keine Daten für den gewählten Zeitraum."
+    "no_data": "Keine Daten für den gewählten Zeitraum.",
+    "show_date_axis": "Datumsachse anzeigen",
+    "hide_date_axis": "Datumsachse ausblenden"
   },
   "system": {
     "title": "System-Status",
@@ -374,7 +376,7 @@
     "bluetooth_connected": "Verbunden",
     "bluetooth_not_connected": "Nicht verbunden",
     "bluetooth_discover": "Suchen & koppeln",
-    "bluetooth_paired_empty": "Keine gekoppelten Geräte. Unten „Suchen & koppeln“ nutzen.",
+    "bluetooth_paired_empty": "Keine gekoppelten Geräte. Unten „Suchen & koppeln" nutzen.",
     "bluetooth_connecting": "Verbinde…",
     "bluetooth_disconnecting": "Trenne…",
     "bluetooth_removing": "Entferne…",
