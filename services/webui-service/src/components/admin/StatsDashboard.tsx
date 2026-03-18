@@ -207,6 +207,7 @@ export const StatsDashboard: React.FC = () => {
                   ))}
                 </Box>
 
+                {/* Desktop: labels always visible */}
                 {!isMobile && (
                   <>
                     <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
@@ -226,8 +227,10 @@ export const StatsDashboard: React.FC = () => {
                   </>
                 )}
 
+                {/* Mobile: accordion date axis */}
                 {isMobile && (
                   <Box sx={{ mt: 1 }}>
+                    {/* Toggle row */}
                     <Box
                       onClick={() => setShowDateAxis((v) => !v)}
                       sx={{
@@ -247,12 +250,25 @@ export const StatsDashboard: React.FC = () => {
                           : t('stats.show_date_axis', { defaultValue: 'Datumsachse anzeigen' })}
                       </Typography>
                     </Box>
+
+                    {/* Collapsed date labels */}
                     <Collapse in={showDateAxis}>
-                      <Box sx={{ pt: 1, pb: 0, height: 48, position: 'relative' }}>
+                      {/*
+                        pt:2  => 16px breathing room below the toggle
+                        pb:4  => 32px for the rotated text to fall into
+                        No fixed height – container sizes to its content
+                      */}
+                      <Box
+                        sx={{
+                          position: 'relative',
+                          pt: 2,
+                          pb: 4,
+                        }}
+                      >
                         <Box
                           sx={{
                             position: 'absolute',
-                            top: 8,
+                            top: 16,   // matches pt:2 => stays below toggle
                             left: 0,
                             right: 0,
                             display: 'flex',
@@ -363,8 +379,7 @@ export const StatsDashboard: React.FC = () => {
                     );
                   })}
                 </Box>
-
-                {/* Hour axis: 0h / 6h / 12h / 18h — no 24h (= 0h next day) */}
+                {/* Hour axis: 0h / 6h / 12h / 18h */}
                 <Box sx={{ display: 'flex', mt: 0.5, pl: '36px' }}>
                   {[0, 6, 12, 18].map((h, i) => (
                     <Box
