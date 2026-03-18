@@ -92,11 +92,12 @@ export const DashboardOverview: React.FC = () => {
 
   return (
     <Box>
+      {/* Action buttons: always row, text hidden on mobile */}
       <Box
         display="flex"
-        justifyContent={{ xs: 'stretch', sm: 'flex-end' }}
-        flexDirection={{ xs: 'column', sm: 'row' }}
-        alignItems={{ xs: 'stretch', sm: 'center' }}
+        flexDirection="row"
+        justifyContent="flex-end"
+        alignItems="center"
         gap={1}
         mb={1.5}
       >
@@ -105,6 +106,7 @@ export const DashboardOverview: React.FC = () => {
           size="small"
           startIcon={<DeleteSweepIcon />}
           onClick={openResetDialog}
+          aria-label={t('dashboard.reset_listening')}
         >
           {isMobile ? null : t('dashboard.reset_listening')}
         </ActionButton>
@@ -114,6 +116,7 @@ export const DashboardOverview: React.FC = () => {
           startIcon={<RefreshIcon />}
           onClick={() => void load()}
           disabled={refreshing}
+          aria-label={t('actions.refresh')}
         >
           {isMobile ? null : t('actions.refresh')}
         </ActionButton>
