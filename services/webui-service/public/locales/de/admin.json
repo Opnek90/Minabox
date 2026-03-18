@@ -113,6 +113,9 @@
     },
     "save_success": "Button-Einstellungen gespeichert"
   },
+  "child": {
+    "title": "Kind-Einstellungen"
+  },
   "design": {
     "title": "Design"
   },
@@ -220,6 +223,12 @@
     "color_mode": "Farbmodus",
     "accent_color": "Akzentfarbe"
   },
+  "groups": {
+    "child": "Kind & Profil",
+    "media": "Medienwiedergabe",
+    "hardware": "RFID & Hardware",
+    "system": "System & Sicherheit"
+  },
   "leds": {
     "title": "LED-Einstellungen",
     "no_leds": "Keine LEDs konfiguriert",
@@ -281,6 +290,9 @@
     },
     "save_success": "RFID-Einstellungen gespeichert"
   },
+  "security": {
+    "title": "Sicherheit"
+  },
   "stats": {
     "title": "Hörstatistiken",
     "period": "Zeitraum",
@@ -301,6 +313,9 @@
     "no_data": "Keine Daten für den gewählten Zeitraum.",
     "show_date_axis": "Datumsachse anzeigen",
     "hide_date_axis": "Datumsachse ausblenden"
+  },
+  "status": {
+    "title": "System-Status"
   },
   "system": {
     "title": "System-Status",
