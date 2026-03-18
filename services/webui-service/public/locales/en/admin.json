@@ -1,4 +1,5 @@
 {
+  "load_error": "Loading failed",
   "audio": {
     "title": "Audio Settings",
     "output_device_type": "Output Device Type",
@@ -111,10 +112,18 @@
       "event_log": "Event Log",
       "close": "Close"
     },
-    "save_success": "Button settings saved"
+    "save_success": "Button settings saved",
+    "save_error": "Save failed",
+    "disable_button": "Disable",
+    "enable_button": "Enable"
   },
   "child": {
     "title": "Child Settings"
+  },
+  "control": {
+    "section_rfid": "RFID behaviour",
+    "stop_playback_on_tag_remove": "Stop playback when tag is removed",
+    "resume_on_tag_rescan": "Resume from last position (place tag again)"
   },
   "design": {
     "title": "Design"
@@ -214,11 +223,16 @@
     "media_path_error": "Failed to save path.",
     "media_path_copy": "Copy path",
     "media_path_copied": "Copied to clipboard",
+    "media_path_copy_error": "Copy failed",
     "theme_light": "Light",
     "theme_dark": "Dark",
     "logo": "Custom Logo",
     "logo_upload": "Upload Logo",
     "logo_delete": "Remove Logo",
+    "logo_upload_success": "Logo uploaded",
+    "logo_upload_error": "Logo upload failed",
+    "logo_delete_success": "Logo deleted",
+    "logo_delete_error": "Failed to delete logo",
     "appearance": "Appearance",
     "color_mode": "Color Mode",
     "accent_color": "Accent Color"
@@ -269,7 +283,11 @@
     },
     "test_led": "Test",
     "test_success": "LED test triggered",
-    "save_success": "LED settings saved"
+    "test_error": "LED test failed: {{name}}",
+    "save_success": "LED settings saved",
+    "save_error": "Save failed",
+    "disable_led": "Disable",
+    "enable_led": "Enable"
   },
   "rfid": {
     "title": "RFID Settings",
@@ -361,14 +379,14 @@
     "update_os_log_title": "Output: System (OS) update",
     "update_os_log_running": "Running… (refreshes every few seconds)",
     "update_os_log_empty": "No output yet.",
-    "wifi": "Wi‑Fi",
+    "wifi": "Wi\u2011Fi",
     "wifi_scan": "Scan networks",
     "wifi_connect": "Connect",
     "wifi_ssid": "Network (SSID)",
     "wifi_password": "Password",
-    "wifi_hotspot_start": "Start hotspot (no Wi‑Fi?)",
+    "wifi_hotspot_start": "Start hotspot (no Wi\u2011Fi?)",
     "wifi_hotspot_stop": "Stop hotspot",
-    "wifi_hotspot_connected": "Connect to this network, then enter Wi‑Fi here.",
+    "wifi_hotspot_connected": "Connect to this network, then enter Wi\u2011Fi here.",
     "usb": "USB import",
     "usb_devices": "USB devices",
     "usb_select_device": "Select device",
