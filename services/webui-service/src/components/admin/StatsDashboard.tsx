@@ -230,7 +230,6 @@ export const StatsDashboard: React.FC = () => {
                 {/* Mobile: accordion date axis */}
                 {isMobile && (
                   <Box sx={{ mt: 1 }}>
-                    {/* Toggle row */}
                     <Box
                       onClick={() => setShowDateAxis((v) => !v)}
                       sx={{
@@ -251,24 +250,16 @@ export const StatsDashboard: React.FC = () => {
                       </Typography>
                     </Box>
 
-                    {/* Collapsed date labels */}
                     <Collapse in={showDateAxis}>
                       {/*
-                        pt:2  => 16px breathing room below the toggle
-                        pb:4  => 32px for the rotated text to fall into
-                        No fixed height – container sizes to its content
+                        pt:2  = 16px gap between toggle and label row
+                        pb:2.5 = 20px for rotated text to fall into (5-char @ 0.65rem @ -45deg ~= 18-20px)
                       */}
-                      <Box
-                        sx={{
-                          position: 'relative',
-                          pt: 2,
-                          pb: 4,
-                        }}
-                      >
+                      <Box sx={{ position: 'relative', pt: 2, pb: 2.5 }}>
                         <Box
                           sx={{
                             position: 'absolute',
-                            top: 16,   // matches pt:2 => stays below toggle
+                            top: 16,
                             left: 0,
                             right: 0,
                             display: 'flex',
@@ -379,7 +370,6 @@ export const StatsDashboard: React.FC = () => {
                     );
                   })}
                 </Box>
-                {/* Hour axis: 0h / 6h / 12h / 18h */}
                 <Box sx={{ display: 'flex', mt: 0.5, pl: '36px' }}>
                   {[0, 6, 12, 18].map((h, i) => (
                     <Box
