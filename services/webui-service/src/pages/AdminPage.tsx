@@ -1,14 +1,8 @@
 import React, { useState } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Box,
-  Tab,
-  Tabs,
-  Typography,
-  useMediaQuery,
-  useTheme,
+  Accordion, AccordionDetails, AccordionSummary,
+  Box, Tab, Tabs, Typography,
+  useMediaQuery, useTheme,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useTranslation } from 'react-i18next';
@@ -21,17 +15,11 @@ import { LEDConfigPanel } from '@/components/admin/LEDConfigPanel';
 import { ButtonConfigPanel } from '@/components/admin/ButtonConfigPanel';
 import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
 import { ChildSettingsForm } from '@/components/admin/ChildSettingsForm';
+import { SettingsSection } from '@/components/admin/SettingsSection';
 import {
-  AudioConfigForm,
-  ControlSettingsForm,
-  DesignSettingsForm,
-  GeneralSettingsForm,
-  RFIDConfigForm,
+  AudioConfigForm, ControlSettingsForm, DesignSettingsForm,
+  GeneralSettingsForm, RFIDConfigForm,
 } from '@/components/admin/ConfigForm';
-
-// ---------------------------------------------------------------------------
-// Group definitions — single source of truth for both layouts
-// ---------------------------------------------------------------------------
 
 interface SettingsSection {
   key: string;
@@ -47,9 +35,7 @@ interface SettingsGroup {
 
 const useSettingsGroups = (): SettingsGroup[] => {
   const { t } = useTranslation('admin');
-
   return [
-    // ── Group 1: Child & Profile ──────────────────────────────────────────
     {
       key: 'child',
       labelKey: 'groups.child',
@@ -57,32 +43,32 @@ const useSettingsGroups = (): SettingsGroup[] => {
         {
           key: 'child_settings',
           titleKey: 'child.title',
-          content: <ChildSettingsForm />,
+          content: (
+            <SettingsSection title={t('child.title')}>
+              <ChildSettingsForm />
+            </SettingsSection>
+          ),
         },
         {
           key: 'control',
           titleKey: 'control.title',
           content: (
-            <>
-              <Typography variant="h6" gutterBottom>{t('control.title')}</Typography>
+            <SettingsSection title={t('control.title')}>
               <ControlSettingsForm />
-            </>
+            </SettingsSection>
           ),
         },
         {
           key: 'design',
           titleKey: 'design.title',
           content: (
-            <>
-              <Typography variant="h6" gutterBottom>{t('design.title')}</Typography>
+            <SettingsSection title={t('design.title')}>
               <DesignSettingsForm />
-            </>
+            </SettingsSection>
           ),
         },
       ],
     },
-
-    // ── Group 2: Media Playback ───────────────────────────────────────────
     {
       key: 'media',
       labelKey: 'groups.media',
@@ -91,27 +77,23 @@ const useSettingsGroups = (): SettingsGroup[] => {
           key: 'audio',
           titleKey: 'audio.title',
           content: (
-            <>
-              <Typography variant="h6" gutterBottom>{t('audio.title')}</Typography>
+            <SettingsSection title={t('audio.title')}>
               <AudioConfigForm />
               <BluetoothSection />
-            </>
+            </SettingsSection>
           ),
         },
         {
           key: 'general',
           titleKey: 'general.title',
           content: (
-            <>
-              <Typography variant="h6" gutterBottom>{t('general.title')}</Typography>
+            <SettingsSection title={t('general.title')}>
               <GeneralSettingsForm />
-            </>
+            </SettingsSection>
           ),
         },
       ],
     },
-
-    // ── Group 3: RFID & Hardware ──────────────────────────────────────────
     {
       key: 'hardware',
       labelKey: 'groups.hardware',
@@ -120,46 +102,40 @@ const useSettingsGroups = (): SettingsGroup[] => {
           key: 'rfid',
           titleKey: 'rfid.title',
           content: (
-            <>
-              <Typography variant="h6" gutterBottom>{t('rfid.title')}</Typography>
+            <SettingsSection title={t('rfid.title')}>
               <RFIDConfigForm />
-            </>
+            </SettingsSection>
           ),
         },
         {
           key: 'buttons',
           titleKey: 'buttons.title',
           content: (
-            <>
-              <Typography variant="h6" gutterBottom>{t('buttons.title')}</Typography>
+            <SettingsSection title={t('buttons.title')}>
               <ButtonConfigPanel />
-            </>
+            </SettingsSection>
           ),
         },
         {
           key: 'leds',
           titleKey: 'leds.title',
           content: (
-            <>
-              <Typography variant="h6" gutterBottom>{t('leds.title')}</Typography>
+            <SettingsSection title={t('leds.title')}>
               <LEDConfigPanel />
-            </>
+            </SettingsSection>
           ),
         },
         {
           key: 'display',
           titleKey: 'display.title',
           content: (
-            <>
-              <Typography variant="h6" gutterBottom>{t('display.title')}</Typography>
+            <SettingsSection title={t('display.title')}>
               <DisplayConfigPanel />
-            </>
+            </SettingsSection>
           ),
         },
       ],
     },
-
-    // ── Group 4: System & Security ────────────────────────────────────────
     {
       key: 'system',
       labelKey: 'groups.system',
@@ -167,36 +143,39 @@ const useSettingsGroups = (): SettingsGroup[] => {
         {
           key: 'status',
           titleKey: 'status.title',
-          content: <SystemStatusPanel />,
+          content: (
+            <SettingsSection title={t('status.title')}>
+              <SystemStatusPanel />
+            </SettingsSection>
+          ),
         },
         {
           key: 'system_panel',
           titleKey: 'system.title',
-          content: <SystemPanel />,
+          content: (
+            <SettingsSection title={t('system.title')}>
+              <SystemPanel />
+            </SettingsSection>
+          ),
         },
         {
           key: 'security',
           titleKey: 'security.title',
-          content: <SecurityPanel />,
+          content: (
+            <SettingsSection title={t('security.title')}>
+              <SecurityPanel />
+            </SettingsSection>
+          ),
         },
       ],
     },
   ];
 };
 
-// ---------------------------------------------------------------------------
-// Desktop layout — 4 top-level tabs, sections stacked vertically inside
-// ---------------------------------------------------------------------------
-
-interface DesktopLayoutProps {
-  groups: SettingsGroup[];
-}
-
-const DesktopLayout: React.FC<DesktopLayoutProps> = ({ groups }) => {
+const DesktopLayout: React.FC<{ groups: SettingsGroup[] }> = ({ groups }) => {
   const { t } = useTranslation('admin');
   const [tab, setTab] = useState(0);
   const activeGroup = groups[tab];
-
   return (
     <>
       <Tabs
@@ -207,48 +186,27 @@ const DesktopLayout: React.FC<DesktopLayoutProps> = ({ groups }) => {
         allowScrollButtonsMobile
         visibleScrollbar
         sx={{
-          borderBottom: 1,
-          borderColor: 'divider',
-          minHeight: 48,
-          '& .MuiTab-root': {
-            minWidth: 'auto',
-            px: 2,
-            whiteSpace: 'nowrap',
-          },
+          borderBottom: 1, borderColor: 'divider', minHeight: 48,
+          '& .MuiTab-root': { minWidth: 'auto', px: 2, whiteSpace: 'nowrap' },
         }}
       >
-        {groups.map((g) => (
-          <Tab key={g.key} label={t(g.labelKey)} />
-        ))}
+        {groups.map((g) => <Tab key={g.key} label={t(g.labelKey)} />)}
       </Tabs>
-
       <Box sx={{ pt: 3 }}>
         {activeGroup.sections.map((section) => (
-          <Box key={section.key} sx={{ mb: 4 }}>
-            {section.content}
-          </Box>
+          <Box key={section.key}>{section.content}</Box>
         ))}
       </Box>
     </>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Mobile layout — all groups as accordion, sections stacked inside each group
-// ---------------------------------------------------------------------------
-
-interface MobileLayoutProps {
-  groups: SettingsGroup[];
-}
-
-const MobileLayout: React.FC<MobileLayoutProps> = ({ groups }) => {
+const MobileLayout: React.FC<{ groups: SettingsGroup[] }> = ({ groups }) => {
   const { t } = useTranslation('admin');
   const [expanded, setExpanded] = useState<string | false>(false);
-
   const handleChange = (panel: string) => (_: React.SyntheticEvent, isExpanded: boolean) => {
     setExpanded(isExpanded ? panel : false);
   };
-
   return (
     <Box sx={{ mt: 1 }}>
       {groups.map((group) => (
@@ -259,10 +217,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ groups }) => {
           disableGutters
           sx={{
             '&:before': { display: 'none' },
-            border: 1,
-            borderColor: 'divider',
-            borderRadius: 1,
-            mb: 1,
+            border: 1, borderColor: 'divider', borderRadius: 1, mb: 1,
             '&.Mui-expanded': { mb: 1 },
           }}
         >
@@ -270,15 +225,11 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ groups }) => {
             expandIcon={<ExpandMoreIcon />}
             sx={{ minHeight: 52, '& .MuiAccordionSummary-content': { my: 1 } }}
           >
-            <Typography variant="subtitle1" fontWeight={600}>
-              {t(group.labelKey)}
-            </Typography>
+            <Typography variant="subtitle1" fontWeight={600}>{t(group.labelKey)}</Typography>
           </AccordionSummary>
           <AccordionDetails sx={{ pt: 1, pb: 2, px: 2 }}>
             {group.sections.map((section) => (
-              <Box key={section.key} sx={{ mb: 3 }}>
-                {section.content}
-              </Box>
+              <Box key={section.key}>{section.content}</Box>
             ))}
           </AccordionDetails>
         </Accordion>
@@ -287,23 +238,14 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ groups }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// AdminPage — picks layout based on breakpoint
-// ---------------------------------------------------------------------------
-
 export const AdminPage: React.FC = () => {
   const { t } = useTranslation('admin');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const groups = useSettingsGroups();
-
   return (
     <PageShell title={t('title')}>
-      {isMobile ? (
-        <MobileLayout groups={groups} />
-      ) : (
-        <DesktopLayout groups={groups} />
-      )}
+      {isMobile ? <MobileLayout groups={groups} /> : <DesktopLayout groups={groups} />}
     </PageShell>
   );
 };
