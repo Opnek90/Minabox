@@ -116,7 +116,7 @@ export const AudioConfigForm: React.FC = () => {
         fullWidth
       />
       <Divider sx={{ my: 1 }} />
-      <Typography variant="subtitle2" color="text.secondary">
+      <Typography variant="overline" color="text.secondary">
         {t('audio.output_devices_section')}
       </Typography>
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>

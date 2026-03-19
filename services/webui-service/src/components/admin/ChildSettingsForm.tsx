@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   Divider,
   FormControlLabel,
   Slider,
@@ -16,6 +15,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import type { AudioConfig, GeneralConfig, AllowedUsageTimeSlot } from '@/types/api';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 const WEEKDAY_KEYS = [
   'weekday_mo',
@@ -82,8 +82,8 @@ export const ChildSettingsForm: React.FC = () => {
   if (!general || !audioConfig) return null;
 
   return (
-    <Box display="flex" flexDirection="column" maxWidth={480} sx={{ gap: 3 }}>
-      <Typography variant="subtitle1" color="text.secondary">
+    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: 3 }}>
+      <Typography variant="overline" color="text.secondary">
         {t('general.usage_times')}
       </Typography>
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
@@ -146,7 +146,7 @@ export const ChildSettingsForm: React.FC = () => {
 
       <Divider />
 
-      <Typography variant="subtitle1" color="text.secondary">
+      <Typography variant="overline" color="text.secondary">
         {tCommon('dashboard.daily_limit')}
       </Typography>
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
@@ -184,11 +184,10 @@ export const ChildSettingsForm: React.FC = () => {
 
       <Divider />
 
-      <Typography variant="subtitle1" color="text.secondary">
+      <Typography variant="overline" color="text.secondary">
         {t('audio.volume_settings')}
       </Typography>
 
-      {/* min_volume slider */}
       <Box>
         <Typography variant="body2" gutterBottom>
           {t('audio.min_volume')}: {audioConfig.min_volume ?? 5}%
@@ -206,7 +205,6 @@ export const ChildSettingsForm: React.FC = () => {
         />
       </Box>
 
-      {/* max_volume slider */}
       <Box>
         <Typography variant="body2" gutterBottom>
           {t('audio.max_volume')}: {audioConfig.max_volume}%
@@ -224,7 +222,6 @@ export const ChildSettingsForm: React.FC = () => {
         />
       </Box>
 
-      {/* default_volume slider — lower bound tracks min_volume dynamically */}
       <Box>
         <Typography variant="body2" gutterBottom>
           {t('audio.default_volume')}: {audioConfig.default_volume}%
@@ -244,14 +241,14 @@ export const ChildSettingsForm: React.FC = () => {
 
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <Button
-          variant="contained"
+        <ActionButton
+          actionType="primary"
           startIcon={<SaveIcon />}
           onClick={handleSave}
           disabled={saving}
         >
           {t('save', { ns: 'common' })}
-        </Button>
+        </ActionButton>
       </Box>
     </Box>
   );
