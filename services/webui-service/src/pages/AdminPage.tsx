@@ -21,7 +21,7 @@ import {
   GeneralSettingsForm, RFIDConfigForm,
 } from '@/components/admin/ConfigForm';
 
-interface SettingsSection {
+interface SettingsSectionDef {
   key: string;
   titleKey: string;
   content: React.ReactNode;
@@ -30,7 +30,7 @@ interface SettingsSection {
 interface SettingsGroup {
   key: string;
   labelKey: string;
-  sections: SettingsSection[];
+  sections: SettingsSectionDef[];
 }
 
 const useSettingsGroups = (): SettingsGroup[] => {
