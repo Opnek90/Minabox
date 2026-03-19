@@ -1,4 +1,5 @@
 {
+  "load_error": "Laden fehlgeschlagen",
   "audio": {
     "title": "Audio-Einstellungen",
     "output_device_type": "Ausgabegerät-Typ",
@@ -111,7 +112,19 @@
       "event_log": "Ereignis-Protokoll",
       "close": "Schließen"
     },
-    "save_success": "Button-Einstellungen gespeichert"
+    "save_success": "Button-Einstellungen gespeichert",
+    "save_error": "Speichern fehlgeschlagen",
+    "disable_button": "Deaktivieren",
+    "enable_button": "Aktivieren"
+  },
+  "child": {
+    "title": "Kind-Einstellungen"
+  },
+  "control": {
+    "title": "Steuerung & Wiedergabe",
+    "section_rfid": "RFID-Verhalten",
+    "stop_playback_on_tag_remove": "Wiedergabe stoppen, wenn Tag entfernt wird",
+    "resume_on_tag_rescan": "Ab letzter Position fortsetzen (Tag erneut auflegen)"
   },
   "design": {
     "title": "Design"
@@ -154,6 +167,7 @@
   },
   "general": {
     "title": "Allgemeine Einstellungen",
+    "connection": "Verbindung & System",
     "cancel": "Abbrechen",
     "language": "Sprache",
     "language_de": "Deutsch",
@@ -211,14 +225,25 @@
     "media_path_error": "Pfad konnte nicht gespeichert werden.",
     "media_path_copy": "Pfad kopieren",
     "media_path_copied": "In Zwischenablage kopiert",
+    "media_path_copy_error": "Kopieren fehlgeschlagen",
     "theme_light": "Hell",
     "theme_dark": "Dunkel",
     "logo": "Eigenes Logo",
     "logo_upload": "Logo hochladen",
     "logo_delete": "Logo entfernen",
+    "logo_upload_success": "Logo hochgeladen",
+    "logo_upload_error": "Logo-Upload fehlgeschlagen",
+    "logo_delete_success": "Logo gelöscht",
+    "logo_delete_error": "Logo konnte nicht gelöscht werden",
     "appearance": "Erscheinungsbild",
     "color_mode": "Farbmodus",
     "accent_color": "Akzentfarbe"
+  },
+  "groups": {
+    "child": "Kind & Profil",
+    "media": "Medienwiedergabe",
+    "hardware": "RFID & Hardware",
+    "system": "System & Sicherheit"
   },
   "leds": {
     "title": "LED-Einstellungen",
@@ -260,7 +285,11 @@
     },
     "test_led": "Testen",
     "test_success": "LED-Test ausgelöst",
-    "save_success": "LED-Einstellungen gespeichert"
+    "test_error": "LED-Test fehlgeschlagen: {{name}}",
+    "save_success": "LED-Einstellungen gespeichert",
+    "save_error": "Speichern fehlgeschlagen",
+    "disable_led": "Deaktivieren",
+    "enable_led": "Aktivieren"
   },
   "rfid": {
     "title": "RFID-Einstellungen",
@@ -280,6 +309,9 @@
       "UART": "UART"
     },
     "save_success": "RFID-Einstellungen gespeichert"
+  },
+  "security": {
+    "title": "Sicherheit"
   },
   "stats": {
     "title": "Hörstatistiken",
@@ -301,6 +333,9 @@
     "no_data": "Keine Daten für den gewählten Zeitraum.",
     "show_date_axis": "Datumsachse anzeigen",
     "hide_date_axis": "Datumsachse ausblenden"
+  },
+  "status": {
+    "title": "System-Status"
   },
   "system": {
     "title": "System-Status",

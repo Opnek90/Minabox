@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
-  Button,
   Divider,
   FormControl,
   InputLabel,
@@ -20,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
 import { useThemeContext, COLOR_PRESETS, type ColorPresetKey } from '@/contexts/ThemeContext';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
   orange: 'Orange',
@@ -72,9 +72,9 @@ export const DesignSettingsForm: React.FC = () => {
   };
 
   return (
-    <Box display="flex" flexDirection="column" maxWidth={480} sx={{ gap: { xs: 2, sm: 3 } }}>
+    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: { xs: 2, sm: 3 } }}>
       <Box>
-        <Typography variant="subtitle2" gutterBottom>{t('general.logo')}</Typography>
+        <Typography variant="overline" gutterBottom>{t('general.logo')}</Typography>
         <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
           {logoUrl && (
             <Box
@@ -98,25 +98,25 @@ export const DesignSettingsForm: React.FC = () => {
             style={{ display: 'none' }}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }}
           />
-          <Button
-            variant="outlined"
+          <ActionButton
+            actionType="secondary"
             size="small"
             startIcon={<UploadIcon />}
             onClick={() => logoInputRef.current?.click()}
             disabled={logoUploading}
           >
             {t('general.logo_upload')}
-          </Button>
+          </ActionButton>
           {logoUrl && (
-            <Button
-              variant="outlined"
+            <ActionButton
+              actionType="secondary"
               size="small"
               color="error"
               startIcon={<DeleteIcon />}
               onClick={handleLogoDelete}
             >
               {t('general.logo_delete')}
-            </Button>
+            </ActionButton>
           )}
         </Box>
       </Box>
@@ -135,7 +135,7 @@ export const DesignSettingsForm: React.FC = () => {
 
       <Divider />
 
-      <Typography variant="subtitle2" color="text.secondary">
+      <Typography variant="overline" color="text.secondary">
         {t('general.appearance')}
       </Typography>
 

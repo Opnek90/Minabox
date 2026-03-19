@@ -85,7 +85,7 @@ export const SecurityPanel: React.FC = () => {
       <AuthSection />
 
       <Box sx={{ mt: 3, mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+        <Typography variant="overline" color="text.secondary">
           {t('system.security_title')}
         </Typography>
         {sshStatus != null && (
@@ -99,6 +99,7 @@ export const SecurityPanel: React.FC = () => {
                 />
               }
               label={t('system.ssh_toggle')}
+              sx={{ mt: 1 }}
             />
             <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
               {t('system.ssh_toggle_hint')}
@@ -116,7 +117,6 @@ export const SecurityPanel: React.FC = () => {
         </Box>
       </Box>
 
-      {/* ── Passwort Dialog ────────────────────────────────────────────────── */}
       <Dialog open={passwordDialogOpen} onClose={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
         <DialogTitle>{t('system.password_change')}</DialogTitle>
         <DialogContent>

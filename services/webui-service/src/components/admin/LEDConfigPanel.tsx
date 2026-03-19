@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Card,
+  CardActions,
   CardContent,
   CardHeader,
   Chip,
@@ -91,7 +92,6 @@ export const LEDConfigPanel: React.FC = () => {
     }
   };
 
-  // Toggle enabled state inline without opening the edit dialog
   const handleToggleEnabled = (led: LED) => {
     setConfig((prev) =>
       prev
@@ -195,6 +195,46 @@ export const LEDConfigPanel: React.FC = () => {
 
   const availableStates = ledStates.filter((s) => !(s in bindingsForm));
 
+  // ── Shared action buttons renderer ────────────────────────────────────
+  const renderLedActions = (led: LED) => {
+    const isEnabled = led.enabled ?? true;
+    return (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title={isEnabled ? t('leds.disable_led', { defaultValue: 'Deaktivieren' }) : t('leds.enable_led', { defaultValue: 'Aktivieren' })}>
+          <IconButton size="small" color={isEnabled ? 'success' : 'default'} onClick={() => handleToggleEnabled(led)}>
+            {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('leds.test_led')}>
+          <span>
+            <IconButton
+              size="small"
+              color="warning"
+              disabled={testingLedId !== null || !isEnabled}
+              onClick={() => handleTestLed(led)}
+            >
+              {testingLedId === led.id ? (
+                <CircularProgress size={16} color="warning" />
+              ) : (
+                <ElectricBoltIcon fontSize="small" />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title={t('leds.edit_led')}>
+          <IconButton size="small" onClick={() => openEditLed(led)}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('leds.delete_led')}>
+          <IconButton size="small" color="error" onClick={() => setDeleteLed(led)}>
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    );
+  };
+
   return (
     <Box>
       <Box display="flex" alignItems="center" gap={2} mb={2}>
@@ -208,7 +248,50 @@ export const LEDConfigPanel: React.FC = () => {
 
       {config.leds.length === 0 ? (
         <Typography color="text.secondary">{t('leds.no_leds')}</Typography>
+      ) : isSmall ? (
+        // ── Mobile: Card list ──────────────────────────────────────────
+        <Stack spacing={1.5}>
+          {config.leds.map((led) => {
+            const isEnabled = led.enabled ?? true;
+            const bindingCount = Object.keys(led.bindings).length;
+            return (
+              <Card
+                key={led.id}
+                variant="outlined"
+                sx={{ opacity: isEnabled ? 1 : 0.5 }}
+              >
+                <CardContent sx={{ pb: 0 }}>
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        {led.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {led.id}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" mt={1} useFlexGap>
+                    <Chip label={`GPIO ${led.gpio}`} size="small" variant="outlined" />
+                    {bindingCount > 0 && (
+                      <Chip
+                        label={`${bindingCount} ${t('leds.fields.bindings')}`}
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                      />
+                    )}
+                  </Stack>
+                </CardContent>
+                <CardActions sx={{ pt: 0.5, px: 1.5 }}>
+                  {renderLedActions(led)}
+                </CardActions>
+              </Card>
+            );
+          })}
+        </Stack>
       ) : (
+        // ── Desktop: Table ─────────────────────────────────────────────
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
@@ -223,11 +306,7 @@ export const LEDConfigPanel: React.FC = () => {
               {config.leds.map((led) => {
                 const isEnabled = led.enabled ?? true;
                 return (
-                  <TableRow
-                    key={led.id}
-                    hover
-                    sx={{ opacity: isEnabled ? 1 : 0.45 }}
-                  >
+                  <TableRow key={led.id} hover sx={{ opacity: isEnabled ? 1 : 0.45 }}>
                     <TableCell>
                       <Typography variant="body2" fontWeight={600}>{led.name}</Typography>
                       <Typography variant="caption" color="text.secondary">{led.id}</Typography>
@@ -252,41 +331,7 @@ export const LEDConfigPanel: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Tooltip title={isEnabled ? t('leds.disable_led', { defaultValue: 'Deaktivieren' }) : t('leds.enable_led', { defaultValue: 'Aktivieren' })}>
-                          <IconButton
-                            size="small"
-                            color={isEnabled ? 'success' : 'default'}
-                            onClick={() => handleToggleEnabled(led)}
-                          >
-                            {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={t('leds.test_led')}>
-                          <span>
-                            <IconButton
-                              size="small"
-                              color="warning"
-                              disabled={testingLedId !== null || !isEnabled}
-                              onClick={() => handleTestLed(led)}
-                            >
-                              {testingLedId === led.id ? (
-                                <CircularProgress size={16} color="warning" />
-                              ) : (
-                                <ElectricBoltIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <Tooltip title={t('leds.edit_led')}>
-                          <IconButton size="small" onClick={() => openEditLed(led)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title={t('leds.delete_led')}>
-                          <IconButton size="small" color="error" onClick={() => setDeleteLed(led)}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {renderLedActions(led)}
                       </Stack>
                     </TableCell>
                   </TableRow>

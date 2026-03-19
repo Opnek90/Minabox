@@ -61,7 +61,7 @@ export const ControlSettingsForm: React.FC = () => {
 
   return (
     <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: 3 }}>
-      <Typography variant="subtitle2" color="text.secondary">
+      <Typography variant="overline" color="text.secondary">
         {t('control.section_rfid')}
       </Typography>
 
@@ -95,7 +95,7 @@ export const ControlSettingsForm: React.FC = () => {
         })}
       />
 
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+      <Typography variant="overline" color="text.secondary" sx={{ mt: 1 }}>
         {t('general.sleep_timer')}
       </Typography>
       <TextField
@@ -115,7 +115,7 @@ export const ControlSettingsForm: React.FC = () => {
         helperText={t('general.sleep_timer_minutes_hint')}
       />
 
-      <Typography variant="subtitle2" color="text.secondary">
+      <Typography variant="overline" color="text.secondary">
         {t('general.bedtime_fade')}
       </Typography>
       <FormControlLabel

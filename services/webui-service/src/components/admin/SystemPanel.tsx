@@ -105,14 +105,11 @@ export const SystemPanel: React.FC = () => {
   };
 
   const handleWifiScan = async () => {
-    fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'handleWifiScan called', data: {}, timestamp: Date.now(), hypothesisId: 'H3' }) }).catch(() => {});
     setWifiScanning(true);
     try {
       const data = await systemApi.wifiScan();
-      fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'wifiScan response', data: { networksLength: data?.networks?.length ?? -1 }, timestamp: Date.now(), hypothesisId: 'H4,H5' }) }).catch(() => {});
       setWifiNetworks(data.networks ?? []);
-    } catch (err) {
-      fetch('http://localhost:7862/ingest/6a49f368-9891-40e8-b9a5-b23b7884dd09', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0f3d51' }, body: JSON.stringify({ sessionId: '0f3d51', location: 'SystemPanel.tsx:handleWifiScan', message: 'wifiScan error', data: { err: String(err) }, timestamp: Date.now(), hypothesisId: 'H4' }) }).catch(() => {});
+    } catch {
       setWifiNetworks([]);
     } finally {
       setWifiScanning(false);
@@ -126,8 +123,7 @@ export const SystemPanel: React.FC = () => {
       await systemApi.wifiConnect(wifiConnectSsid.trim(), wifiConnectPassword);
       showSuccess(t('system.wifi_connect'));
     } catch (err: unknown) {
-      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { detail?: string } } }).response : undefined;
-      fetch('http://localhost:7587/ingest/956f1dfb-30a2-4644-a364-2be2e1ac338d', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '771350' }, body: JSON.stringify({ sessionId: '771350', location: 'SystemPanel.tsx:handleWifiConnect', message: 'wifiConnect error', data: { status: ax?.status, detail: ax?.data?.detail }, timestamp: Date.now(), hypothesisId: 'H2,H3,H5' }) }).catch(() => {});
+      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
       const detail = ax?.data?.detail;
       showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
     } finally {
@@ -282,12 +278,13 @@ export const SystemPanel: React.FC = () => {
       {/* ── Hardware ────────────────────────────────────────────────────────── */}
       {boardLeds != null && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+          <Typography variant="overline" color="text.secondary">
             {t('system.hardware_title')}
           </Typography>
           <FormControlLabel
             control={<Switch checked={boardLeds.stealth} onChange={(_, checked) => handleStealthChange(checked)} color="primary" />}
             label={t('system.stealth_mode')}
+            sx={{ mt: 1, display: 'block' }}
           />
           <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
             {t('system.stealth_hint')}
@@ -297,10 +294,10 @@ export const SystemPanel: React.FC = () => {
 
       {/* ── WLAN ─────────────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+        <Typography variant="overline" color="text.secondary">
           {t('system.wifi')}
         </Typography>
-        <Box display="flex" flexDirection="column" gap={1.5}>
+        <Box display="flex" flexDirection="column" gap={1.5} sx={{ mt: 1 }}>
           <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
             <ActionButton
               actionType="secondary"
@@ -377,13 +374,13 @@ export const SystemPanel: React.FC = () => {
 
       {/* ── Netzwerk (IP) ────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+        <Typography variant="overline" color="text.secondary">
           {t('system.network_title')}
         </Typography>
         {network === null && !loading ? (
-          <Typography variant="body2" color="text.secondary">{t('system.network_no_connection')}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{t('system.network_no_connection')}</Typography>
         ) : (
-          <Box display="flex" flexDirection="column" gap={1.5}>
+          <Box display="flex" flexDirection="column" gap={1.5} sx={{ mt: 1 }}>
             <Typography variant="caption" color="text.secondary">{t('system.network_method_label')}</Typography>
             <RadioGroup row value={networkMethod} onChange={(_, v) => handleNetworkMethodChange(v as 'dhcp' | 'manual')}>
               <FormControlLabel value="dhcp" control={<Radio size="small" />} label={t('system.network_method_dhcp')} />
@@ -414,10 +411,10 @@ export const SystemPanel: React.FC = () => {
 
       {/* ── Hostname ─────────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+        <Typography variant="overline" color="text.secondary">
           {t('system.host_hostname')}
         </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center" sx={{ mt: 1 }}>
           {hostname != null && (
             <Typography variant="body2" color="text.secondary">{hostname}</Typography>
           )}
@@ -433,10 +430,10 @@ export const SystemPanel: React.FC = () => {
 
       {/* ── USB Import ───────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+        <Typography variant="overline" color="text.secondary">
           {t('system.usb')}
         </Typography>
-        <Box display="flex" flexDirection="column" gap={1.5}>
+        <Box display="flex" flexDirection="column" gap={1.5} sx={{ mt: 1 }}>
           <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
             <ActionButton
               actionType="secondary"

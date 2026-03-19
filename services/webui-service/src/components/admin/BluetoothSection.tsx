@@ -28,7 +28,6 @@ const loadPaired = async () => {
   return data.devices ?? [];
 };
 
-/** Extract API error message (Backend/Host-Helper detail) or fallback. */
 function getBluetoothErrorMessage(err: unknown, fallback: string): string {
   const d = err && typeof err === 'object' && 'response' in err && (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
   return typeof d === 'string' && d.length > 0 ? d : fallback;
@@ -144,20 +143,17 @@ export const BluetoothSection: React.FC = () => {
 
   return (
     <Box sx={{ mt: 3 }}>
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+      <Typography variant="overline" color="text.secondary">
         {t('system.bluetooth')}
       </Typography>
 
-      {/* Paired devices */}
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, mt: 1 }}>
         {t('system.bluetooth_paired')}
       </Typography>
       <Card variant="outlined" sx={{ mb: 2 }}>
         <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
           {pairedLoading ? (
-            <Typography variant="body2" color="text.secondary">
-              …
-            </Typography>
+            <Typography variant="body2" color="text.secondary">…</Typography>
           ) : pairedDevices.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
               {t('system.bluetooth_paired_empty')}
@@ -233,7 +229,6 @@ export const BluetoothSection: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Discover & pair */}
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
         {t('system.bluetooth_discover')}
       </Typography>
@@ -255,20 +250,20 @@ export const BluetoothSection: React.FC = () => {
             <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
               <List dense disablePadding>
                 {scanDevices.map((d) => (
-                    <ListItem
-                      key={d.address}
-                      disablePadding
-                      secondaryAction={
-                        <ActionButton
-                          actionType="primary"
-                          size="small"
-                          onClick={() => handlePair(d.address)}
-                          disabled={pairing === d.address}
-                        >
-                          {pairing === d.address ? '…' : t('system.bluetooth_pair')}
-                        </ActionButton>
-                      }
-                    >
+                  <ListItem
+                    key={d.address}
+                    disablePadding
+                    secondaryAction={
+                      <ActionButton
+                        actionType="primary"
+                        size="small"
+                        onClick={() => handlePair(d.address)}
+                        disabled={pairing === d.address}
+                      >
+                        {pairing === d.address ? '…' : t('system.bluetooth_pair')}
+                      </ActionButton>
+                    }
+                  >
                     <ListItemText
                       primary={d.name || d.address}
                       secondary={d.address}
@@ -287,10 +282,7 @@ export const BluetoothSection: React.FC = () => {
           <DialogContentText>
             {t('system.bluetooth_remove_confirm')}
             {removeConfirm && (
-              <>
-                {' '}
-                <strong>{removeConfirm.name || removeConfirm.address}</strong>
-              </>
+              <> <strong>{removeConfirm.name || removeConfirm.address}</strong></>
             )}
           </DialogContentText>
         </DialogContent>

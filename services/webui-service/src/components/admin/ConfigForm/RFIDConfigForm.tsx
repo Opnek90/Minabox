@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   FormControl,
   InputLabel,
   MenuItem,
@@ -15,6 +14,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import type { RFIDConfig } from '@/types/api';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 const DEFAULT_RFID_CONFIG: RFIDConfig = {
   reader_type: 'PN532',
@@ -95,9 +95,9 @@ export const RFIDConfigForm: React.FC = () => {
       />
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
+        <ActionButton actionType="primary" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
           {t('save', { ns: 'common' })}
-        </Button>
+        </ActionButton>
       </Box>
     </Box>
   );

@@ -19,6 +19,8 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -82,6 +84,9 @@ export const DisplayConfigPanel: React.FC = () => {
   const [elementTypes, setElementTypes] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     configApi
@@ -183,9 +188,12 @@ export const DisplayConfigPanel: React.FC = () => {
   const overcrowdedAreas = getOvercrowdedAreas(config.elements);
   const areaLabel = (a: DisplayArea) =>
     a === 0 ? t('display.area_header') : a === 1 ? t('display.area_left') : t('display.area_right');
+  const areaLabelShort = (a: DisplayArea) =>
+    a === 0 ? 'H' : a === 1 ? 'L' : 'R';
 
   return (
     <Box>
+      {/* ── Control Bar ── */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
           <Box display="flex" alignItems="center" gap={2}>
@@ -198,7 +206,8 @@ export const DisplayConfigPanel: React.FC = () => {
               color="primary"
             />
           </Box>
-          <Box display="flex" gap={1} alignItems="center">
+          {/* Inputs wrap on mobile to avoid overflow */}
+          <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
             <TextField
               label={t('display.i2c_bus')}
               type="number"
@@ -206,7 +215,7 @@ export const DisplayConfigPanel: React.FC = () => {
               value={config.i2c_bus}
               onChange={(e) => setI2cBus(parseInt(e.target.value, 10) || 1)}
               inputProps={{ min: 0, max: 9 }}
-              sx={{ width: 90 }}
+              sx={{ width: { xs: '100%', sm: 90 } }}
             />
             <TextField
               label={t('display.i2c_address')}
@@ -215,9 +224,9 @@ export const DisplayConfigPanel: React.FC = () => {
               value={config.i2c_address}
               onChange={(e) => setI2cAddress(parseInt(e.target.value, 10) || 60)}
               inputProps={{ min: 0, max: 127 }}
-              sx={{ width: 100 }}
+              sx={{ width: { xs: '100%', sm: 100 } }}
             />
-            <FormControl size="small" sx={{ minWidth: 120 }}>
+            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 120 } }}>
               <InputLabel>{t('display.font_size')}</InputLabel>
               <Select
                 label={t('display.font_size')}
@@ -229,7 +238,7 @@ export const DisplayConfigPanel: React.FC = () => {
                 <MenuItem value="large">{t('display.font_size_large')}</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 130 }}>
+            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 130 } }}>
               <InputLabel>{t('display.font')}</InputLabel>
               <Select
                 label={t('display.font')}
@@ -268,88 +277,182 @@ export const DisplayConfigPanel: React.FC = () => {
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
         {t('display.elements_hint')}
       </Typography>
-      <TableContainer component={Paper} sx={{ mb: 2 }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>{t('display.order')}</TableCell>
-              <TableCell>#</TableCell>
-              <TableCell align="left">{t('display.elements')}</TableCell>
-              <TableCell align="left">{t('display.area')}</TableCell>
-              <TableCell align="left">{t('display.active')}</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sortedElements.map((el, index) => (
-              <TableRow
-                key={el.type}
-                sx={
+
+      {/* ── Mobile Card-View ── */}
+      {isMobile ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+          {sortedElements.map((el, index) => (
+            <Paper
+              key={el.type}
+              sx={{
+                p: 1.5,
+                backgroundColor:
                   overcrowdedAreas.includes(el.area ?? 0 as DisplayArea) && el.enabled
-                    ? { backgroundColor: 'warning.light', opacity: 0.85 }
-                    : undefined
-                }
-              >
-                <TableCell>
-                  <Box display="flex" alignItems="center" gap={0.5}>
-                    <Tooltip title={t('display.order') + ' hoch'}>
-                      <IconButton
-                        size="small"
-                        disabled={index === 0}
-                        onClick={() => moveElement(el.type, 'up')}
-                      >
-                        <ArrowUpwardIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('display.order') + ' runter'}>
-                      <IconButton
-                        size="small"
-                        disabled={index === sortedElements.length - 1}
-                        onClick={() => moveElement(el.type, 'down')}
-                      >
-                        <ArrowDownwardIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </TableCell>
-                <TableCell>{index + 1}</TableCell>
-                <TableCell>
-                  <Box display="flex" alignItems="center" gap={0.5}>
+                    ? 'warning.light'
+                    : undefined,
+                opacity:
+                  overcrowdedAreas.includes(el.area ?? 0 as DisplayArea) && el.enabled
+                    ? 0.85
+                    : 1,
+              }}
+            >
+              {/* Row 1: Index + Name + Active Switch */}
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 20 }}>
+                    #{index + 1}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
                     {t(`display.element_types.${el.type}` as const)}
                     {DISPLAY_CONDITIONAL_TYPES.has(el.type) && (
                       <Tooltip title={t('display.conditional_hint', { defaultValue: 'Bedingtes Element – wird nur angezeigt wenn aktiv' })}>
                         <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>*</Typography>
                       </Tooltip>
                     )}
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Box display="flex" gap={0.5}>
-                    {([0, 1, 2] as DisplayArea[]).map((a) => (
-                      <Button
-                        key={a}
+                  </Typography>
+                </Box>
+                <Switch
+                  size="small"
+                  checked={el.enabled}
+                  onChange={(_, checked) => setElementEnabled(el.type, checked)}
+                  color="primary"
+                />
+              </Box>
+
+              {/* Row 2: Area Buttons + Up/Down Arrows */}
+              <Box display="flex" alignItems="center" justifyContent="space-between" mt={1}>
+                <Box display="flex" gap={0.5}>
+                  {([0, 1, 2] as DisplayArea[]).map((a) => (
+                    <Button
+                      key={a}
+                      size="small"
+                      variant={(el.area ?? 0) === a ? 'contained' : 'outlined'}
+                      onClick={() => setElementArea(el.type, a)}
+                      sx={{ minWidth: 44, minHeight: 44, px: 0.5, fontSize: '0.7rem' }}
+                    >
+                      {areaLabelShort(a)}
+                    </Button>
+                  ))}
+                </Box>
+                <Box display="flex" gap={0.5}>
+                  <Tooltip title={t('display.order') + ' hoch'}>
+                    <span>
+                      <IconButton
                         size="small"
-                        variant={(el.area ?? 0) === a ? 'contained' : 'outlined'}
-                        onClick={() => setElementArea(el.type, a)}
-                        sx={{ minWidth: 56 }}
+                        disabled={index === 0}
+                        onClick={() => moveElement(el.type, 'up')}
+                        sx={{ minWidth: 44, minHeight: 44 }}
                       >
-                        {areaLabel(a)}
-                      </Button>
-                    ))}
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Switch
-                    size="small"
-                    checked={el.enabled}
-                    onChange={(_, checked) => setElementEnabled(el.type, checked)}
-                    color="primary"
-                  />
-                </TableCell>
+                        <ArrowUpwardIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={t('display.order') + ' runter'}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        disabled={index === sortedElements.length - 1}
+                        onClick={() => moveElement(el.type, 'down')}
+                        sx={{ minWidth: 44, minHeight: 44 }}
+                      >
+                        <ArrowDownwardIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+              </Box>
+            </Paper>
+          ))}
+        </Box>
+      ) : (
+        /* ── Desktop Table-View ── */
+        <TableContainer component={Paper} sx={{ mb: 2 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>{t('display.order')}</TableCell>
+                <TableCell>#</TableCell>
+                <TableCell align="left">{t('display.elements')}</TableCell>
+                <TableCell align="left">{t('display.area')}</TableCell>
+                <TableCell align="left">{t('display.active')}</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {sortedElements.map((el, index) => (
+                <TableRow
+                  key={el.type}
+                  sx={
+                    overcrowdedAreas.includes(el.area ?? 0 as DisplayArea) && el.enabled
+                      ? { backgroundColor: 'warning.light', opacity: 0.85 }
+                      : undefined
+                  }
+                >
+                  <TableCell>
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      <Tooltip title={t('display.order') + ' hoch'}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={index === 0}
+                            onClick={() => moveElement(el.type, 'up')}
+                          >
+                            <ArrowUpwardIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={t('display.order') + ' runter'}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={index === sortedElements.length - 1}
+                            onClick={() => moveElement(el.type, 'down')}
+                          >
+                            <ArrowDownwardIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Box>
+                  </TableCell>
+                  <TableCell>{index + 1}</TableCell>
+                  <TableCell>
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      {t(`display.element_types.${el.type}` as const)}
+                      {DISPLAY_CONDITIONAL_TYPES.has(el.type) && (
+                        <Tooltip title={t('display.conditional_hint', { defaultValue: 'Bedingtes Element – wird nur angezeigt wenn aktiv' })}>
+                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>*</Typography>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" gap={0.5}>
+                      {([0, 1, 2] as DisplayArea[]).map((a) => (
+                        <Button
+                          key={a}
+                          size="small"
+                          variant={(el.area ?? 0) === a ? 'contained' : 'outlined'}
+                          onClick={() => setElementArea(el.type, a)}
+                          sx={{ minWidth: 56 }}
+                        >
+                          {areaLabel(a)}
+                        </Button>
+                      ))}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      size="small"
+                      checked={el.enabled}
+                      onChange={(_, checked) => setElementEnabled(el.type, checked)}
+                      color="primary"
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       <Button
         variant="contained"

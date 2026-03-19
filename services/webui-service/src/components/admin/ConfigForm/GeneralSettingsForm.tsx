@@ -163,8 +163,8 @@ export const GeneralSettingsForm: React.FC = () => {
   };
 
   return (
-    <Box display="flex" flexDirection="column" maxWidth={480} sx={{ gap: { xs: 2, sm: 3 } }}>
-      <Typography variant="subtitle2" color="text.secondary">
+    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: { xs: 2, sm: 3 } }}>
+      <Typography variant="overline" color="text.secondary">
         {t('general.media_path_title')}
       </Typography>
       {audioPath != null && (
@@ -303,8 +303,8 @@ export const GeneralSettingsForm: React.FC = () => {
 
       {general && (
         <>
-          <Typography variant="subtitle2" color="text.secondary">
-            {t('general.title')} (zentral)
+          <Typography variant="overline" color="text.secondary">
+            {t('general.connection')}
           </Typography>
           <TextField
             label={t('general.device_id')}

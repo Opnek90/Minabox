@@ -1,4 +1,5 @@
 {
+  "load_error": "Loading failed",
   "audio": {
     "title": "Audio Settings",
     "output_device_type": "Output Device Type",
@@ -106,12 +107,24 @@
     "test_button": "Test",
     "test_modal": {
       "title": "Button Test",
-      "description": "Press the button – detected events will appear here.",
+      "description": "Press the button \u2013 detected events will appear here.",
       "no_events": "No events yet...",
       "event_log": "Event Log",
       "close": "Close"
     },
-    "save_success": "Button settings saved"
+    "save_success": "Button settings saved",
+    "save_error": "Save failed",
+    "disable_button": "Disable",
+    "enable_button": "Enable"
+  },
+  "child": {
+    "title": "Child Settings"
+  },
+  "control": {
+    "title": "Playback & Control",
+    "section_rfid": "RFID behaviour",
+    "stop_playback_on_tag_remove": "Stop playback when tag is removed",
+    "resume_on_tag_rescan": "Resume from last position (place tag again)"
   },
   "design": {
     "title": "Design"
@@ -154,6 +167,7 @@
   },
   "general": {
     "title": "General Settings",
+    "connection": "Connection & System",
     "cancel": "Cancel",
     "language": "Language",
     "language_de": "German",
@@ -200,25 +214,36 @@
     "media_path_move_progress_title": "Moving media library",
     "media_path_move_progress_subtitle": "Files are being moved to the new location. This may take a moment.",
     "media_path_move_rebooting_title": "Almost done",
-    "media_path_move_rebooting_subtitle": "New path saved. The Pi is rebooting (1–2 min).",
+    "media_path_move_rebooting_subtitle": "New path saved. The Pi is rebooting (1\u20132 min).",
     "media_path_move_error": "Move failed",
     "media_path_move_error_detail": "Please check the paths and try again.",
     "media_path_move_files_count": "{{current}} of {{total}} files",
     "media_path_reboot_failed": "Pi reboot failed",
     "media_path_success_moved": "Media moved. The new location will be used after Pi reboot.",
     "media_path_success": "Path saved.",
-    "media_path_success_restart": "Path saved. Pi is rebooting…",
+    "media_path_success_restart": "Path saved. Pi is rebooting\u2026",
     "media_path_error": "Failed to save path.",
     "media_path_copy": "Copy path",
     "media_path_copied": "Copied to clipboard",
+    "media_path_copy_error": "Copy failed",
     "theme_light": "Light",
     "theme_dark": "Dark",
     "logo": "Custom Logo",
     "logo_upload": "Upload Logo",
     "logo_delete": "Remove Logo",
+    "logo_upload_success": "Logo uploaded",
+    "logo_upload_error": "Logo upload failed",
+    "logo_delete_success": "Logo deleted",
+    "logo_delete_error": "Failed to delete logo",
     "appearance": "Appearance",
     "color_mode": "Color Mode",
     "accent_color": "Accent Color"
+  },
+  "groups": {
+    "child": "Child & Profile",
+    "media": "Media Playback",
+    "hardware": "RFID & Hardware",
+    "system": "System & Security"
   },
   "leds": {
     "title": "LED Settings",
@@ -247,7 +272,7 @@
       "state": "State",
       "pattern": "Pattern",
       "add": "Add Binding",
-      "add_placeholder": "Select state…",
+      "add_placeholder": "Select state\u2026",
       "patterns": {
         "solid": "Solid",
         "blink": "Blink",
@@ -260,7 +285,11 @@
     },
     "test_led": "Test",
     "test_success": "LED test triggered",
-    "save_success": "LED settings saved"
+    "test_error": "LED test failed: {{name}}",
+    "save_success": "LED settings saved",
+    "save_error": "Save failed",
+    "disable_led": "Disable",
+    "enable_led": "Enable"
   },
   "rfid": {
     "title": "RFID Settings",
@@ -281,6 +310,9 @@
     },
     "save_success": "RFID settings saved"
   },
+  "security": {
+    "title": "Security"
+  },
   "stats": {
     "title": "Listening statistics",
     "period": "Period",
@@ -290,7 +322,7 @@
     "minutes_per_day": "Listening time per day (min)",
     "top_tags": "Top 3 tags",
     "top_playlists": "Top 3 playlists",
-    "heatmap": "When is listening? (hour × weekday)",
+    "heatmap": "When is listening? (hour \u00d7 weekday)",
     "weekday_0": "Mon",
     "weekday_1": "Tue",
     "weekday_2": "Wed",
@@ -301,6 +333,9 @@
     "no_data": "No data for the selected period.",
     "show_date_axis": "Show date axis",
     "hide_date_axis": "Hide date axis"
+  },
+  "status": {
+    "title": "System Status"
   },
   "system": {
     "title": "System Status",
@@ -317,7 +352,7 @@
     "restart": "Restart Services",
     "restart_confirm": "Do you want to restart all services?",
     "reboot": "Reboot Pi",
-    "reboot_confirm": "Do you really want to reboot the Pi? Connection will drop; the device will be back online in 1–2 minutes.",
+    "reboot_confirm": "Do you really want to reboot the Pi? Connection will drop; the device will be back online in 1\u20132 minutes.",
     "shutdown": "Shutdown",
     "shutdown_confirm": "Do you really want to shut down the device? Unplug and plug in again to power back on.",
     "syslog": "System Logs",
@@ -329,7 +364,7 @@
     "backup_restore": "Restore",
     "backup_restore_confirm": "Restore from backup? All containers will restart. The connection may drop.",
     "backup_restore_success": "Restore completed.",
-    "backup_restore_select": "Select ZIP file…",
+    "backup_restore_select": "Select ZIP file\u2026",
     "timezone": "Timezone",
     "timezone_apply": "Apply",
     "time_status": "Time",
@@ -344,16 +379,16 @@
     "update_os_confirm": "apt-get upgrade will run on the device. May take several minutes.",
     "update_os_success": "System update started in background. May take several minutes.",
     "update_os_log_title": "Output: System (OS) update",
-    "update_os_log_running": "Running… (refreshes every few seconds)",
+    "update_os_log_running": "Running\u2026 (refreshes every few seconds)",
     "update_os_log_empty": "No output yet.",
-    "wifi": "Wi‑Fi",
+    "wifi": "Wi\u2011Fi",
     "wifi_scan": "Scan networks",
     "wifi_connect": "Connect",
     "wifi_ssid": "Network (SSID)",
     "wifi_password": "Password",
-    "wifi_hotspot_start": "Start hotspot (no Wi‑Fi?)",
+    "wifi_hotspot_start": "Start hotspot (no Wi\u2011Fi?)",
     "wifi_hotspot_stop": "Stop hotspot",
-    "wifi_hotspot_connected": "Connect to this network, then enter Wi‑Fi here.",
+    "wifi_hotspot_connected": "Connect to this network, then enter Wi\u2011Fi here.",
     "usb": "USB import",
     "usb_devices": "USB devices",
     "usb_select_device": "Select device",
@@ -377,13 +412,13 @@
     "bluetooth_not_connected": "Not connected",
     "bluetooth_discover": "Search & pair",
     "bluetooth_paired_empty": "No paired devices. Use \"Search & pair\" below to find and pair devices.",
-    "bluetooth_connecting": "Connecting…",
-    "bluetooth_disconnecting": "Disconnecting…",
-    "bluetooth_removing": "Removing…",
+    "bluetooth_connecting": "Connecting\u2026",
+    "bluetooth_disconnecting": "Disconnecting\u2026",
+    "bluetooth_removing": "Removing\u2026",
     "view_logs": "View logs",
     "logs_title": "Container logs",
-    "logs_placeholder": "Select service…",
-    "logs_loading": "Loading logs…",
+    "logs_placeholder": "Select service\u2026",
+    "logs_loading": "Loading logs\u2026",
     "logs_auto_refresh": "Auto-refresh",
     "logs_column_level": "Level",
     "logs_column_time": "Time",
