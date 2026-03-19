@@ -35,7 +35,6 @@ import { systemApi, type HostStatusResponse, type TemperatureHistoryResponse } f
 import type { SystemStatus as SystemStatusType } from '@/types/api';
 import { formatUptime } from '@/utils/formatTime';
 
-// ── Reusable stat tile ───────────────────────────────────────────────────────
 interface StatTileProps {
   icon: React.ReactNode;
   label: string;
@@ -81,7 +80,6 @@ const StatTile: React.FC<StatTileProps> = ({ icon, label, value, title, onClick 
   </Box>
 );
 
-// ── Main component (Status tab only) ───────────────────────────────────────────
 export const SystemStatusPanel: React.FC = () => {
   const { t } = useTranslation('admin');
   const [status, setStatus] = useState<SystemStatusType | null>(null);
@@ -160,17 +158,12 @@ export const SystemStatusPanel: React.FC = () => {
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* ── Host (incl. device_id, uptime) ─────────────────────────────────────── */}
       {(hostStatus || status) && (
         <Box mb={2.5}>
-          <Typography
-            variant="subtitle2"
-            color="text.secondary"
-            sx={{ mb: 1.5, fontWeight: 600 }}
-          >
+          <Typography variant="overline" color="text.secondary">
             {t('system.host_title')}
           </Typography>
-          <Grid container spacing={1.5}>
+          <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
             {status?.device_id && (
               <Grid item xs={12} sm={6} md={4}>
                 <StatTile
@@ -254,7 +247,6 @@ export const SystemStatusPanel: React.FC = () => {
         </Box>
       )}
 
-      {/* ── Temperature history dialog (opened by clicking temperature tile) ──── */}
       <Dialog
         open={temperatureHistoryDialogOpen}
         onClose={() => setTemperatureHistoryDialogOpen(false)}
@@ -292,23 +284,18 @@ export const SystemStatusPanel: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* ── Docker Container Status (with Log) ────────────────────────────────── */}
-      <Typography
-        variant="subtitle2"
-        color="text.secondary"
-        sx={{ mb: 1.5, fontWeight: 600 }}
-      >
+      <Typography variant="overline" color="text.secondary">
         {t('system.container_status')}
       </Typography>
 
       {loading ? (
-        <Stack spacing={1}>
+        <Stack spacing={1} sx={{ mt: 1 }}>
           {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} variant="rounded" height={52} />
           ))}
         </Stack>
       ) : (
-        <Grid container spacing={1}>
+        <Grid container spacing={1} sx={{ mt: 0.5 }}>
           {status?.services.map((svc) => (
             <Grid item xs={12} sm={6} key={svc.service}>
               <ServiceStatusCard
