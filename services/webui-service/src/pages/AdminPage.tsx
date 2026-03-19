@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import {
-  Box,
-  Tab,
-  Tabs,
-  Typography,
-  useMediaQuery,
-  useTheme,
+  Accordion, AccordionDetails, AccordionSummary,
+  Box, Tab, Tabs, Typography,
+  useMediaQuery, useTheme,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useTranslation } from 'react-i18next';
 import { PageShell } from '@/components/common/PageShell';
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
@@ -17,35 +15,169 @@ import { LEDConfigPanel } from '@/components/admin/LEDConfigPanel';
 import { ButtonConfigPanel } from '@/components/admin/ButtonConfigPanel';
 import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
 import { ChildSettingsForm } from '@/components/admin/ChildSettingsForm';
+import { SettingsSection } from '@/components/admin/SettingsSection';
 import {
-  AudioConfigForm,
-  ControlSettingsForm,
-  DesignSettingsForm,
-  GeneralSettingsForm,
-  RFIDConfigForm,
+  AudioConfigForm, ControlSettingsForm, DesignSettingsForm,
+  GeneralSettingsForm, RFIDConfigForm,
 } from '@/components/admin/ConfigForm';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
+interface SettingsSectionDef {
+  key: string;
+  titleKey: string;
+  content: React.ReactNode;
 }
 
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  <Box role="tabpanel" hidden={value !== index} sx={{ pt: 3 }}>
-    {value === index && children}
-  </Box>
-);
+interface SettingsGroup {
+  key: string;
+  labelKey: string;
+  sections: SettingsSectionDef[];
+}
 
-export const AdminPage: React.FC = () => {
+const useSettingsGroups = (): SettingsGroup[] => {
   const { t } = useTranslation('admin');
-  const theme = useTheme();
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
-  const [tab, setTab] = useState(0);
-  const [hardwareSubTab, setHardwareSubTab] = useState(0);
+  return [
+    {
+      key: 'child',
+      labelKey: 'groups.child',
+      sections: [
+        {
+          key: 'child_settings',
+          titleKey: 'child.title',
+          content: (
+            <SettingsSection title={t('child.title')}>
+              <ChildSettingsForm />
+            </SettingsSection>
+          ),
+        },
+        {
+          key: 'control',
+          titleKey: 'control.title',
+          content: (
+            <SettingsSection title={t('control.title')}>
+              <ControlSettingsForm />
+            </SettingsSection>
+          ),
+        },
+        {
+          key: 'design',
+          titleKey: 'design.title',
+          content: (
+            <SettingsSection title={t('design.title')}>
+              <DesignSettingsForm />
+            </SettingsSection>
+          ),
+        },
+      ],
+    },
+    {
+      key: 'media',
+      labelKey: 'groups.media',
+      sections: [
+        {
+          key: 'audio',
+          titleKey: 'audio.title',
+          content: (
+            <SettingsSection title={t('audio.title')}>
+              <AudioConfigForm />
+              <BluetoothSection />
+            </SettingsSection>
+          ),
+        },
+        {
+          key: 'general',
+          titleKey: 'general.title',
+          content: (
+            <SettingsSection title={t('general.title')}>
+              <GeneralSettingsForm />
+            </SettingsSection>
+          ),
+        },
+      ],
+    },
+    {
+      key: 'hardware',
+      labelKey: 'groups.hardware',
+      sections: [
+        {
+          key: 'rfid',
+          titleKey: 'rfid.title',
+          content: (
+            <SettingsSection title={t('rfid.title')}>
+              <RFIDConfigForm />
+            </SettingsSection>
+          ),
+        },
+        {
+          key: 'buttons',
+          titleKey: 'buttons.title',
+          content: (
+            <SettingsSection title={t('buttons.title')}>
+              <ButtonConfigPanel />
+            </SettingsSection>
+          ),
+        },
+        {
+          key: 'leds',
+          titleKey: 'leds.title',
+          content: (
+            <SettingsSection title={t('leds.title')}>
+              <LEDConfigPanel />
+            </SettingsSection>
+          ),
+        },
+        {
+          key: 'display',
+          titleKey: 'display.title',
+          content: (
+            <SettingsSection title={t('display.title')}>
+              <DisplayConfigPanel />
+            </SettingsSection>
+          ),
+        },
+      ],
+    },
+    {
+      key: 'system',
+      labelKey: 'groups.system',
+      sections: [
+        {
+          key: 'status',
+          titleKey: 'status.title',
+          content: (
+            <SettingsSection title={t('status.title')}>
+              <SystemStatusPanel />
+            </SettingsSection>
+          ),
+        },
+        {
+          key: 'system_panel',
+          titleKey: 'system.title',
+          content: (
+            <SettingsSection title={t('system.title')}>
+              <SystemPanel />
+            </SettingsSection>
+          ),
+        },
+        {
+          key: 'security',
+          titleKey: 'security.title',
+          content: (
+            <SettingsSection title={t('security.title')}>
+              <SecurityPanel />
+            </SettingsSection>
+          ),
+        },
+      ],
+    },
+  ];
+};
 
+const DesktopLayout: React.FC<{ groups: SettingsGroup[] }> = ({ groups }) => {
+  const { t } = useTranslation('admin');
+  const [tab, setTab] = useState(0);
+  const activeGroup = groups[tab];
   return (
-    <PageShell title={t('title')}>
+    <>
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
@@ -54,96 +186,66 @@ export const AdminPage: React.FC = () => {
         allowScrollButtonsMobile
         visibleScrollbar
         sx={{
-          borderBottom: 1,
-          borderColor: 'divider',
-          minHeight: 48,
-          '& .MuiTab-root': {
-            minWidth: 'auto',
-            px: isSmall ? 1 : 2,
-            fontSize: isSmall ? '0.75rem' : undefined,
-            whiteSpace: 'nowrap',
-          },
+          borderBottom: 1, borderColor: 'divider', minHeight: 48,
+          '& .MuiTab-root': { minWidth: 'auto', px: 2, whiteSpace: 'nowrap' },
         }}
       >
-        <Tab label={t('tabs.status')} />
-        <Tab label={t('tabs.system')} />
-        <Tab label={t('tabs.hardware')} />
-        <Tab label={t('tabs.general')} />
-        <Tab label={t('tabs.control')} />
-        <Tab label={t('tabs.design')} />
-        <Tab label={t('tabs.child')} />
-        <Tab label={t('tabs.security')} />
+        {groups.map((g) => <Tab key={g.key} label={t(g.labelKey)} />)}
       </Tabs>
+      <Box sx={{ pt: 3 }}>
+        {activeGroup.sections.map((section) => (
+          <Box key={section.key}>{section.content}</Box>
+        ))}
+      </Box>
+    </>
+  );
+};
 
-      <TabPanel value={tab} index={0}>
-        <SystemStatusPanel />
-      </TabPanel>
-      <TabPanel value={tab} index={1}>
-        <SystemPanel />
-      </TabPanel>
-      <TabPanel value={tab} index={2}>
-        <Box sx={{ pt: 0 }}>
-          <Tabs
-            value={hardwareSubTab}
-            onChange={(_, v) => setHardwareSubTab(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-            sx={{
-              borderBottom: 1,
-              borderColor: 'divider',
-              minHeight: 40,
-              mb: 2,
-              '& .MuiTab-root': { minWidth: 'auto', fontSize: isSmall ? '0.8rem' : undefined },
-            }}
+const MobileLayout: React.FC<{ groups: SettingsGroup[] }> = ({ groups }) => {
+  const { t } = useTranslation('admin');
+  const [expanded, setExpanded] = useState<string | false>(false);
+  const handleChange = (panel: string) => (_: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpanded(isExpanded ? panel : false);
+  };
+  return (
+    <Box sx={{ mt: 1 }}>
+      {groups.map((group) => (
+        <Accordion
+          key={group.key}
+          expanded={expanded === group.key}
+          onChange={handleChange(group.key)}
+          disableGutters
+          sx={{
+            '&:before': { display: 'none' },
+            border: 1, borderColor: 'divider', borderRadius: 1, mb: 1,
+            '&.Mui-expanded': { mb: 1 },
+          }}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{ minHeight: 52, '& .MuiAccordionSummary-content': { my: 1 } }}
           >
-            <Tab label={t('tabs.audio')} />
-            <Tab label={t('tabs.leds')} />
-            <Tab label={t('tabs.buttons')} />
-            <Tab label={t('tabs.display')} />
-            <Tab label={t('tabs.rfid')} />
-          </Tabs>
-          <TabPanel value={hardwareSubTab} index={0}>
-            <Typography variant="h6" gutterBottom>{t('audio.title')}</Typography>
-            <AudioConfigForm />
-            <BluetoothSection />
-          </TabPanel>
-          <TabPanel value={hardwareSubTab} index={1}>
-            <Typography variant="h6" gutterBottom>{t('leds.title')}</Typography>
-            <LEDConfigPanel />
-          </TabPanel>
-          <TabPanel value={hardwareSubTab} index={2}>
-            <Typography variant="h6" gutterBottom>{t('buttons.title')}</Typography>
-            <ButtonConfigPanel />
-          </TabPanel>
-          <TabPanel value={hardwareSubTab} index={3}>
-            <Typography variant="h6" gutterBottom>{t('display.title')}</Typography>
-            <DisplayConfigPanel />
-          </TabPanel>
-          <TabPanel value={hardwareSubTab} index={4}>
-            <Typography variant="h6" gutterBottom>{t('rfid.title')}</Typography>
-            <RFIDConfigForm />
-          </TabPanel>
-        </Box>
-      </TabPanel>
-      <TabPanel value={tab} index={3}>
-        <Typography variant="h6" gutterBottom>{t('general.title')}</Typography>
-        <GeneralSettingsForm />
-      </TabPanel>
-      <TabPanel value={tab} index={4}>
-        <Typography variant="h6" gutterBottom>{t('control.title')}</Typography>
-        <ControlSettingsForm />
-      </TabPanel>
-      <TabPanel value={tab} index={5}>
-        <Typography variant="h6" gutterBottom>{t('design.title')}</Typography>
-        <DesignSettingsForm />
-      </TabPanel>
-      <TabPanel value={tab} index={6}>
-        <ChildSettingsForm />
-      </TabPanel>
-      <TabPanel value={tab} index={7}>
-        <SecurityPanel />
-      </TabPanel>
+            <Typography variant="subtitle1" fontWeight={600}>{t(group.labelKey)}</Typography>
+          </AccordionSummary>
+          <AccordionDetails sx={{ pt: 1, pb: 2, px: 2 }}>
+            {group.sections.map((section) => (
+              <Box key={section.key}>{section.content}</Box>
+            ))}
+          </AccordionDetails>
+        </Accordion>
+      ))}
+    </Box>
+  );
+};
+
+export const AdminPage: React.FC = () => {
+  const { t } = useTranslation('admin');
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const groups = useSettingsGroups();
+  return (
+    <PageShell title={t('title')}>
+      {isMobile ? <MobileLayout groups={groups} /> : <DesktopLayout groups={groups} />}
     </PageShell>
   );
 };
