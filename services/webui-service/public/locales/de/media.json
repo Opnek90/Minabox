@@ -62,9 +62,12 @@
     "stream_added": "Stream hinzugefügt",
     "remote_added": "Remote-Track hinzugefügt",
     "filter": {
+      "label": "Filter",
       "all": "Alle",
       "files": "Dateien",
-      "remote": "Remote"
+      "remote": "Remote",
+      "open": "Filter & Sortierung",
+      "reset_all": "Alle zurücksetzen"
     },
     "fields": {
       "title": "Titel",
@@ -75,6 +78,7 @@
       "source": "Quelle"
     },
     "sort": {
+      "label": "Sortierung",
       "asc": "Aufsteigend",
       "desc": "Absteigend",
       "last_played": "Zuletzt gespielt"
@@ -139,9 +143,12 @@
       "last_played": "Zuletzt gespielt"
     },
     "sort": {
+      "label": "Sortierung",
       "asc": "Aufsteigend",
       "desc": "Absteigend",
-      "last_played": "Zuletzt gespielt"
+      "last_played": "Zuletzt gespielt",
+      "open": "Sortierung",
+      "reset": "Sortierung zurücksetzen"
     }
   },
   "podcasts": {
@@ -169,8 +176,11 @@
     "last_played": "Zuletzt gespielt",
     "last_fetched_label": "Zuletzt abgerufen",
     "sort": {
+      "label": "Sortierung",
       "asc": "Aufsteigend",
-      "desc": "Absteigend"
+      "desc": "Absteigend",
+      "open": "Sortierung",
+      "reset": "Sortierung zurücksetzen"
     },
     "created": "Podcast hinzugefügt",
     "deleted": "Podcast gelöscht",

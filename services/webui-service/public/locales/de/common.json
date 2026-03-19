@@ -7,7 +7,8 @@
     "tabs": {
       "overview": "Übersicht",
       "stats": "Statistik",
-      "settings": "Kinderschutz"
+      "settings": "Kinderschutz",
+      "scan_history": "Scan-Verlauf"
     },
     "daily_limit": "Tageslimit",
     "daily_limit_hint": "Nach Überschreitung wird ausgeblendet und keine neue Wiedergabe gestartet.",
@@ -27,7 +28,17 @@
     "reset_error": "Zurücksetzen fehlgeschlagen",
     "settings_login_required": "Zum Bearbeiten der Kinderschutz-Einstellungen bitte im Bereich Einstellungen (Admin) anmelden.",
     "settings_login_hint": "Wenn der Admin-Bereich per Passwort geschützt ist, werden die Einstellungen hier erst nach Anmeldung dort geladen.",
-    "settings_load_failed": "Einstellungen konnten nicht geladen werden."
+    "settings_load_failed": "Einstellungen konnten nicht geladen werden.",
+    "scan_history": {
+      "filter_placeholder": "Nach Tag-ID filtern…",
+      "clear": "Verlauf löschen",
+      "clear_confirm": "Möchtest du den gesamten Scan-Verlauf unwiderruflich löschen?",
+      "empty": "Noch keine Scan-Ereignisse vorhanden.",
+      "col_time": "Zeit",
+      "col_tag": "Tag",
+      "col_media": "Inhalt",
+      "col_action": "Aktion"
+    }
   },
   "navigation": {
     "player": "Wiedergabe",

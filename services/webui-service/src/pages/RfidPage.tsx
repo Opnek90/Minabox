@@ -1,21 +1,29 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
+  Divider,
   IconButton,
   InputAdornment,
+  Paper,
+  Popover,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import SearchIcon from '@mui/icons-material/Search';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
@@ -39,6 +47,10 @@ import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMes
 type TagFilter = 'all' | 'active' | 'blocked' | 'unassigned';
 type SortKey = 'name' | 'last_scanned_at';
 
+const DEFAULT_FILTER: TagFilter = 'all';
+const DEFAULT_SORT_KEY: SortKey = 'name';
+const DEFAULT_SORT_DIR = 'asc' as const;
+
 interface RfidPageProps {
   pendingTagId?: string | null;
   onPendingTagHandled?: () => void;
@@ -48,6 +60,8 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
   const { t } = useTranslation('rfid');
   const { showSuccess, showError } = useToast();
   const { prefs, setViewMode, setSort, setFilter } = useUserPrefs();
+  const theme = useTheme();
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -58,11 +72,13 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // #81 — all view state read from persistent prefs
-  const sortKey = (prefs.sort['rfid']?.key ?? 'name') as SortKey;
-  const sortDir = prefs.sort['rfid']?.dir ?? 'asc';
+  const sortKey = (prefs.sort['rfid']?.key ?? DEFAULT_SORT_KEY) as SortKey;
+  const sortDir = prefs.sort['rfid']?.dir ?? DEFAULT_SORT_DIR;
   const viewMode = (prefs.viewMode['rfid'] ?? 'list') as 'card' | 'list';
-  const tagFilter = (prefs.filter['rfid'] ?? 'all') as TagFilter;
+  const tagFilter = (prefs.filter['rfid'] ?? DEFAULT_FILTER) as TagFilter;
+
+  const filterBtnRef = useRef<HTMLButtonElement>(null);
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
   const [learnModeActive, setLearnModeActive] = useState(false);
   const [learnModeLoading, setLearnModeLoading] = useState(false);
@@ -189,7 +205,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
     }
   };
 
-  const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
+  const handleSortKeyChange = (_: React.MouseEvent, key: SortKey | null) => {
     if (!key) return;
     if (key === sortKey) {
       setSort('rfid', key, sortDir === 'asc' ? 'desc' : 'asc');
@@ -211,6 +227,61 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
     if (val !== null) setFilter('rfid', val);
   };
 
+  // ── Active chip helpers ───────────────────────────────────────────────────
+  const hasActiveFilter = tagFilter !== DEFAULT_FILTER;
+  const hasNonDefaultSort = sortKey !== DEFAULT_SORT_KEY || sortDir !== DEFAULT_SORT_DIR;
+  const hasAnyActiveChip = hasActiveFilter || hasNonDefaultSort;
+  const activeBadgeCount = (hasActiveFilter ? 1 : 0) + (hasNonDefaultSort ? 1 : 0);
+
+  const filterLabel: Record<TagFilter, string> = {
+    all: t('filter.all'),
+    active: t('filter.active'),
+    blocked: t('filter.blocked'),
+    unassigned: t('filter.unassigned'),
+  };
+  const sortKeyLabel: Record<SortKey, string> = {
+    name: t('sort.name'),
+    last_scanned_at: t('sort.last_scanned'),
+  };
+
+  // ── Sort + filter controls (reused on desktop inline & in mobile popover) ─
+  const filterControls = (
+    <ToggleButtonGroup
+      value={tagFilter}
+      exclusive
+      onChange={handleFilterChange}
+      size="small"
+      aria-label={t('filter.label')}
+    >
+      <ToggleButton value="all">{t('filter.all')}</ToggleButton>
+      <ToggleButton value="active">{t('filter.active')}</ToggleButton>
+      <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+      <ToggleButton value="unassigned">{t('filter.unassigned')}</ToggleButton>
+    </ToggleButtonGroup>
+  );
+
+  const sortControls = (
+    <Box display="flex" alignItems="center" gap={0.5}>
+      <ToggleButtonGroup
+        value={sortKey}
+        exclusive
+        onChange={handleSortKeyChange}
+        size="small"
+      >
+        <ToggleButton value="name">{t('sort.name')}</ToggleButton>
+        <ToggleButton value="last_scanned_at">{t('sort.last_scanned')}</ToggleButton>
+      </ToggleButtonGroup>
+      <Tooltip title={sortDir === 'asc' ? t('sort.ascending') : t('sort.descending')}>
+        <IconButton size="small" onClick={handleSortDirToggle}>
+          {sortDir === 'asc'
+            ? <ArrowUpwardIcon fontSize="small" />
+            : <ArrowDownwardIcon fontSize="small" />}
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
+
+  // ── Filtered & sorted list ────────────────────────────────────────────────
   const filteredAndSorted = [...tags]
     .filter((tag) => {
       const q = searchQuery.toLowerCase();
@@ -254,52 +325,212 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
     >
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
-      <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
+      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
+      <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap">
+
+        {/* View-Toggle */}
         <ToggleButtonGroup value={viewMode} exclusive onChange={handleViewModeChange} size="small">
-          <ToggleButton value="card" aria-label={t('view_mode_card', { defaultValue: 'Kachelansicht' })}>
-            <ViewModuleIcon />
+          <ToggleButton value="card" aria-label={t('view_mode_card')}>
+            <ViewModuleIcon fontSize="small" />
           </ToggleButton>
-          <ToggleButton value="list" aria-label={t('view_mode_list', { defaultValue: 'Listenansicht' })}>
-            <ViewListIcon />
+          <ToggleButton value="list" aria-label={t('view_mode_list')}>
+            <ViewListIcon fontSize="small" />
           </ToggleButton>
         </ToggleButtonGroup>
 
+        {/* Search */}
         <TextField
           placeholder={t('search_placeholder')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           size="small"
           InputProps={{
-            startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
           }}
-          sx={{ minWidth: 200 }}
+          sx={{ flex: 1, minWidth: 0 }}
         />
 
-        <ToggleButtonGroup
-          value={tagFilter}
-          exclusive
-          onChange={handleFilterChange}
-          size="small"
-          aria-label={t('filter.label')}
-        >
-          <ToggleButton value="all">{t('filter.all')}</ToggleButton>
-          <ToggleButton value="active">{t('filter.active')}</ToggleButton>
-          <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
-          <ToggleButton value="unassigned">{t('filter.unassigned')}</ToggleButton>
-        </ToggleButtonGroup>
+        {/* Desktop: Filter & Sort direkt inline */}
+        {isDesktop && (
+          <>
+            {filterControls}
+            {sortControls}
+          </>
+        )}
 
-        <Box display="flex" alignItems="center" gap={0.5} ml="auto">
-          <ToggleButtonGroup value={sortKey} exclusive onChange={handleSortKey} size="small">
-            <ToggleButton value="name">{t('sort.name')}</ToggleButton>
-            <ToggleButton value="last_scanned_at">{t('sort.last_scanned')}</ToggleButton>
-          </ToggleButtonGroup>
-          <Tooltip title={sortDir === 'asc' ? t('sort.ascending') : t('sort.descending')}>
-            <IconButton size="small" onClick={handleSortDirToggle}>
-              {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
+        {/* Mobile: kompakter Icon-Button mit Badge */}
+        {!isDesktop && (
+          <Tooltip title={t('filter.open')}>
+            <IconButton
+              ref={filterBtnRef}
+              size="small"
+              onClick={() => setPopoverOpen(true)}
+              aria-label={t('filter.open')}
+              sx={{
+                position: 'relative',
+                color: activeBadgeCount > 0 ? 'primary.main' : 'text.secondary',
+                border: '1px solid',
+                borderColor: activeBadgeCount > 0 ? 'primary.main' : 'divider',
+                borderRadius: 1,
+                px: 1,
+              }}
+            >
+              <FilterListIcon fontSize="small" />
+              {activeBadgeCount > 0 && (
+                <Box
+                  component="span"
+                  sx={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -6,
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {activeBadgeCount}
+                </Box>
+              )}
             </IconButton>
           </Tooltip>
-        </Box>
+        )}
       </Box>
+
+      {/* ── Active Filter Chips (beide Breakpoints, nur bei != Default) ── */}
+      {hasAnyActiveChip && (
+        <Box display="flex" gap={0.75} flexWrap="wrap" mb={1.5} alignItems="center">
+          {hasActiveFilter && (
+            <Chip
+              size="small"
+              label={filterLabel[tagFilter]}
+              onDelete={() => setFilter('rfid', DEFAULT_FILTER)}
+              color="primary"
+              variant="outlined"
+            />
+          )}
+          {hasNonDefaultSort && (
+            <Chip
+              size="small"
+              icon={sortDir === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
+              label={sortKeyLabel[sortKey]}
+              onDelete={() => setSort('rfid', DEFAULT_SORT_KEY, DEFAULT_SORT_DIR)}
+              color="primary"
+              variant="outlined"
+            />
+          )}
+          {hasActiveFilter && hasNonDefaultSort && (
+            <Chip
+              size="small"
+              label={t('filter.reset_all')}
+              onDelete={() => {
+                setFilter('rfid', DEFAULT_FILTER);
+                setSort('rfid', DEFAULT_SORT_KEY, DEFAULT_SORT_DIR);
+              }}
+              onClick={() => {
+                setFilter('rfid', DEFAULT_FILTER);
+                setSort('rfid', DEFAULT_SORT_KEY, DEFAULT_SORT_DIR);
+              }}
+              variant="outlined"
+              sx={{ borderColor: 'divider', color: 'text.secondary' }}
+            />
+          )}
+        </Box>
+      )}
+
+      {/* ── Mobile Popover ───────────────────────────────────────────────── */}
+      <Popover
+        open={popoverOpen && !isDesktop}
+        anchorEl={filterBtnRef.current}
+        onClose={() => setPopoverOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { mt: 0.5, borderRadius: 2, minWidth: 280 } } }}
+      >
+        <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.75}>
+              {t('filter.label')}
+            </Typography>
+            <ToggleButtonGroup
+              value={tagFilter}
+              exclusive
+              onChange={handleFilterChange}
+              size="small"
+              fullWidth
+              sx={{ '& .MuiToggleButton-root': { flex: 1, fontSize: '0.78rem' } }}
+            >
+              <ToggleButton value="all">{t('filter.all')}</ToggleButton>
+              <ToggleButton value="active">{t('filter.active')}</ToggleButton>
+              <ToggleButton value="blocked">{t('filter.blocked')}</ToggleButton>
+              <ToggleButton value="unassigned">{t('filter.unassigned')}</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          <Divider />
+
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.75}>
+              {t('sort.label')}
+            </Typography>
+            <Box display="flex" gap={1} alignItems="center">
+              <ToggleButtonGroup
+                value={sortKey}
+                exclusive
+                onChange={handleSortKeyChange}
+                size="small"
+                sx={{ flex: 1, '& .MuiToggleButton-root': { flex: 1, fontSize: '0.78rem' } }}
+              >
+                <ToggleButton value="name">{t('sort.name')}</ToggleButton>
+                <ToggleButton value="last_scanned_at">{t('sort.last_scanned')}</ToggleButton>
+              </ToggleButtonGroup>
+              <Tooltip title={sortDir === 'asc' ? t('sort.ascending') : t('sort.descending')}>
+                <IconButton size="small" onClick={handleSortDirToggle}>
+                  {sortDir === 'asc'
+                    ? <ArrowUpwardIcon fontSize="small" />
+                    : <ArrowDownwardIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+
+          {hasAnyActiveChip && (
+            <>
+              <Divider />
+              <Box
+                component="button"
+                onClick={() => {
+                  setFilter('rfid', DEFAULT_FILTER);
+                  setSort('rfid', DEFAULT_SORT_KEY, DEFAULT_SORT_DIR);
+                  setPopoverOpen(false);
+                }}
+                sx={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'text.secondary',
+                  fontSize: '0.8rem',
+                  textAlign: 'left',
+                  p: 0,
+                  '&:hover': { color: 'text.primary' },
+                }}
+              >
+                {t('filter.reset_all')}
+              </Box>
+            </>
+          )}
+        </Paper>
+      </Popover>
 
       <TagList
         tags={filteredAndSorted}

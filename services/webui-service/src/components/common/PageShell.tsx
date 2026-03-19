@@ -28,12 +28,14 @@ export const PageShell: React.FC<PageShellProps> = ({
         p: isSmall ? 1.5 : 3,
         maxWidth: maxWidth ?? 'none',
         mx: maxWidth ? 'auto' : undefined,
+        // Kein overflowX:hidden hier – das wuerde Badges und Buttons abschneiden.
+        // Breiten-Overflow wird stattdessen per minWidth:0 auf Grid/Flex-Kinder verhindert.
       }}
     >
       {/* Title row */}
       <Box
         display="flex"
-        alignItems="center"
+        alignItems={isSmall ? 'flex-start' : 'center'}
         justifyContent="space-between"
         flexWrap="wrap"
         gap={1}
@@ -53,7 +55,15 @@ export const PageShell: React.FC<PageShellProps> = ({
           {title}
         </Typography>
         {actions && (
-          <Box display="flex" alignItems="center" gap={1} flexShrink={0}>
+          <Box
+            display="flex"
+            alignItems="center"
+            gap={1}
+            flexWrap="wrap"
+            sx={{
+              flex: isSmall ? '1 1 100%' : '0 0 auto',
+            }}
+          >
             {actions}
           </Box>
         )}

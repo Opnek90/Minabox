@@ -129,7 +129,14 @@ export const ControlSettingsForm: React.FC = () => {
         }
         label={t('general.bedtime_fade_enabled')}
       />
-      <Box display="flex" gap={2} flexWrap="wrap">
+      <Box
+        display="flex"
+        gap={2}
+        flexWrap="wrap"
+        sx={{
+          '& .MuiTextField-root': { flex: '1 1 140px', minWidth: 0 },
+        }}
+      >
         <TextField
           label={t('general.bedtime_fade_duration_minutes')}
           type="number"

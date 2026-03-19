@@ -298,7 +298,9 @@
     "weekday_4": "Fri",
     "weekday_5": "Sat",
     "weekday_6": "Sun",
-    "no_data": "No data for the selected period."
+    "no_data": "No data for the selected period.",
+    "show_date_axis": "Show date axis",
+    "hide_date_axis": "Hide date axis"
   },
   "system": {
     "title": "System Status",

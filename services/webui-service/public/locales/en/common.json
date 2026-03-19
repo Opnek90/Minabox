@@ -7,7 +7,8 @@
     "tabs": {
       "overview": "Overview",
       "stats": "Statistics",
-      "settings": "Parental Controls"
+      "settings": "Parental Controls",
+      "scan_history": "Scan History"
     },
     "daily_limit": "Daily limit",
     "daily_limit_hint": "When exceeded, playback fades out and no new playback starts.",
@@ -27,7 +28,17 @@
     "reset_error": "Reset failed",
     "settings_login_required": "To edit parental control settings, please sign in via Settings (Admin).",
     "settings_login_hint": "If the Admin area is password-protected, these settings will load only after signing in there.",
-    "settings_load_failed": "Failed to load settings."
+    "settings_load_failed": "Failed to load settings.",
+    "scan_history": {
+      "filter_placeholder": "Filter by tag ID…",
+      "clear": "Clear history",
+      "clear_confirm": "Do you really want to permanently delete the entire scan history?",
+      "empty": "No scan events yet.",
+      "col_time": "Time",
+      "col_tag": "Tag",
+      "col_media": "Content",
+      "col_action": "Action"
+    }
   },
   "navigation": {
     "player": "Player",

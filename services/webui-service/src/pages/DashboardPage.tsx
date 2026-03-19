@@ -27,6 +27,9 @@ export const DashboardPage: React.FC = () => {
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
         sx={{ borderBottom: 1, borderColor: 'divider', mb: 0 }}
       >
         <Tab label={t('dashboard.tabs.overview')} />

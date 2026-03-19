@@ -10,6 +10,7 @@ import {
   DialogTitle,
   InputAdornment,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -18,6 +19,8 @@ import {
   TableRow,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import NfcIcon from '@mui/icons-material/Nfc';
@@ -35,6 +38,8 @@ const ACTION_COLORS: Record<string, 'success' | 'error' | 'warning' | 'default'>
 
 export const ScanHistoryPanel: React.FC = () => {
   const { t } = useTranslation('common');
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [events, setEvents] = useState<ScanEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTagId, setFilterTagId] = useState('');
@@ -77,12 +82,20 @@ export const ScanHistoryPanel: React.FC = () => {
 
   return (
     <Box>
-      <Box display="flex" gap={1} mb={2} flexWrap="wrap" alignItems="center">
+      {/* Toolbar */}
+      <Box
+        display="flex"
+        flexDirection={{ xs: 'column', sm: 'row' }}
+        gap={1}
+        mb={2}
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+      >
         <TextField
           placeholder={t('dashboard.scan_history.filter_placeholder', { defaultValue: 'Nach Tag-ID filtern…' })}
           value={filterTagId}
           onChange={(e) => setFilterTagId(e.target.value)}
           size="small"
+          fullWidth={isMobile}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -90,28 +103,33 @@ export const ScanHistoryPanel: React.FC = () => {
               </InputAdornment>
             ),
           }}
-          sx={{ minWidth: 220 }}
+          sx={{ minWidth: { sm: 220 } }}
         />
-        <ActionButton
-          actionType="secondary"
-          size="small"
-          startIcon={<RefreshIcon />}
-          onClick={() => void load()}
-          disabled={loading}
-        >
-          {t('actions.refresh', { defaultValue: 'Aktualisieren' })}
-        </ActionButton>
-        <ActionButton
-          actionType="destructive"
-          size="small"
-          startIcon={<DeleteSweepIcon />}
-          onClick={() => setClearDialogOpen(true)}
-          disabled={events.length === 0}
-        >
-          {t('dashboard.scan_history.clear', { defaultValue: 'Verlauf löschen' })}
-        </ActionButton>
+        <Box display="flex" gap={1} flexShrink={0}>
+          <ActionButton
+            actionType="secondary"
+            size="small"
+            startIcon={<RefreshIcon />}
+            onClick={() => void load()}
+            disabled={loading}
+            aria-label={t('actions.refresh', { defaultValue: 'Aktualisieren' })}
+          >
+            {!isMobile && t('actions.refresh', { defaultValue: 'Aktualisieren' })}
+          </ActionButton>
+          <ActionButton
+            actionType="destructive"
+            size="small"
+            startIcon={<DeleteSweepIcon />}
+            onClick={() => setClearDialogOpen(true)}
+            disabled={events.length === 0}
+            aria-label={t('dashboard.scan_history.clear', { defaultValue: 'Verlauf löschen' })}
+          >
+            {!isMobile && t('dashboard.scan_history.clear', { defaultValue: 'Verlauf löschen' })}
+          </ActionButton>
+        </Box>
       </Box>
 
+      {/* Content */}
       {loading ? (
         <Box display="flex" justifyContent="center" py={4}>
           <CircularProgress size={32} />
@@ -123,7 +141,43 @@ export const ScanHistoryPanel: React.FC = () => {
             {t('dashboard.scan_history.empty', { defaultValue: 'Noch keine Scan-Ereignisse vorhanden.' })}
           </Typography>
         </Box>
+      ) : isMobile ? (
+        /* Mobile: Card-Layout pro Scan-Eintrag */
+        <Stack spacing={1}>
+          {events.map((ev) => (
+            <Paper key={ev.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1}>
+                <Box minWidth={0} flex={1}>
+                  <Typography variant="body2" fontWeight={600} noWrap>
+                    {ev.tag_name ?? ev.tag_id}
+                  </Typography>
+                  {ev.tag_name && (
+                    <Typography variant="caption" color="text.secondary" display="block" noWrap>
+                      {ev.tag_id}
+                    </Typography>
+                  )}
+                </Box>
+                <Chip
+                  label={ev.action}
+                  color={ACTION_COLORS[ev.action] ?? 'default'}
+                  size="small"
+                  sx={{ flexShrink: 0 }}
+                />
+              </Box>
+              <Box mt={0.75} display="flex" justifyContent="space-between" alignItems="center" gap={1}>
+                <Typography variant="caption" color="text.secondary" noWrap flex={1}>
+                  {ev.media_title ?? '—'}
+                  {ev.media_type && ` · ${ev.media_type}`}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  {fmt.format(new Date(ev.scanned_at))}
+                </Typography>
+              </Box>
+            </Paper>
+          ))}
+        </Stack>
       ) : (
+        /* Desktop: Tabellen-Layout */
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
