@@ -200,10 +200,10 @@ export const SystemMaintenanceSection: React.FC = () => {
 
       {/* ── Sicherung ───────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+        <Typography variant="overline" color="text.secondary">
           {t('system.backup_title')}
         </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center" sx={{ mt: 1 }}>
           <ActionButton
             actionType="secondary"
             startIcon={<CloudDownloadIcon />}
@@ -228,10 +228,10 @@ export const SystemMaintenanceSection: React.FC = () => {
 
       {/* ── Wartung ──────────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+        <Typography variant="overline" color="text.secondary">
           {t('system.maintenance_title')}
         </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center" sx={{ mt: 1 }}>
           <Typography variant="body2">
             {t('system.version')}: {version?.current_version ?? version?.current_commit ?? '–'}
           </Typography>
@@ -268,10 +268,10 @@ export const SystemMaintenanceSection: React.FC = () => {
 
       {/* ── Neustart ─────────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600 }}>
+        <Typography variant="overline" color="text.secondary">
           {t('system.restart_group')}
         </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1}>
+        <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
           <ActionButton actionType="secondary" startIcon={<RestartAltIcon />} onClick={() => setRestartDialogOpen(true)}>
             {t('system.restart')}
           </ActionButton>
@@ -292,7 +292,7 @@ export const SystemMaintenanceSection: React.FC = () => {
         </Box>
       </Box>
 
-      {/* ── Dialogs (native MUI – kein ActionButton nötig) ─────────────────── */}
+      {/* ── Dialogs ─────────────────────────────────────────────────────────── */}
       <Dialog open={restartDialogOpen} onClose={() => setRestartDialogOpen(false)}>
         <DialogTitle>{t('system.restart')}</DialogTitle>
         <DialogContent><DialogContentText>{t('system.restart_confirm')}</DialogContentText></DialogContent>
