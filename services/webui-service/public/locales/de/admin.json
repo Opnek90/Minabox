@@ -121,6 +121,7 @@
     "title": "Kind-Einstellungen"
   },
   "control": {
+    "title": "Steuerung & Wiedergabe",
     "section_rfid": "RFID-Verhalten",
     "stop_playback_on_tag_remove": "Wiedergabe stoppen, wenn Tag entfernt wird",
     "resume_on_tag_rescan": "Ab letzter Position fortsetzen (Tag erneut auflegen)"
@@ -166,6 +167,7 @@
   },
   "general": {
     "title": "Allgemeine Einstellungen",
+    "connection": "Verbindung & System",
     "cancel": "Abbrechen",
     "language": "Sprache",
     "language_de": "Deutsch",

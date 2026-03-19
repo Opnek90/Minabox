@@ -121,6 +121,7 @@
     "title": "Child Settings"
   },
   "control": {
+    "title": "Playback & Control",
     "section_rfid": "RFID behaviour",
     "stop_playback_on_tag_remove": "Stop playback when tag is removed",
     "resume_on_tag_rescan": "Resume from last position (place tag again)"
@@ -166,6 +167,7 @@
   },
   "general": {
     "title": "General Settings",
+    "connection": "Connection & System",
     "cancel": "Cancel",
     "language": "Language",
     "language_de": "German",
