@@ -144,7 +144,7 @@ export const SystemStatusPanel: React.FC = () => {
           onClick={loadStatus}
           disabled={loading || refreshing}
         >
-          {t('refresh', { ns: 'common' })}
+          {t('actions.refresh', { ns: 'common' })}
         </ActionButton>
         <ActionButton
           actionType="secondary"

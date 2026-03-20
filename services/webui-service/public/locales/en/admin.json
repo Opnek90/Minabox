@@ -145,6 +145,7 @@
     "elements": "Display elements",
     "elements_hint": "Enable elements, choose area (1=Header, 2=Left, 3=Right) and order.",
     "active": "On",
+    "conditional_hint": "Conditional element – only shown when active",
     "area": "Area",
     "area_header": "Header",
     "area_left": "Left",

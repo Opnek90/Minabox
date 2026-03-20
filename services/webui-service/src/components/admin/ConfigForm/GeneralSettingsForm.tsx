@@ -293,7 +293,7 @@ export const GeneralSettingsForm: React.FC = () => {
         <DialogActions sx={{ px: 3, pb: 2, pt: 0 }}>
           {moveProgress.status === 'error' && (
             <ActionButton actionType="primary" onClick={() => setMoveProgressOpen(false)}>
-              {t('close', { ns: 'common' })}
+              {t('actions.close', { ns: 'common' })}
             </ActionButton>
           )}
         </DialogActions>

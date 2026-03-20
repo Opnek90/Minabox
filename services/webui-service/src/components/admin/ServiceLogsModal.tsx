@@ -232,7 +232,7 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
             onClick={() => void refresh()}
             disabled={logsLoading}
           >
-            {t('refresh', { ns: 'common' })}
+            {t('actions.refresh', { ns: 'common' })}
           </Button>
         </Box>
       </DialogTitle>
@@ -313,7 +313,7 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
       </DialogContent>
       <DialogActions sx={{ px: 2, py: 1.5 }}>
         <Button onClick={onClose} variant="contained">
-          {t('close', { ns: 'common' })}
+          {t('actions.close', { ns: 'common' })}
         </Button>
       </DialogActions>
     </Dialog>
