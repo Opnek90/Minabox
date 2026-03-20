@@ -304,7 +304,7 @@ newgrp docker
 
 ```bash
 # Health-Check
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 
 # Falls Fehler, Logs prüfen
 docker compose logs backend

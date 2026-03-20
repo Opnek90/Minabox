@@ -2,7 +2,7 @@
 
 **Version**: 1.1.0  
 **Status**: Production Ready ✅  
-**Last Updated**: 2026-02-25
+**Last Updated**: 2026-03-20
 
 ## 1. Zweck & Verantwortung
 
@@ -54,7 +54,7 @@ audio_service/
 │   └── mqtt_client.py       # Async MQTT (aiomqtt), Subscriptions/Publish, Auto-Reconnect, Retained Status
 ├── api/
 │   ├── __init__.py
-│   └── routes.py            # REST: GET /api/v1/health, GET /api/v1/status
+│   └── routes.py            # REST: GET /health, GET /api/v1/status, GET /api/v1/devices, POST /api/v1/switch-device
 └── models/
     ├── __init__.py
     └── schemas.py           # Pydantic-Schemas für API/MQTT (Health, Status, Commands)
@@ -214,9 +214,12 @@ class AudioBackend(ABC):
 - `set-volume` - Set Volume (0-100, clamped to max_volume)
 - `volume-up` - Increase Volume (default step: 5)
 - `volume-down` - Decrease Volume (default step: 5)
+- `mute-toggle` - Toggle mute/unmute (no payload)
+- `switch-device` - Switch output sink/device (payload: `sink_name` or `alsa_device`, optional `direction: "next"`)
 - `config/update` - Update Configuration
 - `config/reload` - Reload Configuration
 - `config/get` - Get Current Configuration
+- `config/general` - Apply runtime log level (`log_level` payload), topic: `minabox/<device-id>/config/general`
 
 **Validation**:
 - Payload-Validation via Pydantic
@@ -267,6 +270,7 @@ class AudioConfig(BaseModel):
     output_device_name: str  # Pulse-Sink-Name oder "auto" / ALSA-Device
     enabled_output_devices: list[str] = []  # Erlaubte Sinks für Geräteauswahl (leer = alle)
     device_display_names: dict[str, str] = {}  # Sink-Name → Anzeigename (z.B. "Lautsprecher", "Headset")
+    min_volume: int = Field(ge=0, le=100)  # Child protection (minimum volume)
     max_volume: int = Field(ge=0, le=100)  # Child protection
     default_volume: int = Field(ge=0, le=100)
 ```
@@ -276,8 +280,10 @@ class AudioConfig(BaseModel):
 **Verantwortung**: REST-API-Endpoints
 
 **Endpoints**:
-- `GET /api/v1/health` - Service Health Check
+- `GET /health` - Service Health Check
 - `GET /api/v1/status` - Current Audio Status
+- `GET /api/v1/devices` - List detected Pulse/PipeWire sinks
+- `POST /api/v1/switch-device` - Switch output sink/device
 
 **Health Response**:
 ```json
@@ -480,7 +486,7 @@ minabox/<device-id>/audio/error
 
 ### 5.3 REST API
 
-#### `GET /api/v1/health`
+#### `GET /health`
 
 **Response**:
 ```json
@@ -494,14 +500,22 @@ minabox/<device-id>/audio/error
 }
 ```
 
-**Status-Werte**:
-- `"healthy"` - Alle Systeme funktionsfähig
-- `"degraded"` - MQTT oder VLC-Problem
-- `"unhealthy"` - Kritischer Fehler
+**Status values**:
+- `"healthy"` - All systems functional
+- `"degraded"` - MQTT or VLC problem
+- `"unhealthy"` - Critical error
 
 #### `GET /api/v1/status`
 
-**Response**: Spiegelung von `audio/status` MQTT-Topic
+**Response**: Mirrors the `audio/status` MQTT topic.
+
+#### `GET /api/v1/devices`
+
+Lists detected PulseAudio/PipeWire audio sinks (supports optional `enabled_only` query parameter).
+
+#### `POST /api/v1/switch-device`
+
+Switches the audio output to the specified sink/device (request body: `sink_name` or `alsa_device`; optional `direction: "next"`).
 
 ---
 
@@ -518,6 +532,7 @@ minabox/<device-id>/audio/error
     "alsa_output.usb-...": "Headset",
     "alsa_output.platform-soc_sound.stereo-fallback": "Lautsprecher"
   },
+  "min_volume": 5,
   "max_volume": 70,
   "default_volume": 40
 }
@@ -539,6 +554,8 @@ minabox/<device-id>/audio/error
 - `enabled_output_devices`: Liste von Pulse-Sink-Namen, die in der Geräteauswahl (WebUI/Admin) angeboten werden. Leer = alle verfügbaren Sinks.
 
 - `device_display_names`: Map von Sink-Name → Anzeigename (z.B. „Lautsprecher“, „Headset“) für die WebUI.
+
+- `min_volume`: Minimale Lautstärke (0-100) zum Schutz vor unbeabsichtigtem „Stumm“-Niveau.
 
 - `max_volume`: Maximale Lautstärke (0-100) für Kinderschutz
 
@@ -884,4 +901,4 @@ def set_volume(self, volume: int) -> None:
 
 **Version**: 1.1.0  
 **Status**: ✅ Production Ready  
-**Last Updated**: 2026-02-25
+**Last Updated**: 2026-03-20

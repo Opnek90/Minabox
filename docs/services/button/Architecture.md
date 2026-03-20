@@ -66,8 +66,11 @@ Typische Aktionen (Beispiele):
 - `minabox/<device-id>/button/prev`
 - `minabox/<device-id>/button/volume-up`
 - `minabox/<device-id>/button/volume-down`
-- `minabox/<device-id>/button/mute`
-- `minabox/<device-id>/button/power-off`
+- `minabox/<device-id>/button/mute-toggle` (Backend akzeptiert auch Alias `mute`)
+- `minabox/<device-id>/button/sleep-timer-toggle`
+- `minabox/<device-id>/button/repeat-cycle`
+- `minabox/<device-id>/button/shuffle-toggle`
+- `minabox/<device-id>/button/next-output-device`
 
 Payload (JSON, minimal):
 

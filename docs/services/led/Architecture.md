@@ -123,6 +123,7 @@ Analog zum Button-Service besitzt der LED-Service eine Config-API über MQTT.
       "id": "led_5",
       "name": "Power-LED",
       "gpio": 5,
+      "enabled": true,
       "bindings": {
         "system_online": {
           "pattern_type": "solid",
@@ -225,6 +226,7 @@ Felder:
 - `id`: interne LED-ID (z.B. `led_5`, `led_6` oder eine zufällige ID), vom Backend vergeben; muss für Nutzer nicht sichtbar sein.
 - `name`: Klarname für WebUI/Logs (z.B. "Power-LED", "Status-LED").
 - `gpio`: GPIO-Pin, an dem die LED angeschlossen ist.
+- `enabled`: Ob diese LED vom Service berücksichtigt wird (wenn `false`, wird sie nicht angesteuert).
 - `bindings`: Map von `logical_state` (z.B. `audio_playing`, `system_error`) auf ein Pattern-Objekt.
 
 ### 5.2 Pattern-Objekt
@@ -295,9 +297,17 @@ Der LED-Service leitet logische Zustände aus MQTT-Nachrichten ab, z.B.:
 
 - `audio/status` mit `state="playing"` → `audio_playing`.
 - `audio/status` mit `state="paused"` → `audio_paused`.
+- `audio/status` mit `state="stopped"` → `audio_stopped`.
 - `rfid/tag-scanned` → `rfid_scanned`.
+- `rfid/tag-removed` → `rfid_removed`.
+- `rfid/unknown-tag` → `rfid_unknown_tag`.
+- `rfid/tag-blocked` → `rfid_tag_blocked`.
+- `system/service-started` → `system_online`.
 - `system/service-error` → `system_error`.
+- `system/booting` → `system_booting`.
 - `button/raw-event` → `button_pressed`.
+- `backend/unreachable` → `backend_unreachable`.
+- `led/usage-denied` → `usage_denied`.
 
 Diese Zuordnung (welches Topic → welcher `logical_state`) wird im LED-Service-Code oder in einer separaten Mapping-Konfiguration festgelegt.
 

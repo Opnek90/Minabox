@@ -37,7 +37,7 @@ rfid_service/
 │   └── rfid_manager.py          # Lern-/Normal-Modus, Scan-Loop, Duplicate-Suppression, Publish tag-scanned/tag-removed/status
 ├── infrastructure/
 │   ├── __init__.py
-│   ├── mqtt_client.py           # MQTT: Subscriptions (cmd/set-mode, cmd/reload-config), Publish (tag-scanned, tag-removed, status)
+│   ├── mqtt_client.py           # MQTT: Subscriptions (cmd/set-mode, config/general), Publish (tag-scanned, tag-removed, status)
 │   └── hardware/
 │       ├── __init__.py
 │       ├── reader_interface.py  # Abstrakte RFIDReader-Schnittstelle
@@ -107,10 +107,7 @@ minabox/<device-id>/<domain>/<action>
     { "mode": "normal" }
     ```
 
-- Konfiguration neu laden (optional):
-  - `minabox/<device-id>/rfid/cmd/reload-config`
-
-**Hinweis Config-API:** Der RFID-Service unterstützt **kein** generisches Config-API-Pattern (keine Topics `config/get`, `config/update`, `config/response` wie bei Button- und LED-Service). Die Konfiguration erfolgt ausschließlich über die Datei `config/rfid.json`; zur Laufzeit können nur der Modus (`cmd/set-mode`) und ein Neuladen der Config (`cmd/reload-config`) per MQTT gesteuert werden.
+**Hinweis Config-API:** Der RFID-Service unterstützt **kein** generisches Config-API-Pattern (keine Topics `config/get`, `config/update`, `config/response` wie bei Button- und LED-Service). Die Konfiguration erfolgt ausschließlich über die Datei `config/rfid.json`; zur Laufzeit kann nur der Modus (`cmd/set-mode`) per MQTT umgeschaltet werden. `minabox/<device-id>/config/general` wird für globale Einstellungen (z.B. Logging-Level) verwendet.
 
 ### 3.2 REST (optional)
 

@@ -58,14 +58,17 @@ Es gibt keine weiteren REST-Endpoints; Konfiguration erfolgt über die Config-Da
 
 Der Display-Service subscribed auf:
 
-- **`minabox/<device-id>/audio/status`** – Aktueller Audio-Status (state, volume, muted). Wird im StateManager gecacht und für Volume-, Mute- und Play-State-Elemente genutzt.
+- **`minabox/<device-id>/audio/status`** – Aktueller Audio-Status (state, volume, muted). Wird im StateManager gecacht und für Volume-, Mute- und Play-State-Elemente genutzt. Zusätzlich werden Bluetooth-bezogene Felder (z.B. `bluetooth_sink_available`, `multiple_output_devices`) für das `bluetooth`-Element verwendet.
 - **`minabox/<device-id>/audio/error`** – Fehler-Event; setzt internen Fehlerzustand (Anzeige z.B. über `error_state`-Element).
 - **`minabox/<device-id>/system/service-error`** – System-Fehler; setzt ebenfalls Fehlerzustand.
 - **`minabox/<device-id>/display/config/reload`** – Signal zum Neuladen der lokalen Config (`config/display.json`).
 
-### 3.3 Backend-Abfrage (Sleep-Timer)
+### 3.3 Backend-Abfrage (Sleep-Timer + Session)
 
-Der Service pollt periodisch (z.B. alle 5 Sekunden) **`GET <BACKEND_URL>/api/v1/audio/sleep-timer`**, um den Sleep-Timer-Status (active, remaining_ms) zu erhalten. Diese Daten werden im StateManager gecacht und für Elemente vom Typ `sleep_timer` verwendet. Kein MQTT-Topic für Sleep-Timer.
+Der Service pollt periodisch (z.B. alle 5 Sekunden)
+**`GET <BACKEND_URL>/api/v1/audio/sleep-timer`**, um den Sleep-Timer-Status (active, remaining_ms) zu erhalten. Diese Daten werden im StateManager gecacht und für Elemente vom Typ `sleep_timer` verwendet. Kein MQTT-Topic für Sleep-Timer.
+
+Zusätzlich pollt der Service periodisch **`GET <BACKEND_URL>/api/v1/audio/session`**, um Repeat-/Shuffle-Status (z.B. `repeat_mode`, `shuffle`) zu erhalten. Diese Daten werden im StateManager gecacht und für Elemente vom Typ `repeat` und `shuffle` verwendet.
 
 ---
 
@@ -105,7 +108,7 @@ Der Service pollt periodisch (z.B. alle 5 Sekunden) **`GET <BACKEND_URL>/api/v1/
 **Element:**
 
 - **id** – Eindeutige ID (z.B. `vol`, `time`).
-- **type** – Element-Typ: `volume`, `sleep_timer`, `mute`, `play_state`, `clock`, `error_state`.
+- **type** – Element-Typ: `volume`, `sleep_timer`, `mute`, `play_state`, `clock`, `error_state`, `repeat`, `shuffle`, `bluetooth`.
 - **enabled** – Ob das Element angezeigt wird.
 - **order** – Reihenfolge innerhalb der Area (niedriger = weiter oben).
 - **area** – Bereich: `0` = Header (volle Breite), `1` = linke Spalte, `2` = rechte Spalte.

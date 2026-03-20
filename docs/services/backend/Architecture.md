@@ -141,6 +141,12 @@ backend_service/
 - `GET /api/v1/audio/sleep-timer` – Sleep-Timer-Status abrufen
 - `POST /api/v1/audio/sleep-timer` – Sleep-Timer starten (Payload: z.B. `minutes`)
 - `DELETE /api/v1/audio/sleep-timer` – Sleep-Timer abbrechen
+- `POST /api/v1/audio/seek` – Seek auf Position innerhalb des aktuellen Tracks (Payload: `position_ms`)
+- `GET /api/v1/audio/session` – Aktuelle Queue/Session (repeat_mode, shuffle) für „What’s next“
+- `POST /api/v1/audio/repeat` – Repeat-Modus setzen (`none` | `all`)
+- `POST /api/v1/audio/shuffle` – Shuffle für die aktuelle Session setzen (Payload: `shuffle: bool`)
+- `GET /api/v1/audio/devices` – Erkannte PulseAudio/PipeWire-Sinks auflisten (Query: `enabled_only`)
+- `POST /api/v1/audio/switch-device` – Audio-Output auf einen Sink wechseln (Body: `sink_name` oder `alsa_device`, optional `direction: "next"`)
 
 **RFID-Control:**
 
@@ -150,8 +156,11 @@ backend_service/
 
 - `GET /api/v1/config/buttons` – Button-Konfiguration abrufen
 - `PUT /api/v1/config/buttons` – Button-Konfiguration aktualisieren
+- `GET /api/v1/config/buttons/actions` – Liste aller unterstützten Button-Aktionen (für Admin-UI Auswahl)
 - `GET /api/v1/config/leds` – LED-Konfiguration abrufen
 - `PUT /api/v1/config/leds` – LED-Konfiguration aktualisieren
+- `GET /api/v1/config/leds/states` – Liste aller unterstützten LED-„Logical States“ (Binding IDs)
+- `GET /api/v1/config/leds/patterns` – Liste aller unterstützten LED-Pattern-Typen
 - `GET /api/v1/config/audio` – Audio-Konfiguration abrufen
 - `PUT /api/v1/config/audio` – Audio-Konfiguration aktualisieren
 - `GET /api/v1/config/rfid` – RFID-Konfiguration abrufen
@@ -172,7 +181,8 @@ backend_service/
 
 **System & Health:**
 
-- `GET /api/v1/health` – Backend-Health
+- `GET /health` – Backend-Health (Root-Endpoint)
+- `GET /api/v1/system/health` – Backend-Health (DB + MQTT-Connectivity)
 - `GET /api/v1/system/status` – Gesamtsystem-Status (alle Services inkl. CPU/RAM wenn verfügbar)
 - `GET /api/v1/system/logs?service=<id>&tail=200` – Logs eines Service-Containers (backend, mqtt, audio, rfid, button, led, display, webui). Quelle: Host-Helper `GET /container-logs` oder Docker-API/Fallback. Response: `{ "service", "lines", "tail" }`.
 - `POST /api/v1/system/restart` – Alle Minabox-Container neustarten (Delegation an Host-Helper `/restart`)
@@ -224,19 +234,27 @@ Audio-Status:
     "position_ms": 12345,
     "duration_ms": 240000,
     "volume": 55,
-    "timestamp": "2026-02-14T21:20:00Z"
+    "track_title": "Optional: resolved track title",
+    "track_artist": "Optional: resolved artist",
+    "track_album": "Optional: resolved album",
+    "track_cover_art_url": null,
+    "playlist_position": 1,
+    "playlist_total": 10
   }
+  "timestamp": "2026-02-14T21:20:00Z"
 }
 ```
 
-RFID-Event:
+RFID (Normal-Modus):
 
 ```json
 {
   "type": "rfid_scanned",
   "data": {
     "tag_id": "04A224BC19",
-    "reader_id": "pn532_01",
+    "content_type": "track|playlist|stream|podcast",
+    "content_name": "Optional: resolved tag content name",
+    "content_id": 5,
     "timestamp": "2026-02-14T21:20:00Z"
   }
 }
@@ -249,7 +267,44 @@ RFID-Lern-Modus:
   "type": "rfid_scanned_learning",
   "data": {
     "tag_id": "04A224BC19",
-    "reader_id": "pn532_01",
+    "already_assigned": false,
+    "timestamp": "2026-02-14T21:20:00Z"
+  }
+}
+```
+
+Tag nicht gefunden:
+
+```json
+{
+  "type": "tag_not_found",
+  "data": {
+    "tag_id": "04A224BC19",
+    "timestamp": "2026-02-14T21:20:00Z"
+  }
+}
+```
+
+Blockierter Tag:
+
+```json
+{
+  "type": "tag_blocked",
+  "data": {
+    "tag_id": "04A224BC19",
+    "name": "Optional: tag name",
+    "timestamp": "2026-02-14T21:20:00Z"
+  }
+}
+```
+
+Usage-Denied (Parental/Daily-Limit außerhalb erlaubter Zeit):
+
+```json
+{
+  "type": "usage_denied",
+  "data": {
+    "tag_id": "04A224BC19",
     "timestamp": "2026-02-14T21:20:00Z"
   }
 }
@@ -262,22 +317,56 @@ Button-Action:
   "type": "button_action",
   "data": {
     "action": "play_pause",
-    "source": "btn_1",
     "timestamp": "2026-02-14T21:20:00Z"
   }
 }
 ```
 
-Service-Status:
+Button-Raw-Event (wird für WebUI Hardware-Testmodus verwendet):
 
 ```json
 {
-  "type": "service_status",
+  "type": "button_raw_event",
   "data": {
-    "service": "audio",
-    "state": "online",
+    "button_id": "btn_1",
+    "name": "Optional: button name",
+    "event_type": "short_press|long_press|double_press|rotate_cw|rotate_ccw|press",
     "timestamp": "2026-02-14T21:20:00Z"
   }
+}
+```
+
+Repeat-Modus:
+
+```json
+{
+  "type": "repeat_mode",
+  "data": {
+    "repeat_mode": "none|all"
+  },
+  "timestamp": "2026-02-14T21:20:00Z"
+}
+```
+
+Shuffle-Modus:
+
+```json
+{
+  "type": "shuffle_mode",
+  "data": {
+    "shuffle": false
+  },
+  "timestamp": "2026-02-14T21:20:00Z"
+}
+```
+
+Sleep-Timer-Status:
+
+```json
+{
+  "type": "sleep_timer_status",
+  "data": { "active": true, "remaining_ms": 600000 },
+  "timestamp": "2026-02-14T21:20:00Z"
 }
 ```
 
@@ -286,11 +375,10 @@ System-Alert (z.B. Überhitzung; WebUI zeigt globale Alert-Bar):
 ```json
 {
   "type": "system_alert",
-  "data": {
-    "code": "temperature_high",
-    "level": "warning",
-    "message": "alerts.temperature_high"
-  }
+  "level": "warning",
+  "code": "temperature_high",
+  "message": "alerts.temperature_high",
+  "timestamp": "2026-02-14T21:20:00Z"
 }
 ```
 
@@ -299,21 +387,20 @@ System-Alert gelöscht:
 ```json
 {
   "type": "system_alert_cleared",
-  "data": { "code": "temperature_high" }
+  "code": "temperature_high",
+  "timestamp": "2026-02-14T21:20:00Z"
 }
 ```
 
 **Incoming Messages (WebUI → Backend):**
 
-Optional kann die WebUI Commands via WebSocket senden (alternativ REST):
+Aktuell verarbeitet das Backend keine Commands, sondern versucht lediglich, eingehenden Text als JSON zu parsen. Wenn das gelingt, sendet es einen `ack` zurück (Commands via WebSocket sind in dieser Implementierung nicht aktiv):
 
 ```json
 {
-  "type": "command",
-  "command": "audio_play",
-  "payload": {
-    "track_id": "track_123"
-  }
+  "type": "ack",
+  "message": "Received",
+  "timestamp": "2026-02-14T21:20:00Z"
 }
 ```
 
@@ -331,20 +418,14 @@ Der Backend subscribed auf folgende MQTT-Topics:
 **Audio:**
 
 - `minabox/<device-id>/audio/status`
-- `minabox/<device-id>/audio/error`
+- `minabox/<device-id>/audio/position-report`
 
 **Button:**
 
 - `minabox/<device-id>/button/+` (alle Button-Actions)
-- `minabox/<device-id>/button/config/response`
+- `minabox/<device-id>/button/raw-event`
 
-**LED:**
-
-- `minabox/<device-id>/led/config/response`
-
-**System:**
-
-- `minabox/<device-id>/system/+`
+**(keine weiteren Subscribe-Topics für LED/System in dieser Implementierung)**
 
 ### 3.4 MQTT – Publish Topics
 
@@ -358,20 +439,27 @@ Der Backend subscribed auf folgende MQTT-Topics:
 - `minabox/<device-id>/audio/set-volume`
 - `minabox/<device-id>/audio/volume-up`
 - `minabox/<device-id>/audio/volume-down`
+- `minabox/<device-id>/audio/mute-toggle`
+- `minabox/<device-id>/audio/switch-device`
 
 **RFID-Commands:**
 
 - `minabox/<device-id>/rfid/cmd/set-mode`
-- `minabox/<device-id>/rfid/cmd/reload-config`
+- *(Reload-Konfiguration ist für RFID in der aktuellen Implementierung nicht über `cmd/reload-config` abgebildet.)*
 
 **Config-Updates:**
 
-- `minabox/<device-id>/button/config/update`
-- `minabox/<device-id>/button/config/get`
-- `minabox/<device-id>/led/config/update`
-- `minabox/<device-id>/led/config/get`
-- `minabox/<device-id>/audio/config/update`
-- `minabox/<device-id>/audio/config/get`
+- `minabox/<device-id>/button/config/reload` (Payload: `{}`)
+- `minabox/<device-id>/led/config/reload` (Payload: `{}`)
+- `minabox/<device-id>/audio/config/reload` (Payload: `{}`)
+- `minabox/<device-id>/display/config/reload` (Payload: `{}`)
+- `minabox/<device-id>/config/general` (retained; z.B. `log_level`)
+
+**System/Usage Events:**
+
+- `minabox/<device-id>/system/service-error` (z.B. Temperatur-Überhitzung)
+- `minabox/<device-id>/system/service-started` (z.B. Temperatur normalisiert)
+- `minabox/<device-id>/led/usage-denied` (Payload: `{ "event": "usage_denied", "timestamp": "..." }`)
 
 ### 3.5 System-/Host-Operationen
 
@@ -662,7 +750,6 @@ Ablauf:
   "type": "button_action",
   "data": {
     "action": "play_pause",
-    "source": "btn_1",
     "timestamp": "2026-02-14T21:20:00Z"
   }
 }
