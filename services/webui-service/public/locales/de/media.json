@@ -50,6 +50,7 @@
     "upload": "Track hochladen",
     "add_stream": "Stream hinzufügen",
     "add_remote": "Remote-Track",
+    "import_from_url": "Von URL importieren",
     "edit": "Track bearbeiten",
     "delete": "Track löschen",
     "delete_confirm": "Möchten Sie den Track \"{{title}}\" wirklich löschen?",
@@ -61,6 +62,8 @@
     "uploaded": "Track hochgeladen",
     "stream_added": "Stream hinzugefügt",
     "remote_added": "Remote-Track hinzugefügt",
+    "imported": "Track importiert",
+    "import_error": "Import fehlgeschlagen",
     "filter": {
       "label": "Filter",
       "all": "Alle",
@@ -121,6 +124,20 @@
   "track_selector": {
     "title": "Track auswählen",
     "search_placeholder": "Tracks suchen..."
+  },
+  "media_import": {
+    "title": "Von URL importieren",
+    "disclaimer_title": "Hinweis zum Urheberrecht",
+    "disclaimer_body": "Bitte stelle sicher, dass du die rechtlichen Nutzungsrechte an den Inhalten hast. Diese Funktion ist ausschließlich für urheberrechtsfreie oder eigene Inhalte bestimmt. Das Herunterladen urheberrechtlich geschützter Inhalte ohne Erlaubnis ist nicht gestattet.",
+    "url_label": "Video-URL",
+    "url_placeholder": "https://www.youtube.com/watch?v=…",
+    "check": "Prüfen",
+    "preview_error": "URL konnte nicht geprüft werden. Bitte prüfe den Link und versuche es erneut.",
+    "import": "Importieren",
+    "downloading": "Wird heruntergeladen und konvertiert… (kann einige Minuten dauern)",
+    "downloading_short": "Importieren…",
+    "success": "\"{{title}}\" wurde erfolgreich importiert.",
+    "error": "Import fehlgeschlagen. Bitte prüfe die URL und versuche es erneut."
   },
   "streams": {
     "no_streams": "Keine Streams",
