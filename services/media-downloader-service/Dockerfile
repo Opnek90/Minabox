@@ -5,14 +5,13 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
-# ffmpeg is required by yt-dlp for audio extraction & thumbnail embedding
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY media-downloader-service/requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/app/deps -r requirements.txt
 
 # ============================================================
 # Stage 2: Runtime
@@ -21,18 +20,17 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# ffmpeg needed at runtime for yt-dlp post-processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+COPY --from=builder /app/deps /app/deps
+ENV PATH=/app/deps/bin:$PATH
+ENV PYTHONPATH=/app/src:/app/deps/lib/python3.13/site-packages
 
 COPY media-downloader-service/src/ ./src/
 
-ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
