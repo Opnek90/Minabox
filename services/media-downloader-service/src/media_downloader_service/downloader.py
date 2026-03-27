@@ -10,6 +10,14 @@ from mutagen.id3 import APIC, ID3, ID3NoHeaderError
 
 logger = structlog.get_logger("media_downloader_service.downloader")
 
+# yt-dlp extractor args to reduce YouTube bot-detection false positives.
+# The android client is less aggressively rate-limited than the web client.
+_YT_EXTRACTOR_ARGS: dict[str, Any] = {
+    "youtube": {
+        "player_client": ["web_creator", "android"],
+    }
+}
+
 
 class DownloadError(Exception):
     """Raised when a download or metadata operation fails."""
@@ -28,16 +36,9 @@ class MediaDownloader:
     def download_video(self, url: str, output_dir: Path) -> dict[str, Any]:
         """Download audio from *url* as MP3 with embedded metadata.
 
-        Args:
-            url: Video URL supported by yt-dlp.
-            output_dir: Directory where the MP3 will be stored.
-
         Returns:
             Dict with file_path, title, artist, album, duration_ms,
             video_id, thumbnail_embedded.
-
-        Raises:
-            DownloadError: If yt-dlp or metadata embedding fails.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -56,6 +57,7 @@ class MediaDownloader:
             "writethumbnail": True,
             "quiet": True,
             "no_warnings": True,
+            "extractor_args": _YT_EXTRACTOR_ARGS,
         }
 
         try:
@@ -68,11 +70,9 @@ class MediaDownloader:
         video_id: str = info.get("id", "unknown")
         mp3_path = output_dir / f"{video_id}.mp3"
 
-        # Verify the file was actually created
         if not mp3_path.exists():
             raise DownloadError(f"Expected MP3 not found after download: {mp3_path}")
 
-        # Try to embed thumbnail separately as fallback if EmbedThumbnail PP failed
         thumbnail_embedded = self._embed_thumbnail_fallback(mp3_path, output_dir, video_id)
 
         result: dict[str, Any] = {
@@ -96,19 +96,14 @@ class MediaDownloader:
     def get_video_info(self, url: str) -> dict[str, Any]:
         """Fetch video metadata *without* downloading.
 
-        Args:
-            url: Video URL supported by yt-dlp.
-
         Returns:
             Dict with title, artist, duration_ms, thumbnail, video_id.
-
-        Raises:
-            DownloadError: If metadata extraction fails.
         """
         ydl_opts: dict[str, Any] = {
             "skip_download": True,
             "quiet": True,
             "no_warnings": True,
+            "extractor_args": _YT_EXTRACTOR_ARGS,
         }
 
         try:
@@ -136,12 +131,7 @@ class MediaDownloader:
         output_dir: Path,
         video_id: str,
     ) -> bool:
-        """Try to embed a leftover thumbnail file as APIC cover art.
-
-        This is a fallback in case yt-dlp's EmbedThumbnail postprocessor
-        did not run (e.g. ffmpeg not available). Cleans up the thumbnail
-        file afterwards.
-        """
+        """Try to embed a leftover thumbnail file as APIC cover art."""
         thumbnail_path: Path | None = None
         for ext in ("jpg", "jpeg", "png", "webp"):
             candidate = output_dir / f"{video_id}.{ext}"
@@ -150,7 +140,6 @@ class MediaDownloader:
                 break
 
         if thumbnail_path is None:
-            # EmbedThumbnail PP likely succeeded already – nothing to do
             return True
 
         try:
@@ -173,7 +162,5 @@ class MediaDownloader:
             logger.debug("thumbnail_embedded_fallback", video_id=video_id)
             return True
         except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "thumbnail_embed_failed", video_id=video_id, error=str(exc)
-            )
+            logger.warning("thumbnail_embed_failed", video_id=video_id, error=str(exc))
             return False
