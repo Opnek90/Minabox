@@ -23,11 +23,11 @@ class MediaDownloaderClient:
     """Async HTTP client for the media-downloader-service.
 
     The service URL is read from the MEDIA_DOWNLOADER_URL environment variable
-    (default: http://media-downloader:8000) so that it can be overridden in
+    (default: http://media-downloader:8007) so that it can be overridden in
     development without code changes.
     """
 
-    def __init__(self, base_url: str = "http://media-downloader:8000") -> None:
+    def __init__(self, base_url: str = "http://media-downloader:8007") -> None:
         self.base_url = base_url.rstrip("/")
 
     # ------------------------------------------------------------------
@@ -41,8 +41,7 @@ class MediaDownloaderClient:
             url: Video URL supported by yt-dlp.
 
         Returns:
-            Dict with file_path, title, artist, album, duration_ms,
-            video_id, thumbnail_embedded.
+            Dict with path, title, artist, duration_ms, thumbnail_url, filename.
 
         Raises:
             MediaDownloaderError: On HTTP error or connection failure.
@@ -52,14 +51,14 @@ class MediaDownloaderClient:
             async with httpx.AsyncClient(timeout=_DOWNLOAD_TIMEOUT) as client:
                 response = await client.post(
                     f"{self.base_url}/download",
-                    json={"url": url},
+                    params={"url": url},
                 )
                 response.raise_for_status()
                 data: dict[str, Any] = response.json()
                 logger.info(
                     "media_downloader_download_success",
-                    video_id=data.get("video_id"),
                     title=data.get("title"),
+                    path=data.get("path"),
                 )
                 return data
         except httpx.HTTPStatusError as exc:
@@ -83,7 +82,7 @@ class MediaDownloaderClient:
             url: Video URL supported by yt-dlp.
 
         Returns:
-            Dict with title, artist, duration_ms, thumbnail, video_id.
+            Dict with title, artist, duration_ms, thumbnail_url, video_id.
 
         Raises:
             MediaDownloaderError: On HTTP error or connection failure.
@@ -92,7 +91,7 @@ class MediaDownloaderClient:
         try:
             async with httpx.AsyncClient(timeout=_INFO_TIMEOUT) as client:
                 response = await client.get(
-                    f"{self.base_url}/info",
+                    f"{self.base_url}/validate-url",
                     params={"url": url},
                 )
                 response.raise_for_status()
