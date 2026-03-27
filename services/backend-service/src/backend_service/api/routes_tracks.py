@@ -67,7 +67,6 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
 
 @router.get("", response_model=list[TrackResponse])
 async def list_tracks(db: Session = Depends(get_db)) -> list[TrackResponse]:
-    """List all tracks."""
     logger.info("api_list_tracks")
     tracks: list[Track] = db.query(Track).all()
     return [TrackResponse.model_validate(t) for t in tracks]
@@ -77,7 +76,7 @@ async def list_tracks(db: Session = Depends(get_db)) -> list[TrackResponse]:
 async def validate_media_url(
     url: str = Query(..., description="Video URL to preview (no download)"),
 ) -> dict:
-    """Fetch video metadata without downloading – used for frontend preview."""
+    """Proxy to media-downloader GET /info – used for frontend preview."""
     logger.info("api_validate_media_url", url=url)
     client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
     try:
@@ -85,13 +84,7 @@ async def validate_media_url(
     except MediaDownloaderError as exc:
         raise HTTPException(
             status_code=422,
-            detail={
-                "error": {
-                    "code": "MEDIA_URL_INVALID",
-                    "message": str(exc),
-                    "details": {"url": url},
-                }
-            },
+            detail={"error": {"code": "MEDIA_URL_INVALID", "message": str(exc), "details": {"url": url}}},
         ) from exc
 
     return {
@@ -99,27 +92,23 @@ async def validate_media_url(
         "title": info.get("title", ""),
         "artist": info.get("artist"),
         "duration_ms": info.get("duration_ms"),
-        "thumbnail_url": info.get("thumbnail_url"),
+        # media-downloader returns 'thumbnail' (not 'thumbnail_url')
+        "thumbnail_url": info.get("thumbnail"),
         "video_id": info.get("video_id", ""),
     }
 
 
 @router.get("/{track_id}", response_model=TrackResponse)
 async def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
-    """Get track by ID."""
     logger.info("api_get_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}},
-        )
+        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
     return TrackResponse.model_validate(track)
 
 
 @router.post("", response_model=TrackResponse, status_code=201)
 async def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -> TrackResponse:
-    """Create new track (file or remote)."""
     logger.info("api_create_track", title=track_data.title, source_type=track_data.source_type)
     track = Track(
         title=track_data.title,
@@ -141,7 +130,7 @@ async def create_track_from_url(
     url: str = Query(..., description="Video URL to download as audio track"),
     db: Session = Depends(get_db),
 ) -> TrackResponse:
-    """Download video from URL, save as MP3 and add as track to the media library."""
+    """Download via media-downloader POST /download and register as Track."""
     logger.info("api_create_track_from_url", url=url)
     client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
 
@@ -153,8 +142,8 @@ async def create_track_from_url(
             detail={"error": {"code": "DOWNLOAD_FAILED", "message": str(exc), "details": {"url": url}}},
         ) from exc
 
-    # The media-downloader returns the field as 'path'
-    mp3_path = Path(result["path"])
+    # media-downloader DownloadResponse uses 'file_path'
+    mp3_path = Path(result["file_path"])
 
     track = Track(
         title=result["title"],
@@ -180,7 +169,6 @@ async def create_track_from_url(
 
 @router.post("/{track_id}/cover", response_model=TrackResponse)
 async def upload_track_cover(track_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)) -> TrackResponse:
-    """Upload cover art for a track."""
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
         raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
@@ -197,7 +185,6 @@ async def upload_track_cover(track_id: int, file: UploadFile = File(...), db: Se
 
 @router.delete("/{track_id}/cover", response_model=TrackResponse)
 async def delete_track_cover(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
-    """Remove cover art from a track."""
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
         raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
@@ -214,7 +201,6 @@ async def delete_track_cover(track_id: int, db: Session = Depends(get_db)) -> Tr
 
 @router.put("/{track_id}", response_model=TrackResponse)
 async def update_track(track_id: int, track_data: TrackUpdate, db: Session = Depends(get_db)) -> TrackResponse:
-    """Update an existing track (metadata only)."""
     logger.info("api_update_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
@@ -240,7 +226,6 @@ async def upload_track(
     album: str = Form(None),
     db: Session = Depends(get_db),
 ) -> TrackResponse:
-    """Upload audio file and create track."""
     logger.info("api_upload_track_started", filename=file.filename, title=title)
     config = get_config()
     try:
@@ -257,8 +242,6 @@ async def upload_track(
 
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-
-        logger.info("api_upload_track_file_saved", track_id=track.id, path=str(file_path))
 
         try:
             audio_file = MutagenFile(str(file_path))
@@ -286,26 +269,16 @@ async def upload_track(
         logger.error("api_upload_track_failed", error=str(e))
         db.rollback()
         if e.errno == 13:
-            raise HTTPException(
-                status_code=503,
-                detail={"error": {"code": "AUDIO_STORAGE_READONLY", "message": "Audio storage path is not writable.", "details": {"path": config.audio_storage_path, "filename": file.filename}}},
-            ) from e
-        raise HTTPException(
-            status_code=400,
-            detail={"error": {"code": "UPLOAD_FAILED", "message": f"Failed to upload track: {str(e)}", "details": {"filename": file.filename}}},
-        ) from e
+            raise HTTPException(status_code=503, detail={"error": {"code": "AUDIO_STORAGE_READONLY", "message": "Audio storage path is not writable.", "details": {"path": config.audio_storage_path, "filename": file.filename}}}) from e
+        raise HTTPException(status_code=400, detail={"error": {"code": "UPLOAD_FAILED", "message": f"Failed to upload track: {str(e)}", "details": {"filename": file.filename}}}) from e
     except Exception as e:
         logger.error("api_upload_track_failed", error=str(e))
         db.rollback()
-        raise HTTPException(
-            status_code=400,
-            detail={"error": {"code": "UPLOAD_FAILED", "message": f"Failed to upload track: {str(e)}", "details": {"filename": file.filename}}},
-        ) from e
+        raise HTTPException(status_code=400, detail={"error": {"code": "UPLOAD_FAILED", "message": f"Failed to upload track: {str(e)}", "details": {"filename": file.filename}}}) from e
 
 
 @router.delete("/{track_id}", status_code=204)
 async def delete_track(track_id: int, db: Session = Depends(get_db)) -> None:
-    """Delete track (and file if source_type=file)."""
     logger.info("api_delete_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
@@ -316,7 +289,6 @@ async def delete_track(track_id: int, db: Session = Depends(get_db)) -> None:
             track_dir = Path(track.source_uri).parent
             if track_dir.exists():
                 shutil.rmtree(track_dir)
-                logger.info("api_delete_track_files_removed", track_id=track_id, path=str(track_dir))
         except Exception as e:
             logger.error("api_delete_track_file_removal_failed", track_id=track_id, error=str(e))
 
