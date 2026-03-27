@@ -2,6 +2,7 @@
 
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
 import structlog
@@ -16,9 +17,6 @@ from media_downloader_service.models import (
     VideoInfoResponse,
 )
 
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
 structlog.configure(
     processors=[
         structlog.processors.TimeStamper(fmt="iso"),
@@ -28,9 +26,6 @@ structlog.configure(
 )
 logger = structlog.get_logger("media_downloader_service")
 
-# ---------------------------------------------------------------------------
-# App bootstrap
-# ---------------------------------------------------------------------------
 config = load_config()
 _start_time = time.monotonic()
 
@@ -55,14 +50,8 @@ app = FastAPI(
 )
 
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
-
-
 @app.get("/health")
 async def health_check() -> JSONResponse:
-    """Health check endpoint."""
     return JSONResponse(
         {
             "status": "healthy",
@@ -75,14 +64,15 @@ async def health_check() -> JSONResponse:
 
 @app.post("/download", response_model=DownloadResponse, status_code=201)
 async def download_video(request: DownloadRequest) -> DownloadResponse:
-    """Download a video URL as MP3 with embedded metadata.
+    """Download a video URL as MP3.
 
-    The MP3 is saved to *AUDIO_TRACKS_DIR* and the metadata is returned
-    so the backend-service can create a Track DB entry.
+    If *output_dir* is provided the MP3 is placed there; otherwise the
+    service default (AUDIO_TRACKS_DIR) is used.
     """
+    output_dir = Path(request.output_dir) if request.output_dir else config.audio_tracks_dir
     downloader = MediaDownloader(audio_quality=config.audio_quality)
     try:
-        result = downloader.download_video(request.url, config.audio_tracks_dir)
+        result = downloader.download_video(request.url, output_dir)
     except DownloadError as exc:
         logger.warning("download_request_failed", url=request.url, error=str(exc))
         raise HTTPException(
@@ -101,10 +91,7 @@ async def download_video(request: DownloadRequest) -> DownloadResponse:
 
 @app.get("/info", response_model=VideoInfoResponse)
 async def get_video_info(url: str = Query(..., description="Video URL")) -> VideoInfoResponse:
-    """Return video metadata without downloading.
-
-    Used by the frontend for a preview before the user confirms the import.
-    """
+    """Return video metadata without downloading."""
     downloader = MediaDownloader()
     try:
         info = downloader.get_video_info(url)

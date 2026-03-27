@@ -1,12 +1,13 @@
 """Pydantic schemas for the Media Downloader Service."""
 
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, field_validator
 
 
 class DownloadRequest(BaseModel):
     """Request body for POST /download."""
 
     url: str
+    output_dir: str | None = None  # optional: absolute path inside the container
 
     @field_validator("url")
     @classmethod

@@ -23,10 +23,10 @@ from backend_service.models.schemas import TrackCreate, TrackResponse, TrackUpda
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
 COVERS_DIR = STATIC_DIR / "covers"
+AUDIO_STORAGE_PATH = Path(os.environ.get("AUDIO_STORAGE_PATH", "/mnt/audio/tracks"))
 
 MEDIA_DOWNLOADER_URL = os.environ.get("MEDIA_DOWNLOADER_URL", "http://media-downloader:8007")
 
-# Query parameters that cause yt-dlp to enumerate playlists instead of a single video
 _PLAYLIST_PARAMS = {"list", "start_radio", "index", "t"}
 
 logger = structlog.get_logger(__name__)
@@ -34,11 +34,6 @@ router = APIRouter()
 
 
 def _strip_playlist_params(url: str) -> str:
-    """Remove playlist/radio query params from a YouTube URL.
-
-    Keeps only the video-specific params (v, si) so yt-dlp resolves a single
-    video instead of enumerating the whole playlist/radio queue.
-    """
     parsed = urlparse(url)
     qs = parse_qs(parsed.query, keep_blank_values=True)
     filtered = {k: v for k, v in qs.items() if k not in _PLAYLIST_PARAMS}
@@ -85,8 +80,7 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
 @router.get("", response_model=list[TrackResponse])
 async def list_tracks(db: Session = Depends(get_db)) -> list[TrackResponse]:
     logger.info("api_list_tracks")
-    tracks: list[Track] = db.query(Track).all()
-    return [TrackResponse.model_validate(t) for t in tracks]
+    return [TrackResponse.model_validate(t) for t in db.query(Track).all()]
 
 
 @router.get("/validate-url", response_model=dict)
@@ -106,7 +100,6 @@ async def validate_media_url(
             status_code=422,
             detail={"error": {"code": "MEDIA_URL_INVALID", "message": str(exc), "details": {"url": clean_url}}},
         ) from exc
-
     return {
         "valid": True,
         "title": info.get("title", ""),
@@ -149,35 +142,53 @@ async def create_track_from_url(
     url: str = Query(..., description="Video URL to download as audio track"),
     db: Session = Depends(get_db),
 ) -> TrackResponse:
-    """Download via media-downloader POST /download and register as Track."""
+    """Create Track in DB first, then download MP3 into tracks/{track_id}/."""
     clean_url = _strip_playlist_params(url)
     if clean_url != url:
         logger.info("api_create_track_from_url_playlist_stripped", original=url, clean=clean_url)
     logger.info("api_create_track_from_url", url=clean_url)
-    client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
 
-    try:
-        result = await client.download_video(clean_url)
-    except MediaDownloaderError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail={"error": {"code": "DOWNLOAD_FAILED", "message": str(exc), "details": {"url": clean_url}}},
-        ) from exc
-
-    mp3_path = Path(result["file_path"])
-
+    # 1. Reserve a DB row so we get the track_id before downloading
     track = Track(
-        title=result["title"],
-        artist=result.get("artist"),
-        album=result.get("album", "Downloads"),
-        duration_ms=result.get("duration_ms"),
+        title="...",  # placeholder, updated after download
         source_type="file",
-        source_uri=str(mp3_path),
+        source_uri="",
     )
     db.add(track)
     db.commit()
     db.refresh(track)
 
+    # 2. Target directory mirrors the upload layout: tracks/{track_id}/
+    track_dir = AUDIO_STORAGE_PATH / str(track.id)
+    track_dir.mkdir(parents=True, exist_ok=True)
+
+    client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
+    try:
+        result = await client.download_video(clean_url, output_dir=str(track_dir))
+    except MediaDownloaderError as exc:
+        # Clean up the placeholder row and directory on failure
+        db.delete(track)
+        db.commit()
+        try:
+            shutil.rmtree(track_dir)
+        except Exception:  # noqa: BLE001
+            pass
+        raise HTTPException(
+            status_code=422,
+            detail={"error": {"code": "DOWNLOAD_FAILED", "message": str(exc), "details": {"url": clean_url}}},
+        ) from exc
+
+    # 3. Update track with real metadata from download result
+    mp3_path = Path(result["file_path"])
+    track.title = result["title"]
+    track.artist = result.get("artist")
+    track.album = result.get("album", "Downloads")
+    track.duration_ms = result.get("duration_ms")
+    track.source_uri = str(mp3_path)
+    db.commit()
+    db.refresh(track)
+
+    # 4. Extract cover art from embedded thumbnail
     cover_url = _extract_cover_art(mp3_path, track.id)
     if cover_url:
         track.cover_art_url = cover_url
