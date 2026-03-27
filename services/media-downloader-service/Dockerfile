@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY media-downloader-service/requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # ============================================================
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
 
-COPY src/ ./src/
+COPY media-downloader-service/src/ ./src/
 
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
