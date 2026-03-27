@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import structlog
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -25,8 +26,24 @@ COVERS_DIR = STATIC_DIR / "covers"
 
 MEDIA_DOWNLOADER_URL = os.environ.get("MEDIA_DOWNLOADER_URL", "http://media-downloader:8007")
 
+# Query parameters that cause yt-dlp to enumerate playlists instead of a single video
+_PLAYLIST_PARAMS = {"list", "start_radio", "index", "t"}
+
 logger = structlog.get_logger(__name__)
 router = APIRouter()
+
+
+def _strip_playlist_params(url: str) -> str:
+    """Remove playlist/radio query params from a YouTube URL.
+
+    Keeps only the video-specific params (v, si) so yt-dlp resolves a single
+    video instead of enumerating the whole playlist/radio queue.
+    """
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    filtered = {k: v for k, v in qs.items() if k not in _PLAYLIST_PARAMS}
+    clean = parsed._replace(query=urlencode(filtered, doseq=True))
+    return urlunparse(clean)
 
 
 def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
@@ -77,14 +94,17 @@ async def validate_media_url(
     url: str = Query(..., description="Video URL to preview (no download)"),
 ) -> dict:
     """Proxy to media-downloader GET /info – used for frontend preview."""
-    logger.info("api_validate_media_url", url=url)
+    clean_url = _strip_playlist_params(url)
+    if clean_url != url:
+        logger.info("api_validate_media_url_playlist_stripped", original=url, clean=clean_url)
+    logger.info("api_validate_media_url", url=clean_url)
     client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
     try:
-        info = await client.get_video_info(url)
+        info = await client.get_video_info(clean_url)
     except MediaDownloaderError as exc:
         raise HTTPException(
             status_code=422,
-            detail={"error": {"code": "MEDIA_URL_INVALID", "message": str(exc), "details": {"url": url}}},
+            detail={"error": {"code": "MEDIA_URL_INVALID", "message": str(exc), "details": {"url": clean_url}}},
         ) from exc
 
     return {
@@ -92,7 +112,6 @@ async def validate_media_url(
         "title": info.get("title", ""),
         "artist": info.get("artist"),
         "duration_ms": info.get("duration_ms"),
-        # media-downloader returns 'thumbnail' (not 'thumbnail_url')
         "thumbnail_url": info.get("thumbnail"),
         "video_id": info.get("video_id", ""),
     }
@@ -131,18 +150,20 @@ async def create_track_from_url(
     db: Session = Depends(get_db),
 ) -> TrackResponse:
     """Download via media-downloader POST /download and register as Track."""
-    logger.info("api_create_track_from_url", url=url)
+    clean_url = _strip_playlist_params(url)
+    if clean_url != url:
+        logger.info("api_create_track_from_url_playlist_stripped", original=url, clean=clean_url)
+    logger.info("api_create_track_from_url", url=clean_url)
     client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
 
     try:
-        result = await client.download_video(url)
+        result = await client.download_video(clean_url)
     except MediaDownloaderError as exc:
         raise HTTPException(
             status_code=422,
-            detail={"error": {"code": "DOWNLOAD_FAILED", "message": str(exc), "details": {"url": url}}},
+            detail={"error": {"code": "DOWNLOAD_FAILED", "message": str(exc), "details": {"url": clean_url}}},
         ) from exc
 
-    # media-downloader DownloadResponse uses 'file_path'
     mp3_path = Path(result["file_path"])
 
     track = Track(
