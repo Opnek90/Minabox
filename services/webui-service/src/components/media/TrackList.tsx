@@ -28,7 +28,6 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
 import DeleteIcon from '@mui/icons-material/Delete';
-import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import LinkIcon from '@mui/icons-material/Link';
@@ -42,7 +41,6 @@ import { audioApi } from '@/api/audio';
 import type { Track } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
 import { ActionButton } from '@/components/ui/ActionButton';
-import { MediaImportDialog } from './MediaImportDialog';
 
 type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
 type FilterSource = 'all' | 'file' | 'remote';
@@ -51,7 +49,6 @@ const DEFAULT_FILTER: FilterSource = 'all';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-// 3 Buttons (Play + Edit + Delete) à ~32px + Gaps = ~112px
 const LIST_ITEM_PR = '112px';
 
 interface TrackListProps {
@@ -67,7 +64,6 @@ interface TrackListProps {
   onFilterChange: (filter: string) => void;
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
-  onImported?: (track: Track) => void;
 }
 
 const gridComponents = {
@@ -93,7 +89,6 @@ export const TrackList: React.FC<TrackListProps> = ({
   onFilterChange,
   selectionMode = false,
   onSelect,
-  onImported,
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
@@ -101,7 +96,6 @@ export const TrackList: React.FC<TrackListProps> = ({
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const typedSortKey = sortKey as SortKey;
   const typedFilter = filter as FilterSource;
@@ -360,20 +354,6 @@ export const TrackList: React.FC<TrackListProps> = ({
             </IconButton>
           </Tooltip>
         )}
-
-        {/* Import-from-URL button – only in full track management mode */}
-        {!selectionMode && onImported && (
-          <Tooltip title={t('tracks.import_from_url')}>
-            <ActionButton
-              actionType="secondary"
-              size="small"
-              onClick={() => setImportDialogOpen(true)}
-              startIcon={<DownloadIcon fontSize="small" />}
-            >
-              {isDesktop ? t('tracks.import_from_url') : undefined}
-            </ActionButton>
-          </Tooltip>
-        )}
       </Box>
 
       {/* Active Chips */}
@@ -465,18 +445,6 @@ export const TrackList: React.FC<TrackListProps> = ({
           <Virtuoso style={{ height: '100%' }} data={sorted} itemContent={renderListItem} />
         )}
       </Box>
-
-      {/* MediaImportDialog */}
-      {onImported && (
-        <MediaImportDialog
-          open={importDialogOpen}
-          onClose={() => setImportDialogOpen(false)}
-          onSuccess={(track) => {
-            setImportDialogOpen(false);
-            onImported(track);
-          }}
-        />
-      )}
     </Box>
   );
 };
