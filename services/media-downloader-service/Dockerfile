@@ -34,7 +34,7 @@ COPY media-downloader-service/src/ ./src/
 ENV PYTHONUNBUFFERED=1
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f http://localhost:8007/health || exit 1
 
 RUN useradd -m -u 1000 minabox \
     && mkdir -p /mnt/audio/tracks/downloads \
@@ -42,4 +42,4 @@ RUN useradd -m -u 1000 minabox \
 
 USER minabox
 
-CMD ["python", "-m", "uvicorn", "media_downloader_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "media_downloader_service.main:app", "--host", "0.0.0.0", "--port", "8007"]
