@@ -154,7 +154,7 @@ export const MediaPage: React.FC = () => {
       } else if (deleteTarget.type === 'stream') {
         await streamsApi.delete(deleteTarget.item.id);
         setStreams((prev) => prev.filter((s) => s.id !== deleteTarget.item.id));
-        showSuccess(t('streams.deleted'));
+        showSuccess(t('tracks.stream_deleted'));
       } else {
         await podcastsApi.delete(deleteTarget.item.id);
         setPodcasts((prev) => prev.filter((p) => p.id !== deleteTarget.item.id));
@@ -297,6 +297,10 @@ export const MediaPage: React.FC = () => {
           onViewModeChange={(mode) => setViewMode('tracks', mode)}
           filter={getFilter('tracks')}
           onFilterChange={(val) => setFilter('tracks', val)}
+          onImported={(track) => {
+            setTracks((prev) => [...prev, track]);
+            showSuccess(t('tracks.imported', { defaultValue: 'Track erfolgreich importiert' }));
+          }}
         />
       </TabPanel>
 
