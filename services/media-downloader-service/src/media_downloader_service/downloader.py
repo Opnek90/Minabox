@@ -1,6 +1,5 @@
 """yt-dlp wrapper for audio extraction with metadata embedding."""
 
-import time
 from pathlib import Path
 from typing import Any
 
@@ -33,13 +32,37 @@ class MediaDownloader:
     # Public API
     # ------------------------------------------------------------------
 
-    def download_video(self, url: str, output_dir: Path) -> dict[str, Any]:
-        """Download audio from *url* as MP3 with embedded metadata.
+    def download_video(self, url: str, output_base_dir: Path) -> dict[str, Any]:
+        """Download audio from *url* as MP3 into a per-video subdirectory.
+
+        Each download is stored as::
+
+            <output_base_dir>/<video_id>/audio.mp3
+
+        This mirrors the upload endpoint's layout of
+        ``tracks/<track_id>/original.mp3``.
 
         Returns:
             Dict with file_path, title, artist, album, duration_ms,
             video_id, thumbnail_embedded.
         """
+        # First pass: extract info only to get the video_id so we can create
+        # the per-video directory before the actual download.
+        info_opts: dict[str, Any] = {
+            "skip_download": True,
+            "quiet": True,
+            "no_warnings": True,
+            "extractor_args": _YT_EXTRACTOR_ARGS,
+        }
+        try:
+            with yt_dlp.YoutubeDL(info_opts) as ydl:
+                pre_info: dict[str, Any] = ydl.extract_info(url, download=False)  # type: ignore[assignment]
+        except yt_dlp.utils.DownloadError as exc:  # type: ignore[attr-defined]
+            logger.error("yt_dlp_prefetch_failed", url=url, error=str(exc))
+            raise DownloadError(f"Metadata prefetch failed: {exc}") from exc
+
+        video_id: str = pre_info.get("id", "unknown")
+        output_dir = output_base_dir / video_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
         ydl_opts: dict[str, Any] = {
@@ -53,7 +76,8 @@ class MediaDownloader:
                 {"key": "EmbedThumbnail"},
                 {"key": "FFmpegMetadata"},
             ],
-            "outtmpl": str(output_dir / "%(id)s.%(ext)s"),
+            # Save as audio.mp3 inside the per-video folder
+            "outtmpl": str(output_dir / "audio.%(ext)s"),
             "writethumbnail": True,
             "quiet": True,
             "no_warnings": True,
@@ -67,13 +91,12 @@ class MediaDownloader:
             logger.error("yt_dlp_download_failed", url=url, error=str(exc))
             raise DownloadError(f"Download failed: {exc}") from exc
 
-        video_id: str = info.get("id", "unknown")
-        mp3_path = output_dir / f"{video_id}.mp3"
+        mp3_path = output_dir / "audio.mp3"
 
         if not mp3_path.exists():
             raise DownloadError(f"Expected MP3 not found after download: {mp3_path}")
 
-        thumbnail_embedded = self._embed_thumbnail_fallback(mp3_path, output_dir, video_id)
+        thumbnail_embedded = self._embed_thumbnail_fallback(mp3_path, output_dir, "audio")
 
         result: dict[str, Any] = {
             "file_path": str(mp3_path),
@@ -129,12 +152,12 @@ class MediaDownloader:
         self,
         mp3_path: Path,
         output_dir: Path,
-        video_id: str,
+        stem: str,
     ) -> bool:
         """Try to embed a leftover thumbnail file as APIC cover art."""
         thumbnail_path: Path | None = None
         for ext in ("jpg", "jpeg", "png", "webp"):
-            candidate = output_dir / f"{video_id}.{ext}"
+            candidate = output_dir / f"{stem}.{ext}"
             if candidate.exists():
                 thumbnail_path = candidate
                 break
@@ -159,8 +182,8 @@ class MediaDownloader:
                 )
             audio.save(str(mp3_path))
             thumbnail_path.unlink()
-            logger.debug("thumbnail_embedded_fallback", video_id=video_id)
+            logger.debug("thumbnail_embedded_fallback", video_id=stem)
             return True
         except Exception as exc:  # noqa: BLE001
-            logger.warning("thumbnail_embed_failed", video_id=video_id, error=str(exc))
+            logger.warning("thumbnail_embed_failed", video_id=stem, error=str(exc))
             return False
