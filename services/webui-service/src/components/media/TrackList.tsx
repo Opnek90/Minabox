@@ -28,6 +28,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import LinkIcon from '@mui/icons-material/Link';
@@ -41,6 +42,7 @@ import { audioApi } from '@/api/audio';
 import type { Track } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { MediaImportDialog } from './MediaImportDialog';
 
 type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
 type FilterSource = 'all' | 'file' | 'remote';
@@ -65,6 +67,7 @@ interface TrackListProps {
   onFilterChange: (filter: string) => void;
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
+  onImported?: (track: Track) => void;
 }
 
 const gridComponents = {
@@ -90,6 +93,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   onFilterChange,
   selectionMode = false,
   onSelect,
+  onImported,
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
@@ -97,6 +101,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const typedSortKey = sortKey as SortKey;
   const typedFilter = filter as FilterSource;
@@ -184,14 +189,6 @@ export const TrackList: React.FC<TrackListProps> = ({
     </Box>
   );
 
-  if (tracks.length === 0) {
-    return (
-      <Box display="flex" justifyContent="center" py={6}>
-        <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
-      </Box>
-    );
-  }
-
   const renderListItem = (index: number, track: Track) => (
     <ListItem
       key={track.id}
@@ -220,7 +217,6 @@ export const TrackList: React.FC<TrackListProps> = ({
         )
       }
       sx={{
-        // Genug Platz rechts damit Text nie unter die Buttons rutscht
         pr: selectionMode ? undefined : LIST_ITEM_PR,
         ...(selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
       }}
@@ -340,7 +336,6 @@ export const TrackList: React.FC<TrackListProps> = ({
               onClick={() => setPopoverOpen(true)}
               aria-label={t('tracks.filter.open')}
               sx={{
-                // overflow:visible damit der Badge (top:-6, right:-6) nicht abgeschnitten wird
                 overflow: 'visible',
                 color: activeBadgeCount > 0 ? 'primary.main' : 'text.secondary',
                 border: '1px solid',
@@ -363,6 +358,20 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </Box>
               )}
             </IconButton>
+          </Tooltip>
+        )}
+
+        {/* Import-from-URL button – only in full track management mode */}
+        {!selectionMode && onImported && (
+          <Tooltip title={t('tracks.import_from_url')}>
+            <ActionButton
+              actionType="secondary"
+              size="small"
+              onClick={() => setImportDialogOpen(true)}
+              startIcon={<DownloadIcon fontSize="small" />}
+            >
+              {isDesktop ? t('tracks.import_from_url') : undefined}
+            </ActionButton>
           </Tooltip>
         )}
       </Box>
@@ -446,12 +455,28 @@ export const TrackList: React.FC<TrackListProps> = ({
 
       {/* List / Grid */}
       <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-        {viewMode === 'card' ? (
+        {tracks.length === 0 ? (
+          <Box display="flex" justifyContent="center" py={6}>
+            <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
+          </Box>
+        ) : viewMode === 'card' ? (
           <VirtuosoGrid style={{ height: '100%' }} data={sorted} components={gridComponents as any} itemContent={renderGridItem} />
         ) : (
           <Virtuoso style={{ height: '100%' }} data={sorted} itemContent={renderListItem} />
         )}
       </Box>
+
+      {/* MediaImportDialog */}
+      {onImported && (
+        <MediaImportDialog
+          open={importDialogOpen}
+          onClose={() => setImportDialogOpen(false)}
+          onSuccess={(track) => {
+            setImportDialogOpen(false);
+            onImported(track);
+          }}
+        />
+      )}
     </Box>
   );
 };
