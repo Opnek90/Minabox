@@ -49,7 +49,6 @@ const DEFAULT_FILTER: FilterSource = 'all';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-// 3 Buttons (Play + Edit + Delete) à ~32px + Gaps = ~112px
 const LIST_ITEM_PR = '112px';
 
 interface TrackListProps {
@@ -184,14 +183,6 @@ export const TrackList: React.FC<TrackListProps> = ({
     </Box>
   );
 
-  if (tracks.length === 0) {
-    return (
-      <Box display="flex" justifyContent="center" py={6}>
-        <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
-      </Box>
-    );
-  }
-
   const renderListItem = (index: number, track: Track) => (
     <ListItem
       key={track.id}
@@ -220,7 +211,6 @@ export const TrackList: React.FC<TrackListProps> = ({
         )
       }
       sx={{
-        // Genug Platz rechts damit Text nie unter die Buttons rutscht
         pr: selectionMode ? undefined : LIST_ITEM_PR,
         ...(selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
       }}
@@ -340,7 +330,6 @@ export const TrackList: React.FC<TrackListProps> = ({
               onClick={() => setPopoverOpen(true)}
               aria-label={t('tracks.filter.open')}
               sx={{
-                // overflow:visible damit der Badge (top:-6, right:-6) nicht abgeschnitten wird
                 overflow: 'visible',
                 color: activeBadgeCount > 0 ? 'primary.main' : 'text.secondary',
                 border: '1px solid',
@@ -446,7 +435,11 @@ export const TrackList: React.FC<TrackListProps> = ({
 
       {/* List / Grid */}
       <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-        {viewMode === 'card' ? (
+        {tracks.length === 0 ? (
+          <Box display="flex" justifyContent="center" py={6}>
+            <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
+          </Box>
+        ) : viewMode === 'card' ? (
           <VirtuosoGrid style={{ height: '100%' }} data={sorted} components={gridComponents as any} itemContent={renderGridItem} />
         ) : (
           <Virtuoso style={{ height: '100%' }} data={sorted} itemContent={renderListItem} />

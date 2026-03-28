@@ -8,6 +8,7 @@
 # - Audio-Service (VLC via PipeWire/Pulse)
 # - Button-Service (Hardware)
 # - LED-Service (Hardware)
+# - Media-Downloader-Service (yt-dlp Video-Download)
 #
 # REQUIRED environment variables (.env file):
 # - MQTT_BROKER: MQTT broker hostname (e.g., 'mqtt')
@@ -27,6 +28,7 @@
 #   2. backend     – Central data store; starts after mqtt is healthy
 #   3. audio, webui, host-helper – start after backend is healthy
 #   4. rfid, button, led – start after mqtt is healthy (parallel to backend)
+#   5. media-downloader – starts after backend is healthy
 #
 # Resource limits: omitted by default because on many Raspberry Pi setups the
 # kernel has cgroup memory disabled, which causes "Limitation discarded" warnings.
@@ -83,6 +85,7 @@ services:
       - HOST_HELPER_URL=http://host-helper:8000
       - HOST_HELPER_API_KEY=${HOST_HELPER_API_KEY:-}
       - ALLOWED_AUDIO_PATHS=${ALLOWED_AUDIO_PATHS:-/media,/mnt,/home/pi}
+      - MEDIA_DOWNLOADER_URL=http://media-downloader:8007
     volumes:
       - ./data:/data
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio
@@ -214,6 +217,7 @@ services:
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
+      - DISABLE_GPIO=${DISABLE_GPIO:-false}
     volumes:
       - ./services/rfid-service/config:/app/config
     networks:
@@ -364,6 +368,36 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # =================================
+  # Media-Downloader Service (yt-dlp)
+  # =================================
+  media-downloader:
+    build:
+      context: ./services
+      dockerfile: media-downloader-service/Dockerfile
+    container_name: minabox-media-downloader
+    restart: unless-stopped
+    ports:
+      - "8007:8007"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
+      - DOWNLOAD_PATH=/mnt/audio/tracks
+      - MAX_FILESIZE_MB=${MEDIA_DOWNLOADER_MAX_FILESIZE_MB:-200}
+      - ALLOWED_DOMAINS=${MEDIA_DOWNLOADER_ALLOWED_DOMAINS:-youtube.com,youtu.be,soundcloud.com,bandcamp.com,vimeo.com}
+    volumes:
+      - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio
+    networks:
+      - minabox-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 networks:
   minabox-network:

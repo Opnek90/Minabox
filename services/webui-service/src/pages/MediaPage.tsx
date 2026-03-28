@@ -13,6 +13,7 @@ import {
   TextField,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import DownloadIcon from '@mui/icons-material/Download';
 import LinkIcon from '@mui/icons-material/Link';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
@@ -20,6 +21,7 @@ import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
+import { MediaImportDialog } from '@/components/media/MediaImportDialog';
 import { PlaylistList } from '@/components/media/PlaylistList';
 import { RemoteTrackDialog } from '@/components/media/RemoteTrackDialog';
 import { PodcastDialog } from '@/components/media/PodcastDialog';
@@ -69,10 +71,10 @@ export const MediaPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [remoteTrackOpen, setRemoteTrackOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [streamOpen, setStreamOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
 
-  // Signal an PlaylistList: Create-Dialog öffnen
   const [playlistCreateOpen, setPlaylistCreateOpen] = useState(false);
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
@@ -154,7 +156,7 @@ export const MediaPage: React.FC = () => {
       } else if (deleteTarget.type === 'stream') {
         await streamsApi.delete(deleteTarget.item.id);
         setStreams((prev) => prev.filter((s) => s.id !== deleteTarget.item.id));
-        showSuccess(t('streams.deleted'));
+        showSuccess(t('tracks.stream_deleted'));
       } else {
         await podcastsApi.delete(deleteTarget.item.id);
         setPodcasts((prev) => prev.filter((p) => p.id !== deleteTarget.item.id));
@@ -234,6 +236,9 @@ export const MediaPage: React.FC = () => {
           <>
             <ActionButton actionType="secondary" startIcon={<LinkIcon />} onClick={() => setRemoteTrackOpen(true)}>
               {t('tracks.add_remote', { defaultValue: 'Remote-Track' })}
+            </ActionButton>
+            <ActionButton actionType="secondary" startIcon={<DownloadIcon />} onClick={() => setImportOpen(true)}>
+              {t('tracks.import_from_url', { defaultValue: 'Von URL importieren' })}
             </ActionButton>
             <ActionButton actionType="primary" startIcon={<CloudUploadIcon />} onClick={() => setUploadOpen(true)}>
               {t('tracks.upload')}
@@ -394,6 +399,15 @@ export const MediaPage: React.FC = () => {
         onSuccess={(track) => { setTracks((prev) => [...prev, track]); setUploadOpen(false); showSuccess(t('tracks.uploaded')); }} />
       <RemoteTrackDialog open={remoteTrackOpen} onClose={() => setRemoteTrackOpen(false)}
         onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added', { defaultValue: 'Remote-Track hinzugefügt' })); }} />
+      <MediaImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={(track) => {
+          setTracks((prev) => [...prev, track]);
+          setImportOpen(false);
+          showSuccess(t('tracks.imported', { defaultValue: 'Track erfolgreich importiert' }));
+        }}
+      />
       <StreamDialog open={streamOpen} onClose={() => setStreamOpen(false)}
         onSuccess={(stream) => { setStreams((prev) => [...prev, stream]); setStreamOpen(false); showSuccess(t('tracks.stream_added')); }} />
       <PodcastDialog open={podcastOpen} onClose={() => setPodcastOpen(false)}
