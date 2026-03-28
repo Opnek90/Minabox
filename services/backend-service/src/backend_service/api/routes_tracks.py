@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import JSONResponse
 from mutagen import File as MutagenFile
 from sqlalchemy.orm import Session
 
@@ -43,6 +46,10 @@ _ALLOWED_DOMAINS: frozenset[str] = frozenset({
 })
 
 _PLAYLIST_PARAMS = {"list", "start_radio", "index", "t"}
+
+# In-memory download status store: track_id -> status dict
+# Status values: "pending" | "downloading" | "done" | "error"
+_download_status: dict[int, dict] = {}
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -112,6 +119,102 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
         return None
 
 
+async def _download_thumbnail(thumbnail_url: str, track_id: int) -> str | None:
+    """Download a remote thumbnail and save it to COVERS_DIR.
+
+    Returns the local /static/covers/... URL path, or None on failure.
+    This is used as fallback when no embedded cover art is found in the audio file.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(thumbnail_url)
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "")
+            ext = ".png" if "png" in content_type else ".jpg"
+            COVERS_DIR.mkdir(parents=True, exist_ok=True)
+            cover_path = COVERS_DIR / f"track_{track_id}{ext}"
+            cover_path.write_bytes(response.content)
+            logger.info("track_thumbnail_downloaded", track_id=track_id, url=thumbnail_url)
+            return f"/static/covers/track_{track_id}{ext}"
+    except Exception as e:
+        logger.warning("track_thumbnail_download_failed", track_id=track_id, url=thumbnail_url, error=str(e))
+        return None
+
+
+async def _run_download_task(
+    track_id: int,
+    clean_url: str,
+    track_dir: Path,
+    db_url: str,
+) -> None:
+    """Background task: download audio, update track in DB, resolve cover art.
+
+    Uses its own DB session to avoid sharing the request-scoped session
+    across async boundaries.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine(db_url)
+    SessionLocal = sessionmaker(bind=engine)
+
+    _download_status[track_id] = {"status": "downloading", "error": None}
+    client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
+    db = SessionLocal()
+    try:
+        result = await client.download_video(clean_url, output_dir=str(track_dir))
+
+        mp3_path = Path(result["file_path"])
+        track = db.query(Track).filter(Track.id == track_id).first()
+        if track is None:
+            logger.error("download_task_track_missing", track_id=track_id)
+            _download_status[track_id] = {"status": "error", "error": "Track record not found"}
+            return
+
+        track.title = result["title"]
+        track.artist = result.get("artist")
+        track.album = result.get("album", "Downloads")
+        track.duration_ms = result.get("duration_ms")
+        track.source_uri = str(mp3_path)
+        db.commit()
+        db.refresh(track)
+
+        # Cover art: prefer embedded, fall back to remote thumbnail
+        cover_url = _extract_cover_art(mp3_path, track_id)
+        if not cover_url:
+            thumbnail_url = result.get("thumbnail")
+            if thumbnail_url:
+                cover_url = await _download_thumbnail(thumbnail_url, track_id)
+
+        if cover_url:
+            track.cover_art_url = cover_url
+            db.commit()
+
+        logger.info("download_task_completed", track_id=track_id, title=track.title)
+        _download_status[track_id] = {"status": "done", "error": None}
+
+    except MediaDownloaderError as exc:
+        logger.error("download_task_failed", track_id=track_id, error=str(exc))
+        _download_status[track_id] = {"status": "error", "error": str(exc)}
+        # Clean up the placeholder track and its directory on failure
+        try:
+            track = db.query(Track).filter(Track.id == track_id).first()
+            if track:
+                db.delete(track)
+                db.commit()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            shutil.rmtree(track_dir, ignore_errors=True)
+        except Exception:  # noqa: BLE001
+            pass
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("download_task_unexpected_error", track_id=track_id, error=str(exc))
+        _download_status[track_id] = {"status": "error", "error": "Unexpected error during download"}
+    finally:
+        db.close()
+
+
 @router.get("", response_model=list[TrackResponse])
 async def list_tracks(
     folder_id: int | None = Query(None, description="Filter by folder ID. Use 0 for root-level tracks (no folder)."),
@@ -176,6 +279,31 @@ async def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackRespon
     return TrackResponse.model_validate(track)
 
 
+@router.get("/{track_id}/download-status", response_model=dict)
+async def get_download_status(track_id: int, db: Session = Depends(get_db)) -> dict:
+    """Return the async download status for a track imported via POST /from-url.
+
+    Possible status values:
+    - ``pending``     – task queued, not yet started
+    - ``downloading`` – yt-dlp is running
+    - ``done``        – download finished; track record is fully populated
+    - ``error``       – download failed; ``error`` field contains the reason
+    - ``unknown``     – no status entry found (track was not imported via from-url,
+                        or the service was restarted)
+    """
+    status_entry = _download_status.get(track_id)
+    if status_entry is None:
+        # Check the track exists at all
+        track = db.query(Track).filter(Track.id == track_id).first()
+        if not track:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found"}},
+            )
+        return {"track_id": track_id, "status": "unknown", "error": None}
+    return {"track_id": track_id, **status_entry}
+
+
 @router.post("", response_model=TrackResponse, status_code=201)
 async def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -> TrackResponse:
     logger.info("api_create_track", title=track_data.title, source_type=track_data.source_type)
@@ -202,12 +330,19 @@ async def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -
     return TrackResponse.model_validate(track)
 
 
-@router.post("/from-url", response_model=TrackResponse, status_code=201)
+@router.post("/from-url", status_code=202)
 async def create_track_from_url(
     url: str = Query(..., description="Video URL to download as audio track"),
     db: Session = Depends(get_db),
-) -> TrackResponse:
-    """Create Track in DB from a URL.  Returns existing track if URL was already imported."""
+) -> JSONResponse:
+    """Start an async background download for *url*.
+
+    Returns HTTP 202 immediately with the created track ID so the client can
+    poll ``GET /tracks/{id}/download-status`` for progress.
+
+    If the URL was already imported the existing track is returned with
+    status ``done`` (HTTP 200).
+    """
     clean_url = _strip_playlist_params(url)
     _check_allowed_domain(clean_url)
     if clean_url != url:
@@ -227,7 +362,10 @@ async def create_track_from_url(
             title=existing.title,
             url=clean_url,
         )
-        return TrackResponse.model_validate(existing)
+        return JSONResponse(
+            status_code=200,
+            content={"track_id": existing.id, "status": "done"},
+        )
 
     track = Track(
         title="...",
@@ -237,186 +375,27 @@ async def create_track_from_url(
     db.add(track)
     db.commit()
     db.refresh(track)
+    track_id = track.id
 
-    track_dir = AUDIO_STORAGE_PATH / str(track.id)
+    track_dir = AUDIO_STORAGE_PATH / str(track_id)
     track_dir.mkdir(parents=True, exist_ok=True)
 
-    client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
-    try:
-        result = await client.download_video(clean_url, output_dir=str(track_dir))
-    except MediaDownloaderError as exc:
-        db.delete(track)
-        db.commit()
-        try:
-            shutil.rmtree(track_dir)
-        except Exception:  # noqa: BLE001
-            pass
-        raise HTTPException(
-            status_code=422,
-            detail={"error": {"code": "DOWNLOAD_FAILED", "message": str(exc), "details": {"url": clean_url}}},
-        ) from exc
+    _download_status[track_id] = {"status": "pending", "error": None}
 
-    mp3_path = Path(result["file_path"])
-    track.title = result["title"]
-    track.artist = result.get("artist")
-    track.album = result.get("album", "Downloads")
-    track.duration_ms = result.get("duration_ms")
-    track.source_uri = str(mp3_path)
-    db.commit()
-    db.refresh(track)
+    # Retrieve the DB URL from the engine bound to the current session
+    db_url = str(db.bind.url)  # type: ignore[union-attr]
 
-    cover_url = _extract_cover_art(mp3_path, track.id)
-    if cover_url:
-        track.cover_art_url = cover_url
-        db.commit()
-        db.refresh(track)
+    asyncio.create_task(
+        _run_download_task(
+            track_id=track_id,
+            clean_url=clean_url,
+            track_dir=track_dir,
+            db_url=db_url,
+        )
+    )
 
-    logger.info("api_track_from_url_created", track_id=track.id, title=track.title)
-    return TrackResponse.model_validate(track)
-
-
-@router.post("/{track_id}/cover", response_model=TrackResponse)
-async def upload_track_cover(track_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)) -> TrackResponse:
-    track = db.query(Track).filter(Track.id == track_id).first()
-    if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
-    COVERS_DIR.mkdir(parents=True, exist_ok=True)
-    cover_path = COVERS_DIR / f"track_{track_id}.jpg"
-    content = await file.read()
-    cover_path.write_bytes(content)
-    track.cover_art_url = f"/static/covers/track_{track_id}.jpg"
-    db.commit()
-    db.refresh(track)
-    logger.info("track_cover_uploaded", track_id=track_id)
-    return TrackResponse.model_validate(track)
-
-
-@router.delete("/{track_id}/cover", response_model=TrackResponse)
-async def delete_track_cover(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
-    track = db.query(Track).filter(Track.id == track_id).first()
-    if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
-    for ext in (".jpg", ".png"):
-        p = COVERS_DIR / f"track_{track_id}{ext}"
-        if p.exists():
-            p.unlink()
-    track.cover_art_url = None
-    db.commit()
-    db.refresh(track)
-    logger.info("track_cover_deleted", track_id=track_id)
-    return TrackResponse.model_validate(track)
-
-
-@router.put("/{track_id}", response_model=TrackResponse)
-async def update_track(track_id: int, track_data: TrackUpdate, db: Session = Depends(get_db)) -> TrackResponse:
-    logger.info("api_update_track", track_id=track_id)
-    track = db.query(Track).filter(Track.id == track_id).first()
-    if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
-    if track_data.title is not None:
-        track.title = track_data.title
-    if track_data.artist is not None:
-        track.artist = track_data.artist
-    if track_data.album is not None:
-        track.album = track_data.album
-    if track_data.duration_ms is not None:
-        track.duration_ms = track_data.duration_ms
-    if "folder_id" in track_data.model_fields_set:
-        if track_data.folder_id is not None:
-            folder = db.query(TrackFolder).filter(TrackFolder.id == track_data.folder_id).first()
-            if not folder:
-                raise HTTPException(
-                    status_code=404,
-                    detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {track_data.folder_id} not found", "details": {"folder_id": track_data.folder_id}}},
-                )
-        track.folder_id = track_data.folder_id
-    db.commit()
-    db.refresh(track)
-    return TrackResponse.model_validate(track)
-
-
-@router.post("/upload", response_model=TrackResponse, status_code=201)
-async def upload_track(
-    file: UploadFile = File(...),
-    title: str = Form(...),
-    artist: str = Form(None),
-    album: str = Form(None),
-    folder_id: int | None = Form(None),
-    db: Session = Depends(get_db),
-) -> TrackResponse:
-    logger.info("api_upload_track_started", filename=file.filename, title=title)
-    config = get_config()
-    if folder_id is not None:
-        folder = db.query(TrackFolder).filter(TrackFolder.id == folder_id).first()
-        if not folder:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
-            )
-    try:
-        track = Track(title=title, artist=artist, album=album, source_type="file", source_uri="", folder_id=folder_id)
-        db.add(track)
-        db.commit()
-        db.refresh(track)
-
-        track_dir = Path(config.audio_storage_path) / str(track.id)
-        track_dir.mkdir(parents=True, exist_ok=True)
-
-        file_ext = Path(file.filename).suffix if file.filename else ".mp3"
-        file_path = track_dir / f"original{file_ext}"
-
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        try:
-            audio_file = MutagenFile(str(file_path))
-            if audio_file and audio_file.info:
-                track.duration_ms = int(audio_file.info.length * 1000)
-                if audio_file.tags:
-                    if not artist and "TPE1" in audio_file.tags:
-                        track.artist = str(audio_file.tags["TPE1"])
-                    if not album and "TALB" in audio_file.tags:
-                        track.album = str(audio_file.tags["TALB"])
-        except Exception as e:
-            logger.warning("api_upload_track_metadata_extraction_failed", track_id=track.id, error=str(e))
-
-        cover_url = _extract_cover_art(file_path, track.id)
-        if cover_url:
-            track.cover_art_url = cover_url
-
-        track.source_uri = str(file_path)
-        db.commit()
-        db.refresh(track)
-        logger.info("api_upload_track_completed", track_id=track.id, title=track.title)
-        return track
-
-    except OSError as e:
-        logger.error("api_upload_track_failed", error=str(e))
-        db.rollback()
-        if e.errno == 13:
-            raise HTTPException(status_code=503, detail={"error": {"code": "AUDIO_STORAGE_READONLY", "message": "Audio storage path is not writable.", "details": {"path": config.audio_storage_path, "filename": file.filename}}}) from e
-        raise HTTPException(status_code=400, detail={"error": {"code": "UPLOAD_FAILED", "message": f"Failed to upload track: {str(e)}", "details": {"filename": file.filename}}}) from e
-    except Exception as e:
-        logger.error("api_upload_track_failed", error=str(e))
-        db.rollback()
-        raise HTTPException(status_code=400, detail={"error": {"code": "UPLOAD_FAILED", "message": f"Failed to upload track: {str(e)}", "details": {"filename": file.filename}}}) from e
-
-
-@router.delete("/{track_id}", status_code=204)
-async def delete_track(track_id: int, db: Session = Depends(get_db)) -> None:
-    logger.info("api_delete_track", track_id=track_id)
-    track = db.query(Track).filter(Track.id == track_id).first()
-    if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
-
-    if track.source_type == "file":
-        try:
-            track_dir = Path(track.source_uri).parent
-            if track_dir.exists():
-                shutil.rmtree(track_dir)
-        except Exception as e:
-            logger.error("api_delete_track_file_removal_failed", track_id=track_id, error=str(e))
-
-    db.delete(track)
-    db.commit()
-    logger.info("api_delete_track_completed", track_id=track_id)
+    logger.info("api_create_track_from_url_accepted", track_id=track_id, url=clean_url)
+    return JSONResponse(
+        status_code=202,
+        content={"track_id": track_id, "status": "pending"},
+    )

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Avatar,
@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  LinearProgress,
   Stack,
   TextField,
   Typography,
@@ -22,6 +23,9 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Track } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { formatTime } from '@/utils/formatTime';
+
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 300_000; // 5 minutes
 
 interface MediaPreview {
   valid: boolean;
@@ -49,23 +53,83 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState<MediaPreview | null>(null);
   const [validating, setValidating] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const handleReset = () => {
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollStartRef = useRef<number>(0);
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current !== null) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => () => stopPolling(), [stopPolling]);
+
+  const handleReset = useCallback(() => {
+    stopPolling();
     setUrl('');
     setPreview(null);
     setPreviewError(null);
     setValidating(false);
-    setDownloading(false);
-  };
+    setImporting(false);
+    setDownloadStatus(null);
+  }, [stopPolling]);
 
   const handleClose = () => {
-    if (!downloading) {
+    if (!importing) {
       handleReset();
       onClose();
     }
   };
+
+  const startPolling = useCallback(
+    (trackId: number) => {
+      pollStartRef.current = Date.now();
+
+      const poll = async () => {
+        if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
+          setImporting(false);
+          setDownloadStatus('error');
+          showError(t('media_import.error'));
+          return;
+        }
+
+        try {
+          const statusData = await tracksApi.getDownloadStatus(trackId);
+          setDownloadStatus(statusData.status);
+
+          if (statusData.status === 'done') {
+            // Fetch the fully-populated track and notify parent
+            const track = await tracksApi.getById(trackId);
+            showSuccess(t('media_import.success', { title: track.title }));
+            onSuccess(track);
+            handleReset();
+            return;
+          }
+
+          if (statusData.status === 'error') {
+            setImporting(false);
+            showError(t('media_import.error'));
+            return;
+          }
+
+          // pending | downloading → keep polling
+          pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+        } catch {
+          // Network glitch – retry after a longer interval
+          pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS * 2);
+        }
+      };
+
+      pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+    },
+    [handleReset, onSuccess, showError, showSuccess, t],
+  );
 
   const handleValidate = async () => {
     if (!url.trim()) return;
@@ -84,18 +148,30 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
 
   const handleImport = async () => {
     if (!url.trim()) return;
-    setDownloading(true);
+    setImporting(true);
+    setDownloadStatus('pending');
     try {
-      const track = await tracksApi.fromUrl(url.trim());
-      showSuccess(t('media_import.success', { title: track.title }));
-      onSuccess(track);
-      handleReset();
+      const { track_id, status } = await tracksApi.fromUrl(url.trim());
+
+      if (status === 'done') {
+        // Duplicate – already fully downloaded
+        const track = await tracksApi.getById(track_id);
+        showSuccess(t('media_import.success', { title: track.title }));
+        onSuccess(track);
+        handleReset();
+        return;
+      }
+
+      // status === 'pending' → start polling
+      startPolling(track_id);
     } catch {
       showError(t('media_import.error'));
-    } finally {
-      setDownloading(false);
+      setImporting(false);
+      setDownloadStatus(null);
     }
   };
+
+  const isDownloading = importing && (downloadStatus === 'pending' || downloadStatus === 'downloading');
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -122,7 +198,6 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
             value={url}
             onChange={(e) => {
               setUrl(e.target.value);
-              // Reset preview when URL changes
               if (preview || previewError) {
                 setPreview(null);
                 setPreviewError(null);
@@ -131,12 +206,12 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
             onKeyDown={(e) => e.key === 'Enter' && !validating && handleValidate()}
             fullWidth
             size="small"
-            disabled={downloading}
+            disabled={isDownloading}
           />
           <ActionButton
             actionType="secondary"
             onClick={handleValidate}
-            disabled={!url.trim() || validating || downloading}
+            disabled={!url.trim() || validating || isDownloading}
             sx={{ whiteSpace: 'nowrap', flexShrink: 0, mt: 0.25 }}
           >
             {validating ? (
@@ -189,28 +264,40 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
           </>
         )}
 
-        {/* Download progress hint */}
-        {downloading && (
-          <Box display="flex" alignItems="center" gap={1.5}>
-            <CircularProgress size={18} />
-            <Typography variant="caption" color="text.secondary">
-              {t('media_import.downloading')}
-            </Typography>
+        {/* Download progress */}
+        {isDownloading && (
+          <Box>
+            <Box display="flex" alignItems="center" gap={1.5} mb={0.75}>
+              <CircularProgress size={16} />
+              <Typography variant="caption" color="text.secondary">
+                {downloadStatus === 'pending'
+                  ? t('media_import.download_queued')
+                  : t('media_import.downloading')}
+              </Typography>
+            </Box>
+            <LinearProgress variant="indeterminate" sx={{ borderRadius: 1 }} />
           </Box>
+        )}
+
+        {/* Download error state */}
+        {downloadStatus === 'error' && !importing && (
+          <Alert severity="error" sx={{ borderRadius: 2 }}>
+            {t('media_import.error')}
+          </Alert>
         )}
       </DialogContent>
 
       <DialogActions>
-        <ActionButton actionType="secondary" onClick={handleClose} disabled={downloading}>
+        <ActionButton actionType="secondary" onClick={handleClose} disabled={isDownloading}>
           {t('cancel', { ns: 'common' })}
         </ActionButton>
         <ActionButton
           actionType="primary"
           onClick={handleImport}
-          disabled={!url.trim() || downloading}
-          startIcon={downloading ? <CircularProgress size={16} /> : <DownloadIcon />}
+          disabled={!url.trim() || isDownloading}
+          startIcon={isDownloading ? <CircularProgress size={16} /> : <DownloadIcon />}
         >
-          {downloading ? t('media_import.downloading_short') : t('media_import.import')}
+          {isDownloading ? t('media_import.downloading_short') : t('media_import.import')}
         </ActionButton>
       </DialogActions>
     </Dialog>
