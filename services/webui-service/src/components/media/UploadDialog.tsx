@@ -22,10 +22,12 @@ interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (track: Track) => void;
+  /** When set, uploaded track is placed directly into this folder */
+  currentFolderId?: number | null;
 }
 
 
-export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuccess }) => {
+export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuccess, currentFolderId }) => {
   const { t } = useTranslation('media');
   const { showError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -82,13 +84,18 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
     try {
       const track = await tracksApi.upload(
         file,
-        { title: title || undefined, artist: artist || undefined, album: album || undefined },
+        {
+          title: title || undefined,
+          artist: artist || undefined,
+          album: album || undefined,
+          folderId: currentFolderId ?? null,
+        },
         setProgress
       );
       onSuccess(track);
       handleReset();
     } catch {
-      showError(t('upload.error', { defaultValue: 'Upload fehlgeschlagen' }));
+      showError(t('upload.error', { defaultValue: 'Upload failed' }));
     } finally {
       setUploading(false);
     }
@@ -178,6 +185,12 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
           onChange={(e) => setAlbum(e.target.value)}
           fullWidth size="small"
         />
+
+        {currentFolderId != null && (
+          <Typography variant="caption" color="primary.main">
+            {t('folders.upload_hint', { defaultValue: 'Track will be added to the current folder.' })}
+          </Typography>
+        )}
 
         {uploading && (
           <>

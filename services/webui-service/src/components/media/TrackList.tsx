@@ -27,7 +27,9 @@ import {
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
+import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import LinkIcon from '@mui/icons-material/Link';
@@ -38,9 +40,12 @@ import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { audioApi } from '@/api/audio';
-import type { Track } from '@/types/api';
+import type { Track, TrackFolder } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { FolderBreadcrumb } from './FolderBreadcrumb';
+import { FolderCreateDialog } from './FolderCreateDialog';
+import { FolderList } from './FolderList';
 
 type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
 type FilterSource = 'all' | 'file' | 'remote';
@@ -53,6 +58,14 @@ const LIST_ITEM_PR = '112px';
 
 interface TrackListProps {
   tracks: Track[];
+  allTracks: Track[];
+  folders: TrackFolder[];
+  currentFolderId: number | null;
+  onNavigateFolder: (folderId: number | null) => void;
+  onFolderCreate: (name: string, parentId: number | null) => Promise<void>;
+  onFolderRename: (folder: TrackFolder, name: string) => Promise<void>;
+  onFolderDelete: (folder: TrackFolder) => Promise<void>;
+  onMoveTrackToFolder: (track: Track, folderId: number | null) => Promise<void>;
   onDelete: (track: Track) => void;
   onEdit?: (track: Track) => void;
   sortKey: string;
@@ -78,6 +91,14 @@ gridComponents.List.displayName = 'GridList';
 
 export const TrackList: React.FC<TrackListProps> = ({
   tracks,
+  allTracks,
+  folders,
+  currentFolderId,
+  onNavigateFolder,
+  onFolderCreate,
+  onFolderRename,
+  onFolderDelete,
+  onMoveTrackToFolder,
   onDelete,
   onEdit,
   sortKey,
@@ -96,6 +117,11 @@ export const TrackList: React.FC<TrackListProps> = ({
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
+
+  // Folder dialogs
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [renameFolder, setRenameFolder] = useState<TrackFolder | null>(null);
+  const [moveTrack, setMoveTrack] = useState<Track | null>(null);
 
   const typedSortKey = sortKey as SortKey;
   const typedFilter = filter as FilterSource;
@@ -117,7 +143,12 @@ export const TrackList: React.FC<TrackListProps> = ({
     last_played_at: t('tracks.fields.last_played'),
   };
 
-  const filtered = tracks.filter((tr) => {
+  // Only show tracks that belong to the current folder level
+  const tracksInCurrentFolder = tracks.filter((tr) =>
+    currentFolderId === null ? tr.folder_id == null : tr.folder_id === currentFolderId
+  );
+
+  const filtered = tracksInCurrentFolder.filter((tr) => {
     const q = search.toLowerCase();
     const matchesSearch =
       tr.title.toLowerCase().includes(q) ||
@@ -153,6 +184,42 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   const handleSortDirToggle = () =>
     onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc');
+
+  // Move-to-folder: shows a simple list of available target folders
+  const MoveMenu = moveTrack ? (
+    <Popover
+      open
+      onClose={() => setMoveTrack(null)}
+      anchorReference="anchorPosition"
+      anchorPosition={{ top: window.innerHeight / 2, left: window.innerWidth / 2 }}
+      transformOrigin={{ vertical: 'center', horizontal: 'center' }}
+      slotProps={{ paper: { sx: { minWidth: 220, borderRadius: 2, p: 1 } } }}
+    >
+      <Box sx={{ fontWeight: 600, px: 1, pb: 0.5, fontSize: '0.85rem', color: 'text.secondary' }}>
+        {t('folders.move_to', { defaultValue: 'Move to folder' })}
+      </Box>
+      <Divider sx={{ mb: 0.5 }} />
+      {currentFolderId !== null && (
+        <Box
+          component="button"
+          onClick={() => { void onMoveTrackToFolder(moveTrack, null); setMoveTrack(null); }}
+          sx={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', px: 2, py: 0.75, borderRadius: 1, fontSize: '0.875rem', '&:hover': { bgcolor: 'action.hover' } }}
+        >
+          📁 {t('folders.root', { defaultValue: 'Library (root)' })}
+        </Box>
+      )}
+      {folders.map((f) => f.id !== currentFolderId && (
+        <Box
+          key={f.id}
+          component="button"
+          onClick={() => { void onMoveTrackToFolder(moveTrack, f.id); setMoveTrack(null); }}
+          sx={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', px: 2, py: 0.75, borderRadius: 1, fontSize: '0.875rem', '&:hover': { bgcolor: 'action.hover' } }}
+        >
+          📂 {f.name}
+        </Box>
+      ))}
+    </Popover>
+  ) : null;
 
   const filterControls = (
     <ToggleButtonGroup
@@ -202,6 +269,13 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </IconButton>
               </Tooltip>
             )}
+            {folders.length > 0 && (
+              <Tooltip title={t('folders.move_to', { defaultValue: 'Move to folder' })}>
+                <IconButton size="small" onClick={() => setMoveTrack(track)}>
+                  <DriveFileMoveIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title={t('tracks.delete')}>
               <IconButton size="small" color="error" onClick={() => onDelete(track)}>
                 <DeleteIcon fontSize="small" />
@@ -211,7 +285,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         )
       }
       sx={{
-        pr: selectionMode ? undefined : LIST_ITEM_PR,
+        pr: selectionMode ? undefined : '148px',
         ...(selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
       }}
       onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
@@ -290,6 +364,13 @@ export const TrackList: React.FC<TrackListProps> = ({
                   </IconButton>
                 </Tooltip>
               )}
+              {folders.length > 0 && (
+                <Tooltip title={t('folders.move_to', { defaultValue: 'Move to folder' })}>
+                  <IconButton size="small" onClick={() => setMoveTrack(track)}>
+                    <DriveFileMoveIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
               <Tooltip title={t('tracks.delete')}>
                 <IconButton size="small" color="error" onClick={() => onDelete(track)}>
                   <DeleteIcon fontSize="small" />
@@ -304,6 +385,21 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   return (
     <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', flexDirection: 'column' }}>
+      {/* Folder navigation */}
+      <FolderBreadcrumb
+        folders={folders}
+        currentFolderId={currentFolderId}
+        onNavigate={onNavigateFolder}
+      />
+      <FolderList
+        folders={folders}
+        currentFolderId={currentFolderId}
+        allTracks={allTracks}
+        onNavigate={onNavigateFolder}
+        onRename={(folder) => setRenameFolder(folder)}
+        onDelete={(folder) => void onFolderDelete(folder)}
+      />
+
       {/* Toolbar */}
       <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap" flexShrink={0}>
         <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
@@ -319,6 +415,13 @@ export const TrackList: React.FC<TrackListProps> = ({
           InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
           sx={{ flex: 1, minWidth: 0 }}
         />
+
+        <Tooltip title={t('folders.create_title', { defaultValue: 'New Folder' })}>
+          <IconButton size="small" onClick={() => setCreateFolderOpen(true)} color="primary"
+            sx={{ border: '1px solid', borderColor: 'primary.main', borderRadius: 1, px: 1 }}>
+            <CreateNewFolderIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
 
         {isDesktop && <>{filterControls}{sortControls}</>}
 
@@ -435,7 +538,7 @@ export const TrackList: React.FC<TrackListProps> = ({
 
       {/* List / Grid */}
       <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-        {tracks.length === 0 ? (
+        {tracksInCurrentFolder.length === 0 && folders.filter((f) => f.parent_id === currentFolderId).length === 0 ? (
           <Box display="flex" justifyContent="center" py={6}>
             <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
           </Box>
@@ -445,6 +548,21 @@ export const TrackList: React.FC<TrackListProps> = ({
           <Virtuoso style={{ height: '100%' }} data={sorted} itemContent={renderListItem} />
         )}
       </Box>
+
+      {/* Folder Dialogs */}
+      <FolderCreateDialog
+        open={createFolderOpen}
+        onClose={() => setCreateFolderOpen(false)}
+        onSubmit={(name) => onFolderCreate(name, currentFolderId)}
+      />
+      <FolderCreateDialog
+        open={!!renameFolder}
+        initialName={renameFolder?.name}
+        onClose={() => setRenameFolder(null)}
+        onSubmit={(name) => onFolderRename(renameFolder!, name)}
+      />
+
+      {MoveMenu}
     </Box>
   );
 };
