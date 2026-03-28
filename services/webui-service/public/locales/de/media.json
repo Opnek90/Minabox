@@ -3,6 +3,7 @@
   "view_mode_card": "Kartenansicht",
   "view_mode_list": "Listenansicht",
   "tabs": {
+    "overview": "Übersicht",
     "playlists": "Playlists",
     "tracks": "Tracks",
     "streams": "Streams",
@@ -32,6 +33,7 @@
     "subfolder_count": "{{count}} Unterordner",
     "subfolder_count_plural": "{{count}} Unterordner",
     "upload_hint": "Track wird in den aktuellen Ordner hochgeladen.",
+    "empty_hint": "Noch keine Ordner.",
     "created": "Ordner erstellt",
     "create_error": "Ordner konnte nicht erstellt werden",
     "renamed": "Ordner umbenannt",
@@ -39,7 +41,9 @@
     "deleted": "Ordner gelöscht",
     "delete_error": "Ordner konnte nicht gelöscht werden",
     "track_moved": "Track verschoben",
-    "move_error": "Track konnte nicht verschoben werden"
+    "move_error": "Track konnte nicht verschoben werden",
+    "delete_confirm_title": "Ordner löschen?",
+    "delete_confirm_text": "Ordner \"{{name}}\" wirklich löschen? Die enthaltenen Tracks werden in die Bibliothek zurückgelegt."
   },
   "playlists": {
     "title": "Playlists",
@@ -90,6 +94,7 @@
     "remote_added": "Remote-Track hinzugefügt",
     "imported": "Track importiert",
     "import_error": "Import fehlgeschlagen",
+    "stream_deleted": "Stream gelöscht",
     "filter": {
       "label": "Filter",
       "all": "Alle",

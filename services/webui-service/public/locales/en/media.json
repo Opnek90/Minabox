@@ -3,6 +3,7 @@
   "view_mode_card": "Card view",
   "view_mode_list": "List view",
   "tabs": {
+    "overview": "Overview",
     "playlists": "Playlists",
     "tracks": "Tracks",
     "streams": "Streams",
@@ -32,6 +33,7 @@
     "subfolder_count": "{{count}} subfolder",
     "subfolder_count_plural": "{{count}} subfolders",
     "upload_hint": "Track will be added to the current folder.",
+    "empty_hint": "No folders yet.",
     "created": "Folder created",
     "create_error": "Failed to create folder",
     "renamed": "Folder renamed",
@@ -39,7 +41,9 @@
     "deleted": "Folder deleted",
     "delete_error": "Failed to delete folder",
     "track_moved": "Track moved",
-    "move_error": "Failed to move track"
+    "move_error": "Failed to move track",
+    "delete_confirm_title": "Delete folder?",
+    "delete_confirm_text": "Really delete folder \"{{name}}\"? All contained tracks will be moved back to the library."
   },
   "playlists": {
     "title": "Playlists",
@@ -90,6 +94,7 @@
     "remote_added": "Remote track added",
     "imported": "Track imported",
     "import_error": "Import failed",
+    "stream_deleted": "Stream deleted",
     "filter": {
       "label": "Filter",
       "all": "All",
