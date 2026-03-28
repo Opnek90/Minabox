@@ -25,9 +25,9 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useTranslation } from 'react-i18next';
 import type { Track, TrackFolder } from '@/types/api';
 
-const ROW_HEIGHT = 30;
-const FONT_SIZE = '0.82rem';
-const ICON_SIZE = 16;
+const ROW_HEIGHT = 34;
+const FONT_SIZE = '0.875rem';
+const ICON_SIZE = 18;
 
 interface FolderTreeProps {
   folders: TrackFolder[];
@@ -96,7 +96,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           },
         }}
       >
-        <Box sx={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box sx={{ width: 18, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {hasChildren ? (
             <IconButton size="small" onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }} sx={{ p: 0, color: 'inherit' }}>
               {expanded ? <ExpandMoreIcon sx={{ fontSize: ICON_SIZE }} /> : <ChevronRightIcon sx={{ fontSize: ICON_SIZE }} />}
@@ -104,18 +104,18 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           ) : null}
         </Box>
 
-        <ListItemIcon sx={{ minWidth: 20, mr: 0.75 }}>
+        <ListItemIcon sx={{ minWidth: 22, mr: 1 }}>
           {isSelected ? <FolderOpenIcon sx={{ fontSize: ICON_SIZE }} /> : <FolderIcon sx={{ fontSize: ICON_SIZE }} />}
         </ListItemIcon>
 
         <ListItemText
           primary={
-            <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
               <Typography component="span" sx={{ fontSize: FONT_SIZE, lineHeight: 1, fontWeight: isSelected ? 600 : 400 }} noWrap>
                 {folder.name}
               </Typography>
               {trackCount > 0 && (
-                <Typography component="span" sx={{ fontSize: '0.68rem', lineHeight: 1, color: isSelected ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 }}>
+                <Typography component="span" sx={{ fontSize: '0.72rem', lineHeight: 1, color: isSelected ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 }}>
                   {trackCount}
                 </Typography>
               )}
@@ -135,7 +135,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         )}
       </ListItemButton>
 
-      {/* Kontextmenü – zentriert am Bildschirm */}
       <Menu
         anchorEl={menuAnchor}
         open={!!menuAnchor}
@@ -152,23 +151,19 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         <MenuItem dense onClick={handleDeleteClick} sx={{ color: 'error.main' }}>Löschen</MenuItem>
       </Menu>
 
-      {/* Löschen-Bestätigung */}
       <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('folders.delete_confirm_title', { defaultValue: 'Ordner löschen?' })}</DialogTitle>
+        <DialogTitle>{t('folders.delete_confirm_title')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {t('folders.delete_confirm_text', {
-              defaultValue: 'Ordner "{{name}}" wirklich löschen? Die enthaltenen Tracks werden in die Bibliothek zurückgelegt.',
-              name: folder.name,
-            })}
+            {t('folders.delete_confirm_text', { name: folder.name })}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmDeleteOpen(false)} color="inherit" size="small">
-            {t('cancel', { ns: 'common', defaultValue: 'Abbrechen' })}
+            {t('cancel', { ns: 'common' })}
           </Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained" size="small">
-            {t('delete', { ns: 'common', defaultValue: 'Löschen' })}
+            {t('delete', { ns: 'common' })}
           </Button>
         </DialogActions>
       </Dialog>
@@ -217,12 +212,11 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     >
       <Typography
         variant="overline"
-        sx={{ px: 1.5, pt: 0.5, pb: 0.25, color: 'text.disabled', letterSpacing: 0.8, fontSize: '0.6rem', lineHeight: 1.5, display: 'block' }}
+        sx={{ px: 1.5, pt: 0.5, pb: 0.25, color: 'text.disabled', letterSpacing: 0.8, fontSize: '0.65rem', lineHeight: 1.5, display: 'block' }}
       >
         {t('tabs.tracks')}
       </Typography>
 
-      {/* Root entry */}
       <ListItemButton
         selected={currentFolderId === null}
         onClick={() => onNavigate(null)}
@@ -240,18 +234,18 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           },
         }}
       >
-        <Box sx={{ width: 16, flexShrink: 0 }} />
-        <ListItemIcon sx={{ minWidth: 20, mr: 0.75 }}>
+        <Box sx={{ width: 18, flexShrink: 0 }} />
+        <ListItemIcon sx={{ minWidth: 22, mr: 1 }}>
           <LibraryMusicIcon sx={{ fontSize: ICON_SIZE }} />
         </ListItemIcon>
         <ListItemText
           primary={
-            <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
               <Typography component="span" sx={{ fontSize: FONT_SIZE, lineHeight: 1, fontWeight: currentFolderId === null ? 600 : 400 }} noWrap>
-                {t('folders.root', { defaultValue: 'Alle Tracks' })}
+                {t('folders.root')}
               </Typography>
               {rootTrackCount > 0 && (
-                <Typography component="span" sx={{ fontSize: '0.68rem', lineHeight: 1, color: currentFolderId === null ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 }}>
+                <Typography component="span" sx={{ fontSize: '0.72rem', lineHeight: 1, color: currentFolderId === null ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 }}>
                   {rootTrackCount}
                 </Typography>
               )}
@@ -279,9 +273,9 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         <Typography
           variant="caption"
           color="text.disabled"
-          sx={{ px: 1.5, py: 1.5, display: 'block', fontStyle: 'italic', fontSize: '0.72rem' }}
+          sx={{ px: 1.5, py: 1.5, display: 'block', fontStyle: 'italic', fontSize: '0.75rem' }}
         >
-          {t('folders.empty_hint', { defaultValue: 'Noch keine Ordner.' })}
+          {t('folders.empty_hint')}
         </Typography>
       )}
     </Box>
