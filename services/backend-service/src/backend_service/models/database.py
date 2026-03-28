@@ -115,6 +115,29 @@ class Stream(Base):
         return f"<Stream(id={self.id}, title={self.title})>"
 
 
+class TrackFolder(Base):
+    """Logical folder to group tracks in the media library."""
+
+    __tablename__ = "track_folders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    parent_id = Column(
+        Integer, ForeignKey("track_folders.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
+
+    children = relationship(
+        "TrackFolder",
+        backref=__import__("sqlalchemy.orm", fromlist=["backref"]).backref("parent", remote_side="TrackFolder.id"),
+        foreign_keys="TrackFolder.parent_id",
+    )
+
+    def __repr__(self) -> str:
+        return f"<TrackFolder(id={self.id}, name={self.name}, parent_id={self.parent_id})>"
+
+
 class Track(Base):
     """Audio track (file or remote). Used in playlists."""
 
@@ -128,12 +151,17 @@ class Track(Base):
     source_type = Column(String(16), nullable=False)
     source_uri = Column(String(1024), nullable=False)
     cover_art_url = Column(String(512), nullable=True)
+    folder_id = Column(
+        Integer, ForeignKey("track_folders.id", ondelete="SET NULL"), nullable=True
+    )
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     last_played_at = Column(DateTime, nullable=True)
 
+    folder = relationship("TrackFolder", foreign_keys=[folder_id])
+
     def __repr__(self) -> str:
         return (
-            f"<Track(id={self.id}, title={self.title}, source_type={self.source_type})>"
+            f"<Track(id={self.id}, title={self.title}, source_type={self.source_type}, folder_id={self.folder_id})>"
         )
 
 

@@ -18,7 +18,7 @@ from backend_service.infrastructure.media_downloader_client import (
     MediaDownloaderClient,
     MediaDownloaderError,
 )
-from backend_service.models.database import Track
+from backend_service.models.database import Track, TrackFolder
 from backend_service.models.schemas import TrackCreate, TrackResponse, TrackUpdate
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
@@ -113,9 +113,30 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
 
 
 @router.get("", response_model=list[TrackResponse])
-async def list_tracks(db: Session = Depends(get_db)) -> list[TrackResponse]:
-    logger.info("api_list_tracks")
-    return [TrackResponse.model_validate(t) for t in db.query(Track).all()]
+async def list_tracks(
+    folder_id: int | None = Query(None, description="Filter by folder ID. Use 0 for root-level tracks (no folder)."),
+    db: Session = Depends(get_db),
+) -> list[TrackResponse]:
+    """List all tracks, optionally filtered by folder.
+
+    - No folder_id param: returns all tracks.
+    - folder_id=0: returns tracks with no folder assigned (root level).
+    - folder_id=N: returns tracks assigned to folder N.
+    """
+    logger.info("api_list_tracks", folder_id=folder_id)
+    query = db.query(Track)
+    if folder_id == 0:
+        query = query.filter(Track.folder_id.is_(None))
+    elif folder_id is not None:
+        # Validate folder exists
+        folder = db.query(TrackFolder).filter(TrackFolder.id == folder_id).first()
+        if not folder:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
+            )
+        query = query.filter(Track.folder_id == folder_id)
+    return [TrackResponse.model_validate(t) for t in query.all()]
 
 
 @router.get("/validate-url", response_model=dict)
@@ -158,6 +179,13 @@ async def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackRespon
 @router.post("", response_model=TrackResponse, status_code=201)
 async def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -> TrackResponse:
     logger.info("api_create_track", title=track_data.title, source_type=track_data.source_type)
+    if track_data.folder_id is not None:
+        folder = db.query(TrackFolder).filter(TrackFolder.id == track_data.folder_id).first()
+        if not folder:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {track_data.folder_id} not found", "details": {"folder_id": track_data.folder_id}}},
+            )
     track = Track(
         title=track_data.title,
         artist=track_data.artist,
@@ -165,6 +193,7 @@ async def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -
         duration_ms=track_data.duration_ms,
         source_type=track_data.source_type.value,
         source_uri=track_data.source_uri,
+        folder_id=track_data.folder_id,
     )
     db.add(track)
     db.commit()
@@ -185,20 +214,12 @@ async def create_track_from_url(
         logger.info("api_create_track_from_url_playlist_stripped", original=url, clean=clean_url)
     logger.info("api_create_track_from_url", url=clean_url)
 
-    # --- Duplicate check: return existing track if same URL was already imported ---
     existing = (
         db.query(Track)
         .filter(Track.source_uri.isnot(None))
         .filter(Track.source_uri == clean_url)
         .first()
     )
-    if existing is None:
-        # Also check by canonical source_uri stored as file path – not applicable here,
-        # but check against a dedicated url field if added in the future.
-        # Secondary check: look for tracks whose directory contains audio.mp3 and whose
-        # title matches, keyed via the video_id embedded in the URL if present.
-        pass  # no additional heuristic needed for now
-
     if existing is not None:
         logger.info(
             "api_create_track_from_url_duplicate",
@@ -208,17 +229,15 @@ async def create_track_from_url(
         )
         return TrackResponse.model_validate(existing)
 
-    # 1. Reserve a DB row so we get the track_id before downloading
     track = Track(
-        title="...",  # placeholder, updated after download
+        title="...",
         source_type="file",
-        source_uri=clean_url,  # store URL immediately so concurrent requests are detected as duplicates
+        source_uri=clean_url,
     )
     db.add(track)
     db.commit()
     db.refresh(track)
 
-    # 2. Target directory mirrors the upload layout: tracks/{track_id}/
     track_dir = AUDIO_STORAGE_PATH / str(track.id)
     track_dir.mkdir(parents=True, exist_ok=True)
 
@@ -226,7 +245,6 @@ async def create_track_from_url(
     try:
         result = await client.download_video(clean_url, output_dir=str(track_dir))
     except MediaDownloaderError as exc:
-        # Clean up the placeholder row and directory on failure
         db.delete(track)
         db.commit()
         try:
@@ -238,17 +256,15 @@ async def create_track_from_url(
             detail={"error": {"code": "DOWNLOAD_FAILED", "message": str(exc), "details": {"url": clean_url}}},
         ) from exc
 
-    # 3. Update track with real metadata from download result
     mp3_path = Path(result["file_path"])
     track.title = result["title"]
     track.artist = result.get("artist")
     track.album = result.get("album", "Downloads")
     track.duration_ms = result.get("duration_ms")
-    track.source_uri = str(mp3_path)  # overwrite URL placeholder with actual file path
+    track.source_uri = str(mp3_path)
     db.commit()
     db.refresh(track)
 
-    # 4. Extract cover art from embedded thumbnail
     cover_url = _extract_cover_art(mp3_path, track.id)
     if cover_url:
         track.cover_art_url = cover_url
@@ -305,6 +321,15 @@ async def update_track(track_id: int, track_data: TrackUpdate, db: Session = Dep
         track.album = track_data.album
     if track_data.duration_ms is not None:
         track.duration_ms = track_data.duration_ms
+    if "folder_id" in track_data.model_fields_set:
+        if track_data.folder_id is not None:
+            folder = db.query(TrackFolder).filter(TrackFolder.id == track_data.folder_id).first()
+            if not folder:
+                raise HTTPException(
+                    status_code=404,
+                    detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {track_data.folder_id} not found", "details": {"folder_id": track_data.folder_id}}},
+                )
+        track.folder_id = track_data.folder_id
     db.commit()
     db.refresh(track)
     return TrackResponse.model_validate(track)
@@ -316,12 +341,20 @@ async def upload_track(
     title: str = Form(...),
     artist: str = Form(None),
     album: str = Form(None),
+    folder_id: int | None = Form(None),
     db: Session = Depends(get_db),
 ) -> TrackResponse:
     logger.info("api_upload_track_started", filename=file.filename, title=title)
     config = get_config()
+    if folder_id is not None:
+        folder = db.query(TrackFolder).filter(TrackFolder.id == folder_id).first()
+        if not folder:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
+            )
     try:
-        track = Track(title=title, artist=artist, album=album, source_type="file", source_uri="")
+        track = Track(title=title, artist=artist, album=album, source_type="file", source_uri="", folder_id=folder_id)
         db.add(track)
         db.commit()
         db.refresh(track)
