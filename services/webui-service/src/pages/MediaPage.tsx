@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,16 +12,10 @@ import {
   Tabs,
   TextField,
 } from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
-import DownloadIcon from '@mui/icons-material/Download';
-import LinkIcon from '@mui/icons-material/Link';
-import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
-import PodcastsIcon from '@mui/icons-material/Podcasts';
-import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
+import { MediaFab } from '@/components/media/MediaFab';
 import { MediaImportDialog } from '@/components/media/MediaImportDialog';
 import { PlaylistList } from '@/components/media/PlaylistList';
 import { RemoteTrackDialog } from '@/components/media/RemoteTrackDialog';
@@ -77,8 +71,10 @@ export const MediaPage: React.FC = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [streamOpen, setStreamOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
-
   const [playlistCreateOpen, setPlaylistCreateOpen] = useState(false);
+
+  // exposed for FAB -> TrackList folder create
+  const createFolderRef = useRef<(() => void) | null>(null);
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
@@ -114,7 +110,7 @@ export const MediaPage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Folder handlers ────────────────────────────────────────────────────────
+  // ── Folder handlers ───────────────────────────────────────────────────────
 
   const handleFolderCreate = async (name: string, parentId: number | null) => {
     try {
@@ -140,7 +136,6 @@ export const MediaPage: React.FC = () => {
     try {
       await trackFoldersApi.delete(folder.id);
       setFolders((prev) => prev.filter((f) => f.id !== folder.id));
-      // Tracks that were in this folder are now at root – refresh all tracks
       const updatedTracks = await tracksApi.getAll();
       setTracks(updatedTracks);
       showSuccess(t('folders.deleted', { defaultValue: 'Folder deleted' }));
@@ -159,7 +154,7 @@ export const MediaPage: React.FC = () => {
     }
   };
 
-  // ── Standard handlers ──────────────────────────────────────────────────────
+  // ── Standard handlers ─────────────────────────────────────────────────────
 
   const checkAndConfirmDelete = async (target: DeleteTarget) => {
     try {
@@ -273,44 +268,7 @@ export const MediaPage: React.FC = () => {
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
 
   return (
-    <PageShell
-      title={t('title')}
-      actions={
-        tab === 0 ? (
-          <ActionButton
-            actionType="primary"
-            startIcon={<PlaylistAddIcon />}
-            onClick={() => setPlaylistCreateOpen(true)}
-          >
-            {t('playlists.add_playlist')}
-          </ActionButton>
-        ) : tab === 1 ? (
-          <>
-            <ActionButton actionType="secondary" startIcon={<CreateNewFolderIcon />}
-              onClick={() => { /* handled inside TrackList toolbar */ }}>
-              {t('folders.new', { defaultValue: 'New Folder' })}
-            </ActionButton>
-            <ActionButton actionType="secondary" startIcon={<LinkIcon />} onClick={() => setRemoteTrackOpen(true)}>
-              {t('tracks.add_remote', { defaultValue: 'Remote Track' })}
-            </ActionButton>
-            <ActionButton actionType="secondary" startIcon={<DownloadIcon />} onClick={() => setImportOpen(true)}>
-              {t('tracks.import_from_url', { defaultValue: 'Import from URL' })}
-            </ActionButton>
-            <ActionButton actionType="primary" startIcon={<CloudUploadIcon />} onClick={() => setUploadOpen(true)}>
-              {t('tracks.upload')}
-            </ActionButton>
-          </>
-        ) : tab === 2 ? (
-          <ActionButton actionType="primary" startIcon={<StreamIcon />} onClick={() => setStreamOpen(true)}>
-            {t('tracks.add_stream')}
-          </ActionButton>
-        ) : tab === 3 ? (
-          <ActionButton actionType="primary" startIcon={<PodcastsIcon />} onClick={() => setPodcastOpen(true)}>
-            {t('podcasts.add')}
-          </ActionButton>
-        ) : undefined
-      }
-    >
+    <PageShell title={t('title')}>
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>
       )}
@@ -366,6 +324,7 @@ export const MediaPage: React.FC = () => {
           onViewModeChange={(mode) => setViewMode('tracks', mode)}
           filter={getFilter('tracks')}
           onFilterChange={(val) => setFilter('tracks', val)}
+          onRegisterCreateFolder={(fn) => { createFolderRef.current = fn; }}
         />
       </TabPanel>
 
@@ -394,6 +353,18 @@ export const MediaPage: React.FC = () => {
           onViewModeChange={(mode) => setViewMode('podcasts', mode)}
         />
       </TabPanel>
+
+      {/* FAB Speed-Dial – kontextsensitiv je aktivem Tab */}
+      <MediaFab
+        activeTab={tab}
+        onCreatePlaylist={() => setPlaylistCreateOpen(true)}
+        onCreateFolder={() => createFolderRef.current?.()}
+        onUpload={() => setUploadOpen(true)}
+        onRemoteTrack={() => setRemoteTrackOpen(true)}
+        onImport={() => setImportOpen(true)}
+        onCreateStream={() => setStreamOpen(true)}
+        onCreatePodcast={() => setPodcastOpen(true)}
+      />
 
       {/* Central delete dialog */}
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
