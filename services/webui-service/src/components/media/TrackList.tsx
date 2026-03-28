@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -54,8 +54,6 @@ const DEFAULT_FILTER: FilterSource = 'all';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-const LIST_ITEM_PR = '112px';
-
 interface TrackListProps {
   tracks: Track[];
   allTracks: Track[];
@@ -77,6 +75,8 @@ interface TrackListProps {
   onFilterChange: (filter: string) => void;
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
+  /** Optional: allows parent (e.g. FAB) to trigger the folder-create dialog */
+  onRegisterCreateFolder?: (fn: () => void) => void;
 }
 
 const gridComponents = {
@@ -110,6 +110,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   onFilterChange,
   selectionMode = false,
   onSelect,
+  onRegisterCreateFolder,
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
@@ -118,10 +119,14 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  // Folder dialogs
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [renameFolder, setRenameFolder] = useState<TrackFolder | null>(null);
   const [moveTrack, setMoveTrack] = useState<Track | null>(null);
+
+  // Register the open-dialog function with parent (FAB)
+  useEffect(() => {
+    onRegisterCreateFolder?.(() => setCreateFolderOpen(true));
+  }, [onRegisterCreateFolder]);
 
   const typedSortKey = sortKey as SortKey;
   const typedFilter = filter as FilterSource;
@@ -143,7 +148,6 @@ export const TrackList: React.FC<TrackListProps> = ({
     last_played_at: t('tracks.fields.last_played'),
   };
 
-  // Only show tracks that belong to the current folder level
   const tracksInCurrentFolder = tracks.filter((tr) =>
     currentFolderId === null ? tr.folder_id == null : tr.folder_id === currentFolderId
   );
@@ -185,7 +189,6 @@ export const TrackList: React.FC<TrackListProps> = ({
   const handleSortDirToggle = () =>
     onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc');
 
-  // Move-to-folder: shows a simple list of available target folders
   const MoveMenu = moveTrack ? (
     <Popover
       open
@@ -222,12 +225,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   ) : null;
 
   const filterControls = (
-    <ToggleButtonGroup
-      value={typedFilter}
-      exclusive
-      onChange={(_, v) => v && onFilterChange(v)}
-      size="small"
-    >
+    <ToggleButtonGroup value={typedFilter} exclusive onChange={(_, v) => v && onFilterChange(v)} size="small">
       <ToggleButton value="all">{t('tracks.filter.all')}</ToggleButton>
       <ToggleButton value="file">{t('tracks.filter.files')}</ToggleButton>
       <ToggleButton value="remote">{t('tracks.filter.remote')}</ToggleButton>
@@ -385,12 +383,7 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   return (
     <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', flexDirection: 'column' }}>
-      {/* Folder navigation */}
-      <FolderBreadcrumb
-        folders={folders}
-        currentFolderId={currentFolderId}
-        onNavigate={onNavigateFolder}
-      />
+      <FolderBreadcrumb folders={folders} currentFolderId={currentFolderId} onNavigate={onNavigateFolder} />
       <FolderList
         folders={folders}
         currentFolderId={currentFolderId}
@@ -416,12 +409,15 @@ export const TrackList: React.FC<TrackListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        <Tooltip title={t('folders.create_title', { defaultValue: 'New Folder' })}>
-          <IconButton size="small" onClick={() => setCreateFolderOpen(true)} color="primary"
-            sx={{ border: '1px solid', borderColor: 'primary.main', borderRadius: 1, px: 1 }}>
-            <CreateNewFolderIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        {/* Folder button kept as secondary entry point on desktop */}
+        {isDesktop && (
+          <Tooltip title={t('folders.create_title', { defaultValue: 'New Folder' })}>
+            <IconButton size="small" onClick={() => setCreateFolderOpen(true)} color="primary"
+              sx={{ border: '1px solid', borderColor: 'primary.main', borderRadius: 1, px: 1 }}>
+              <CreateNewFolderIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
 
         {isDesktop && <>{filterControls}{sortControls}</>}
 
@@ -459,7 +455,6 @@ export const TrackList: React.FC<TrackListProps> = ({
         )}
       </Box>
 
-      {/* Active Chips */}
       {hasAnyActiveChip && (
         <Box display="flex" gap={0.75} flexWrap="wrap" mb={1} alignItems="center" flexShrink={0}>
           {hasActiveFilter && (
@@ -482,7 +477,6 @@ export const TrackList: React.FC<TrackListProps> = ({
         </Box>
       )}
 
-      {/* Mobile Popover */}
       <Popover
         open={popoverOpen && !isDesktop}
         anchorEl={filterBtnRef.current}
@@ -536,7 +530,6 @@ export const TrackList: React.FC<TrackListProps> = ({
         </Paper>
       </Popover>
 
-      {/* List / Grid */}
       <Box sx={{ flexGrow: 1, minHeight: 0 }}>
         {tracksInCurrentFolder.length === 0 && folders.filter((f) => f.parent_id === currentFolderId).length === 0 ? (
           <Box display="flex" justifyContent="center" py={6}>
@@ -549,7 +542,6 @@ export const TrackList: React.FC<TrackListProps> = ({
         )}
       </Box>
 
-      {/* Folder Dialogs */}
       <FolderCreateDialog
         open={createFolderOpen}
         onClose={() => setCreateFolderOpen(false)}
