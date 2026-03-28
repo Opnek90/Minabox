@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,16 +12,12 @@ import {
   Tabs,
   TextField,
 } from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import DownloadIcon from '@mui/icons-material/Download';
-import LinkIcon from '@mui/icons-material/Link';
-import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
-import PodcastsIcon from '@mui/icons-material/Podcasts';
-import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
+import { MediaFab } from '@/components/media/MediaFab';
 import { MediaImportDialog } from '@/components/media/MediaImportDialog';
+import { MediaOverviewTab } from '@/components/media/MediaOverviewTab';
 import { PlaylistList } from '@/components/media/PlaylistList';
 import { RemoteTrackDialog } from '@/components/media/RemoteTrackDialog';
 import { PodcastDialog } from '@/components/media/PodcastDialog';
@@ -37,9 +33,9 @@ import { useUserPrefs } from '@/contexts/UserPrefsContext';
 import { playlistsApi } from '@/api/playlists';
 import { podcastsApi } from '@/api/podcasts';
 import { streamsApi } from '@/api/streams';
-import { tracksApi } from '@/api/tracks';
+import { trackFoldersApi, tracksApi } from '@/api/tracks';
 import { tagsApi } from '@/api/tags';
-import type { Playlist, Podcast, Stream, Track } from '@/types/api';
+import type { Playlist, Podcast, Stream, Track, TrackFolder } from '@/types/api';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -65,6 +61,8 @@ export const MediaPage: React.FC = () => {
   const [tab, setTab] = useState(0);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [folders, setFolders] = useState<TrackFolder[]>([]);
+  const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [streams, setStreams] = useState<Stream[]>([]);
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,8 +72,9 @@ export const MediaPage: React.FC = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [streamOpen, setStreamOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
-
   const [playlistCreateOpen, setPlaylistCreateOpen] = useState(false);
+
+  const createFolderRef = useRef<(() => void) | null>(null);
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
@@ -90,16 +89,18 @@ export const MediaPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [playlistsData, tracksData, streamsData, podcastsData] = await Promise.all([
+      const [playlistsData, tracksData, streamsData, podcastsData, foldersData] = await Promise.all([
         playlistsApi.getAll(),
         tracksApi.getAll(),
         streamsApi.getAll(),
         podcastsApi.list(),
+        trackFoldersApi.getAll(),
       ]);
       setPlaylists(playlistsData);
       setTracks(tracksData);
       setStreams(streamsData);
       setPodcasts(podcastsData);
+      setFolders(foldersData);
     } catch {
       setError(t('tracks.load_error'));
     } finally {
@@ -108,6 +109,48 @@ export const MediaPage: React.FC = () => {
   }, [t]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleFolderCreate = async (name: string, parentId: number | null) => {
+    try {
+      const folder = await trackFoldersApi.create({ name, parent_id: parentId });
+      setFolders((prev) => [...prev, folder]);
+      showSuccess(t('folders.created', { defaultValue: 'Folder created' }));
+    } catch {
+      showError(t('folders.create_error', { defaultValue: 'Failed to create folder' }));
+    }
+  };
+
+  const handleFolderRename = async (folder: TrackFolder, name: string) => {
+    try {
+      const updated = await trackFoldersApi.update(folder.id, { name });
+      setFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      showSuccess(t('folders.renamed', { defaultValue: 'Folder renamed' }));
+    } catch {
+      showError(t('folders.rename_error', { defaultValue: 'Failed to rename folder' }));
+    }
+  };
+
+  const handleFolderDelete = async (folder: TrackFolder) => {
+    try {
+      await trackFoldersApi.delete(folder.id);
+      setFolders((prev) => prev.filter((f) => f.id !== folder.id));
+      const updatedTracks = await tracksApi.getAll();
+      setTracks(updatedTracks);
+      showSuccess(t('folders.deleted', { defaultValue: 'Folder deleted' }));
+    } catch {
+      showError(t('folders.delete_error', { defaultValue: 'Failed to delete folder' }));
+    }
+  };
+
+  const handleMoveTrackToFolder = async (track: Track, folderId: number | null) => {
+    try {
+      const updated = await tracksApi.update(track.id, { folder_id: folderId });
+      setTracks((prev) => prev.map((tr) => (tr.id === updated.id ? updated : tr)));
+      showSuccess(t('folders.track_moved', { defaultValue: 'Track moved' }));
+    } catch {
+      showError(t('folders.move_error', { defaultValue: 'Failed to move track' }));
+    }
+  };
 
   const checkAndConfirmDelete = async (target: DeleteTarget) => {
     try {
@@ -218,43 +261,12 @@ export const MediaPage: React.FC = () => {
   const getViewMode = (scope: string) => prefs.viewMode[scope] ?? 'list';
   const getFilter = (scope: string) => prefs.filter[scope] ?? 'all';
 
+  const fabTabIndex = tab === 0 ? -1 : tab - 1;
+
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
 
   return (
-    <PageShell
-      title={t('title')}
-      actions={
-        tab === 0 ? (
-          <ActionButton
-            actionType="primary"
-            startIcon={<PlaylistAddIcon />}
-            onClick={() => setPlaylistCreateOpen(true)}
-          >
-            {t('playlists.add_playlist')}
-          </ActionButton>
-        ) : tab === 1 ? (
-          <>
-            <ActionButton actionType="secondary" startIcon={<LinkIcon />} onClick={() => setRemoteTrackOpen(true)}>
-              {t('tracks.add_remote', { defaultValue: 'Remote-Track' })}
-            </ActionButton>
-            <ActionButton actionType="secondary" startIcon={<DownloadIcon />} onClick={() => setImportOpen(true)}>
-              {t('tracks.import_from_url', { defaultValue: 'Von URL importieren' })}
-            </ActionButton>
-            <ActionButton actionType="primary" startIcon={<CloudUploadIcon />} onClick={() => setUploadOpen(true)}>
-              {t('tracks.upload')}
-            </ActionButton>
-          </>
-        ) : tab === 2 ? (
-          <ActionButton actionType="primary" startIcon={<StreamIcon />} onClick={() => setStreamOpen(true)}>
-            {t('tracks.add_stream')}
-          </ActionButton>
-        ) : tab === 3 ? (
-          <ActionButton actionType="primary" startIcon={<PodcastsIcon />} onClick={() => setPodcastOpen(true)}>
-            {t('podcasts.add')}
-          </ActionButton>
-        ) : undefined
-      }
-    >
+    <PageShell title={t('title')}>
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>
       )}
@@ -267,6 +279,7 @@ export const MediaPage: React.FC = () => {
         allowScrollButtonsMobile
         sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
+        <Tab label={t('tabs.overview', { defaultValue: 'Übersicht' })} />
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />
         <Tab label={t('tabs.streams', { defaultValue: 'Streams' })} />
@@ -274,6 +287,16 @@ export const MediaPage: React.FC = () => {
       </Tabs>
 
       <TabPanel value={tab} index={0}>
+        <MediaOverviewTab
+          tracks={tracks}
+          playlists={playlists}
+          streams={streams}
+          podcasts={podcasts}
+          onNavigateTab={(targetTab) => setTab(targetTab)}
+        />
+      </TabPanel>
+
+      <TabPanel value={tab} index={1}>
         <PlaylistList
           playlists={playlists}
           tracks={tracks}
@@ -290,9 +313,17 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      <TabPanel value={tab} index={1}>
+      <TabPanel value={tab} index={2}>
         <TrackList
           tracks={tracks}
+          allTracks={tracks}
+          folders={folders}
+          currentFolderId={currentFolderId}
+          onNavigateFolder={setCurrentFolderId}
+          onFolderCreate={handleFolderCreate}
+          onFolderRename={handleFolderRename}
+          onFolderDelete={handleFolderDelete}
+          onMoveTrackToFolder={handleMoveTrackToFolder}
           onDelete={(track) => void checkAndConfirmDelete({ type: 'track', item: track })}
           onEdit={handleTrackEdit}
           sortKey={getSort('tracks').key}
@@ -302,10 +333,11 @@ export const MediaPage: React.FC = () => {
           onViewModeChange={(mode) => setViewMode('tracks', mode)}
           filter={getFilter('tracks')}
           onFilterChange={(val) => setFilter('tracks', val)}
+          onRegisterCreateFolder={(fn) => { createFolderRef.current = fn; }}
         />
       </TabPanel>
 
-      <TabPanel value={tab} index={2}>
+      <TabPanel value={tab} index={3}>
         <StreamList
           streams={streams}
           onDelete={(stream) => void checkAndConfirmDelete({ type: 'stream', item: stream })}
@@ -318,11 +350,11 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      <TabPanel value={tab} index={3}>
+      <TabPanel value={tab} index={4}>
         <PodcastList
           podcasts={podcasts}
           onDelete={(podcast) => void checkAndConfirmDelete({ type: 'podcast', item: podcast })}
-          onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
+          onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? x : p)))}
           sortKey={getSort('podcasts').key}
           sortDir={getSort('podcasts').dir}
           onSortChange={(key, dir) => setSort('podcasts', key, dir)}
@@ -331,20 +363,32 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      {/* Central delete dialog */}
+      {tab > 0 && (
+        <MediaFab
+          activeTab={fabTabIndex}
+          onCreatePlaylist={() => setPlaylistCreateOpen(true)}
+          onCreateFolder={() => createFolderRef.current?.()}
+          onUpload={() => setUploadOpen(true)}
+          onRemoteTrack={() => setRemoteTrackOpen(true)}
+          onImport={() => setImportOpen(true)}
+          onCreateStream={() => setStreamOpen(true)}
+          onCreatePodcast={() => setPodcastOpen(true)}
+        />
+      )}
+
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('media.delete_confirm_title', { defaultValue: 'Medium löschen?' })}</DialogTitle>
+        <DialogTitle>{t('media.delete_confirm_title', { defaultValue: 'Delete media?' })}</DialogTitle>
         <DialogContent>
           {assignedTagNames.length > 0 ? (
             <DialogContentText>
-              {t('media.delete_assigned_warning', { defaultValue: 'Dieses Medium ist noch folgenden RFID-Tags zugewiesen:' })}
+              {t('media.delete_assigned_warning', { defaultValue: 'This media is still assigned to the following RFID tags:' })}
               <Box component="ul" sx={{ mt: 1, pl: 2 }}>
                 {assignedTagNames.map((name) => <li key={name}>{name}</li>)}
               </Box>
             </DialogContentText>
           ) : (
             <DialogContentText>
-              {t('media.delete_confirm_text', { defaultValue: 'Soll dieses Medium wirklich gelöscht werden?' })}
+              {t('media.delete_confirm_text', { defaultValue: 'Are you sure you want to delete this media?' })}
             </DialogContentText>
           )}
         </DialogContent>
@@ -355,19 +399,18 @@ export const MediaPage: React.FC = () => {
             </ActionButton>
             {assignedTagNames.length > 0 && (
               <ActionButton actionType="destructive" onClick={() => void performDelete(false)} fullWidth>
-                {t('media.delete_media_only', { defaultValue: 'Nur Medium löschen' })}
+                {t('media.delete_media_only', { defaultValue: 'Delete media only' })}
               </ActionButton>
             )}
             <ActionButton actionType="destructive" onClick={() => void performDelete(assignedTagNames.length > 0)} fullWidth>
               {assignedTagNames.length > 0
-                ? t('media.delete_media_and_unassign', { defaultValue: 'Medium + Tag-Zuweisung löschen' })
+                ? t('media.delete_media_and_unassign', { defaultValue: 'Delete media & remove tag assignment' })
                 : t('delete', { ns: 'common' })}
             </ActionButton>
           </Stack>
         </DialogActions>
       </Dialog>
 
-      {/* Track Edit Dialog */}
       <Dialog open={!!editTrack} onClose={() => { setEditTrack(null); setEditCoverFile(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>{t('tracks.edit')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
@@ -395,17 +438,21 @@ export const MediaPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)}
-        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setUploadOpen(false); showSuccess(t('tracks.uploaded')); }} />
+      <UploadDialog
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        currentFolderId={currentFolderId}
+        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setUploadOpen(false); showSuccess(t('tracks.uploaded')); }}
+      />
       <RemoteTrackDialog open={remoteTrackOpen} onClose={() => setRemoteTrackOpen(false)}
-        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added', { defaultValue: 'Remote-Track hinzugefügt' })); }} />
+        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added', { defaultValue: 'Remote track added' })); }} />
       <MediaImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onSuccess={(track) => {
           setTracks((prev) => [...prev, track]);
           setImportOpen(false);
-          showSuccess(t('tracks.imported', { defaultValue: 'Track erfolgreich importiert' }));
+          showSuccess(t('tracks.imported', { defaultValue: 'Track imported successfully' }));
         }}
       />
       <StreamDialog open={streamOpen} onClose={() => setStreamOpen(false)}

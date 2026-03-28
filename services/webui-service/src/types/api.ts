@@ -96,6 +96,28 @@ export interface PlaylistTrackAdd {
 }
 
 // ============================================================================
+// Track Folders
+// ============================================================================
+
+export interface TrackFolder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface TrackFolderCreate {
+  name: string;
+  parent_id?: number | null;
+}
+
+export interface TrackFolderUpdate {
+  name?: string;
+  parent_id?: number | null;
+}
+
+// ============================================================================
 // Tracks
 // ============================================================================
 
@@ -108,6 +130,7 @@ export interface Track {
   source_type: SourceType;
   source_uri: string;
   cover_art_url?: string | null;
+  folder_id?: number | null;
   created_at: string;
   last_played_at: string | null;
 }
@@ -118,12 +141,14 @@ export interface TrackCreate {
   album?: string | null;
   source_type: SourceType;
   source_uri: string;
+  folder_id?: number | null;
 }
 
 export interface TrackUpdate {
   title?: string;
   artist?: string | null;
   album?: string | null;
+  folder_id?: number | null;
 }
 
 // ============================================================================

@@ -204,6 +204,33 @@ class PodcastEpisodeResponse(BaseModel):
         from_attributes = True
 
 
+class TrackFolderCreate(BaseModel):
+    """Schema for creating a new track folder."""
+
+    name: str = Field(..., min_length=1, max_length=255, description="Folder name")
+    parent_id: int | None = Field(None, description="Parent folder ID; null for root-level folder")
+
+
+class TrackFolderUpdate(BaseModel):
+    """Schema for updating a track folder."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    parent_id: int | None = None
+
+
+class TrackFolderResponse(BaseModel):
+    """Schema for track folder API response."""
+
+    id: int
+    name: str
+    parent_id: int | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
 class TrackBase(BaseModel):
     """Base schema for audio tracks."""
 
@@ -220,6 +247,7 @@ class TrackCreate(TrackBase):
     """Schema for creating a new track (without file upload)."""
 
     duration_ms: int | None = Field(None, ge=0, description="Duration in milliseconds")
+    folder_id: int | None = Field(None, description="Folder ID to assign the track to")
 
 
 class TrackUpdate(BaseModel):
@@ -229,6 +257,7 @@ class TrackUpdate(BaseModel):
     artist: str | None = None
     album: str | None = None
     duration_ms: int | None = Field(None, ge=0)
+    folder_id: int | None = Field(None, description="Folder ID; set to null to move track to root")
 
 
 class TrackResponse(TrackBase):
@@ -237,6 +266,7 @@ class TrackResponse(TrackBase):
     id: int
     duration_ms: int | None = None
     cover_art_url: str | None = None
+    folder_id: int | None = None
     created_at: datetime
     last_played_at: datetime | None = None
 
@@ -263,6 +293,9 @@ __all__ = [
     "PodcastUpdate",
     "PodcastResponse",
     "PodcastEpisodeResponse",
+    "TrackFolderCreate",
+    "TrackFolderUpdate",
+    "TrackFolderResponse",
     "TrackBase",
     "TrackCreate",
     "TrackUpdate",

@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { MiniPlayer } from '@/components/common/MiniPlayer';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
+import { ConnectionLostScreen } from '@/components/common/ConnectionLostScreen';
 import { RfidScanDrawer } from '@/components/rfid/RfidScanDrawer';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { UserPrefsProvider } from '@/contexts/UserPrefsContext';
@@ -122,9 +123,6 @@ const MainLayout: React.FC = () => {
           sx={{
             flexGrow: 1,
             minHeight: '100vh',
-            // overflowX hier (nicht in PageShell) damit Grid-Margins keinen
-            // horizontalen Scroll erzeugen. Badges/Popovers sind MUI-Portale
-            // und rendern ausserhalb dieses Containers – sie werden nicht abgeschnitten.
             overflowX: 'hidden',
             bgcolor: 'background.default',
             ml: isMobile ? 0 : `${DRAWER_WIDTH}px`,
@@ -179,6 +177,9 @@ const MainLayout: React.FC = () => {
         {!isPlayer && <MiniPlayer />}
         <RfidScanDrawer onAssignNew={(tagId) => setPendingTagId(tagId)} />
         <RfidNotifications />
+
+        {/* Offline overlay – shown after 3s without WebSocket connection */}
+        <ConnectionLostScreen />
       </Box>
     </Box>
   );

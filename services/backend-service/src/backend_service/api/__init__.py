@@ -15,6 +15,7 @@ from backend_service.api import (
     routes_stats,
     routes_system,
     routes_tags,
+    routes_track_folders,
     routes_tracks,
 )
 
@@ -26,6 +27,11 @@ api_router.include_router(routes_auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(routes_tags.router, prefix="/tags", tags=["Tags"])
 api_router.include_router(
     routes_playlists.router, prefix="/playlists", tags=["Playlists"]
+)
+# NOTE: track_folders MUST be registered before tracks to avoid FastAPI matching
+# /tracks/folders as /tracks/{track_id} with track_id="folders".
+api_router.include_router(
+    routes_track_folders.router, prefix="/tracks/folders", tags=["Track Folders"]
 )
 api_router.include_router(routes_tracks.router, prefix="/tracks", tags=["Tracks"])
 api_router.include_router(routes_streams.router, prefix="/streams", tags=["Streams"])

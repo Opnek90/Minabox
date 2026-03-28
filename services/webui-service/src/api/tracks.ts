@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Track, TrackCreate, TrackUpdate } from '@/types/api';
+import type { Track, TrackCreate, TrackUpdate, TrackFolder, TrackFolderCreate, TrackFolderUpdate } from '@/types/api';
 
 export interface MediaUrlInfo {
   valid: boolean;
@@ -10,9 +10,38 @@ export interface MediaUrlInfo {
   video_id: string;
 }
 
+export const trackFoldersApi = {
+  getAll: async (): Promise<TrackFolder[]> => {
+    const response = await apiClient.get<TrackFolder[]>('/tracks/folders');
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<TrackFolder> => {
+    const response = await apiClient.get<TrackFolder>(`/tracks/folders/${id}`);
+    return response.data;
+  },
+
+  create: async (data: TrackFolderCreate): Promise<TrackFolder> => {
+    const response = await apiClient.post<TrackFolder>('/tracks/folders', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: TrackFolderUpdate): Promise<TrackFolder> => {
+    const response = await apiClient.put<TrackFolder>(`/tracks/folders/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await apiClient.delete(`/tracks/folders/${id}`);
+  },
+};
+
 export const tracksApi = {
-  getAll: async (): Promise<Track[]> => {
-    const response = await apiClient.get<Track[]>('/tracks');
+  getAll: async (folderId?: number | 'root'): Promise<Track[]> => {
+    const params: Record<string, string | number> = {};
+    if (folderId === 'root') params.folder_id = 0;
+    else if (folderId !== undefined) params.folder_id = folderId;
+    const response = await apiClient.get<Track[]>('/tracks', { params });
     return response.data;
   },
 
@@ -28,7 +57,7 @@ export const tracksApi = {
 
   upload: async (
     file: File,
-    metadata: { title?: string; artist?: string; album?: string },
+    metadata: { title?: string; artist?: string; album?: string; folderId?: number | null },
     onProgress?: (percent: number) => void
   ): Promise<Track> => {
     const formData = new FormData();
@@ -36,6 +65,7 @@ export const tracksApi = {
     if (metadata.title) formData.append('title', metadata.title);
     if (metadata.artist) formData.append('artist', metadata.artist);
     if (metadata.album) formData.append('album', metadata.album);
+    if (metadata.folderId != null) formData.append('folder_id', String(metadata.folderId));
 
     const response = await apiClient.post<Track>('/tracks/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -49,10 +79,6 @@ export const tracksApi = {
     return response.data;
   },
 
-  /**
-   * Fetch video metadata without downloading – used for the preview step
-   * in MediaImportDialog.
-   */
   validateUrl: async (url: string): Promise<MediaUrlInfo> => {
     const response = await apiClient.get<MediaUrlInfo>('/tracks/validate-url', {
       params: { url },
@@ -60,14 +86,9 @@ export const tracksApi = {
     return response.data;
   },
 
-  /**
-   * Download a video from URL via the media-downloader-service and add it
-   * as a track to the media library.
-   */
   fromUrl: async (url: string): Promise<Track> => {
     const response = await apiClient.post<Track>('/tracks/from-url', null, {
       params: { url },
-      // Downloads can take several minutes for long videos
       timeout: 300_000,
     });
     return response.data;

@@ -29,6 +29,9 @@ from .schemas_content import (
     TagUpdate,
     TrackBase,
     TrackCreate,
+    TrackFolderCreate,
+    TrackFolderResponse,
+    TrackFolderUpdate,
     TrackResponse,
     TrackUpdate,
 )
@@ -73,6 +76,10 @@ __all__ = [
     "PodcastUpdate",
     "PodcastResponse",
     "PodcastEpisodeResponse",
+    # Track Folders
+    "TrackFolderCreate",
+    "TrackFolderUpdate",
+    "TrackFolderResponse",
     # Tracks
     "TrackBase",
     "TrackCreate",
