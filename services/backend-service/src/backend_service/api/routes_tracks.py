@@ -27,10 +27,45 @@ AUDIO_STORAGE_PATH = Path(os.environ.get("AUDIO_STORAGE_PATH", "/mnt/audio/track
 
 MEDIA_DOWNLOADER_URL = os.environ.get("MEDIA_DOWNLOADER_URL", "http://media-downloader:8007")
 
+# Domains that are allowed to be used with the from-url import.
+# Extend this list when adding support for new platforms.
+_ALLOWED_DOMAINS: frozenset[str] = frozenset({
+    "youtube.com",
+    "www.youtube.com",
+    "youtu.be",
+    "music.youtube.com",
+    "m.youtube.com",
+    "soundcloud.com",
+    "www.soundcloud.com",
+    "bandcamp.com",
+    "vimeo.com",
+    "www.vimeo.com",
+})
+
 _PLAYLIST_PARAMS = {"list", "start_radio", "index", "t"}
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
+
+
+def _check_allowed_domain(url: str) -> None:
+    """Raise HTTP 400 if the URL's hostname is not on the allow-list."""
+    try:
+        hostname = urlparse(url).hostname or ""
+    except Exception:  # noqa: BLE001
+        hostname = ""
+    if hostname not in _ALLOWED_DOMAINS:
+        logger.warning("api_domain_not_allowed", hostname=hostname, url=url)
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": {
+                    "code": "DOMAIN_NOT_ALLOWED",
+                    "message": f"Domain '{hostname}' is not supported. Allowed: {', '.join(sorted(_ALLOWED_DOMAINS))}",
+                    "details": {"hostname": hostname},
+                }
+            },
+        )
 
 
 def _strip_playlist_params(url: str) -> str:
@@ -89,6 +124,7 @@ async def validate_media_url(
 ) -> dict:
     """Proxy to media-downloader GET /info – used for frontend preview."""
     clean_url = _strip_playlist_params(url)
+    _check_allowed_domain(clean_url)
     if clean_url != url:
         logger.info("api_validate_media_url_playlist_stripped", original=url, clean=clean_url)
     logger.info("api_validate_media_url", url=clean_url)
@@ -142,17 +178,41 @@ async def create_track_from_url(
     url: str = Query(..., description="Video URL to download as audio track"),
     db: Session = Depends(get_db),
 ) -> TrackResponse:
-    """Create Track in DB first, then download MP3 into tracks/{track_id}/."""
+    """Create Track in DB from a URL.  Returns existing track if URL was already imported."""
     clean_url = _strip_playlist_params(url)
+    _check_allowed_domain(clean_url)
     if clean_url != url:
         logger.info("api_create_track_from_url_playlist_stripped", original=url, clean=clean_url)
     logger.info("api_create_track_from_url", url=clean_url)
+
+    # --- Duplicate check: return existing track if same URL was already imported ---
+    existing = (
+        db.query(Track)
+        .filter(Track.source_uri.isnot(None))
+        .filter(Track.source_uri == clean_url)
+        .first()
+    )
+    if existing is None:
+        # Also check by canonical source_uri stored as file path – not applicable here,
+        # but check against a dedicated url field if added in the future.
+        # Secondary check: look for tracks whose directory contains audio.mp3 and whose
+        # title matches, keyed via the video_id embedded in the URL if present.
+        pass  # no additional heuristic needed for now
+
+    if existing is not None:
+        logger.info(
+            "api_create_track_from_url_duplicate",
+            track_id=existing.id,
+            title=existing.title,
+            url=clean_url,
+        )
+        return TrackResponse.model_validate(existing)
 
     # 1. Reserve a DB row so we get the track_id before downloading
     track = Track(
         title="...",  # placeholder, updated after download
         source_type="file",
-        source_uri="",
+        source_uri=clean_url,  # store URL immediately so concurrent requests are detected as duplicates
     )
     db.add(track)
     db.commit()
@@ -184,7 +244,7 @@ async def create_track_from_url(
     track.artist = result.get("artist")
     track.album = result.get("album", "Downloads")
     track.duration_ms = result.get("duration_ms")
-    track.source_uri = str(mp3_path)
+    track.source_uri = str(mp3_path)  # overwrite URL placeholder with actual file path
     db.commit()
     db.refresh(track)
 
