@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import {
   Box,
+  Button,
   Collapse,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   IconButton,
   ListItemButton,
   ListItemIcon,
   ListItemText,
   Menu,
   MenuItem,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -20,10 +25,9 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useTranslation } from 'react-i18next';
 import type { Track, TrackFolder } from '@/types/api';
 
-// Kompakte Zeilenöhe wie in VS Code Sidebar
-const ROW_HEIGHT = 28;
-const FONT_SIZE = '0.78rem';
-const ICON_SIZE = 15;
+const ROW_HEIGHT = 30;
+const FONT_SIZE = '0.82rem';
+const ICON_SIZE = 16;
 
 interface FolderTreeProps {
   folders: TrackFolder[];
@@ -49,14 +53,26 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   folder, folders, allTracks, currentFolderId, depth,
   onNavigate, onRename, onDelete,
 }) => {
+  const { t } = useTranslation('media');
   const children = folders.filter((f) => f.parent_id === folder.id);
   const hasChildren = children.length > 0;
   const isSelected = currentFolderId === folder.id;
-  const trackCount = allTracks.filter((t) => t.folder_id === folder.id).length;
+  const trackCount = allTracks.filter((tr) => tr.folder_id === folder.id).length;
 
   const [expanded, setExpanded] = useState(true);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [hovered, setHovered] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  const handleDeleteClick = () => {
+    setMenuAnchor(null);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    setConfirmDeleteOpen(false);
+    onDelete(folder);
+  };
 
   return (
     <>
@@ -80,25 +96,16 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           },
         }}
       >
-        {/* Expand toggle or spacer */}
         <Box sx={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {hasChildren ? (
-            <IconButton
-              size="small"
-              onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-              sx={{ p: 0, color: 'inherit' }}
-            >
-              {expanded
-                ? <ExpandMoreIcon sx={{ fontSize: ICON_SIZE }} />
-                : <ChevronRightIcon sx={{ fontSize: ICON_SIZE }} />}
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }} sx={{ p: 0, color: 'inherit' }}>
+              {expanded ? <ExpandMoreIcon sx={{ fontSize: ICON_SIZE }} /> : <ChevronRightIcon sx={{ fontSize: ICON_SIZE }} />}
             </IconButton>
           ) : null}
         </Box>
 
         <ListItemIcon sx={{ minWidth: 20, mr: 0.75 }}>
-          {isSelected
-            ? <FolderOpenIcon sx={{ fontSize: ICON_SIZE }} />
-            : <FolderIcon sx={{ fontSize: ICON_SIZE }} />}
+          {isSelected ? <FolderOpenIcon sx={{ fontSize: ICON_SIZE }} /> : <FolderIcon sx={{ fontSize: ICON_SIZE }} />}
         </ListItemIcon>
 
         <ListItemText
@@ -108,11 +115,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 {folder.name}
               </Typography>
               {trackCount > 0 && (
-                <Typography component="span" sx={{
-                  fontSize: '0.65rem', lineHeight: 1,
-                  color: isSelected ? 'primary.contrastText' : 'text.disabled',
-                  opacity: 0.8,
-                }}>
+                <Typography component="span" sx={{ fontSize: '0.68rem', lineHeight: 1, color: isSelected ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 }}>
                   {trackCount}
                 </Typography>
               )}
@@ -121,7 +124,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           disableTypography
         />
 
-        {/* Kontextmenü – nur bei Hover sichtbar */}
         {hovered && (
           <IconButton
             size="small"
@@ -133,15 +135,43 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         )}
       </ListItemButton>
 
+      {/* Kontextmenü – zentriert am Bildschirm */}
       <Menu
         anchorEl={menuAnchor}
         open={!!menuAnchor}
         onClose={() => setMenuAnchor(null)}
-        slotProps={{ paper: { sx: { minWidth: 150 } } }}
+        anchorReference="anchorPosition"
+        anchorPosition={menuAnchor ? {
+          top: menuAnchor.getBoundingClientRect().bottom + 4,
+          left: menuAnchor.getBoundingClientRect().left,
+        } : undefined}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { minWidth: 160 } } }}
       >
         <MenuItem dense onClick={() => { onRename(folder); setMenuAnchor(null); }}>Umbenennen</MenuItem>
-        <MenuItem dense onClick={() => { onDelete(folder); setMenuAnchor(null); }} sx={{ color: 'error.main' }}>Löschen</MenuItem>
+        <MenuItem dense onClick={handleDeleteClick} sx={{ color: 'error.main' }}>Löschen</MenuItem>
       </Menu>
+
+      {/* Löschen-Bestätigung */}
+      <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>{t('folders.delete_confirm_title', { defaultValue: 'Ordner löschen?' })}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {t('folders.delete_confirm_text', {
+              defaultValue: 'Ordner "{{name}}" wirklich löschen? Die enthaltenen Tracks werden in die Bibliothek zurückgelegt.',
+              name: folder.name,
+            })}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteOpen(false)} color="inherit" size="small">
+            {t('cancel', { ns: 'common', defaultValue: 'Abbrechen' })}
+          </Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained" size="small">
+            {t('delete', { ns: 'common', defaultValue: 'Löschen' })}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {hasChildren && (
         <Collapse in={expanded} timeout="auto" unmountOnExit>
@@ -169,7 +199,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const rootFolders = folders.filter((f) => f.parent_id == null);
-  const rootTrackCount = allTracks.filter((t) => t.folder_id == null).length;
+  const rootTrackCount = allTracks.filter((tr) => tr.folder_id == null).length;
 
   return (
     <Box
@@ -187,14 +217,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
     >
       <Typography
         variant="overline"
-        sx={{
-          px: 1.5, pt: 0.5, pb: 0.25,
-          color: 'text.disabled',
-          letterSpacing: 0.8,
-          fontSize: '0.6rem',
-          lineHeight: 1.5,
-          display: 'block',
-        }}
+        sx={{ px: 1.5, pt: 0.5, pb: 0.25, color: 'text.disabled', letterSpacing: 0.8, fontSize: '0.6rem', lineHeight: 1.5, display: 'block' }}
       >
         {t('tabs.tracks')}
       </Typography>
@@ -217,7 +240,6 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           },
         }}
       >
-        {/* Spacer statt Expand-Toggle */}
         <Box sx={{ width: 16, flexShrink: 0 }} />
         <ListItemIcon sx={{ minWidth: 20, mr: 0.75 }}>
           <LibraryMusicIcon sx={{ fontSize: ICON_SIZE }} />
@@ -229,11 +251,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
                 {t('folders.root', { defaultValue: 'Alle Tracks' })}
               </Typography>
               {rootTrackCount > 0 && (
-                <Typography component="span" sx={{
-                  fontSize: '0.65rem', lineHeight: 1,
-                  color: currentFolderId === null ? 'primary.contrastText' : 'text.disabled',
-                  opacity: 0.8,
-                }}>
+                <Typography component="span" sx={{ fontSize: '0.68rem', lineHeight: 1, color: currentFolderId === null ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 }}>
                   {rootTrackCount}
                 </Typography>
               )}
@@ -258,15 +276,13 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
       ))}
 
       {rootFolders.length === 0 && (
-        <Tooltip title={t('folders.create_title', { defaultValue: 'Ordner erstellen' })}>
-          <Typography
-            variant="caption"
-            color="text.disabled"
-            sx={{ px: 1.5, py: 1.5, display: 'block', fontStyle: 'italic', fontSize: '0.7rem' }}
-          >
-            {t('folders.empty_hint', { defaultValue: 'Noch keine Ordner.' })}
-          </Typography>
-        </Tooltip>
+        <Typography
+          variant="caption"
+          color="text.disabled"
+          sx={{ px: 1.5, py: 1.5, display: 'block', fontStyle: 'italic', fontSize: '0.72rem' }}
+        >
+          {t('folders.empty_hint', { defaultValue: 'Noch keine Ordner.' })}
+        </Typography>
       )}
     </Box>
   );
