@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Avatar,
   Box,
   Card,
   CardActionArea,
@@ -11,27 +12,23 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
-  Avatar,
   Typography,
 } from '@mui/material';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
-import FolderIcon from '@mui/icons-material/Folder';
 import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
-import type { Playlist, Podcast, Stream, Track, TrackFolder } from '@/types/api';
+import type { Playlist, Podcast, Stream, Track } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
 
 interface MediaOverviewTabProps {
   tracks: Track[];
-  folders: TrackFolder[];
   playlists: Playlist[];
   streams: Stream[];
   podcasts: Podcast[];
-  /** Switch to a specific tab index (0=Playlists,1=Tracks,2=Streams,3=Podcasts) */
   onNavigateTab: (tab: number) => void;
 }
 
@@ -58,7 +55,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
 );
 
 export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
-  tracks, folders, playlists, streams, podcasts, onNavigateTab,
+  tracks, playlists, streams, podcasts, onNavigateTab,
 }) => {
   const { t } = useTranslation('media');
 
@@ -74,7 +71,7 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
-      {/* Stats */}
+      {/* Stats – 4 Kacheln: Tracks, Playlists, Streams, Podcasts */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={6} sm={3}>
           <StatCard icon={<AudiotrackIcon />} label={t('tabs.tracks')} value={tracks.length} color="primary" onClick={() => onNavigateTab(2)} />
@@ -83,7 +80,7 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
           <StatCard icon={<PlaylistPlayIcon />} label={t('tabs.playlists')} value={playlists.length} color="secondary" onClick={() => onNavigateTab(1)} />
         </Grid>
         <Grid item xs={6} sm={3}>
-          <StatCard icon={<FolderIcon />} label={t('tabs.tracks') + ' Ordner'} value={folders.length} color="warning" onClick={() => onNavigateTab(2)} />
+          <StatCard icon={<StreamIcon />} label={t('tabs.streams', { defaultValue: 'Streams' })} value={streams.length} color="info" onClick={() => onNavigateTab(3)} />
         </Grid>
         <Grid item xs={6} sm={3}>
           <StatCard icon={<PodcastsIcon />} label={t('tabs.podcasts')} value={podcasts.length} color="success" onClick={() => onNavigateTab(4)} />
@@ -169,25 +166,15 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
           </Grid>
         )}
 
-        {/* Streams & Podcasts Mini-Widget */}
-        {(streams.length > 0 || podcasts.length > 0) && (
+        {/* Podcasts Mini-Widget */}
+        {podcasts.length > 0 && (
           <Grid item xs={12}>
             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <StreamIcon fontSize="small" color="action" />
-              Streams & Podcasts
+              <PodcastsIcon fontSize="small" color="action" />
+              Podcasts
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {streams.slice(0, 4).map((s) => (
-                <Chip
-                  key={s.id}
-                  icon={<StreamIcon />}
-                  label={s.title}
-                  onClick={() => onNavigateTab(3)}
-                  variant="outlined"
-                  sx={{ cursor: 'pointer' }}
-                />
-              ))}
-              {podcasts.slice(0, 4).map((p) => (
+              {podcasts.slice(0, 6).map((p) => (
                 <Chip
                   key={p.id}
                   icon={<PodcastsIcon />}

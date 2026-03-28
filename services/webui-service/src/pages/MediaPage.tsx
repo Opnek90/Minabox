@@ -54,13 +54,6 @@ type DeleteTarget =
   | { type: 'stream'; item: Stream }
   | { type: 'podcast'; item: Podcast };
 
-// Tab indices:
-// 0 = Übersicht (Dashboard)
-// 1 = Playlists
-// 2 = Tracks
-// 3 = Streams
-// 4 = Podcasts
-
 export const MediaPage: React.FC = () => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
@@ -117,8 +110,6 @@ export const MediaPage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Folder handlers ───────────────────────────────────────────────────────
-
   const handleFolderCreate = async (name: string, parentId: number | null) => {
     try {
       const folder = await trackFoldersApi.create({ name, parent_id: parentId });
@@ -160,8 +151,6 @@ export const MediaPage: React.FC = () => {
       showError(t('folders.move_error', { defaultValue: 'Failed to move track' }));
     }
   };
-
-  // ── Standard handlers ─────────────────────────────────────────────────────
 
   const checkAndConfirmDelete = async (target: DeleteTarget) => {
     try {
@@ -272,8 +261,7 @@ export const MediaPage: React.FC = () => {
   const getViewMode = (scope: string) => prefs.viewMode[scope] ?? 'list';
   const getFilter = (scope: string) => prefs.filter[scope] ?? 'all';
 
-  // FAB: activeTab muss auf neue Indizes gemappt werden (Tab 0 = Übersicht hat keinen eigenen FAB-Slot)
-  const fabTabIndex = tab === 0 ? -1 : tab - 1; // 1=Playlists→0, 2=Tracks→1, 3=Streams→2, 4=Podcasts→3
+  const fabTabIndex = tab === 0 ? -1 : tab - 1;
 
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
 
@@ -301,7 +289,6 @@ export const MediaPage: React.FC = () => {
       <TabPanel value={tab} index={0}>
         <MediaOverviewTab
           tracks={tracks}
-          folders={folders}
           playlists={playlists}
           streams={streams}
           podcasts={podcasts}
@@ -376,7 +363,6 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      {/* FAB: Übersicht-Tab hat keinen FAB */}
       {tab > 0 && (
         <MediaFab
           activeTab={fabTabIndex}
@@ -390,7 +376,6 @@ export const MediaPage: React.FC = () => {
         />
       )}
 
-      {/* Central delete dialog */}
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
         <DialogTitle>{t('media.delete_confirm_title', { defaultValue: 'Delete media?' })}</DialogTitle>
         <DialogContent>
@@ -426,7 +411,6 @@ export const MediaPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Track Edit Dialog */}
       <Dialog open={!!editTrack} onClose={() => { setEditTrack(null); setEditCoverFile(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>{t('tracks.edit')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>

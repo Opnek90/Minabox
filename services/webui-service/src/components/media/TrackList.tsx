@@ -28,7 +28,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import EditIcon from '@mui/icons-material/Edit';
@@ -43,7 +42,6 @@ import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { audioApi } from '@/api/audio';
 import type { Track, TrackFolder } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
-import { ActionButton } from '@/components/ui/ActionButton';
 import { FolderCreateDialog } from './FolderCreateDialog';
 import { FolderTree } from './FolderTree';
 
@@ -54,7 +52,6 @@ const DEFAULT_FILTER: FilterSource = 'all';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-/** Width of the folder tree panel (desktop) */
 const TREE_WIDTH = 220;
 
 interface TrackListProps {
@@ -125,7 +122,6 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [renameFolder, setRenameFolder] = useState<TrackFolder | null>(null);
   const [moveTrack, setMoveTrack] = useState<Track | null>(null);
 
-  // Mobile: show tree or list
   const [mobileView, setMobileView] = useState<'tree' | 'tracks'>(
     currentFolderId === null ? 'tree' : 'tracks'
   );
@@ -383,7 +379,6 @@ export const TrackList: React.FC<TrackListProps> = ({
     </Box>
   );
 
-  // ── Track panel (right side or full on mobile) ─────────────────────────────
   const trackPanel = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
       {/* Mobile back-button */}
@@ -400,7 +395,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         </Box>
       )}
 
-      {/* Toolbar */}
+      {/* Toolbar – kein Ordner-Erstellen-Button mehr */}
       <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap" flexShrink={0}>
         <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
@@ -415,15 +410,6 @@ export const TrackList: React.FC<TrackListProps> = ({
           InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
           sx={{ flex: 1, minWidth: 0 }}
         />
-
-        {isDesktop && (
-          <Tooltip title={t('folders.create_title', { defaultValue: 'New Folder' })}>
-            <IconButton size="small" onClick={() => setCreateFolderOpen(true)} color="primary"
-              sx={{ border: '1px solid', borderColor: 'primary.main', borderRadius: 1, px: 1 }}>
-              <CreateNewFolderIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
 
         {isDesktop && <>{filterControls}{sortControls}</>}
 
@@ -544,11 +530,8 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   return (
     <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', flexDirection: 'column' }}>
-
-      {/* ── Desktop: side-by-side Explorer layout ── */}
       {isDesktop ? (
         <Box sx={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
-          {/* Left: Folder tree */}
           <Box sx={{ width: TREE_WIDTH, flexShrink: 0, height: '100%' }}>
             <FolderTree
               folders={folders}
@@ -559,14 +542,11 @@ export const TrackList: React.FC<TrackListProps> = ({
               onDelete={(folder) => void onFolderDelete(folder)}
             />
           </Box>
-
-          {/* Right: tracks panel */}
           <Box sx={{ flex: 1, minWidth: 0, pl: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
             {trackPanel}
           </Box>
         </Box>
       ) : (
-        /* ── Mobile: tree OR tracklist ── */
         <Box sx={{ flex: 1, minHeight: 0 }}>
           {mobileView === 'tree' ? (
             <FolderTree

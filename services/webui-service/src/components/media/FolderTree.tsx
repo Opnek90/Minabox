@@ -20,6 +20,11 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useTranslation } from 'react-i18next';
 import type { Track, TrackFolder } from '@/types/api';
 
+// Kompakte Zeilenöhe wie in VS Code Sidebar
+const ROW_HEIGHT = 28;
+const FONT_SIZE = '0.78rem';
+const ICON_SIZE = 15;
+
 interface FolderTreeProps {
   folders: TrackFolder[];
   allTracks: Track[];
@@ -51,53 +56,81 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
   const [expanded, setExpanded] = useState(true);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [hovered, setHovered] = useState(false);
 
   return (
     <>
       <ListItemButton
         selected={isSelected}
         onClick={() => onNavigate(folder.id)}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         sx={{
-          pl: 1 + depth * 2,
+          pl: 0.5 + depth * 1.5,
           pr: 0.5,
-          py: 0.4,
-          borderRadius: 1,
+          minHeight: ROW_HEIGHT,
+          maxHeight: ROW_HEIGHT,
+          borderRadius: 0.75,
           mx: 0.5,
-          '&.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText',
+          '&.Mui-selected': {
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
             '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
             '&:hover': { bgcolor: 'primary.dark' },
           },
         }}
       >
-        <ListItemIcon sx={{ minWidth: 24 }}>
+        {/* Expand toggle or spacer */}
+        <Box sx={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {hasChildren ? (
             <IconButton
               size="small"
               onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
               sx={{ p: 0, color: 'inherit' }}
             >
-              {expanded ? <ExpandMoreIcon sx={{ fontSize: 16 }} /> : <ChevronRightIcon sx={{ fontSize: 16 }} />}
+              {expanded
+                ? <ExpandMoreIcon sx={{ fontSize: ICON_SIZE }} />
+                : <ChevronRightIcon sx={{ fontSize: ICON_SIZE }} />}
             </IconButton>
-          ) : (
-            <Box sx={{ width: 24 }} />
-          )}
+          ) : null}
+        </Box>
+
+        <ListItemIcon sx={{ minWidth: 20, mr: 0.75 }}>
+          {isSelected
+            ? <FolderOpenIcon sx={{ fontSize: ICON_SIZE }} />
+            : <FolderIcon sx={{ fontSize: ICON_SIZE }} />}
         </ListItemIcon>
-        <ListItemIcon sx={{ minWidth: 28 }}>
-          {isSelected ? <FolderOpenIcon sx={{ fontSize: 18 }} /> : <FolderIcon sx={{ fontSize: 18 }} />}
-        </ListItemIcon>
+
         <ListItemText
-          primary={folder.name}
-          secondary={trackCount > 0 ? `${trackCount}` : undefined}
-          primaryTypographyProps={{ variant: 'body2', noWrap: true, fontWeight: isSelected ? 600 : 400 }}
-          secondaryTypographyProps={{ variant: 'caption', sx: { color: isSelected ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 } }}
+          primary={
+            <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography component="span" sx={{ fontSize: FONT_SIZE, lineHeight: 1, fontWeight: isSelected ? 600 : 400 }} noWrap>
+                {folder.name}
+              </Typography>
+              {trackCount > 0 && (
+                <Typography component="span" sx={{
+                  fontSize: '0.65rem', lineHeight: 1,
+                  color: isSelected ? 'primary.contrastText' : 'text.disabled',
+                  opacity: 0.8,
+                }}>
+                  {trackCount}
+                </Typography>
+              )}
+            </Box>
+          }
+          disableTypography
         />
-        <IconButton
-          size="small"
-          onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
-          sx={{ opacity: 0, '.MuiListItemButton-root:hover &': { opacity: 1 }, color: 'inherit', p: 0.25 }}
-        >
-          <MoreVertIcon sx={{ fontSize: 16 }} />
-        </IconButton>
+
+        {/* Kontextmenü – nur bei Hover sichtbar */}
+        {hovered && (
+          <IconButton
+            size="small"
+            onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
+            sx={{ p: 0.25, color: 'inherit', flexShrink: 0, ml: 0.25 }}
+          >
+            <MoreVertIcon sx={{ fontSize: ICON_SIZE }} />
+          </IconButton>
+        )}
       </ListItemButton>
 
       <Menu
@@ -106,8 +139,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         onClose={() => setMenuAnchor(null)}
         slotProps={{ paper: { sx: { minWidth: 150 } } }}
       >
-        <MenuItem onClick={() => { onRename(folder); setMenuAnchor(null); }}>Umbenennen</MenuItem>
-        <MenuItem onClick={() => { onDelete(folder); setMenuAnchor(null); }} sx={{ color: 'error.main' }}>Löschen</MenuItem>
+        <MenuItem dense onClick={() => { onRename(folder); setMenuAnchor(null); }}>Umbenennen</MenuItem>
+        <MenuItem dense onClick={() => { onDelete(folder); setMenuAnchor(null); }} sx={{ color: 'error.main' }}>Löschen</MenuItem>
       </Menu>
 
       {hasChildren && (
@@ -149,35 +182,64 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
+        pt: 0.5,
       }}
     >
       <Typography
         variant="overline"
-        sx={{ px: 2, pt: 1.5, pb: 0.5, color: 'text.secondary', letterSpacing: 1, fontSize: '0.65rem' }}
+        sx={{
+          px: 1.5, pt: 0.5, pb: 0.25,
+          color: 'text.disabled',
+          letterSpacing: 0.8,
+          fontSize: '0.6rem',
+          lineHeight: 1.5,
+          display: 'block',
+        }}
       >
         {t('tabs.tracks')}
       </Typography>
 
-      {/* Root / All tracks */}
+      {/* Root entry */}
       <ListItemButton
         selected={currentFolderId === null}
         onClick={() => onNavigate(null)}
         sx={{
-          pl: 1.5, pr: 0.5, py: 0.4, borderRadius: 1, mx: 0.5,
-          '&.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText',
+          pl: 0.5, pr: 0.5,
+          minHeight: ROW_HEIGHT,
+          maxHeight: ROW_HEIGHT,
+          borderRadius: 0.75,
+          mx: 0.5,
+          '&.Mui-selected': {
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
             '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
             '&:hover': { bgcolor: 'primary.dark' },
           },
         }}
       >
-        <ListItemIcon sx={{ minWidth: 28 }}>
-          <LibraryMusicIcon sx={{ fontSize: 18 }} />
+        {/* Spacer statt Expand-Toggle */}
+        <Box sx={{ width: 16, flexShrink: 0 }} />
+        <ListItemIcon sx={{ minWidth: 20, mr: 0.75 }}>
+          <LibraryMusicIcon sx={{ fontSize: ICON_SIZE }} />
         </ListItemIcon>
         <ListItemText
-          primary={t('folders.root', { defaultValue: 'Alle Tracks' })}
-          secondary={rootTrackCount > 0 ? `${rootTrackCount}` : undefined}
-          primaryTypographyProps={{ variant: 'body2', fontWeight: currentFolderId === null ? 600 : 400 }}
-          secondaryTypographyProps={{ variant: 'caption', sx: { color: currentFolderId === null ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 } }}
+          primary={
+            <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography component="span" sx={{ fontSize: FONT_SIZE, lineHeight: 1, fontWeight: currentFolderId === null ? 600 : 400 }} noWrap>
+                {t('folders.root', { defaultValue: 'Alle Tracks' })}
+              </Typography>
+              {rootTrackCount > 0 && (
+                <Typography component="span" sx={{
+                  fontSize: '0.65rem', lineHeight: 1,
+                  color: currentFolderId === null ? 'primary.contrastText' : 'text.disabled',
+                  opacity: 0.8,
+                }}>
+                  {rootTrackCount}
+                </Typography>
+              )}
+            </Box>
+          }
+          disableTypography
         />
       </ListItemButton>
 
@@ -200,9 +262,9 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           <Typography
             variant="caption"
             color="text.disabled"
-            sx={{ px: 2, py: 2, display: 'block', fontStyle: 'italic' }}
+            sx={{ px: 1.5, py: 1.5, display: 'block', fontStyle: 'italic', fontSize: '0.7rem' }}
           >
-            {t('folders.empty_hint', { defaultValue: 'Noch keine Ordner. Nutze den + Button.' })}
+            {t('folders.empty_hint', { defaultValue: 'Noch keine Ordner.' })}
           </Typography>
         </Tooltip>
       )}
