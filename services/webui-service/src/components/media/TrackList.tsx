@@ -24,6 +24,7 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
@@ -43,9 +44,8 @@ import { audioApi } from '@/api/audio';
 import type { Track, TrackFolder } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
 import { ActionButton } from '@/components/ui/ActionButton';
-import { FolderBreadcrumb } from './FolderBreadcrumb';
 import { FolderCreateDialog } from './FolderCreateDialog';
-import { FolderList } from './FolderList';
+import { FolderTree } from './FolderTree';
 
 type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
 type FilterSource = 'all' | 'file' | 'remote';
@@ -53,6 +53,9 @@ type FilterSource = 'all' | 'file' | 'remote';
 const DEFAULT_FILTER: FilterSource = 'all';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
+
+/** Width of the folder tree panel (desktop) */
+const TREE_WIDTH = 220;
 
 interface TrackListProps {
   tracks: Track[];
@@ -75,7 +78,6 @@ interface TrackListProps {
   onFilterChange: (filter: string) => void;
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
-  /** Optional: allows parent (e.g. FAB) to trigger the folder-create dialog */
   onRegisterCreateFolder?: (fn: () => void) => void;
 }
 
@@ -123,7 +125,11 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [renameFolder, setRenameFolder] = useState<TrackFolder | null>(null);
   const [moveTrack, setMoveTrack] = useState<Track | null>(null);
 
-  // Register the open-dialog function with parent (FAB)
+  // Mobile: show tree or list
+  const [mobileView, setMobileView] = useState<'tree' | 'tracks'>(
+    currentFolderId === null ? 'tree' : 'tracks'
+  );
+
   useEffect(() => {
     onRegisterCreateFolder?.(() => setCreateFolderOpen(true));
   }, [onRegisterCreateFolder]);
@@ -188,6 +194,11 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   const handleSortDirToggle = () =>
     onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc');
+
+  const handleNavigateFolder = (folderId: number | null) => {
+    onNavigateFolder(folderId);
+    if (!isDesktop) setMobileView('tracks');
+  };
 
   const MoveMenu = moveTrack ? (
     <Popover
@@ -310,15 +321,6 @@ export const TrackList: React.FC<TrackListProps> = ({
               <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined"
                 sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
             )}
-            {track.last_played_at && (
-              <Typography component="span" variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
-                ·{' '}
-                {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                  -Math.round((Date.now() - new Date(track.last_played_at).getTime()) / 3_600_000),
-                  'hour'
-                )}
-              </Typography>
-            )}
           </Box>
         }
       />
@@ -381,17 +383,22 @@ export const TrackList: React.FC<TrackListProps> = ({
     </Box>
   );
 
-  return (
-    <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', flexDirection: 'column' }}>
-      <FolderBreadcrumb folders={folders} currentFolderId={currentFolderId} onNavigate={onNavigateFolder} />
-      <FolderList
-        folders={folders}
-        currentFolderId={currentFolderId}
-        allTracks={allTracks}
-        onNavigate={onNavigateFolder}
-        onRename={(folder) => setRenameFolder(folder)}
-        onDelete={(folder) => void onFolderDelete(folder)}
-      />
+  // ── Track panel (right side or full on mobile) ─────────────────────────────
+  const trackPanel = (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      {/* Mobile back-button */}
+      {!isDesktop && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <IconButton size="small" onClick={() => setMobileView('tree')}>
+            <ArrowBackIcon fontSize="small" />
+          </IconButton>
+          <Typography variant="body2" fontWeight={600} noWrap>
+            {currentFolderId === null
+              ? t('folders.root', { defaultValue: 'Alle Tracks' })
+              : folders.find((f) => f.id === currentFolderId)?.name ?? ''}
+          </Typography>
+        </Box>
+      )}
 
       {/* Toolbar */}
       <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap" flexShrink={0}>
@@ -409,7 +416,6 @@ export const TrackList: React.FC<TrackListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        {/* Folder button kept as secondary entry point on desktop */}
         {isDesktop && (
           <Tooltip title={t('folders.create_title', { defaultValue: 'New Folder' })}>
             <IconButton size="small" onClick={() => setCreateFolderOpen(true)} color="primary"
@@ -427,14 +433,12 @@ export const TrackList: React.FC<TrackListProps> = ({
               ref={filterBtnRef}
               size="small"
               onClick={() => setPopoverOpen(true)}
-              aria-label={t('tracks.filter.open')}
               sx={{
                 overflow: 'visible',
                 color: activeBadgeCount > 0 ? 'primary.main' : 'text.secondary',
                 border: '1px solid',
                 borderColor: activeBadgeCount > 0 ? 'primary.main' : 'divider',
-                borderRadius: 1,
-                px: 1,
+                borderRadius: 1, px: 1,
               }}
             >
               <FilterListIcon fontSize="small" />
@@ -467,12 +471,6 @@ export const TrackList: React.FC<TrackListProps> = ({
               label={sortKeyLabel[typedSortKey]}
               onDelete={() => onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR)}
               color="primary" variant="outlined" />
-          )}
-          {hasActiveFilter && hasNonDefaultSort && (
-            <Chip size="small" label={t('tracks.filter.reset_all')}
-              onDelete={() => { onFilterChange(DEFAULT_FILTER); onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR); }}
-              onClick={() => { onFilterChange(DEFAULT_FILTER); onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR); }}
-              variant="outlined" sx={{ borderColor: 'divider', color: 'text.secondary' }} />
           )}
         </Box>
       )}
@@ -522,7 +520,7 @@ export const TrackList: React.FC<TrackListProps> = ({
               <Divider />
               <Box component="button"
                 onClick={() => { onFilterChange(DEFAULT_FILTER); onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR); setPopoverOpen(false); }}
-                sx={{ background: 'none', border: 'none', cursor: 'pointer', color: 'text.secondary', fontSize: '0.8rem', textAlign: 'left', p: 0, '&:hover': { color: 'text.primary' } }}>
+                sx={{ background: 'none', border: 'none', cursor: 'pointer', color: 'text.secondary', fontSize: '0.8rem', textAlign: 'left', p: 0 }}>
                 {t('tracks.filter.reset_all')}
               </Box>
             </>
@@ -531,7 +529,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       </Popover>
 
       <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-        {tracksInCurrentFolder.length === 0 && folders.filter((f) => f.parent_id === currentFolderId).length === 0 ? (
+        {sorted.length === 0 ? (
           <Box display="flex" justifyContent="center" py={6}>
             <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
           </Box>
@@ -541,6 +539,49 @@ export const TrackList: React.FC<TrackListProps> = ({
           <Virtuoso style={{ height: '100%' }} data={sorted} itemContent={renderListItem} />
         )}
       </Box>
+    </Box>
+  );
+
+  return (
+    <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', flexDirection: 'column' }}>
+
+      {/* ── Desktop: side-by-side Explorer layout ── */}
+      {isDesktop ? (
+        <Box sx={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
+          {/* Left: Folder tree */}
+          <Box sx={{ width: TREE_WIDTH, flexShrink: 0, height: '100%' }}>
+            <FolderTree
+              folders={folders}
+              allTracks={allTracks}
+              currentFolderId={currentFolderId}
+              onNavigate={handleNavigateFolder}
+              onRename={(folder) => setRenameFolder(folder)}
+              onDelete={(folder) => void onFolderDelete(folder)}
+            />
+          </Box>
+
+          {/* Right: tracks panel */}
+          <Box sx={{ flex: 1, minWidth: 0, pl: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {trackPanel}
+          </Box>
+        </Box>
+      ) : (
+        /* ── Mobile: tree OR tracklist ── */
+        <Box sx={{ flex: 1, minHeight: 0 }}>
+          {mobileView === 'tree' ? (
+            <FolderTree
+              folders={folders}
+              allTracks={allTracks}
+              currentFolderId={currentFolderId}
+              onNavigate={handleNavigateFolder}
+              onRename={(folder) => setRenameFolder(folder)}
+              onDelete={(folder) => void onFolderDelete(folder)}
+            />
+          ) : (
+            trackPanel
+          )}
+        </Box>
+      )}
 
       <FolderCreateDialog
         open={createFolderOpen}

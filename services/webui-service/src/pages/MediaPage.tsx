@@ -17,6 +17,7 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
 import { MediaFab } from '@/components/media/MediaFab';
 import { MediaImportDialog } from '@/components/media/MediaImportDialog';
+import { MediaOverviewTab } from '@/components/media/MediaOverviewTab';
 import { PlaylistList } from '@/components/media/PlaylistList';
 import { RemoteTrackDialog } from '@/components/media/RemoteTrackDialog';
 import { PodcastDialog } from '@/components/media/PodcastDialog';
@@ -53,6 +54,13 @@ type DeleteTarget =
   | { type: 'stream'; item: Stream }
   | { type: 'podcast'; item: Podcast };
 
+// Tab indices:
+// 0 = Übersicht (Dashboard)
+// 1 = Playlists
+// 2 = Tracks
+// 3 = Streams
+// 4 = Podcasts
+
 export const MediaPage: React.FC = () => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
@@ -73,7 +81,6 @@ export const MediaPage: React.FC = () => {
   const [podcastOpen, setPodcastOpen] = useState(false);
   const [playlistCreateOpen, setPlaylistCreateOpen] = useState(false);
 
-  // exposed for FAB -> TrackList folder create
   const createFolderRef = useRef<(() => void) | null>(null);
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
@@ -265,6 +272,9 @@ export const MediaPage: React.FC = () => {
   const getViewMode = (scope: string) => prefs.viewMode[scope] ?? 'list';
   const getFilter = (scope: string) => prefs.filter[scope] ?? 'all';
 
+  // FAB: activeTab muss auf neue Indizes gemappt werden (Tab 0 = Übersicht hat keinen eigenen FAB-Slot)
+  const fabTabIndex = tab === 0 ? -1 : tab - 1; // 1=Playlists→0, 2=Tracks→1, 3=Streams→2, 4=Podcasts→3
+
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
 
   return (
@@ -281,6 +291,7 @@ export const MediaPage: React.FC = () => {
         allowScrollButtonsMobile
         sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
+        <Tab label={t('tabs.overview', { defaultValue: 'Übersicht' })} />
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />
         <Tab label={t('tabs.streams', { defaultValue: 'Streams' })} />
@@ -288,6 +299,17 @@ export const MediaPage: React.FC = () => {
       </Tabs>
 
       <TabPanel value={tab} index={0}>
+        <MediaOverviewTab
+          tracks={tracks}
+          folders={folders}
+          playlists={playlists}
+          streams={streams}
+          podcasts={podcasts}
+          onNavigateTab={(targetTab) => setTab(targetTab)}
+        />
+      </TabPanel>
+
+      <TabPanel value={tab} index={1}>
         <PlaylistList
           playlists={playlists}
           tracks={tracks}
@@ -304,7 +326,7 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      <TabPanel value={tab} index={1}>
+      <TabPanel value={tab} index={2}>
         <TrackList
           tracks={tracks}
           allTracks={tracks}
@@ -328,7 +350,7 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      <TabPanel value={tab} index={2}>
+      <TabPanel value={tab} index={3}>
         <StreamList
           streams={streams}
           onDelete={(stream) => void checkAndConfirmDelete({ type: 'stream', item: stream })}
@@ -341,11 +363,11 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      <TabPanel value={tab} index={3}>
+      <TabPanel value={tab} index={4}>
         <PodcastList
           podcasts={podcasts}
           onDelete={(podcast) => void checkAndConfirmDelete({ type: 'podcast', item: podcast })}
-          onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
+          onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? x : p)))}
           sortKey={getSort('podcasts').key}
           sortDir={getSort('podcasts').dir}
           onSortChange={(key, dir) => setSort('podcasts', key, dir)}
@@ -354,17 +376,19 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      {/* FAB Speed-Dial – kontextsensitiv je aktivem Tab */}
-      <MediaFab
-        activeTab={tab}
-        onCreatePlaylist={() => setPlaylistCreateOpen(true)}
-        onCreateFolder={() => createFolderRef.current?.()}
-        onUpload={() => setUploadOpen(true)}
-        onRemoteTrack={() => setRemoteTrackOpen(true)}
-        onImport={() => setImportOpen(true)}
-        onCreateStream={() => setStreamOpen(true)}
-        onCreatePodcast={() => setPodcastOpen(true)}
-      />
+      {/* FAB: Übersicht-Tab hat keinen FAB */}
+      {tab > 0 && (
+        <MediaFab
+          activeTab={fabTabIndex}
+          onCreatePlaylist={() => setPlaylistCreateOpen(true)}
+          onCreateFolder={() => createFolderRef.current?.()}
+          onUpload={() => setUploadOpen(true)}
+          onRemoteTrack={() => setRemoteTrackOpen(true)}
+          onImport={() => setImportOpen(true)}
+          onCreateStream={() => setStreamOpen(true)}
+          onCreatePodcast={() => setPodcastOpen(true)}
+        />
+      )}
 
       {/* Central delete dialog */}
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
