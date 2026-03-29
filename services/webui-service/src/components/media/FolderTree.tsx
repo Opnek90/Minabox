@@ -15,8 +15,11 @@ import {
   Menu,
   MenuItem,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import DeleteIcon from '@mui/icons-material/Delete';
+import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
@@ -63,6 +66,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [hovered, setHovered] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  const isTouch = useMediaQuery('(pointer: coarse)');
+  const showButton = isTouch || hovered;
 
   const handleDeleteClick = () => {
     setMenuAnchor(null);
@@ -124,15 +130,23 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           disableTypography
         />
 
-        {hovered && (
-          <IconButton
-            size="small"
-            onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
-            sx={{ p: 0.25, color: 'inherit', flexShrink: 0, ml: 0.25 }}
-          >
-            <MoreVertIcon sx={{ fontSize: ICON_SIZE }} />
-          </IconButton>
-        )}
+        <IconButton
+          size="small"
+          onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
+          sx={{
+            p: 0.25,
+            color: 'inherit',
+            flexShrink: 0,
+            ml: 0.25,
+            opacity: showButton ? 1 : 0,
+            transition: 'opacity 0.15s',
+            pointerEvents: showButton ? 'auto' : 'none',
+          }}
+          tabIndex={showButton ? 0 : -1}
+          aria-hidden={!showButton}
+        >
+          <MoreVertIcon sx={{ fontSize: ICON_SIZE }} />
+        </IconButton>
       </ListItemButton>
 
       <Menu
@@ -147,8 +161,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ paper: { sx: { minWidth: 160 } } }}
       >
-        <MenuItem dense onClick={() => { onRename(folder); setMenuAnchor(null); }}>Umbenennen</MenuItem>
-        <MenuItem dense onClick={handleDeleteClick} sx={{ color: 'error.main' }}>Löschen</MenuItem>
+        <MenuItem dense onClick={() => { onRename(folder); setMenuAnchor(null); }}>
+          <DriveFileRenameOutlineIcon fontSize="small" sx={{ mr: 1 }} />
+          {t('folders.rename')}
+        </MenuItem>
+        <MenuItem dense onClick={handleDeleteClick} sx={{ color: 'error.main' }}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+          {t('folders.delete')}
+        </MenuItem>
       </Menu>
 
       <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)} maxWidth="xs" fullWidth>

@@ -9,6 +9,14 @@
     "streams": "Streams",
     "podcasts": "Podcasts"
   },
+  "overview": {
+    "recently_played": "Zuletzt gespielt",
+    "track_count": "{{count}} Track",
+    "track_count_plural": "{{count}} Tracks"
+  },
+  "fab": {
+    "aria_label": "Medien-Aktionen"
+  },
   "media": {
     "delete_confirm_title": "Medium löschen?",
     "delete_confirm_text": "Soll dieses Medium wirklich gelöscht werden?",
@@ -50,6 +58,7 @@
     "no_playlists": "Noch keine Playlists vorhanden",
     "create": "Neue Playlist",
     "add_playlist": "Playlist hinzufügen",
+    "add_to_playlist": "Zu Playlist hinzufügen",
     "play": "Abspielen",
     "edit": "Playlist bearbeiten",
     "delete": "Playlist löschen",
@@ -71,7 +80,10 @@
     "edit_tracks": "Tracks bearbeiten",
     "edit_tracks_add": "Track zur Playlist hinzufügen",
     "edit_tracks_more": "… und {{count}} weitere",
-    "edit_tracks_no_match": "Keine Tracks gefunden."
+    "edit_tracks_no_match": "Keine Tracks gefunden.",
+    "track_added": "\"{{track}}\" zu \"{{playlist}}\" hinzugefügt",
+    "track_add_error": "Track konnte nicht hinzugefügt werden",
+    "save_error": "Playlist konnte nicht gespeichert werden"
   },
   "tracks": {
     "title": "Tracks",

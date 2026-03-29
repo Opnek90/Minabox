@@ -110,6 +110,10 @@ export const MediaPage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const handlePlaylistUpdated = (updated: Playlist) => {
+    setPlaylists((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
   const handleFolderCreate = async (name: string, parentId: number | null) => {
     try {
       const folder = await trackFoldersApi.create({ name, parent_id: parentId });
@@ -279,7 +283,7 @@ export const MediaPage: React.FC = () => {
         allowScrollButtonsMobile
         sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
-        <Tab label={t('tabs.overview', { defaultValue: 'Übersicht' })} />
+        <Tab label={t('tabs.overview', { defaultValue: '\u00dcbersicht' })} />
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />
         <Tab label={t('tabs.streams', { defaultValue: 'Streams' })} />
@@ -318,6 +322,7 @@ export const MediaPage: React.FC = () => {
           tracks={tracks}
           allTracks={tracks}
           folders={folders}
+          playlists={playlists}
           currentFolderId={currentFolderId}
           onNavigateFolder={setCurrentFolderId}
           onFolderCreate={handleFolderCreate}
@@ -334,6 +339,7 @@ export const MediaPage: React.FC = () => {
           filter={getFilter('tracks')}
           onFilterChange={(val) => setFilter('tracks', val)}
           onRegisterCreateFolder={(fn) => { createFolderRef.current = fn; }}
+          onPlaylistUpdated={handlePlaylistUpdated}
         />
       </TabPanel>
 

@@ -13,6 +13,8 @@ import {
   List,
   ListItem,
   ListItemText,
+  Menu,
+  MenuItem,
   Paper,
   Popover,
   TextField,
@@ -28,6 +30,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SearchIcon from '@mui/icons-material/Search';
 import StreamIcon from '@mui/icons-material/Stream';
@@ -43,8 +46,10 @@ type SortKey = 'title' | 'artist' | 'last_played_at';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-// 3 Buttons (Play + Edit + Delete) à ~32px + Gaps = ~112px
-const LIST_ITEM_PR = '112px';
+// Desktop: 3 Buttons (Play + Edit + Delete) à ~32px = ~104px
+const LIST_ITEM_PR_DESKTOP = '104px';
+// Mobile: single MoreVert button
+const LIST_ITEM_PR_MOBILE = '40px';
 
 interface StreamListProps {
   streams: Stream[];
@@ -76,6 +81,10 @@ export const StreamList: React.FC<StreamListProps> = ({
 
   const typedSortKey = sortKey as SortKey;
   const [streamToEdit, setStreamToEdit] = useState<Stream | null>(null);
+
+  // Mobile action menu
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [menuStream, setMenuStream] = useState<Stream | null>(null);
 
   const hasNonDefaultSort = typedSortKey !== DEFAULT_SORT_KEY || sortDir !== DEFAULT_SORT_DIR;
 
@@ -115,6 +124,17 @@ export const StreamList: React.FC<StreamListProps> = ({
   const handleSortDirToggle = () =>
     onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc');
 
+  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, stream: Stream) => {
+    e.stopPropagation();
+    setMenuAnchor(e.currentTarget);
+    setMenuStream(stream);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setMenuStream(null);
+  };
+
   const sortControls = (
     <Box display="flex" alignItems="center" gap={0.5}>
       <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey} size="small">
@@ -128,6 +148,32 @@ export const StreamList: React.FC<StreamListProps> = ({
         </IconButton>
       </Tooltip>
     </Box>
+  );
+
+  const desktopActions = (stream: Stream) => (
+    <>
+      <Tooltip title={t('tracks.play')}>
+        <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}>
+          <PlayArrowIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={t('streams.edit')}>
+        <IconButton size="small" onClick={() => setStreamToEdit(stream)}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={t('tracks.delete')}>
+        <IconButton size="small" color="error" onClick={() => onDelete(stream)}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </>
+  );
+
+  const mobileMenuButton = (stream: Stream) => (
+    <IconButton size="small" onClick={(e) => handleMenuOpen(e, stream)}>
+      <MoreVertIcon fontSize="small" />
+    </IconButton>
   );
 
   if (streams.length === 0) {
@@ -200,7 +246,7 @@ export const StreamList: React.FC<StreamListProps> = ({
         </Box>
       )}
 
-      {/* Mobile Popover */}
+      {/* Mobile Sort Popover */}
       <Popover
         open={popoverOpen && !isDesktop}
         anchorEl={filterBtnRef.current}
@@ -258,15 +304,7 @@ export const StreamList: React.FC<StreamListProps> = ({
                   )}
                 </CardContent>
                 <CardActions sx={{ pt: 0 }}>
-                  <Tooltip title={t('tracks.play')}>
-                    <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}><PlayArrowIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('streams.edit')}>
-                    <IconButton size="small" onClick={() => setStreamToEdit(stream)}><EditIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('tracks.delete')}>
-                    <IconButton size="small" color="error" onClick={() => onDelete(stream)}><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
+                  {isDesktop ? desktopActions(stream) : mobileMenuButton(stream)}
                 </CardActions>
               </Card>
             </Grid>
@@ -280,18 +318,10 @@ export const StreamList: React.FC<StreamListProps> = ({
               <ListItem
                 secondaryAction={
                   <Box display="flex" alignItems="center">
-                    <Tooltip title={t('tracks.play')}>
-                      <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}><PlayArrowIcon fontSize="small" /></IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('streams.edit')}>
-                      <IconButton size="small" onClick={() => setStreamToEdit(stream)}><EditIcon fontSize="small" /></IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('tracks.delete')}>
-                      <IconButton size="small" color="error" onClick={() => onDelete(stream)}><DeleteIcon fontSize="small" /></IconButton>
-                    </Tooltip>
+                    {isDesktop ? desktopActions(stream) : mobileMenuButton(stream)}
                   </Box>
                 }
-                sx={{ pr: LIST_ITEM_PR }}
+                sx={{ pr: isDesktop ? LIST_ITEM_PR_DESKTOP : LIST_ITEM_PR_MOBILE }}
               >
                 {stream.cover_art_url ? (
                   <Box component="img" src={stream.cover_art_url} alt=""
@@ -320,6 +350,29 @@ export const StreamList: React.FC<StreamListProps> = ({
           ))}
         </List>
       )}
+
+      {/* Mobile action Menu */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor) && menuStream !== null}
+        onClose={handleMenuClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        <MenuItem onClick={() => { if (menuStream) audioApi.play({ stream_id: menuStream.id }); handleMenuClose(); }}>
+          <PlayArrowIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} />
+          {t('tracks.play')}
+        </MenuItem>
+        <MenuItem onClick={() => { if (menuStream) setStreamToEdit(menuStream); handleMenuClose(); }}>
+          <EditIcon fontSize="small" sx={{ mr: 1.5 }} />
+          {t('streams.edit')}
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => { if (menuStream) onDelete(menuStream); handleMenuClose(); }} sx={{ color: 'error.main' }}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1.5 }} />
+          {t('tracks.delete')}
+        </MenuItem>
+      </Menu>
 
       <StreamEditDialog
         open={!!streamToEdit}
