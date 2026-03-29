@@ -15,10 +15,11 @@ import {
   Menu,
   MenuItem,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import FolderIcon from '@mui/icons-material/Folder';
+import FolderIcon from '@mui/icons-line/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import LibraryMusicIcon from '@mui/icons-material/LibraryMusic';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -63,6 +64,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [hovered, setHovered] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  // Touch devices have no hover – always show the button
+  const isTouch = useMediaQuery('(pointer: coarse)');
+  const showButton = isTouch || hovered;
 
   const handleDeleteClick = () => {
     setMenuAnchor(null);
@@ -124,15 +129,24 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           disableTypography
         />
 
-        {hovered && (
-          <IconButton
-            size="small"
-            onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
-            sx={{ p: 0.25, color: 'inherit', flexShrink: 0, ml: 0.25 }}
-          >
-            <MoreVertIcon sx={{ fontSize: ICON_SIZE }} />
-          </IconButton>
-        )}
+        {/* Always rendered to prevent layout shift; invisible on desktop until hover */}
+        <IconButton
+          size="small"
+          onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
+          sx={{
+            p: 0.25,
+            color: 'inherit',
+            flexShrink: 0,
+            ml: 0.25,
+            opacity: showButton ? 1 : 0,
+            transition: 'opacity 0.15s',
+            pointerEvents: showButton ? 'auto' : 'none',
+          }}
+          tabIndex={showButton ? 0 : -1}
+          aria-hidden={!showButton}
+        >
+          <MoreVertIcon sx={{ fontSize: ICON_SIZE }} />
+        </IconButton>
       </ListItemButton>
 
       <Menu
