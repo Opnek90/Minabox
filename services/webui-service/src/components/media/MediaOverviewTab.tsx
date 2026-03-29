@@ -71,7 +71,6 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
-      {/* Stats – 4 Kacheln: Tracks, Playlists, Streams, Podcasts */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={6} sm={3}>
           <StatCard icon={<AudiotrackIcon />} label={t('tabs.tracks')} value={tracks.length} color="primary" onClick={() => onNavigateTab(2)} />
@@ -80,7 +79,7 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
           <StatCard icon={<PlaylistPlayIcon />} label={t('tabs.playlists')} value={playlists.length} color="secondary" onClick={() => onNavigateTab(1)} />
         </Grid>
         <Grid item xs={6} sm={3}>
-          <StatCard icon={<StreamIcon />} label={t('tabs.streams', { defaultValue: 'Streams' })} value={streams.length} color="info" onClick={() => onNavigateTab(3)} />
+          <StatCard icon={<StreamIcon />} label={t('tabs.streams')} value={streams.length} color="info" onClick={() => onNavigateTab(3)} />
         </Grid>
         <Grid item xs={6} sm={3}>
           <StatCard icon={<PodcastsIcon />} label={t('tabs.podcasts')} value={podcasts.length} color="success" onClick={() => onNavigateTab(4)} />
@@ -88,12 +87,11 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
       </Grid>
 
       <Grid container spacing={3}>
-        {/* Zuletzt gespielt */}
         {recentTracks.length > 0 && (
           <Grid item xs={12} md={6}>
             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
               <AccessTimeIcon fontSize="small" color="action" />
-              Zuletzt gespielt
+              {t('overview.recently_played')}
             </Typography>
             <Card variant="outlined" sx={{ borderRadius: 2 }}>
               <List dense disablePadding>
@@ -129,12 +127,11 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
           </Grid>
         )}
 
-        {/* Playlists-Schnellzugriff */}
         {recentPlaylists.length > 0 && (
           <Grid item xs={12} md={6}>
             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
               <PlaylistPlayIcon fontSize="small" color="action" />
-              Playlists
+              {t('tabs.playlists')}
             </Typography>
             <Grid container spacing={1}>
               {recentPlaylists.map((pl) => (
@@ -155,7 +152,7 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
                       <Box sx={{ minWidth: 0 }}>
                         <Typography variant="body2" fontWeight={600} noWrap>{pl.name}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {pl.tracks?.length ?? 0} Tracks
+                          {t('overview.track_count', { count: pl.tracks?.length ?? 0 })}
                         </Typography>
                       </Box>
                     </CardContent>
@@ -166,12 +163,11 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
           </Grid>
         )}
 
-        {/* Podcasts Mini-Widget */}
         {podcasts.length > 0 && (
           <Grid item xs={12}>
             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
               <PodcastsIcon fontSize="small" color="action" />
-              Podcasts
+              {t('tabs.podcasts')}
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {podcasts.slice(0, 6).map((p) => (

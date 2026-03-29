@@ -48,9 +48,9 @@ export const MediaFab: React.FC<MediaFabProps> = ({
       { icon: <PlaylistAddIcon fontSize="small" />, name: t('playlists.add_playlist'), onClick: onCreatePlaylist },
     ],
     1: [
-      { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new', { defaultValue: 'New Folder' }), onClick: onCreateFolder },
-      { icon: <LinkIcon fontSize="small" />, name: t('tracks.add_remote', { defaultValue: 'Remote Track' }), onClick: onRemoteTrack },
-      { icon: <DownloadIcon fontSize="small" />, name: t('tracks.import_from_url', { defaultValue: 'Import from URL' }), onClick: onImport },
+      { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new'), onClick: onCreateFolder },
+      { icon: <LinkIcon fontSize="small" />, name: t('tracks.add_remote'), onClick: onRemoteTrack },
+      { icon: <DownloadIcon fontSize="small" />, name: t('tracks.import_from_url'), onClick: onImport },
       { icon: <CloudUploadIcon fontSize="small" />, name: t('tracks.upload'), onClick: onUpload },
     ],
     2: [
@@ -70,14 +70,12 @@ export const MediaFab: React.FC<MediaFabProps> = ({
 
   return (
     <>
-      {/* Backdrop closes the menu on outside click */}
       <Backdrop open={open} onClick={() => setOpen(false)} sx={{ zIndex: 1199 }} invisible />
 
-      {/* Action list – renders above the FAB */}
       <Box
         sx={{
           position: 'fixed',
-          bottom: 88,   // FAB height (56) + gap (8) + bottom offset (24)
+          bottom: 88,
           right: 24,
           zIndex: 1200,
           display: 'flex',
@@ -138,10 +136,9 @@ export const MediaFab: React.FC<MediaFabProps> = ({
         ))}
       </Box>
 
-      {/* Main FAB */}
       <Fab
         color="primary"
-        aria-label="Media actions"
+        aria-label={t('fab.aria_label')}
         onClick={() => setOpen((prev) => !prev)}
         sx={{
           position: 'fixed',
