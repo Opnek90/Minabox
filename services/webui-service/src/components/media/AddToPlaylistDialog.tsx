@@ -34,9 +34,7 @@ interface AddToPlaylistDialogProps {
   track: Track | Stream | null;
   playlists: Playlist[];
   onClose: () => void;
-  /** Called with the updated playlist after a track was added to an existing playlist */
   onAdded?: (playlist: Playlist) => void;
-  /** Called with the newly created playlist (before track was appended) */
   onCreated?: (playlist: Playlist) => void;
 }
 
@@ -54,7 +52,6 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
   const [view, setView] = useState<View>('list');
   const [loadingId, setLoadingId] = useState<number | null>(null);
 
-  // Create-form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -77,19 +74,11 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
     setLoadingId(playlist.id);
     try {
       const updated = await playlistsApi.appendTrack(playlist.id, track.id);
-      showSuccess(
-        t('playlists.track_added', {
-          defaultValue: '"{{track}}" zu "{{playlist}}" hinzugef\u00fcgt',
-          track: track.title,
-          playlist: playlist.name,
-        })
-      );
+      showSuccess(t('playlists.track_added', { track: track.title, playlist: playlist.name }));
       onAdded?.(updated);
       handleClose();
     } catch {
-      showError(
-        t('playlists.track_add_error', { defaultValue: 'Track konnte nicht hinzugef\u00fcgt werden' })
-      );
+      showError(t('playlists.track_add_error'));
     } finally {
       setLoadingId(null);
     }
@@ -99,31 +88,20 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
     if (!name.trim() || !track) return;
     setSaving(true);
     try {
-      // 1. Create playlist
       let created = await playlistsApi.create({
         name: name.trim(),
         description: description.trim() || null,
       });
-      // 2. Upload cover if chosen
       if (coverFile) {
         created = await playlistsApi.uploadCover(created.id, coverFile);
       }
       onCreated?.(created);
-      // 3. Append track
       const updated = await playlistsApi.appendTrack(created.id, track.id);
-      showSuccess(
-        t('playlists.track_added', {
-          defaultValue: '"{{track}}" zu "{{playlist}}" hinzugef\u00fcgt',
-          track: track.title,
-          playlist: created.name,
-        })
-      );
+      showSuccess(t('playlists.track_added', { track: track.title, playlist: created.name }));
       onAdded?.(updated);
       handleClose();
     } catch {
-      showError(
-        t('playlists.save_error', { defaultValue: 'Playlist konnte nicht gespeichert werden' })
-      );
+      showError(t('playlists.save_error'));
     } finally {
       setSaving(false);
     }
@@ -133,22 +111,20 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      {/* ── Header ── */}
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 600, fontSize: '1rem', pb: 0.5 }}>
         {view === 'create' && (
-          <Tooltip title={t('back', { ns: 'common', defaultValue: 'Zur\u00fcck' })}>
+          <Tooltip title={t('back', { ns: 'common' })}>
             <IconButton size="small" onClick={() => { setView('list'); resetCreateForm(); }} sx={{ mr: 0.5 }}>
               <ArrowBackIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         )}
         {view === 'list'
-          ? t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzuf\u00fcgen' })
-          : t('playlists.create', { defaultValue: 'Neue Playlist' })
+          ? t('playlists.add_to_playlist')
+          : t('playlists.create')
         }
       </DialogTitle>
 
-      {/* ── List view ── */}
       {view === 'list' && (
         <DialogContent sx={{ pt: '8px !important', px: 1 }}>
           <Typography variant="caption" color="text.secondary" sx={{ px: 1, display: 'block', mb: 0.5 }}>
@@ -186,7 +162,6 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
               </ListItemButton>
             ))}
 
-            {/* Neue Playlist anlegen */}
             <Divider sx={{ my: 0.5 }} />
             <ListItemButton
               onClick={() => setView('create')}
@@ -201,7 +176,7 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
               <ListItemText
                 primary={
                   <Typography variant="body2" fontWeight={600} color="primary">
-                    {t('playlists.create', { defaultValue: 'Neue Playlist' })}
+                    {t('playlists.create')}
                   </Typography>
                 }
               />
@@ -210,7 +185,6 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
         </DialogContent>
       )}
 
-      {/* ── Create view ── */}
       {view === 'create' && (
         <>
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
@@ -221,8 +195,8 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
               onRemove={() => setCoverFile(null)}
             />
             <TextField
-              label={t('playlists.fields.name', { defaultValue: 'Name' })}
-              placeholder={t('playlists.fields.name_placeholder', { defaultValue: 'Playlist-Name' })}
+              label={t('playlists.fields.name')}
+              placeholder={t('playlists.fields.name_placeholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               fullWidth
@@ -231,8 +205,8 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
               autoFocus
             />
             <TextField
-              label={t('playlists.fields.description', { defaultValue: 'Beschreibung' })}
-              placeholder={t('playlists.fields.description_placeholder', { defaultValue: 'Optional\u2026' })}
+              label={t('playlists.fields.description')}
+              placeholder={t('playlists.fields.description_placeholder')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               fullWidth
@@ -243,14 +217,14 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
           </DialogContent>
           <DialogActions>
             <ActionButton actionType="secondary" onClick={() => { setView('list'); resetCreateForm(); }}>
-              {t('cancel', { ns: 'common', defaultValue: 'Abbrechen' })}
+              {t('cancel', { ns: 'common' })}
             </ActionButton>
             <ActionButton
               actionType="primary"
               onClick={handleCreate}
               disabled={!name.trim() || saving}
             >
-              {saving ? <CircularProgress size={16} /> : t('save', { ns: 'common', defaultValue: 'Speichern' })}
+              {saving ? <CircularProgress size={16} /> : t('save', { ns: 'common' })}
             </ActionButton>
           </DialogActions>
         </>

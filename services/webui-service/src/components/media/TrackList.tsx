@@ -131,11 +131,9 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [renameFolder, setRenameFolder] = useState<TrackFolder | null>(null);
   const [moveTrack, setMoveTrack] = useState<Track | null>(null);
 
-  // Mobile track-action menu
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
 
-  // Add-to-playlist dialog
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
 
   const [mobileView, setMobileView] = useState<'tree' | 'tracks'>(
@@ -233,7 +231,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       slotProps={{ paper: { sx: { minWidth: 220, borderRadius: 2, p: 1 } } }}
     >
       <Box sx={{ fontWeight: 600, px: 1, pb: 0.5, fontSize: '0.85rem', color: 'text.secondary' }}>
-        {t('folders.move_to', { defaultValue: 'Move to folder' })}
+        {t('folders.move_to')}
       </Box>
       <Divider sx={{ mb: 0.5 }} />
       {currentFolderId !== null && (
@@ -242,7 +240,7 @@ export const TrackList: React.FC<TrackListProps> = ({
           onClick={() => { void onMoveTrackToFolder(moveTrack, null); setMoveTrack(null); }}
           sx={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', px: 2, py: 0.75, borderRadius: 1, fontSize: '0.875rem', '&:hover': { bgcolor: 'action.hover' } }}
         >
-          📁 {t('folders.root', { defaultValue: 'Library (root)' })}
+          📁 {t('folders.root')}
         </Box>
       )}
       {folders.map((f) => f.id !== currentFolderId && (
@@ -289,7 +287,6 @@ export const TrackList: React.FC<TrackListProps> = ({
       secondaryAction={
         !selectionMode && (
           <Box display="flex" alignItems="center">
-            {/* Desktop: show all action buttons inline */}
             {isDesktop && (
               <>
                 <Tooltip title={t('tracks.play')}>
@@ -298,7 +295,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                   </IconButton>
                 </Tooltip>
                 {playlists.length > 0 && (
-                  <Tooltip title={t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}>
+                  <Tooltip title={t('playlists.add_to_playlist')}>
                     <IconButton size="small" onClick={() => setAddToPlaylistTrack(track)}>
                       <PlaylistAddIcon fontSize="small" />
                     </IconButton>
@@ -312,7 +309,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                   </Tooltip>
                 )}
                 {folders.length > 0 && (
-                  <Tooltip title={t('folders.move_to', { defaultValue: 'Move to folder' })}>
+                  <Tooltip title={t('folders.move_to')}>
                     <IconButton size="small" onClick={() => setMoveTrack(track)}>
                       <DriveFileMoveIcon fontSize="small" />
                     </IconButton>
@@ -325,7 +322,6 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </Tooltip>
               </>
             )}
-            {/* Mobile: single MoreVert button */}
             {!isDesktop && (
               <IconButton size="small" onClick={(e) => handleMenuOpen(e, track)}>
                 <MoreVertIcon fontSize="small" />
@@ -399,7 +395,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </IconButton>
               </Tooltip>
               {playlists.length > 0 && (
-                <Tooltip title={t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}>
+                <Tooltip title={t('playlists.add_to_playlist')}>
                   <IconButton size="small" onClick={() => setAddToPlaylistTrack(track)}>
                     <PlaylistAddIcon fontSize="small" />
                   </IconButton>
@@ -413,7 +409,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </Tooltip>
               )}
               {folders.length > 0 && (
-                <Tooltip title={t('folders.move_to', { defaultValue: 'Move to folder' })}>
+                <Tooltip title={t('folders.move_to')}>
                   <IconButton size="small" onClick={() => setMoveTrack(track)}>
                     <DriveFileMoveIcon fontSize="small" />
                   </IconButton>
@@ -431,7 +427,6 @@ export const TrackList: React.FC<TrackListProps> = ({
     </Box>
   );
 
-  // Mobile action menu (rendered once, outside the list)
   const mobileActionsMenu = (
     <Menu
       anchorEl={menuAnchor}
@@ -447,7 +442,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       {playlists.length > 0 && (
         <MenuItem onClick={() => { if (menuTrack) setAddToPlaylistTrack(menuTrack); handleMenuClose(); }}>
           <PlaylistAddIcon fontSize="small" sx={{ mr: 1.5 }} />
-          {t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}
+          {t('playlists.add_to_playlist')}
         </MenuItem>
       )}
       {onEdit && (
@@ -459,7 +454,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       {folders.length > 0 && (
         <MenuItem onClick={() => { if (menuTrack) setMoveTrack(menuTrack); handleMenuClose(); }}>
           <DriveFileMoveIcon fontSize="small" sx={{ mr: 1.5 }} />
-          {t('folders.move_to', { defaultValue: 'Move to folder' })}
+          {t('folders.move_to')}
         </MenuItem>
       )}
       <Divider />
@@ -475,7 +470,6 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   const trackPanel = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      {/* Mobile back-button */}
       {!isDesktop && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <IconButton size="small" onClick={() => setMobileView('tree')}>
@@ -483,13 +477,12 @@ export const TrackList: React.FC<TrackListProps> = ({
           </IconButton>
           <Typography variant="body2" fontWeight={600} noWrap>
             {currentFolderId === null
-              ? t('folders.root', { defaultValue: 'Alle Tracks' })
+              ? t('folders.root')
               : folders.find((f) => f.id === currentFolderId)?.name ?? ''}
           </Typography>
         </Box>
       )}
 
-      {/* Toolbar */}
       <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap" flexShrink={0}>
         <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
