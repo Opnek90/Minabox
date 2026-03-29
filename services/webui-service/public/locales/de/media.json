@@ -9,6 +9,14 @@
     "streams": "Streams",
     "podcasts": "Podcasts"
   },
+  "overview": {
+    "recently_played": "Zuletzt gespielt",
+    "track_count": "{{count}} Track",
+    "track_count_plural": "{{count}} Tracks"
+  },
+  "fab": {
+    "aria_label": "Medien-Aktionen"
+  },
   "media": {
     "delete_confirm_title": "Medium löschen?",
     "delete_confirm_text": "Soll dieses Medium wirklich gelöscht werden?",
