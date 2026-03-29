@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import FolderIcon from '@mui/icons-line/Folder';
+import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import LibraryMusicIcon from '@mui/icons-material/LibraryMusic';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
