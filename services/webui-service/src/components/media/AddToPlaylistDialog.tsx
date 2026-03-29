@@ -4,28 +4,40 @@ import {
   Box,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  IconButton,
   List,
   ListItemButton,
   ListItemAvatar,
   ListItemText,
+  TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import { useTranslation } from 'react-i18next';
 import { playlistsApi } from '@/api/playlists';
 import { useToast } from '@/contexts/ToastContext';
+import { ActionButton } from '@/components/ui/ActionButton';
+import { CoverUploadField } from '@/components/media/CoverUploadField';
 import type { Playlist, Track, Stream } from '@/types/api';
+
+type View = 'list' | 'create';
 
 interface AddToPlaylistDialogProps {
   open: boolean;
   track: Track | Stream | null;
   playlists: Playlist[];
   onClose: () => void;
-  /** Called with the updated playlist after a successful add */
+  /** Called with the updated playlist after a track was added to an existing playlist */
   onAdded?: (playlist: Playlist) => void;
+  /** Called with the newly created playlist (before track was appended) */
+  onCreated?: (playlist: Playlist) => void;
 }
 
 export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
@@ -34,10 +46,31 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
   playlists,
   onClose,
   onAdded,
+  onCreated,
 }) => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
+
+  const [view, setView] = useState<View>('list');
   const [loadingId, setLoadingId] = useState<number | null>(null);
+
+  // Create-form state
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const resetCreateForm = () => {
+    setName('');
+    setDescription('');
+    setCoverFile(null);
+  };
+
+  const handleClose = () => {
+    setView('list');
+    resetCreateForm();
+    onClose();
+  };
 
   const handleAdd = async (playlist: Playlist) => {
     if (!track) return;
@@ -52,7 +85,7 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
         })
       );
       onAdded?.(updated);
-      onClose();
+      handleClose();
     } catch {
       showError(
         t('playlists.track_add_error', { defaultValue: 'Track konnte nicht hinzugef\u00fcgt werden' })
@@ -62,23 +95,67 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
     }
   };
 
+  const handleCreate = async () => {
+    if (!name.trim() || !track) return;
+    setSaving(true);
+    try {
+      // 1. Create playlist
+      let created = await playlistsApi.create({
+        name: name.trim(),
+        description: description.trim() || null,
+      });
+      // 2. Upload cover if chosen
+      if (coverFile) {
+        created = await playlistsApi.uploadCover(created.id, coverFile);
+      }
+      onCreated?.(created);
+      // 3. Append track
+      const updated = await playlistsApi.appendTrack(created.id, track.id);
+      showSuccess(
+        t('playlists.track_added', {
+          defaultValue: '"{{track}}" zu "{{playlist}}" hinzugef\u00fcgt',
+          track: track.title,
+          playlist: created.name,
+        })
+      );
+      onAdded?.(updated);
+      handleClose();
+    } catch {
+      showError(
+        t('playlists.save_error', { defaultValue: 'Playlist konnte nicht gespeichert werden' })
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (!track) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem', pb: 0.5 }}>
-        {t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzuf\u00fcgen' })}
+    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
+      {/* ── Header ── */}
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 600, fontSize: '1rem', pb: 0.5 }}>
+        {view === 'create' && (
+          <Tooltip title={t('back', { ns: 'common', defaultValue: 'Zur\u00fcck' })}>
+            <IconButton size="small" onClick={() => { setView('list'); resetCreateForm(); }} sx={{ mr: 0.5 }}>
+              <ArrowBackIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+        {view === 'list'
+          ? t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzuf\u00fcgen' })
+          : t('playlists.create', { defaultValue: 'Neue Playlist' })
+        }
       </DialogTitle>
-      <DialogContent sx={{ pt: '8px !important', px: 1 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ px: 1, display: 'block', mb: 0.5 }}>
-          {track.title}
-        </Typography>
-        <Divider sx={{ mb: 0.5 }} />
-        {playlists.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-            {t('playlists.no_playlists', { defaultValue: 'Keine Playlists vorhanden' })}
+
+      {/* ── List view ── */}
+      {view === 'list' && (
+        <DialogContent sx={{ pt: '8px !important', px: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ px: 1, display: 'block', mb: 0.5 }}>
+            {track.title}
           </Typography>
-        ) : (
+          <Divider sx={{ mb: 0.5 }} />
+
           <List dense disablePadding>
             {playlists.map((pl) => (
               <ListItemButton
@@ -108,9 +185,76 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
                 )}
               </ListItemButton>
             ))}
+
+            {/* Neue Playlist anlegen */}
+            <Divider sx={{ my: 0.5 }} />
+            <ListItemButton
+              onClick={() => setView('create')}
+              disabled={loadingId !== null}
+              sx={{ borderRadius: 1, color: 'primary.main' }}
+            >
+              <ListItemAvatar sx={{ minWidth: 40 }}>
+                <Avatar variant="rounded" sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                  <AddIcon sx={{ fontSize: 16 }} />
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText
+                primary={
+                  <Typography variant="body2" fontWeight={600} color="primary">
+                    {t('playlists.create', { defaultValue: 'Neue Playlist' })}
+                  </Typography>
+                }
+              />
+            </ListItemButton>
           </List>
-        )}
-      </DialogContent>
+        </DialogContent>
+      )}
+
+      {/* ── Create view ── */}
+      {view === 'create' && (
+        <>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
+            <CoverUploadField
+              displayUrl={coverFile ? URL.createObjectURL(coverFile) : null}
+              coverFile={coverFile}
+              onFileSelect={(file) => setCoverFile(file)}
+              onRemove={() => setCoverFile(null)}
+            />
+            <TextField
+              label={t('playlists.fields.name', { defaultValue: 'Name' })}
+              placeholder={t('playlists.fields.name_placeholder', { defaultValue: 'Playlist-Name' })}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              fullWidth
+              size="small"
+              required
+              autoFocus
+            />
+            <TextField
+              label={t('playlists.fields.description', { defaultValue: 'Beschreibung' })}
+              placeholder={t('playlists.fields.description_placeholder', { defaultValue: 'Optional\u2026' })}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+            />
+          </DialogContent>
+          <DialogActions>
+            <ActionButton actionType="secondary" onClick={() => { setView('list'); resetCreateForm(); }}>
+              {t('cancel', { ns: 'common', defaultValue: 'Abbrechen' })}
+            </ActionButton>
+            <ActionButton
+              actionType="primary"
+              onClick={handleCreate}
+              disabled={!name.trim() || saving}
+            >
+              {saving ? <CircularProgress size={16} /> : t('save', { ns: 'common', defaultValue: 'Speichern' })}
+            </ActionButton>
+          </DialogActions>
+        </>
+      )}
     </Dialog>
   );
 };
