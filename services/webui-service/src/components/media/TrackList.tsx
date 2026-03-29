@@ -37,14 +37,16 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import LinkIcon from '@mui/icons-material/Link';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import SearchIcon from '@mui/icons-material/Search';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { audioApi } from '@/api/audio';
-import type { Track, TrackFolder } from '@/types/api';
+import type { Playlist, Track, TrackFolder } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
+import { AddToPlaylistDialog } from './AddToPlaylistDialog';
 import { FolderCreateDialog } from './FolderCreateDialog';
 import { FolderTree } from './FolderTree';
 
@@ -61,6 +63,7 @@ interface TrackListProps {
   tracks: Track[];
   allTracks: Track[];
   folders: TrackFolder[];
+  playlists: Playlist[];
   currentFolderId: number | null;
   onNavigateFolder: (folderId: number | null) => void;
   onFolderCreate: (name: string, parentId: number | null) => Promise<void>;
@@ -79,6 +82,7 @@ interface TrackListProps {
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
   onRegisterCreateFolder?: (fn: () => void) => void;
+  onPlaylistUpdated?: (playlist: Playlist) => void;
 }
 
 const gridComponents = {
@@ -95,6 +99,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   tracks,
   allTracks,
   folders,
+  playlists,
   currentFolderId,
   onNavigateFolder,
   onFolderCreate,
@@ -113,6 +118,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   selectionMode = false,
   onSelect,
   onRegisterCreateFolder,
+  onPlaylistUpdated,
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
@@ -125,9 +131,12 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [renameFolder, setRenameFolder] = useState<TrackFolder | null>(null);
   const [moveTrack, setMoveTrack] = useState<Track | null>(null);
 
-  // Mobile track-action menu state
+  // Mobile track-action menu
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
+
+  // Add-to-playlist dialog
+  const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
 
   const [mobileView, setMobileView] = useState<'tree' | 'tracks'>(
     currentFolderId === null ? 'tree' : 'tracks'
@@ -288,6 +297,13 @@ export const TrackList: React.FC<TrackListProps> = ({
                     <PlayArrowIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
+                {playlists.length > 0 && (
+                  <Tooltip title={t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}>
+                    <IconButton size="small" onClick={() => setAddToPlaylistTrack(track)}>
+                      <PlaylistAddIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
                 {onEdit && (
                   <Tooltip title={t('tracks.edit')}>
                     <IconButton size="small" onClick={() => onEdit(track)}>
@@ -319,7 +335,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         )
       }
       sx={{
-        pr: selectionMode ? undefined : isDesktop ? '148px' : '40px',
+        pr: selectionMode ? undefined : isDesktop ? '180px' : '40px',
         ...(selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
       }}
       onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
@@ -382,6 +398,13 @@ export const TrackList: React.FC<TrackListProps> = ({
                   <PlayArrowIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
+              {playlists.length > 0 && (
+                <Tooltip title={t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}>
+                  <IconButton size="small" onClick={() => setAddToPlaylistTrack(track)}>
+                    <PlaylistAddIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
               {onEdit && (
                 <Tooltip title={t('tracks.edit')}>
                   <IconButton size="small" onClick={() => onEdit(track)}>
@@ -421,6 +444,12 @@ export const TrackList: React.FC<TrackListProps> = ({
         <PlayArrowIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} />
         {t('tracks.play')}
       </MenuItem>
+      {playlists.length > 0 && (
+        <MenuItem onClick={() => { if (menuTrack) setAddToPlaylistTrack(menuTrack); handleMenuClose(); }}>
+          <PlaylistAddIcon fontSize="small" sx={{ mr: 1.5 }} />
+          {t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}
+        </MenuItem>
+      )}
       {onEdit && (
         <MenuItem onClick={() => { if (menuTrack) onEdit(menuTrack); handleMenuClose(); }}>
           <EditIcon fontSize="small" sx={{ mr: 1.5 }} />
@@ -642,6 +671,14 @@ export const TrackList: React.FC<TrackListProps> = ({
 
       {MoveMenu}
       {mobileActionsMenu}
+
+      <AddToPlaylistDialog
+        open={!!addToPlaylistTrack}
+        track={addToPlaylistTrack}
+        playlists={playlists}
+        onClose={() => setAddToPlaylistTrack(null)}
+        onAdded={(pl) => onPlaylistUpdated?.(pl)}
+      />
     </Box>
   );
 };

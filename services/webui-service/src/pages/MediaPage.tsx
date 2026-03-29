@@ -110,6 +110,10 @@ export const MediaPage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const handlePlaylistUpdated = (updated: Playlist) => {
+    setPlaylists((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
   const handleFolderCreate = async (name: string, parentId: number | null) => {
     try {
       const folder = await trackFoldersApi.create({ name, parent_id: parentId });
@@ -318,6 +322,7 @@ export const MediaPage: React.FC = () => {
           tracks={tracks}
           allTracks={tracks}
           folders={folders}
+          playlists={playlists}
           currentFolderId={currentFolderId}
           onNavigateFolder={setCurrentFolderId}
           onFolderCreate={handleFolderCreate}
@@ -334,12 +339,14 @@ export const MediaPage: React.FC = () => {
           filter={getFilter('tracks')}
           onFilterChange={(val) => setFilter('tracks', val)}
           onRegisterCreateFolder={(fn) => { createFolderRef.current = fn; }}
+          onPlaylistUpdated={handlePlaylistUpdated}
         />
       </TabPanel>
 
       <TabPanel value={tab} index={3}>
         <StreamList
           streams={streams}
+          playlists={playlists}
           onDelete={(stream) => void checkAndConfirmDelete({ type: 'stream', item: stream })}
           onUpdate={(s) => setStreams((prev) => prev.map((x) => (x.id === s.id ? s : x)))}
           sortKey={getSort('streams').key}
@@ -347,6 +354,7 @@ export const MediaPage: React.FC = () => {
           onSortChange={(key, dir) => setSort('streams', key, dir)}
           viewMode={getViewMode('streams') as 'card' | 'list'}
           onViewModeChange={(mode) => setViewMode('streams', mode)}
+          onPlaylistUpdated={handlePlaylistUpdated}
         />
       </TabPanel>
 
