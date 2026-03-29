@@ -50,6 +50,7 @@
     "no_playlists": "No playlists yet",
     "create": "New Playlist",
     "add_playlist": "Add Playlist",
+    "add_to_playlist": "Add to playlist",
     "play": "Play",
     "edit": "Edit Playlist",
     "delete": "Delete Playlist",
@@ -71,7 +72,10 @@
     "edit_tracks": "Edit Tracks",
     "edit_tracks_add": "Add track to playlist",
     "edit_tracks_more": "… and {{count}} more",
-    "edit_tracks_no_match": "No tracks found."
+    "edit_tracks_no_match": "No tracks found.",
+    "track_added": "\"{{track}}\" added to \"{{playlist}}\"",
+    "track_add_error": "Could not add track to playlist",
+    "save_error": "Could not save playlist"
   },
   "tracks": {
     "title": "Tracks",
