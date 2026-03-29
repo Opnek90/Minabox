@@ -43,10 +43,10 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
     if (!track) return;
     setLoadingId(playlist.id);
     try {
-      const updated = await playlistsApi.addTrack(playlist.id, { track_id: track.id });
+      const updated = await playlistsApi.appendTrack(playlist.id, track.id);
       showSuccess(
         t('playlists.track_added', {
-          defaultValue: '{{track}} zu "{{playlist}}" hinzugefügt',
+          defaultValue: '"{{track}}" zu "{{playlist}}" hinzugef\u00fcgt',
           track: track.title,
           playlist: playlist.name,
         })
@@ -55,7 +55,7 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
       onClose();
     } catch {
       showError(
-        t('playlists.track_add_error', { defaultValue: 'Track konnte nicht hinzugefügt werden' })
+        t('playlists.track_add_error', { defaultValue: 'Track konnte nicht hinzugef\u00fcgt werden' })
       );
     } finally {
       setLoadingId(null);
@@ -67,7 +67,7 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem', pb: 0.5 }}>
-        {t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}
+        {t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzuf\u00fcgen' })}
       </DialogTitle>
       <DialogContent sx={{ pt: '8px !important', px: 1 }}>
         <Typography variant="caption" color="text.secondary" sx={{ px: 1, display: 'block', mb: 0.5 }}>
@@ -98,11 +98,8 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
                 </ListItemAvatar>
                 <ListItemText
                   primary={
-                    <Typography variant="body2" noWrap fontWeight={500}>{pl.name}</Typography>
-                  }
-                  secondary={
-                    <Typography variant="caption" color="text.secondary">
-                      {(pl.tracks?.length ?? 0)}{' '}{t('playlists.tracks_count', { defaultValue: 'Tracks' })}
+                    <Typography variant="body2" noWrap fontWeight={500}>
+                      {pl.name}
                     </Typography>
                   }
                 />
