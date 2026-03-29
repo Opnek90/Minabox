@@ -32,30 +32,27 @@ import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import SearchIcon from '@mui/icons-material/Search';
 import StreamIcon from '@mui/icons-material/Stream';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
-import { AddToPlaylistDialog } from '@/components/media/AddToPlaylistDialog';
 import { StreamEditDialog } from '@/components/media/StreamEditDialog';
-import type { Playlist, Stream } from '@/types/api';
+import type { Stream } from '@/types/api';
 
 type SortKey = 'title' | 'artist' | 'last_played_at';
 
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-// Desktop: 4 Buttons (Play + Playlist + Edit + Delete) à ~32px = ~144px
-const LIST_ITEM_PR_DESKTOP = '144px';
+// Desktop: 3 Buttons (Play + Edit + Delete) à ~32px = ~104px
+const LIST_ITEM_PR_DESKTOP = '104px';
 // Mobile: single MoreVert button
 const LIST_ITEM_PR_MOBILE = '40px';
 
 interface StreamListProps {
   streams: Stream[];
-  playlists: Playlist[];
   onDelete: (stream: Stream) => void;
   onUpdate: (stream: Stream) => void;
   sortKey: string;
@@ -63,12 +60,10 @@ interface StreamListProps {
   onSortChange: (key: string, dir: 'asc' | 'desc') => void;
   viewMode: 'card' | 'list';
   onViewModeChange: (mode: 'card' | 'list') => void;
-  onPlaylistUpdated?: (playlist: Playlist) => void;
 }
 
 export const StreamList: React.FC<StreamListProps> = ({
   streams,
-  playlists,
   onDelete,
   onUpdate,
   sortKey,
@@ -76,7 +71,6 @@ export const StreamList: React.FC<StreamListProps> = ({
   onSortChange,
   viewMode,
   onViewModeChange,
-  onPlaylistUpdated,
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
@@ -91,9 +85,6 @@ export const StreamList: React.FC<StreamListProps> = ({
   // Mobile action menu
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuStream, setMenuStream] = useState<Stream | null>(null);
-
-  // Add-to-playlist dialog
-  const [addToPlaylistStream, setAddToPlaylistStream] = useState<Stream | null>(null);
 
   const hasNonDefaultSort = typedSortKey !== DEFAULT_SORT_KEY || sortDir !== DEFAULT_SORT_DIR;
 
@@ -159,7 +150,6 @@ export const StreamList: React.FC<StreamListProps> = ({
     </Box>
   );
 
-  // Inline desktop actions for a given stream
   const desktopActions = (stream: Stream) => (
     <>
       <Tooltip title={t('tracks.play')}>
@@ -167,13 +157,6 @@ export const StreamList: React.FC<StreamListProps> = ({
           <PlayArrowIcon fontSize="small" />
         </IconButton>
       </Tooltip>
-      {playlists.length > 0 && (
-        <Tooltip title={t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}>
-          <IconButton size="small" onClick={() => setAddToPlaylistStream(stream)}>
-            <PlaylistAddIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
       <Tooltip title={t('streams.edit')}>
         <IconButton size="small" onClick={() => setStreamToEdit(stream)}>
           <EditIcon fontSize="small" />
@@ -187,7 +170,6 @@ export const StreamList: React.FC<StreamListProps> = ({
     </>
   );
 
-  // Single MoreVert button for mobile
   const mobileMenuButton = (stream: Stream) => (
     <IconButton size="small" onClick={(e) => handleMenuOpen(e, stream)}>
       <MoreVertIcon fontSize="small" />
@@ -381,12 +363,6 @@ export const StreamList: React.FC<StreamListProps> = ({
           <PlayArrowIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} />
           {t('tracks.play')}
         </MenuItem>
-        {playlists.length > 0 && (
-          <MenuItem onClick={() => { if (menuStream) setAddToPlaylistStream(menuStream); handleMenuClose(); }}>
-            <PlaylistAddIcon fontSize="small" sx={{ mr: 1.5 }} />
-            {t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}
-          </MenuItem>
-        )}
         <MenuItem onClick={() => { if (menuStream) setStreamToEdit(menuStream); handleMenuClose(); }}>
           <EditIcon fontSize="small" sx={{ mr: 1.5 }} />
           {t('streams.edit')}
@@ -403,14 +379,6 @@ export const StreamList: React.FC<StreamListProps> = ({
         stream={streamToEdit}
         onClose={() => setStreamToEdit(null)}
         onSuccess={(updated) => { onUpdate(updated); setStreamToEdit(null); }}
-      />
-
-      <AddToPlaylistDialog
-        open={!!addToPlaylistStream}
-        track={addToPlaylistStream}
-        playlists={playlists}
-        onClose={() => setAddToPlaylistStream(null)}
-        onAdded={(pl) => onPlaylistUpdated?.(pl)}
       />
     </Box>
   );
