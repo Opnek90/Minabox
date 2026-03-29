@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import httpx
 import structlog
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from mutagen import File as MutagenFile
 from sqlalchemy.orm import Session
 
@@ -25,13 +25,11 @@ from backend_service.models.database import Track, TrackFolder
 from backend_service.models.schemas import TrackCreate, TrackResponse, TrackUpdate
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
-COVERS_DIR = STATIC_DIR / "covers"
 AUDIO_STORAGE_PATH = Path(os.environ.get("AUDIO_STORAGE_PATH", "/mnt/audio/tracks"))
 
 MEDIA_DOWNLOADER_URL = os.environ.get("MEDIA_DOWNLOADER_URL", "http://media-downloader:8007")
 
 # Domains that are allowed to be used with the from-url import.
-# Extend this list when adding support for new platforms.
 _ALLOWED_DOMAINS: frozenset[str] = frozenset({
     "youtube.com",
     "www.youtube.com",
@@ -83,8 +81,25 @@ def _strip_playlist_params(url: str) -> str:
     return urlunparse(clean)
 
 
+def _cover_path_for_track(track_id: int, ext: str = ".jpg") -> Path:
+    """Return the canonical cover art path inside the track's own folder."""
+    return AUDIO_STORAGE_PATH / str(track_id) / f"cover{ext}"
+
+
+def _find_existing_cover(track_id: int) -> Path | None:
+    """Return the first existing cover file for *track_id*, or None."""
+    for ext in (".jpg", ".png"):
+        p = _cover_path_for_track(track_id, ext)
+        if p.exists():
+            return p
+    return None
+
+
 def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
-    """Extract embedded cover art from audio file; save to COVERS_DIR and return URL path."""
+    """Extract embedded cover art from audio file; save to the track folder.
+
+    Returns the API URL path ``/api/tracks/{id}/cover``, or None on failure.
+    """
     try:
         audio = MutagenFile(str(file_path))
         if not audio:
@@ -110,20 +125,20 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
                 ext = ".png"
         if not data or len(data) == 0:
             return None
-        COVERS_DIR.mkdir(parents=True, exist_ok=True)
-        cover_path = COVERS_DIR / f"track_{track_id}{ext}"
+        cover_path = _cover_path_for_track(track_id, ext)
+        cover_path.parent.mkdir(parents=True, exist_ok=True)
         cover_path.write_bytes(data)
-        return f"/static/covers/track_{track_id}{ext}"
+        logger.info("track_cover_extracted", track_id=track_id, path=str(cover_path))
+        return f"/api/tracks/{track_id}/cover"
     except Exception as e:
         logger.warning("track_cover_extract_failed", track_id=track_id, error=str(e))
         return None
 
 
 async def _download_thumbnail(thumbnail_url: str, track_id: int) -> str | None:
-    """Download a remote thumbnail and save it to COVERS_DIR.
+    """Download a remote thumbnail into the track's own folder.
 
-    Returns the local /static/covers/... URL path, or None on failure.
-    This is used as fallback when no embedded cover art is found in the audio file.
+    Returns ``/api/tracks/{id}/cover`` on success, None on failure.
     """
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -131,11 +146,11 @@ async def _download_thumbnail(thumbnail_url: str, track_id: int) -> str | None:
             response.raise_for_status()
             content_type = response.headers.get("content-type", "")
             ext = ".png" if "png" in content_type else ".jpg"
-            COVERS_DIR.mkdir(parents=True, exist_ok=True)
-            cover_path = COVERS_DIR / f"track_{track_id}{ext}"
+            cover_path = _cover_path_for_track(track_id, ext)
+            cover_path.parent.mkdir(parents=True, exist_ok=True)
             cover_path.write_bytes(response.content)
-            logger.info("track_thumbnail_downloaded", track_id=track_id, url=thumbnail_url)
-            return f"/static/covers/track_{track_id}{ext}"
+            logger.info("track_thumbnail_downloaded", track_id=track_id, url=thumbnail_url, path=str(cover_path))
+            return f"/api/tracks/{track_id}/cover"
     except Exception as e:
         logger.warning("track_thumbnail_download_failed", track_id=track_id, url=thumbnail_url, error=str(e))
         return None
@@ -147,11 +162,7 @@ async def _run_download_task(
     track_dir: Path,
     db_url: str,
 ) -> None:
-    """Background task: download audio, update track in DB, resolve cover art.
-
-    Uses its own DB session to avoid sharing the request-scoped session
-    across async boundaries.
-    """
+    """Background task: download audio, update track in DB, resolve cover art."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -196,7 +207,6 @@ async def _run_download_task(
     except MediaDownloaderError as exc:
         logger.error("download_task_failed", track_id=track_id, error=str(exc))
         _download_status[track_id] = {"status": "error", "error": str(exc)}
-        # Clean up the placeholder track and its directory on failure
         try:
             track = db.query(Track).filter(Track.id == track_id).first()
             if track:
@@ -220,18 +230,12 @@ async def list_tracks(
     folder_id: int | None = Query(None, description="Filter by folder ID. Use 0 for root-level tracks (no folder)."),
     db: Session = Depends(get_db),
 ) -> list[TrackResponse]:
-    """List all tracks, optionally filtered by folder.
-
-    - No folder_id param: returns all tracks.
-    - folder_id=0: returns tracks with no folder assigned (root level).
-    - folder_id=N: returns tracks assigned to folder N.
-    """
+    """List all tracks, optionally filtered by folder."""
     logger.info("api_list_tracks", folder_id=folder_id)
     query = db.query(Track)
     if folder_id == 0:
         query = query.filter(Track.folder_id.is_(None))
     elif folder_id is not None:
-        # Validate folder exists
         folder = db.query(TrackFolder).filter(TrackFolder.id == folder_id).first()
         if not folder:
             raise HTTPException(
@@ -270,30 +274,28 @@ async def validate_media_url(
     }
 
 
-@router.get("/{track_id}", response_model=TrackResponse)
-async def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
-    logger.info("api_get_track", track_id=track_id)
-    track = db.query(Track).filter(Track.id == track_id).first()
-    if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
-    return TrackResponse.model_validate(track)
+@router.get("/{track_id}/cover")
+async def get_track_cover(track_id: int) -> FileResponse:
+    """Stream the cover art image for *track_id* directly from its track folder.
+
+    Looks for ``cover.jpg`` first, then ``cover.png``.
+    Returns HTTP 404 if no cover file is present.
+    """
+    cover = _find_existing_cover(track_id)
+    if cover is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": {"code": "COVER_NOT_FOUND", "message": f"No cover art for track {track_id}"}},
+        )
+    media_type = "image/png" if cover.suffix == ".png" else "image/jpeg"
+    return FileResponse(path=str(cover), media_type=media_type)
 
 
 @router.get("/{track_id}/download-status", response_model=dict)
 async def get_download_status(track_id: int, db: Session = Depends(get_db)) -> dict:
-    """Return the async download status for a track imported via POST /from-url.
-
-    Possible status values:
-    - ``pending``     – task queued, not yet started
-    - ``downloading`` – yt-dlp is running
-    - ``done``        – download finished; track record is fully populated
-    - ``error``       – download failed; ``error`` field contains the reason
-    - ``unknown``     – no status entry found (track was not imported via from-url,
-                        or the service was restarted)
-    """
+    """Return the async download status for a track imported via POST /from-url."""
     status_entry = _download_status.get(track_id)
     if status_entry is None:
-        # Check the track exists at all
         track = db.query(Track).filter(Track.id == track_id).first()
         if not track:
             raise HTTPException(
@@ -302,6 +304,15 @@ async def get_download_status(track_id: int, db: Session = Depends(get_db)) -> d
             )
         return {"track_id": track_id, "status": "unknown", "error": None}
     return {"track_id": track_id, **status_entry}
+
+
+@router.get("/{track_id}", response_model=TrackResponse)
+async def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
+    logger.info("api_get_track", track_id=track_id)
+    track = db.query(Track).filter(Track.id == track_id).first()
+    if not track:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
+    return TrackResponse.model_validate(track)
 
 
 @router.post("", response_model=TrackResponse, status_code=201)
@@ -339,9 +350,6 @@ async def create_track_from_url(
 
     Returns HTTP 202 immediately with the created track ID so the client can
     poll ``GET /tracks/{id}/download-status`` for progress.
-
-    If the URL was already imported the existing track is returned with
-    status ``done`` (HTTP 200).
     """
     clean_url = _strip_playlist_params(url)
     _check_allowed_domain(clean_url)
@@ -356,12 +364,7 @@ async def create_track_from_url(
         .first()
     )
     if existing is not None:
-        logger.info(
-            "api_create_track_from_url_duplicate",
-            track_id=existing.id,
-            title=existing.title,
-            url=clean_url,
-        )
+        logger.info("api_create_track_from_url_duplicate", track_id=existing.id, url=clean_url)
         return JSONResponse(
             status_code=200,
             content={"track_id": existing.id, "status": "done"},
@@ -382,7 +385,6 @@ async def create_track_from_url(
 
     _download_status[track_id] = {"status": "pending", "error": None}
 
-    # Retrieve the DB URL from the engine bound to the current session
     db_url = str(db.bind.url)  # type: ignore[union-attr]
 
     asyncio.create_task(
