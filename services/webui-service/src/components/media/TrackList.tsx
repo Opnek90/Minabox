@@ -14,6 +14,8 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
+  Menu,
+  MenuItem,
   Paper,
   Popover,
   TextField,
@@ -33,6 +35,7 @@ import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import LinkIcon from '@mui/icons-material/Link';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SearchIcon from '@mui/icons-material/Search';
 import ViewListIcon from '@mui/icons-material/ViewList';
@@ -122,6 +125,10 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [renameFolder, setRenameFolder] = useState<TrackFolder | null>(null);
   const [moveTrack, setMoveTrack] = useState<Track | null>(null);
 
+  // Mobile track-action menu state
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [menuTrack, setMenuTrack] = useState<Track | null>(null);
+
   const [mobileView, setMobileView] = useState<'tree' | 'tracks'>(
     currentFolderId === null ? 'tree' : 'tracks'
   );
@@ -196,6 +203,17 @@ export const TrackList: React.FC<TrackListProps> = ({
     if (!isDesktop) setMobileView('tracks');
   };
 
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, track: Track) => {
+    event.stopPropagation();
+    setMenuAnchor(event.currentTarget);
+    setMenuTrack(track);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setMenuTrack(null);
+  };
+
   const MoveMenu = moveTrack ? (
     <Popover
       open
@@ -262,35 +280,46 @@ export const TrackList: React.FC<TrackListProps> = ({
       secondaryAction={
         !selectionMode && (
           <Box display="flex" alignItems="center">
-            <Tooltip title={t('tracks.play')}>
-              <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
-                <PlayArrowIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            {onEdit && (
-              <Tooltip title={t('tracks.edit')}>
-                <IconButton size="small" onClick={() => onEdit(track)}>
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+            {/* Desktop: show all action buttons inline */}
+            {isDesktop && (
+              <>
+                <Tooltip title={t('tracks.play')}>
+                  <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
+                    <PlayArrowIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                {onEdit && (
+                  <Tooltip title={t('tracks.edit')}>
+                    <IconButton size="small" onClick={() => onEdit(track)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                {folders.length > 0 && (
+                  <Tooltip title={t('folders.move_to', { defaultValue: 'Move to folder' })}>
+                    <IconButton size="small" onClick={() => setMoveTrack(track)}>
+                      <DriveFileMoveIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                <Tooltip title={t('tracks.delete')}>
+                  <IconButton size="small" color="error" onClick={() => onDelete(track)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
             )}
-            {folders.length > 0 && (
-              <Tooltip title={t('folders.move_to', { defaultValue: 'Move to folder' })}>
-                <IconButton size="small" onClick={() => setMoveTrack(track)}>
-                  <DriveFileMoveIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-            <Tooltip title={t('tracks.delete')}>
-              <IconButton size="small" color="error" onClick={() => onDelete(track)}>
-                <DeleteIcon fontSize="small" />
+            {/* Mobile: single MoreVert button */}
+            {!isDesktop && (
+              <IconButton size="small" onClick={(e) => handleMenuOpen(e, track)}>
+                <MoreVertIcon fontSize="small" />
               </IconButton>
-            </Tooltip>
+            )}
           </Box>
         )
       }
       sx={{
-        pr: selectionMode ? undefined : '148px',
+        pr: selectionMode ? undefined : isDesktop ? '148px' : '40px',
         ...(selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
       }}
       onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
@@ -379,6 +408,42 @@ export const TrackList: React.FC<TrackListProps> = ({
     </Box>
   );
 
+  // Mobile action menu (rendered once, outside the list)
+  const mobileActionsMenu = (
+    <Menu
+      anchorEl={menuAnchor}
+      open={Boolean(menuAnchor) && menuTrack !== null}
+      onClose={handleMenuClose}
+      transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+      anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+    >
+      <MenuItem onClick={() => { if (menuTrack) audioApi.play({ track_id: menuTrack.id }); handleMenuClose(); }}>
+        <PlayArrowIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} />
+        {t('tracks.play')}
+      </MenuItem>
+      {onEdit && (
+        <MenuItem onClick={() => { if (menuTrack) onEdit(menuTrack); handleMenuClose(); }}>
+          <EditIcon fontSize="small" sx={{ mr: 1.5 }} />
+          {t('tracks.edit')}
+        </MenuItem>
+      )}
+      {folders.length > 0 && (
+        <MenuItem onClick={() => { if (menuTrack) setMoveTrack(menuTrack); handleMenuClose(); }}>
+          <DriveFileMoveIcon fontSize="small" sx={{ mr: 1.5 }} />
+          {t('folders.move_to', { defaultValue: 'Move to folder' })}
+        </MenuItem>
+      )}
+      <Divider />
+      <MenuItem
+        onClick={() => { if (menuTrack) onDelete(menuTrack); handleMenuClose(); }}
+        sx={{ color: 'error.main' }}
+      >
+        <DeleteIcon fontSize="small" sx={{ mr: 1.5 }} />
+        {t('tracks.delete')}
+      </MenuItem>
+    </Menu>
+  );
+
   const trackPanel = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
       {/* Mobile back-button */}
@@ -395,7 +460,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         </Box>
       )}
 
-      {/* Toolbar – kein Ordner-Erstellen-Button mehr */}
+      {/* Toolbar */}
       <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap" flexShrink={0}>
         <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
@@ -576,6 +641,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       />
 
       {MoveMenu}
+      {mobileActionsMenu}
     </Box>
   );
 };
