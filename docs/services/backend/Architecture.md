@@ -12,6 +12,7 @@ Ziele:
 - Zentrale Orchestrierung von Service-übergreifenden Workflows (z.B. Tag-Scan → Playlist-Lookup → Audio-Trigger)
 - Config-Management für andere Services (Button, LED, RFID, Audio)
 - Audio-Upload und Metadaten-Verwaltung
+- Asynchroner URL-Import via Media-Downloader-Service
 
 Nicht-Ziele:
 
@@ -45,7 +46,7 @@ backend_service/
 │   ├── routes_host.py       # Host-Helper-Proxy: Audio-Pfad, Move/Copy, Temperatur, Current-Alert; Pfad-Validierung, erlaubte Basen
 │   ├── routes_stats.py      # Listening-Stats (Parent-Dashboard): heute/gesamt, minutes_per_day, top_tags, Scan-Counts; general_settings + DB
 │   ├── routes_auth.py       # Web-Auth-API: Login/Logout, Passwort-Änderung, geschützte Bereiche; Cookie-Session
-│   ├── routes_tracks.py     # REST Tracks: Liste, Get, Create, Update, Delete; Upload, Cover in static/
+│   ├── routes_tracks.py     # REST Tracks: Liste, Get, Create, Update, Delete; Upload, Cover in static/; async URL-Import
 │   ├── routes_streams.py    # REST Streams: CRUD inkl. optional Cover
 │   ├── routes_podcasts.py   # REST Podcasts: CRUD, neueste Episode in Response
 │   ├── routes_playlists.py  # REST Playlists: CRUD, Detail inkl. Tracks und Cover
@@ -63,20 +64,20 @@ backend_service/
 │   ├── podcast_fetcher.py   # Hintergrund-Loop: Podcast-RSS fetchen, Episoden parsen, in DB upserten (Podcast/PodcastEpisode)
 │   ├── temperature_logger.py # Hintergrund-Loop: Host-Temperatur via Host-Helper lesen, in DB loggen, bei Überhitzung MQTT/WebSocket
 │   └── auth.py              # Web-Auth: auth_settings lesen/schreiben (Passwort-Hash, geschützte Bereiche), bcrypt, JWT-Session
-├── models/
-│   ├── __init__.py          # Re-Export Schemas und Modell-Typen für backend_service.models
-│   ├── database.py          # SQLAlchemy-Modelle: PlaybackEvent, Tag, Track, Playlist, PlaylistTrack, Stream, Podcast, PodcastEpisode, TemperatureReading
-│   ├── schemas.py           # Re-Export Pydantic-Schemas aus Domain-Modulen (audio, config, content, error, rfid, system, ws, enums)
-│   ├── schemas_error.py     # Pydantic ErrorDetail, ErrorResponse für API-Fehler
-│   ├── schemas_ws.py        # Pydantic WebSocketMessage (type, data, timestamp)
-│   ├── schemas_rfid.py      # Pydantic RFID: RFIDLearningModeCommand, RFIDScanEvent, RFIDModeResponse
-│   ├── schemas_system.py    # Pydantic System: HealthCheckResponse, ServiceStatus, SystemStatusResponse
-│   ├── schemas_config.py    # Pydantic Config: ButtonConfig, LEDConfig, RFIDConfig, AudioConfig für andere Services
-│   ├── schemas_audio.py     # Pydantic Audio: AudioPlayCommand, AudioVolumeCommand, AudioStatusResponse
-│   ├── schemas_content.py   # Pydantic Content: Tag, Playlist, Track, Stream, Podcast Base/Create/Update/Response
-│   └── schemas_enums.py     # Enums: ContentType, SourceType, AudioState, ServiceState, RFIDMode
-└── infrastructure/
-    └── __init__.py          # (optional, leer oder Re-Export)
+├── infrastructure/
+│   └── media_downloader_client.py  # HTTP-Client für Media-Downloader-Service; Retry-Logik (3x, linearer Backoff)
+└── models/
+    ├── __init__.py          # Re-Export Schemas und Modell-Typen für backend_service.models
+    ├── database.py          # SQLAlchemy-Modelle: PlaybackEvent, Tag, Track, Playlist, PlaylistTrack, Stream, Podcast, PodcastEpisode, TemperatureReading
+    ├── schemas.py           # Re-Export Pydantic-Schemas aus Domain-Modulen (audio, config, content, error, rfid, system, ws, enums)
+    ├── schemas_error.py     # Pydantic ErrorDetail, ErrorResponse für API-Fehler
+    ├── schemas_ws.py        # Pydantic WebSocketMessage (type, data, timestamp)
+    ├── schemas_rfid.py      # Pydantic RFID: RFIDLearningModeCommand, RFIDScanEvent, RFIDModeResponse
+    ├── schemas_system.py    # Pydantic System: HealthCheckResponse, ServiceStatus, SystemStatusResponse
+    ├── schemas_config.py    # Pydantic Config: ButtonConfig, LEDConfig, RFIDConfig, AudioConfig für andere Services
+    ├── schemas_audio.py     # Pydantic Audio: AudioPlayCommand, AudioVolumeCommand, AudioStatusResponse
+    ├── schemas_content.py   # Pydantic Content: Tag, Playlist, Track, Stream, Podcast Base/Create/Update/Response
+    └── schemas_enums.py     # Enums: ContentType, SourceType, AudioState, ServiceState, RFIDMode
 ```
 
 ---
@@ -109,6 +110,8 @@ backend_service/
 - `GET /api/v1/tracks/{track_id}` – Track-Details
 - `POST /api/v1/tracks/upload` – Track hochladen (multipart/form-data)
 - `POST /api/v1/tracks` – Track anlegen (JSON, z.B. manuelle File-Einträge oder Remote-Tracks)
+- `POST /api/v1/tracks/from-url` – Track asynchron von URL importieren → **HTTP 202**, Background-Download
+- `GET /api/v1/tracks/{track_id}/download-status` – Download-Fortschritt eines via `from-url` importierten Tracks
 - `PUT /api/v1/tracks/{track_id}` – Track-Metadaten bearbeiten
 - `DELETE /api/v1/tracks/{track_id}` – Track löschen (inkl. Datei bei source_type="file")
 
@@ -531,7 +534,7 @@ class Track(Base):
     duration_ms = Column(Integer, nullable=True)
     source_type = Column(String, nullable=False)  # "file" | "remote"
     source_uri = Column(String, nullable=False)  # Pfad oder URL
-    cover_art_url = Column(String, nullable=True)
+    cover_art_url = Column(String, nullable=True)  # /static/covers/track_{id}.jpg|.png
     created_at = Column(DateTime, default=datetime.utcnow)
     last_played_at = Column(DateTime, nullable=True)
 ```
@@ -676,19 +679,7 @@ Ablauf:
    - Lade Stream-Details (source_uri).
    - Erstelle Session mit einem „virtuellen“ Track (Stream-URI).
 7. Sende `minabox/<device-id>/audio/play` mit Track-/Stream-Daten (`source_type`, `source_uri`, `start_position_ms=0`) an Audio-Service.
-8. Pushe Event via WebSocket an WebUI:
-
-```json
-{
-  "type": "rfid_scanned",
-  "data": {
-    "tag_id": "04A224BC19",
-    "content_type": "playlist",
-    "content_name": "Benjamin Blümchen",
-    "timestamp": "2026-02-14T21:20:00Z"
-  }
-}
-```
+8. Pushe Event via WebSocket an WebUI.
 
 ### 5.2 Tag anlernen (Lern-Modus)
 
@@ -698,277 +689,94 @@ Ablauf:
 2. Backend sendet `minabox/<device-id>/rfid/cmd/set-mode` mit Payload `{"mode": "learning"}`.
 3. RFID-Service wechselt in Lern-Modus.
 4. Backend empfängt `minabox/<device-id>/rfid/tag-scanned-learning` mit `tag_id`.
-5. Backend prüft, ob Tag bereits in DB existiert:
-   - Falls ja: Info an WebUI, dass Tag bereits zugeordnet ist.
-   - Falls nein: neuer Tag.
-6. Backend pusht Event via WebSocket:
-
-```json
-{
-  "type": "rfid_scanned_learning",
-  "data": {
-    "tag_id": "04A224BC19",
-    "already_assigned": false,
-    "timestamp": "2026-02-14T21:20:00Z"
-  }
-}
-```
-
+5. Backend prüft, ob Tag bereits in DB existiert.
+6. Backend pusht Event via WebSocket.
 7. WebUI zeigt Dialog: "Welchem Content soll dieser Tag zugeordnet werden?"
 8. User wählt Playlist oder Track aus.
-9. WebUI sendet `POST /api/v1/tags` mit:
-
-```json
-{
-  "tag_id": "04A224BC19",
-  "name": "Benjamin Blümchen",
-  "content_type": "playlist",
-  "content_id": 5
-}
-```
-
+9. WebUI sendet `POST /api/v1/tags` mit Tag-Daten.
 10. Backend speichert Tag-Mapping in DB.
-11. Backend deaktiviert Lern-Modus (sendet `set-mode` mit `normal`).
-12. Bestätigung an WebUI.
+11. Backend deaktiviert Lern-Modus.
 
 ### 5.3 Button-Action → Audio-Control
 
-Ablauf:
-
-1. Backend empfängt `minabox/<device-id>/button/play-pause`.
-2. Backend prüft aktuellen Audio-Status (gecacht aus letztem `audio/status`-Event).
-3. Falls `state == "playing"`:
-   - Backend sendet `minabox/<device-id>/audio/pause`.
-4. Falls `state == "paused"`:
-   - Backend sendet `minabox/<device-id>/audio/play` (ohne Payload → Resume).
-5. Falls `state == "stopped"` und Session existiert:
-   - Backend sendet `audio/play` mit aktuellem Track aus Session.
-6. Pushe Action via WebSocket an WebUI:
-
-```json
-{
-  "type": "button_action",
-  "data": {
-    "action": "play_pause",
-    "timestamp": "2026-02-14T21:20:00Z"
-  }
-}
-```
+Ablauf wie bisher (play/pause/next/prev via MQTT).
 
 ### 5.4 Next/Prev – Playlist-Navigation
 
-Der Backend verwaltet eine **Playback-Session** im Memory:
-
-```python
-class PlaybackSession:
-    playlist_id: int | None
-    current_track_index: int
-    tracks: List[Track]  # Sortiert nach position
-```
-
-**Next:**
-
-1. Backend empfängt `minabox/<device-id>/button/next` oder REST-Call `POST /api/v1/audio/next`.
-2. Falls keine Session aktiv → Fehler oder Nichts tun.
-3. Inkrementiere `current_track_index`.
-4. Falls Index >= Anzahl Tracks:
-   - **Playlist zu Ende → Stop**
-   - Backend sendet `minabox/<device-id>/audio/stop`.
-   - Session bleibt bestehen (Index bleibt am Ende).
-   - Abbruch.
-5. Lade Track an Index `current_track_index`.
-6. Sende `minabox/<device-id>/audio/play` mit neuem Track.
-
-**Prev:**
-
-1. Backend empfängt `minabox/<device-id>/button/prev` oder REST-Call `POST /api/v1/audio/prev`.
-2. Falls keine Session → Fehler.
-3. Dekrementiere `current_track_index`.
-4. Falls Index < 0:
-   - Setze Index auf 0 (bleibt beim ersten Track).
-5. Lade Track an Index `current_track_index`.
-6. Sende `minabox/<device-id>/audio/play` mit Track.
-
-**Track-Ende (EOS - End of Stream):**
-
-Der Audio-Service sendet bei Track-Ende ein Event (z.B. via `audio/status` mit `state="stopped"` oder speziellem Event). Der Backend kann darauf reagieren:
-
-1. Backend empfängt Track-Ende-Event.
-2. Falls Session aktiv und weitere Tracks vorhanden:
-   - Automatisch `next` triggern (wie oben).
-3. Falls letzter Track:
-   - Stop (wie oben beschrieben).
+Ablauf wie bisher (Playback-Session im Memory).
 
 ### 5.5 Config-Management
 
-Ablauf:
-
-1. WebUI sendet `PUT /api/v1/config/buttons` mit neuer Config (JSON-Payload entsprechend Service-Schema).
-2. Backend validiert Config gegen Service-Schema (Pydantic-Model).
-3. Falls ungültig:
-   - Return HTTP 400 mit Fehlerdetails.
-4. Falls gültig:
-   - Speichere Config in Service-JSON-Datei (z.B. `services/button-service/config/buttons.json`).
-   - Optional: Speichere auch in DB (für Backup/Audit-Log).
-   - Sende `minabox/<device-id>/button/config/update` via MQTT mit Config als Payload.
-   - Warte auf `minabox/<device-id>/button/config/response`.
-5. Falls Service antwortet mit `success=true`:
-   - Return HTTP 200 mit Bestätigung.
-6. Falls Service antwortet mit `success=false`:
-   - Return HTTP 500 mit Service-Fehlerdetails.
+Ablauf wie bisher (Pydantic-Validierung, JSON-Datei, MQTT-Reload).
 
 ### 5.6 Audio-Upload
 
-**Endpoint:** `POST /api/v1/tracks/upload`
+Ablauf wie bisher (multipart upload, mutagen-Metadaten, Track-Verzeichnis).
 
-**Request:**
+### 5.7 Asynchroner URL-Import (`POST /tracks/from-url`)
 
-```http
-POST /api/v1/tracks/upload HTTP/1.1
-Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+**Endpoint:** `POST /api/v1/tracks/from-url?url=<url>`
 
-------WebKitFormBoundary
-Content-Disposition: form-data; name="file"; filename="track.mp3"
-Content-Type: audio/mpeg
+**Ablauf:**
 
-<binary data>
-------WebKitFormBoundary
-Content-Disposition: form-data; name="title"
+1. Domain-Whitelist-Check (`_check_allowed_domain`).
+2. Playlist-Parameter aus URL entfernen (`_strip_playlist_params`).
+3. Duplikat-Check: Existiert bereits ein Track mit gleicher `source_uri`? → HTTP 200 mit `{"track_id": ..., "status": "done"}`.
+4. Placeholder-Track in DB anlegen (`title="..."`, `source_type="file"`, `source_uri=clean_url`).
+5. Track-Verzeichnis anlegen: `AUDIO_STORAGE_PATH/{track_id}/`.
+6. Status-Eintrag im In-Memory-Dict: `_download_status[track_id] = {"status": "pending", "error": None}`.
+7. `asyncio.create_task(_run_download_task(...))` – Background-Task mit eigener DB-Session.
+8. Sofort HTTP 202 zurückgeben: `{"track_id": track_id, "status": "pending"}`.
 
-Benjamin Blümchen - Folge 1
-------WebKitFormBoundary
-Content-Disposition: form-data; name="artist"
+**Background-Task `_run_download_task`:**
 
-Kiddinx
-------WebKitFormBoundary
-Content-Disposition: form-data; name="album"
+1. Status auf `"downloading"` setzen.
+2. `MediaDownloaderClient.download_video()` aufrufen (mit Retry-Logik).
+3. Track in DB aktualisieren: `title`, `artist`, `album`, `duration_ms`, `source_uri` (MP3-Pfad).
+4. Cover Art ermitteln:
+   - Primär: `_extract_cover_art()` – eingebettetes APIC/pictures aus MP3 via mutagen
+   - Fallback: `_download_thumbnail()` – `thumbnail`-URL aus yt-dlp-Ergebnis via httpx
+   - Speicherort: `STATIC_DIR/covers/track_{id}.jpg|.png`
+5. `cover_art_url` in DB schreiben.
+6. Status auf `"done"` setzen.
+7. Bei Fehler: Status auf `"error"` setzen, Placeholder-Track und Verzeichnis löschen.
 
-Benjamin Blümchen
-------WebKitFormBoundary--
-```
-
-**Backend-Logik:**
-
-1. Empfange Upload (FastAPI FileUpload).
-2. Erstelle neuen Track-Eintrag in DB (noch ohne `source_uri`, `duration_ms`):
-
-```python
-track = Track(
-    title=form_data.title,
-    artist=form_data.artist,
-    album=form_data.album,
-    source_type="file",
-    source_uri=""  # Platzhalter
-)
-db.add(track)
-db.commit()
-track_id = track.id
-```
-
-3. Erstelle Zielverzeichnis: `/mnt/audio/tracks/{track_id}/`.
-4. Speichere Datei: `/mnt/audio/tracks/{track_id}/original.mp3` (oder `.ogg`, `.flac` je nach Upload).
-5. Extrahiere Metadaten mit `mutagen`:
+**In-Memory Status-Dict:**
 
 ```python
-from mutagen import File
-
-audio_file = File(file_path)
-duration_ms = int(audio_file.info.length * 1000) if audio_file.info else None
-
-# Optional: Überschreibe Titel/Artist/Album aus ID3-Tags, falls nicht im Form angegeben
-if not form_data.title and audio_file.tags:
-    title = audio_file.tags.get("TIT2", [None])[0]
+# Modul-Level:
+_download_status: dict[int, dict] = {}
+# Eintrag: { "status": "pending" | "downloading" | "done" | "error", "error": str | None }
 ```
 
-6. Update Track in DB:
+> **Hinweis:** Das Dict lebt nur im Prozess-Memory. Nach einem Service-Neustart sind laufende Status-Einträge verloren. Der `/download-status`-Endpoint gibt dann `"unknown"` zurück.
 
-```python
-track.source_uri = f"/mnt/audio/tracks/{track_id}/original.mp3"
-track.duration_ms = duration_ms
-db.commit()
-```
+### 5.8 Download-Status-Endpoint (`GET /tracks/{id}/download-status`)
 
-7. Return Track-Objekt als JSON:
+**Endpoint:** `GET /api/v1/tracks/{track_id}/download-status`
+
+**Response:**
 
 ```json
 {
-  "id": 123,
-  "title": "Benjamin Blümchen - Folge 1",
-  "artist": "Kiddinx",
-  "album": "Benjamin Blümchen",
-  "duration_ms": 2400000,
-  "source_type": "file",
-  "source_uri": "/mnt/audio/tracks/123/original.mp3",
-  "created_at": "2026-02-14T22:30:00Z"
+  "track_id": 42,
+  "status": "downloading",
+  "error": null
 }
 ```
 
-**Filesystem-Struktur:**
+**Status-Werte:**
 
-```
-/mnt/audio/
-  tracks/
-    1/
-      original.mp3
-    2/
-      original.mp3
-    123/
-      original.mp3
-```
+| Wert | Bedeutung |
+|---|---|
+| `pending` | Task eingereiht, noch nicht gestartet |
+| `downloading` | yt-dlp läuft |
+| `done` | Download abgeschlossen; Track vollständig in DB |
+| `error` | Download fehlgeschlagen; `error`-Feld enthält den Grund |
+| `unknown` | Kein Status-Eintrag (Track nicht via `from-url` importiert oder Service-Neustart) |
 
-**Vorteil:** Track-ID eindeutig, Dateien isoliert, einfach zu löschen (Track löschen → Verzeichnis löschen).
-
-### 5.7 Stream-Hinzufügen
-
-**Endpoint:** `POST /api/v1/tracks`
-
-**Request:**
-
-```http
-POST /api/v1/tracks HTTP/1.1
-Content-Type: application/json
-
-{
-  "title": "Radio Beispiel",
-  "artist": "Radio Station",
-  "album": null,
-  "source_type": "stream",
-  "source_uri": "https://stream.example.com/radio.mp3"
-}
-```
-
-**Backend-Logik:**
-
-1. Validiere Request-Body (Pydantic-Schema).
-2. Erstelle neuen Track-Eintrag in DB:
-
-```python
-track = Track(
-    title=request.title,
-    artist=request.artist,
-    album=request.album,
-    source_type="stream",
-    source_uri=request.source_uri,
-    duration_ms=None  # Streams haben keine feste Dauer
-)
-db.add(track)
-db.commit()
-```
-
-3. Return Track-Objekt als JSON:
-
-```json
-{
-  "id": 124,
-  "title": "Radio Beispiel",
-  "artist": "Radio Station",
-  "album": null,
-  "duration_ms": null,
-  "source_type": "stream",
-  "source_uri": "https://stream.example.com/radio.mp3",
-  "created_at": "2026-02-14T22:35:00Z"
-}
-```
+- Bei unbekannter `track_id` → HTTP 404.
+- Der Endpoint liegt **vor** dem generischen `GET /{track_id}`-Handler, da FastAPI Routen in Reihenfolge matched.
 
 ---
 
@@ -981,6 +789,7 @@ db.commit()
 - Button-Service (Action-Events, Config-Responses)
 - LED-Service (Config-Responses, optional)
 - WebUI-Service (REST/WebSocket Client)
+- Media-Downloader-Service (URL-Import, via `MediaDownloaderClient`)
 
 **Infrastruktur:**
 
@@ -996,7 +805,8 @@ db.commit()
 - `alembic` – DB-Migrations
 - `aiomqtt` – asynchroner MQTT-Client
 - `pydantic` – Config-Validierung & API-Schemas
-- `mutagen` – Audio-Metadaten-Extraktion
+- `mutagen` – Audio-Metadaten-Extraktion & Cover-Art-Extraktion
+- `httpx` – Async HTTP-Client (Media-Downloader + Thumbnail-Download)
 - `structlog` – Logging
 
 **Konfiguration:**
@@ -1006,6 +816,8 @@ db.commit()
   - `MQTT_BROKER`, `MQTT_PORT` – MQTT-Broker-Verbindung
   - `DATABASE_PATH` – z.B. `/data/minabox.db`
   - `AUDIO_STORAGE_PATH` – z.B. `/mnt/audio/tracks`
+  - `STATIC_DIR` – z.B. `/data/static` (Cover Art unter `STATIC_DIR/covers/`)
+  - `MEDIA_DOWNLOADER_URL` – z.B. `http://media-downloader:8007`
   - `LOG_LEVEL` – `DEBUG` | `INFO` | `WARNING` | `ERROR`
 
 - Service-spezifisch `config/backend.json`:
@@ -1026,6 +838,8 @@ db.commit()
 - `invalid_config` – Config-Validierung fehlgeschlagen
 - `file_upload_failed` – Fehler beim Speichern der Upload-Datei
 - `metadata_extraction_failed` – Metadaten konnten nicht extrahiert werden (nicht kritisch)
+- `domain_not_allowed` – URL-Domain nicht in `_ALLOWED_DOMAINS` (HTTP 400)
+- `download_failed` – Media-Downloader-Fehler nach Retries (Background-Task setzt Status auf `error`)
 
 ### 7.2 REST Error-Format
 
@@ -1047,7 +861,8 @@ HTTP-Status-Codes:
 
 - `200 OK` – Erfolg
 - `201 Created` – Ressource erstellt (z.B. Track-Upload, Tag-Mapping)
-- `400 Bad Request` – Ungültige Anfrage (z.B. ungültige Config, fehlende Felder)
+- `202 Accepted` – Asynchroner Download gestartet (`POST /tracks/from-url`)
+- `400 Bad Request` – Ungültige Anfrage (z.B. ungültige Config, Domain nicht erlaubt)
 - `404 Not Found` – Ressource nicht gefunden (z.B. Tag, Playlist, Track)
 - `500 Internal Server Error` – Server-/DB-Fehler
 
@@ -1063,8 +878,11 @@ Der Backend loggt strukturiert (structlog, JSON) u.a.:
 - `database_query` / `database_error` mit Query-Details
 - `track_upload_started` / `track_upload_success` / `track_upload_failed` mit Track-ID und Dateiname
 - `session_created` / `session_updated` mit Playlist/Track-Info
-
-Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen). Der Log-Abruf (`GET /api/v1/system/logs`) wird von der Admin-UI genutzt; die Logs stammen je Service aus Container stdout/stderr (via Host-Helper oder Docker-API) oder aus dem Fallback `DATA_PATH/logs/<service>.log`.
+- `api_create_track_from_url_accepted` mit `track_id` und `url`
+- `download_task_completed` / `download_task_failed` / `download_task_unexpected_error` mit `track_id`
+- `track_thumbnail_downloaded` / `track_thumbnail_download_failed` mit `track_id` und `url`
+- `track_cover_extract_failed` mit `track_id`
+- `media_downloader_download_5xx_retry` / `media_downloader_download_transient_retry` mit `attempt`
 
 ---
 
@@ -1084,4 +902,5 @@ Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (struc
 
 - [ ] **core/mqtt_handlers.py aufteilen:** Die Datei bündelt RFID (Tag-Scan, Learning, Tag-Removed), Button-Actions, Audio-Status, Sleep-Timer, Bedtime-Fade, Playback-Events und Stream-Reconnect. Empfehlung: thematische Handler-Module (z. B. `rfid_handlers.py`, `button_handlers.py`, `sleep_timer.py`, `playback_events.py`) mit gemeinsamer Basis; MQTT-Dispatcher ruft die jeweiligen Handler auf.
 - [ ] **Sleep-Timer-Logik bündeln:** Aktuell verteilt auf `core/mqtt_handlers.py`, `core/sleep_settings.py` und REST in `api/routes_audio.py`. Optional: eigenes Feature-Modul (z. B. `core/sleep_timer.py`) mit API-Anbindung in `routes_audio.py`.
+- [ ] **`_download_status`-Dict persistieren:** Aktuell In-Memory; nach Service-Neustart gehen laufende Status-Einträge verloren. Optional: Status in DB-Tabelle speichern.
 - [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.
