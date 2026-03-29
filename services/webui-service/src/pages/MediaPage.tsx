@@ -283,7 +283,7 @@ export const MediaPage: React.FC = () => {
         allowScrollButtonsMobile
         sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
-        <Tab label={t('tabs.overview', { defaultValue: 'Übersicht' })} />
+        <Tab label={t('tabs.overview', { defaultValue: '\u00dcbersicht' })} />
         <Tab label={t('tabs.playlists')} />
         <Tab label={t('tabs.tracks')} />
         <Tab label={t('tabs.streams', { defaultValue: 'Streams' })} />
@@ -346,7 +346,6 @@ export const MediaPage: React.FC = () => {
       <TabPanel value={tab} index={3}>
         <StreamList
           streams={streams}
-          playlists={playlists}
           onDelete={(stream) => void checkAndConfirmDelete({ type: 'stream', item: stream })}
           onUpdate={(s) => setStreams((prev) => prev.map((x) => (x.id === s.id ? s : x)))}
           sortKey={getSort('streams').key}
@@ -354,7 +353,6 @@ export const MediaPage: React.FC = () => {
           onSortChange={(key, dir) => setSort('streams', key, dir)}
           viewMode={getViewMode('streams') as 'card' | 'list'}
           onViewModeChange={(mode) => setViewMode('streams', mode)}
-          onPlaylistUpdated={handlePlaylistUpdated}
         />
       </TabPanel>
 
