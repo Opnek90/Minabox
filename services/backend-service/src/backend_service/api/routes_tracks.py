@@ -8,7 +8,6 @@ import shutil
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-import httpx
 import structlog
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -24,7 +23,6 @@ from backend_service.infrastructure.media_downloader_client import (
 from backend_service.models.database import Track, TrackFolder
 from backend_service.models.schemas import TrackCreate, TrackResponse, TrackUpdate
 
-STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
 AUDIO_STORAGE_PATH = Path(os.environ.get("AUDIO_STORAGE_PATH", "/mnt/audio/tracks"))
 
 MEDIA_DOWNLOADER_URL = os.environ.get("MEDIA_DOWNLOADER_URL", "http://media-downloader:8007")
@@ -96,7 +94,12 @@ def _find_existing_cover(track_id: int) -> Path | None:
 
 
 def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
-    """Extract embedded cover art from audio file; save to the track folder.
+    """Extract embedded cover art from MP3 and save to the track folder.
+
+    yt-dlp's EmbedThumbnail postprocessor reliably embeds cover art, so
+    this function reads the APIC tag from the finished MP3 and writes it
+    as ``cover.jpg`` / ``cover.png`` into the track directory so the
+    WebUI can serve it via ``GET /api/tracks/{id}/cover``.
 
     Returns the API URL path ``/api/tracks/{id}/cover``, or None on failure.
     """
@@ -135,34 +138,13 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
         return None
 
 
-async def _download_thumbnail(thumbnail_url: str, track_id: int) -> str | None:
-    """Download a remote thumbnail into the track's own folder.
-
-    Returns ``/api/tracks/{id}/cover`` on success, None on failure.
-    """
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.get(thumbnail_url)
-            response.raise_for_status()
-            content_type = response.headers.get("content-type", "")
-            ext = ".png" if "png" in content_type else ".jpg"
-            cover_path = _cover_path_for_track(track_id, ext)
-            cover_path.parent.mkdir(parents=True, exist_ok=True)
-            cover_path.write_bytes(response.content)
-            logger.info("track_thumbnail_downloaded", track_id=track_id, url=thumbnail_url, path=str(cover_path))
-            return f"/api/tracks/{track_id}/cover"
-    except Exception as e:
-        logger.warning("track_thumbnail_download_failed", track_id=track_id, url=thumbnail_url, error=str(e))
-        return None
-
-
 async def _run_download_task(
     track_id: int,
     clean_url: str,
     track_dir: Path,
     db_url: str,
 ) -> None:
-    """Background task: download audio, update track in DB, resolve cover art."""
+    """Background task: download audio, update track in DB, extract cover art."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -190,13 +172,8 @@ async def _run_download_task(
         db.commit()
         db.refresh(track)
 
-        # Cover art: prefer embedded, fall back to remote thumbnail
+        # Extract cover art embedded by yt-dlp into the MP3
         cover_url = _extract_cover_art(mp3_path, track_id)
-        if not cover_url:
-            thumbnail_url = result.get("thumbnail")
-            if thumbnail_url:
-                cover_url = await _download_thumbnail(thumbnail_url, track_id)
-
         if cover_url:
             track.cover_art_url = cover_url
             db.commit()
