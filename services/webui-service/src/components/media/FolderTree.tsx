@@ -18,6 +18,8 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import DeleteIcon from '@mui/icons-material/Delete';
+import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
@@ -65,7 +67,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [hovered, setHovered] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
-  // Touch devices have no hover – always show the button
   const isTouch = useMediaQuery('(pointer: coarse)');
   const showButton = isTouch || hovered;
 
@@ -129,7 +130,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           disableTypography
         />
 
-        {/* Always rendered to prevent layout shift; invisible on desktop until hover */}
         <IconButton
           size="small"
           onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
@@ -161,8 +161,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ paper: { sx: { minWidth: 160 } } }}
       >
-        <MenuItem dense onClick={() => { onRename(folder); setMenuAnchor(null); }}>Umbenennen</MenuItem>
-        <MenuItem dense onClick={handleDeleteClick} sx={{ color: 'error.main' }}>Löschen</MenuItem>
+        <MenuItem dense onClick={() => { onRename(folder); setMenuAnchor(null); }}>
+          <DriveFileRenameOutlineIcon fontSize="small" sx={{ mr: 1 }} />
+          {t('folders.rename')}
+        </MenuItem>
+        <MenuItem dense onClick={handleDeleteClick} sx={{ color: 'error.main' }}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+          {t('folders.delete')}
+        </MenuItem>
       </Menu>
 
       <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)} maxWidth="xs" fullWidth>
