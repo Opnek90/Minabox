@@ -48,7 +48,7 @@ type SortKey = 'title' | 'artist' | 'last_played_at';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-// Desktop: 4 buttons (Play + Playlist + Edit + Delete) à ~32px = ~144px
+// Desktop: 4 Buttons (Play + Playlist + Edit + Delete) à ~32px = ~144px
 const LIST_ITEM_PR_DESKTOP = '144px';
 // Mobile: single MoreVert button
 const LIST_ITEM_PR_MOBILE = '40px';
@@ -159,6 +159,41 @@ export const StreamList: React.FC<StreamListProps> = ({
     </Box>
   );
 
+  // Inline desktop actions for a given stream
+  const desktopActions = (stream: Stream) => (
+    <>
+      <Tooltip title={t('tracks.play')}>
+        <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}>
+          <PlayArrowIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      {playlists.length > 0 && (
+        <Tooltip title={t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}>
+          <IconButton size="small" onClick={() => setAddToPlaylistStream(stream)}>
+            <PlaylistAddIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      <Tooltip title={t('streams.edit')}>
+        <IconButton size="small" onClick={() => setStreamToEdit(stream)}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={t('tracks.delete')}>
+        <IconButton size="small" color="error" onClick={() => onDelete(stream)}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </>
+  );
+
+  // Single MoreVert button for mobile
+  const mobileMenuButton = (stream: Stream) => (
+    <IconButton size="small" onClick={(e) => handleMenuOpen(e, stream)}>
+      <MoreVertIcon fontSize="small" />
+    </IconButton>
+  );
+
   if (streams.length === 0) {
     return (
       <Box display="flex" justifyContent="center" py={6}>
@@ -229,7 +264,7 @@ export const StreamList: React.FC<StreamListProps> = ({
         </Box>
       )}
 
-      {/* Mobile Popover */}
+      {/* Mobile Sort Popover */}
       <Popover
         open={popoverOpen && !isDesktop}
         anchorEl={filterBtnRef.current}
@@ -287,20 +322,7 @@ export const StreamList: React.FC<StreamListProps> = ({
                   )}
                 </CardContent>
                 <CardActions sx={{ pt: 0 }}>
-                  <Tooltip title={t('tracks.play')}>
-                    <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}><PlayArrowIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  {playlists.length > 0 && (
-                    <Tooltip title={t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}>
-                      <IconButton size="small" onClick={() => setAddToPlaylistStream(stream)}><PlaylistAddIcon fontSize="small" /></IconButton>
-                    </Tooltip>
-                  )}
-                  <Tooltip title={t('streams.edit')}>
-                    <IconButton size="small" onClick={() => setStreamToEdit(stream)}><EditIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('tracks.delete')}>
-                    <IconButton size="small" color="error" onClick={() => onDelete(stream)}><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
+                  {isDesktop ? desktopActions(stream) : mobileMenuButton(stream)}
                 </CardActions>
               </Card>
             </Grid>
@@ -314,31 +336,7 @@ export const StreamList: React.FC<StreamListProps> = ({
               <ListItem
                 secondaryAction={
                   <Box display="flex" alignItems="center">
-                    {/* Desktop: all buttons inline */}
-                    {isDesktop && (
-                      <>
-                        <Tooltip title={t('tracks.play')}>
-                          <IconButton size="small" color="primary" onClick={() => audioApi.play({ stream_id: stream.id })}><PlayArrowIcon fontSize="small" /></IconButton>
-                        </Tooltip>
-                        {playlists.length > 0 && (
-                          <Tooltip title={t('playlists.add_to_playlist', { defaultValue: 'Zu Playlist hinzufügen' })}>
-                            <IconButton size="small" onClick={() => setAddToPlaylistStream(stream)}><PlaylistAddIcon fontSize="small" /></IconButton>
-                          </Tooltip>
-                        )}
-                        <Tooltip title={t('streams.edit')}>
-                          <IconButton size="small" onClick={() => setStreamToEdit(stream)}><EditIcon fontSize="small" /></IconButton>
-                        </Tooltip>
-                        <Tooltip title={t('tracks.delete')}>
-                          <IconButton size="small" color="error" onClick={() => onDelete(stream)}><DeleteIcon fontSize="small" /></IconButton>
-                        </Tooltip>
-                      </>
-                    )}
-                    {/* Mobile: single MoreVert */}
-                    {!isDesktop && (
-                      <IconButton size="small" onClick={(e) => handleMenuOpen(e, stream)}>
-                        <MoreVertIcon fontSize="small" />
-                      </IconButton>
-                    )}
+                    {isDesktop ? desktopActions(stream) : mobileMenuButton(stream)}
                   </Box>
                 }
                 sx={{ pr: isDesktop ? LIST_ITEM_PR_DESKTOP : LIST_ITEM_PR_MOBILE }}
@@ -371,7 +369,7 @@ export const StreamList: React.FC<StreamListProps> = ({
         </List>
       )}
 
-      {/* Mobile action menu */}
+      {/* Mobile action Menu */}
       <Menu
         anchorEl={menuAnchor}
         open={Boolean(menuAnchor) && menuStream !== null}

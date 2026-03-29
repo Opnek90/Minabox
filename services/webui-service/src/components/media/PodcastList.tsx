@@ -13,6 +13,8 @@ import {
   List,
   ListItem,
   ListItemText,
+  Menu,
+  MenuItem,
   Paper,
   Popover,
   TextField,
@@ -28,6 +30,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import SearchIcon from '@mui/icons-material/Search';
@@ -43,8 +46,10 @@ type SortKey = 'title' | 'last_fetched_at' | 'last_played_at';
 const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-// 3 Buttons (Play + Edit + Delete) à ~32px + Gaps = ~112px
-const LIST_ITEM_PR = '112px';
+// Desktop: 3 Buttons (Play + Edit + Delete) à ~32px = ~112px
+const LIST_ITEM_PR_DESKTOP = '112px';
+// Mobile: single MoreVert button
+const LIST_ITEM_PR_MOBILE = '40px';
 
 interface PodcastListProps {
   podcasts: Podcast[];
@@ -74,6 +79,10 @@ export const PodcastList: React.FC<PodcastListProps> = ({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [podcastToEdit, setPodcastToEdit] = useState<Podcast | null>(null);
+
+  // Mobile action menu
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [menuPodcast, setMenuPodcast] = useState<Podcast | null>(null);
 
   const typedSortKey = sortKey as SortKey;
   const hasNonDefaultSort = typedSortKey !== DEFAULT_SORT_KEY || sortDir !== DEFAULT_SORT_DIR;
@@ -115,6 +124,17 @@ export const PodcastList: React.FC<PodcastListProps> = ({
   const handleSortDirToggle = () =>
     onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc');
 
+  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, podcast: Podcast) => {
+    e.stopPropagation();
+    setMenuAnchor(e.currentTarget);
+    setMenuPodcast(podcast);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setMenuPodcast(null);
+  };
+
   const sortControls = (
     <Box display="flex" alignItems="center" gap={0.5}>
       <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey} size="small">
@@ -128,6 +148,34 @@ export const PodcastList: React.FC<PodcastListProps> = ({
         </IconButton>
       </Tooltip>
     </Box>
+  );
+
+  // Inline desktop actions
+  const desktopActions = (podcast: Podcast) => (
+    <>
+      <Tooltip title={t('tracks.play')}>
+        <IconButton size="small" color="primary" onClick={() => audioApi.play({ podcast_id: podcast.id })}>
+          <PlayArrowIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={t('podcasts.edit')}>
+        <IconButton size="small" onClick={() => setPodcastToEdit(podcast)}>
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={t('tracks.delete')}>
+        <IconButton size="small" color="error" onClick={() => onDelete(podcast)}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </>
+  );
+
+  // Single MoreVert button for mobile
+  const mobileMenuButton = (podcast: Podcast) => (
+    <IconButton size="small" onClick={(e) => handleMenuOpen(e, podcast)}>
+      <MoreVertIcon fontSize="small" />
+    </IconButton>
   );
 
   if (podcasts.length === 0) {
@@ -200,7 +248,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
         </Box>
       )}
 
-      {/* Mobile Popover */}
+      {/* Mobile Sort Popover */}
       <Popover
         open={popoverOpen && !isDesktop}
         anchorEl={filterBtnRef.current}
@@ -260,15 +308,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                   )}
                 </CardContent>
                 <CardActions sx={{ pt: 0 }}>
-                  <Tooltip title={t('tracks.play')}>
-                    <IconButton size="small" color="primary" onClick={() => audioApi.play({ podcast_id: podcast.id })}><PlayArrowIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('podcasts.edit')}>
-                    <IconButton size="small" onClick={() => setPodcastToEdit(podcast)}><EditIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                  <Tooltip title={t('tracks.delete')}>
-                    <IconButton size="small" color="error" onClick={() => onDelete(podcast)}><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
+                  {isDesktop ? desktopActions(podcast) : mobileMenuButton(podcast)}
                 </CardActions>
               </Card>
             </Grid>
@@ -282,18 +322,10 @@ export const PodcastList: React.FC<PodcastListProps> = ({
               <ListItem
                 secondaryAction={
                   <Box display="flex" alignItems="center">
-                    <Tooltip title={t('tracks.play')}>
-                      <IconButton size="small" color="primary" onClick={() => audioApi.play({ podcast_id: podcast.id })}><PlayArrowIcon fontSize="small" /></IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('podcasts.edit')}>
-                      <IconButton size="small" onClick={() => setPodcastToEdit(podcast)}><EditIcon fontSize="small" /></IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('tracks.delete')}>
-                      <IconButton size="small" color="error" onClick={() => onDelete(podcast)}><DeleteIcon fontSize="small" /></IconButton>
-                    </Tooltip>
+                    {isDesktop ? desktopActions(podcast) : mobileMenuButton(podcast)}
                   </Box>
                 }
-                sx={{ pr: LIST_ITEM_PR }}
+                sx={{ pr: isDesktop ? LIST_ITEM_PR_DESKTOP : LIST_ITEM_PR_MOBILE }}
               >
                 {podcast.cover_art_url ? (
                   <Box component="img" src={podcast.cover_art_url} alt=""
@@ -341,6 +373,29 @@ export const PodcastList: React.FC<PodcastListProps> = ({
           ))}
         </List>
       )}
+
+      {/* Mobile action Menu */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor) && menuPodcast !== null}
+        onClose={handleMenuClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        <MenuItem onClick={() => { if (menuPodcast) audioApi.play({ podcast_id: menuPodcast.id }); handleMenuClose(); }}>
+          <PlayArrowIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} />
+          {t('tracks.play')}
+        </MenuItem>
+        <MenuItem onClick={() => { if (menuPodcast) setPodcastToEdit(menuPodcast); handleMenuClose(); }}>
+          <EditIcon fontSize="small" sx={{ mr: 1.5 }} />
+          {t('podcasts.edit')}
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => { if (menuPodcast) onDelete(menuPodcast); handleMenuClose(); }} sx={{ color: 'error.main' }}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1.5 }} />
+          {t('tracks.delete')}
+        </MenuItem>
+      </Menu>
 
       <PodcastEditDialog
         open={!!podcastToEdit}
