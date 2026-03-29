@@ -68,6 +68,16 @@ class MediaDownloader:
 
         thumbnail_embedded = self._embed_thumbnail_fallback(mp3_path, output_dir)
 
+        # Best-quality thumbnail URL from yt-dlp: prefer the first entry in
+        # info["thumbnails"] (sorted best-first by yt-dlp) or fall back to
+        # the top-level "thumbnail" field.
+        thumbnail_url: str = ""
+        thumbnails = info.get("thumbnails")
+        if thumbnails and isinstance(thumbnails, list):
+            thumbnail_url = thumbnails[-1].get("url", "") or ""
+        if not thumbnail_url:
+            thumbnail_url = info.get("thumbnail", "") or ""
+
         result: dict[str, Any] = {
             "file_path": str(mp3_path),
             "title": info.get("title", "Unknown Title"),
@@ -75,6 +85,7 @@ class MediaDownloader:
             "album": "Downloads",
             "duration_ms": int(info.get("duration", 0) * 1000),
             "video_id": video_id,
+            "thumbnail": thumbnail_url,
             "thumbnail_embedded": thumbnail_embedded,
         }
 

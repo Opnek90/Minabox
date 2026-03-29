@@ -10,6 +10,13 @@ export interface MediaUrlInfo {
   video_id: string;
 }
 
+export interface DownloadStatusResponse {
+  track_id: number;
+  /** "pending" | "downloading" | "done" | "error" | "unknown" */
+  status: string;
+  error: string | null;
+}
+
 export const trackFoldersApi = {
   getAll: async (): Promise<TrackFolder[]> => {
     const response = await apiClient.get<TrackFolder[]>('/tracks/folders');
@@ -86,11 +93,27 @@ export const tracksApi = {
     return response.data;
   },
 
-  fromUrl: async (url: string): Promise<Track> => {
-    const response = await apiClient.post<Track>('/tracks/from-url', null, {
-      params: { url },
-      timeout: 300_000,
-    });
+  /**
+   * Start an async background download for a URL.
+   * Returns { track_id, status: "pending" | "done" } immediately (HTTP 202 or 200 for duplicates).
+   */
+  fromUrl: async (url: string): Promise<{ track_id: number; status: string }> => {
+    const response = await apiClient.post<{ track_id: number; status: string }>(
+      '/tracks/from-url',
+      null,
+      { params: { url }, timeout: 15_000 },
+    );
+    return response.data;
+  },
+
+  /**
+   * Poll the download status of a track imported via fromUrl().
+   * Status values: "pending" | "downloading" | "done" | "error" | "unknown"
+   */
+  getDownloadStatus: async (trackId: number): Promise<DownloadStatusResponse> => {
+    const response = await apiClient.get<DownloadStatusResponse>(
+      `/tracks/${trackId}/download-status`,
+    );
     return response.data;
   },
 
