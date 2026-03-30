@@ -44,7 +44,7 @@ backend_service/
 │   ├── routes_system.py     # System/Health: Service-Health-URLs, Uptime, DB-Check, MQTT-Connected, System-Status-Response
 │   ├── routes_tags.py       # REST RFID-Tags: Liste, Get, Create, Update, Delete (tag_id, name, content_type, content_id)
 │   ├── routes_host.py       # Host-Helper-Proxy: Audio-Pfad, Move/Copy, Temperatur, Current-Alert; Pfad-Validierung, erlaubte Basen
-│   ├── routes_stats.py      # Listening-Stats (Parent-Dashboard): heute/gesamt, minutes_per_day, top_tags, Scan-Counts; general_settings + DB
+│   ├── routes_stats.py      # Listening-Stats (Parent-Dashboard): heute/gesamt (inkl. laufendem Event), minutes_per_day, top_tags, Scan-Counts; general_settings + DB
 │   ├── routes_auth.py       # Web-Auth-API: Login/Logout, Passwort-Änderung, geschützte Bereiche; Cookie-Session
 │   ├── routes_tracks.py     # REST Tracks: Liste, Get, Create, Update, Delete; Upload, Cover in static/; async URL-Import
 │   ├── routes_streams.py    # REST Streams: CRUD inkl. optional Cover
@@ -60,7 +60,7 @@ backend_service/
 │   ├── session_manager.py   # In-Memory Playback-Session: PlaybackSession/SessionTrack, current_track_index, Shuffle, Repeat; SessionManager, session_manager
 │   ├── sleep_settings.py    # Liest sleep_timer_minutes und Bedtime-Fade (Dauer, Intervall, Step) aus general_settings.json
 │   ├── usage_limits.py      # Eltern/Nutzung: erlaubte Zeiten und Daily-Limit aus general_settings; Prüfung ob aktuell erlaubt; Stop-on-Tag-Remove
-│   ├── playback_stats.py    # Playback-Statistik: minutes_for_event, get_today_listened_minutes, get_total_listened_minutes aus PlaybackEvent
+│   ├── playback_stats.py    # Playback-Statistik: minutes_for_event, get_today_listened_minutes, get_total_listened_minutes, get_live_listened_minutes aus PlaybackEvent
 │   ├── podcast_fetcher.py   # Hintergrund-Loop: Podcast-RSS fetchen, Episoden parsen, in DB upserten (Podcast/PodcastEpisode)
 │   ├── temperature_logger.py # Hintergrund-Loop: Host-Temperatur via Host-Helper lesen, in DB loggen, bei Überhitzung MQTT/WebSocket
 │   └── auth.py              # Web-Auth: auth_settings lesen/schreiben (Passwort-Hash, geschützte Bereiche), bcrypt, JWT-Session
@@ -145,7 +145,7 @@ backend_service/
 - `POST /api/v1/audio/sleep-timer` – Sleep-Timer starten (Payload: z.B. `minutes`)
 - `DELETE /api/v1/audio/sleep-timer` – Sleep-Timer abbrechen
 - `POST /api/v1/audio/seek` – Seek auf Position innerhalb des aktuellen Tracks (Payload: `position_ms`)
-- `GET /api/v1/audio/session` – Aktuelle Queue/Session (repeat_mode, shuffle) für „What’s next“
+- `GET /api/v1/audio/session` – Aktuelle Queue/Session (repeat_mode, shuffle) für „What's next"
 - `POST /api/v1/audio/repeat` – Repeat-Modus setzen (`none` | `all`)
 - `POST /api/v1/audio/shuffle` – Shuffle für die aktuelle Session setzen (Payload: `shuffle: bool`)
 - `GET /api/v1/audio/devices` – Erkannte PulseAudio/PipeWire-Sinks auflisten (Query: `enabled_only`)
@@ -162,7 +162,7 @@ backend_service/
 - `GET /api/v1/config/buttons/actions` – Liste aller unterstützten Button-Aktionen (für Admin-UI Auswahl)
 - `GET /api/v1/config/leds` – LED-Konfiguration abrufen
 - `PUT /api/v1/config/leds` – LED-Konfiguration aktualisieren
-- `GET /api/v1/config/leds/states` – Liste aller unterstützten LED-„Logical States“ (Binding IDs)
+- `GET /api/v1/config/leds/states` – Liste aller unterstützten LED-„Logical States" (Binding IDs)
 - `GET /api/v1/config/leds/patterns` – Liste aller unterstützten LED-Pattern-Typen
 - `GET /api/v1/config/audio` – Audio-Konfiguration abrufen
 - `PUT /api/v1/config/audio` – Audio-Konfiguration aktualisieren
@@ -178,9 +178,9 @@ backend_service/
 
 **Stats (Parent Dashboard / Nutzungsstatistik):**
 
-- `GET /api/v1/stats/overview` – Übersicht: Hörminuten heute/gesamt, Daily-Limit, Anzahl Tags/Playlists/Tracks/Streams/Podcasts
-- `GET /api/v1/stats/usage-today` – Heutige Hörminuten und Daily-Limit (daily_limit_enabled, daily_limit_minutes aus general_settings.json)
-- `GET /api/v1/stats/listening-summary` – Detaillierte Statistik: minutes_per_day, top_tags, top_playlists, heatmap (für Parent Dashboard)
+- `GET /api/v1/stats/overview` – Übersicht: Hörminuten heute/gesamt, Daily-Limit, Anzahl Tags/Playlists/Tracks/Streams/Podcasts. `minutes_today` enthält abgeschlossene Events **und** den laufenden Zwischenstand (`listened_ms`) des aktiven Events (max. ~60 s veraltet).
+- `GET /api/v1/stats/usage-today` – Heutige Hörminuten und Daily-Limit (daily_limit_enabled, daily_limit_minutes aus general_settings.json). Gleiche Live-Logik wie `/overview`. **Hinweis:** Das Daily-Limit-Enforcement in `usage_limits.py` verwendet weiterhin nur abgeschlossene Events, um laufende Wiedergabe nicht vorzeitig zu unterbrechen.
+- `GET /api/v1/stats/listening-summary` – Detaillierte Statistik: minutes_per_day, top_tags, top_playlists, heatmap (für Parent Dashboard). Nur abgeschlossene Events.
 
 **System & Health:**
 
@@ -585,6 +585,8 @@ class PlaybackEvent(Base):
 
 Wird für **Stats API** (Parent Dashboard: Hörminuten, Top-Tags, Top-Playlists, Heatmap) und Daily-Limit (general_settings: daily_limit_enabled, daily_limit_minutes) genutzt.
 
+**Hinweis Playback-Statistik:** `listened_ms` wird während der Wiedergabe ca. alle 60 Sekunden vom `AudioHandler._flush_loop` aktualisiert (offenes Event, `ended_at IS NULL`). Nach Stop wird das Event mit dem finalen `listened_ms`-Wert und `ended_at` abgeschlossen. `GET /api/v1/stats/overview` und `GET /api/v1/stats/usage-today` addieren beide Quellen (`get_today_listened_minutes` + `get_live_listened_minutes`), um die laufende Hörsession im Dashboard sichtbar zu machen. Das Daily-Limit-Enforcement verwendet ausschließlich abgeschlossene Events.
+
 ### 4.7 PlaylistTrack (M:N)
 
 ```python
@@ -677,7 +679,7 @@ Ablauf:
    - Erstelle Session mit einem Track.
 6. Falls `content_type == "stream"`:
    - Lade Stream-Details (source_uri).
-   - Erstelle Session mit einem „virtuellen“ Track (Stream-URI).
+   - Erstelle Session mit einem „virtuellen" Track (Stream-URI).
 7. Sende `minabox/<device-id>/audio/play` mit Track-/Stream-Daten (`source_type`, `source_uri`, `start_position_ms=0`) an Audio-Service.
 8. Pushe Event via WebSocket an WebUI.
 
@@ -883,6 +885,7 @@ Der Backend loggt strukturiert (structlog, JSON) u.a.:
 - `track_thumbnail_downloaded` / `track_thumbnail_download_failed` mit `track_id` und `url`
 - `track_cover_extract_failed` mit `track_id`
 - `media_downloader_download_5xx_retry` / `media_downloader_download_transient_retry` mit `attempt`
+- `playback_stats_flushed` mit `event_id` und `ms` (live flush alle 60 s)
 
 ---
 
@@ -903,4 +906,4 @@ Der Backend loggt strukturiert (structlog, JSON) u.a.:
 - [ ] **core/mqtt_handlers.py aufteilen:** Die Datei bündelt RFID (Tag-Scan, Learning, Tag-Removed), Button-Actions, Audio-Status, Sleep-Timer, Bedtime-Fade, Playback-Events und Stream-Reconnect. Empfehlung: thematische Handler-Module (z. B. `rfid_handlers.py`, `button_handlers.py`, `sleep_timer.py`, `playback_events.py`) mit gemeinsamer Basis; MQTT-Dispatcher ruft die jeweiligen Handler auf.
 - [ ] **Sleep-Timer-Logik bündeln:** Aktuell verteilt auf `core/mqtt_handlers.py`, `core/sleep_settings.py` und REST in `api/routes_audio.py`. Optional: eigenes Feature-Modul (z. B. `core/sleep_timer.py`) mit API-Anbindung in `routes_audio.py`.
 - [ ] **`_download_status`-Dict persistieren:** Aktuell In-Memory; nach Service-Neustart gehen laufende Status-Einträge verloren. Optional: Status in DB-Tabelle speichern.
-- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei" in diesem Dokument aktualisieren.
