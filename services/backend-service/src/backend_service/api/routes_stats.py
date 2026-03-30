@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
 from backend_service.core.playback_stats import (
+    get_live_listened_minutes,
     get_today_listened_minutes,
     get_total_listened_minutes,
     minutes_for_event,
@@ -94,8 +95,14 @@ class OverviewResponse(BaseModel):
     summary="Dashboard overview (minutes + counts)",
 )
 async def get_overview(db: Session = Depends(get_db)) -> OverviewResponse:
-    """Return listening minutes (today/total) and counts for tags, tracks, streams, podcasts, playlists."""
-    minutes_today = get_today_listened_minutes(db)
+    """Return listening minutes (today/total) and counts for tags, tracks, streams, podcasts, playlists.
+
+    minutes_today includes both completed events (ended_at IS NOT NULL) and the
+    in-progress event (ended_at IS NULL, listened_ms updated every ~60 s by the
+    flush loop) so the Dashboard reflects running playback in near-real-time.
+    The two sources are mutually exclusive and never produce double-counting.
+    """
+    minutes_today = get_today_listened_minutes(db) + get_live_listened_minutes(db)
     minutes_total = get_total_listened_minutes(db)
     daily_limit_enabled, daily_limit_minutes = _read_daily_limit()
     tags_count = db.query(Tag).count()
@@ -133,8 +140,14 @@ async def reset_listening_stats(db: Session = Depends(get_db)) -> None:
     summary="Today's usage and daily limit (Parent Dashboard)",
 )
 async def get_usage_today(db: Session = Depends(get_db)) -> UsageTodayResponse:
-    """Return minutes listened today and daily limit settings."""
-    minutes_today = get_today_listened_minutes(db)
+    """Return minutes listened today and daily limit settings.
+
+    minutes_today includes both completed events and the current in-progress event
+    (if any), consistent with /overview. The daily-limit enforcement in
+    usage_limits.py intentionally uses only completed events to avoid prematurely
+    cutting off active playback.
+    """
+    minutes_today = get_today_listened_minutes(db) + get_live_listened_minutes(db)
     daily_limit_enabled, daily_limit_minutes = _read_daily_limit()
     return UsageTodayResponse(
         minutes_today=round(minutes_today, 1),

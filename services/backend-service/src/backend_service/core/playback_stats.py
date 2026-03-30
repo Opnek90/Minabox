@@ -60,3 +60,29 @@ def get_total_listened_minutes(db: Session) -> float:
         .all()
     )
     return sum(minutes_for_event(e) for e in events)
+
+
+def get_live_listened_minutes(db: Session) -> float:
+    """Sum listened_ms from currently open (in-progress) playback events.
+
+    Open events have no ended_at yet but their listened_ms column is updated
+    approximately every 60 seconds by AudioHandler._flush_loop while the track
+    is playing. This allows the Dashboard to show a running total rather than
+    0.0 Min. throughout the entire playback session.
+
+    These events are mutually exclusive with the events counted by
+    get_today_listened_minutes (ended_at IS NULL vs. IS NOT NULL), so adding
+    both values together never causes double-counting.
+
+    Each open event is capped at MAX_MINUTES_PER_EVENT for consistency.
+    """
+    events = (
+        db.query(PlaybackEvent)
+        .filter(PlaybackEvent.ended_at.is_(None))
+        .all()
+    )
+    return sum(
+        min(e.listened_ms / 60_000.0, MAX_MINUTES_PER_EVENT)
+        for e in events
+        if getattr(e, "listened_ms", None) is not None and e.listened_ms > 0
+    )

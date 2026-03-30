@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { statsApi } from '@/api/stats';
@@ -26,17 +26,23 @@ export function useDashboardOverview(): UseDashboardOverviewResult {
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
 
+  // Track whether initial data has been loaded to distinguish loading vs. refreshing.
+  // Using a ref instead of `data` as a dependency avoids recreating `load` on every
+  // fetch completion, which previously caused an infinite refreshing=true loop (#94).
+  const hasDataRef = useRef(false);
+
   const load = useCallback(async () => {
-    if (!data) setLoading(true);
+    if (!hasDataRef.current) setLoading(true);
     else setRefreshing(true);
     try {
       const res = await statsApi.getOverview();
+      hasDataRef.current = true;
       setData(res);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [data]);
+  }, []); // stable – no data dependency
 
   useEffect(() => {
     void load();
@@ -90,4 +96,3 @@ export function useDashboardOverview(): UseDashboardOverviewResult {
     confirmReset,
   };
 }
-
