@@ -17,6 +17,8 @@ import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
+import { useAudioStatus } from '@/hooks/useAudioStatus';
+import { MINI_PLAYER_HEIGHT } from '@/components/common/MiniPlayer';
 
 interface MediaFabProps {
   /** 0=Playlists, 1=Tracks, 2=Streams, 3=Podcasts */
@@ -30,6 +32,12 @@ interface MediaFabProps {
   onCreatePodcast: () => void;
 }
 
+// FAB size (MUI default) + gap above it
+const FAB_SIZE = 56;
+const FAB_GAP = 8;
+// Base bottom offset when MiniPlayer is not visible
+const FAB_BOTTOM_DEFAULT = 24;
+
 export const MediaFab: React.FC<MediaFabProps> = ({
   activeTab,
   onCreatePlaylist,
@@ -42,6 +50,18 @@ export const MediaFab: React.FC<MediaFabProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const [open, setOpen] = useState(false);
+
+  const audioStatus = useAudioStatus();
+  const isMiniPlayerVisible =
+    audioStatus !== null && audioStatus.state !== 'stopped';
+
+  // Shift the FAB above the MiniPlayer bar when it is visible
+  const fabBottom = isMiniPlayerVisible
+    ? FAB_BOTTOM_DEFAULT + MINI_PLAYER_HEIGHT
+    : FAB_BOTTOM_DEFAULT;
+
+  // The action menu sits directly above the FAB
+  const menuBottom = fabBottom + FAB_SIZE + FAB_GAP;
 
   const actionsByTab: Record<number, { icon: React.ReactNode; name: string; onClick: () => void }[]> = {
     0: [
@@ -75,7 +95,7 @@ export const MediaFab: React.FC<MediaFabProps> = ({
       <Box
         sx={{
           position: 'fixed',
-          bottom: 88,
+          bottom: menuBottom,
           right: 24,
           zIndex: 1200,
           display: 'flex',
@@ -83,6 +103,7 @@ export const MediaFab: React.FC<MediaFabProps> = ({
           alignItems: 'flex-end',
           gap: 1,
           pointerEvents: open ? 'auto' : 'none',
+          transition: 'bottom 0.3s ease',
         }}
       >
         {actions.map((action, i) => (
@@ -142,10 +163,10 @@ export const MediaFab: React.FC<MediaFabProps> = ({
         onClick={() => setOpen((prev) => !prev)}
         sx={{
           position: 'fixed',
-          bottom: 24,
+          bottom: fabBottom,
           right: 24,
           zIndex: 1200,
-          transition: 'transform 0.2s',
+          transition: 'bottom 0.3s ease, transform 0.2s',
           transform: open ? 'rotate(45deg)' : 'rotate(0deg)',
         }}
       >

@@ -16,6 +16,10 @@ import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { useSleepTimer } from '@/hooks/useSleepTimer';
 import { audioApi } from '@/api/audio';
 
+// Height of the MiniPlayer bar (progress bar 3px + content row ~61px).
+// Exported so other fixed-position elements (e.g. MediaFab) can offset themselves.
+export const MINI_PLAYER_HEIGHT = 64;
+
 // ── Sleep-Timer Ring ─────────────────────────────────────────────────────────
 interface SleepRingProps {
   remainingMs: number;
