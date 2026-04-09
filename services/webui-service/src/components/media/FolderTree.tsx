@@ -39,6 +39,8 @@ interface FolderTreeProps {
   onNavigate: (folderId: number | null) => void;
   onRename: (folder: TrackFolder) => void;
   onDelete: (folder: TrackFolder) => void;
+  /** Called when a track is dropped onto a folder (or root). */
+  onDropTrack?: (trackId: number, targetFolderId: number | null) => void;
 }
 
 interface TreeNodeProps {
@@ -50,11 +52,12 @@ interface TreeNodeProps {
   onNavigate: (folderId: number | null) => void;
   onRename: (folder: TrackFolder) => void;
   onDelete: (folder: TrackFolder) => void;
+  onDropTrack?: (trackId: number, targetFolderId: number | null) => void;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
   folder, folders, allTracks, currentFolderId, depth,
-  onNavigate, onRename, onDelete,
+  onNavigate, onRename, onDelete, onDropTrack,
 }) => {
   const { t } = useTranslation('media');
   const children = folders.filter((f) => f.parent_id === folder.id);
@@ -66,6 +69,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [hovered, setHovered] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const isTouch = useMediaQuery('(pointer: coarse)');
   const showButton = isTouch || hovered;
@@ -80,6 +84,26 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     onDelete(folder);
   };
 
+  // --- Drag & Drop handlers ---
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('application/minabox-track-id')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOver(true);
+  };
+
+  const handleDragLeave = () => setDragOver(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const rawId = e.dataTransfer.getData('application/minabox-track-id');
+    const trackId = parseInt(rawId, 10);
+    if (!isNaN(trackId) && onDropTrack) {
+      onDropTrack(trackId, folder.id);
+    }
+  };
+
   return (
     <>
       <ListItemButton
@@ -87,6 +111,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         onClick={() => onNavigate(folder.id)}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         sx={{
           pl: 0.5 + depth * 1.5,
           pr: 0.5,
@@ -94,8 +121,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           maxHeight: ROW_HEIGHT,
           borderRadius: 0.75,
           mx: 0.5,
+          outline: dragOver ? '2px solid' : 'none',
+          outlineColor: dragOver ? 'primary.main' : 'transparent',
+          bgcolor: dragOver ? 'primary.light' : undefined,
+          transition: 'outline 0.1s, background-color 0.1s',
           '&.Mui-selected': {
-            bgcolor: 'primary.main',
+            bgcolor: dragOver ? 'primary.light' : 'primary.main',
             color: 'primary.contrastText',
             '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
             '&:hover': { bgcolor: 'primary.dark' },
@@ -201,6 +232,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               onNavigate={onNavigate}
               onRename={onRename}
               onDelete={onDelete}
+              onDropTrack={onDropTrack}
             />
           ))}
         </Collapse>
@@ -210,11 +242,32 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 };
 
 export const FolderTree: React.FC<FolderTreeProps> = ({
-  folders, allTracks, currentFolderId, onNavigate, onRename, onDelete,
+  folders, allTracks, currentFolderId, onNavigate, onRename, onDelete, onDropTrack,
 }) => {
   const { t } = useTranslation('media');
   const rootFolders = folders.filter((f) => f.parent_id == null);
   const rootTrackCount = allTracks.filter((tr) => tr.folder_id == null).length;
+
+  const [rootDragOver, setRootDragOver] = useState(false);
+
+  const handleRootDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('application/minabox-track-id')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setRootDragOver(true);
+  };
+
+  const handleRootDragLeave = () => setRootDragOver(false);
+
+  const handleRootDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setRootDragOver(false);
+    const rawId = e.dataTransfer.getData('application/minabox-track-id');
+    const trackId = parseInt(rawId, 10);
+    if (!isNaN(trackId) && onDropTrack) {
+      onDropTrack(trackId, null);
+    }
+  };
 
   return (
     <Box
@@ -237,17 +290,25 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         {t('tabs.tracks')}
       </Typography>
 
+      {/* Root Drop Target */}
       <ListItemButton
         selected={currentFolderId === null}
         onClick={() => onNavigate(null)}
+        onDragOver={handleRootDragOver}
+        onDragLeave={handleRootDragLeave}
+        onDrop={handleRootDrop}
         sx={{
           pl: 0.5, pr: 0.5,
           minHeight: ROW_HEIGHT,
           maxHeight: ROW_HEIGHT,
           borderRadius: 0.75,
           mx: 0.5,
+          outline: rootDragOver ? '2px solid' : 'none',
+          outlineColor: rootDragOver ? 'primary.main' : 'transparent',
+          bgcolor: rootDragOver ? 'primary.light' : undefined,
+          transition: 'outline 0.1s, background-color 0.1s',
           '&.Mui-selected': {
-            bgcolor: 'primary.main',
+            bgcolor: rootDragOver ? 'primary.light' : 'primary.main',
             color: 'primary.contrastText',
             '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
             '&:hover': { bgcolor: 'primary.dark' },
@@ -286,6 +347,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           onNavigate={onNavigate}
           onRename={onRename}
           onDelete={onDelete}
+          onDropTrack={onDropTrack}
         />
       ))}
 
