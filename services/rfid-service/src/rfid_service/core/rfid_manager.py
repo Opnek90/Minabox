@@ -68,9 +68,31 @@ class RFIDManager:
         )
 
     async def start(self) -> None:
-        """Start the RFID manager and publish initial status."""
+        """Start the RFID manager, publish initial status and initial tag state.
+
+        Performs one synchronous read to determine whether a tag is already
+        present on the reader before the scan_loop starts. This ensures that
+        any subscriber (e.g. the LED-service) receives the correct real-world
+        state immediately — without relying on a state-change event that would
+        only arrive once the tag is removed or a new one is placed.
+        """
         self._running = True
         await self._publish_status("normal")
+
+        # Initial scan: publish the real-world tag state at boot time.
+        try:
+            tag_uid = self._reader.read_tag_uid()
+            if tag_uid:
+                self._current_tag = tag_uid
+                self._last_scan_time[tag_uid] = time.time()
+                await self._publish_tag_scanned(tag_uid)
+                logger.info("initial_tag_present", tag_id=tag_uid)
+            else:
+                await self._publish_tag_removed_initial()
+                logger.info("initial_no_tag")
+        except HardwareError as exc:
+            logger.warning("initial_scan_failed", error=str(exc))
+
         logger.info("rfid_manager_started", mode=self._mode)
 
     async def stop(self) -> None:
@@ -194,6 +216,25 @@ class RFIDManager:
             qos=1,
         )
         logger.info("tag_removed", tag_id=tag_uid)
+
+    async def _publish_tag_removed_initial(self) -> None:
+        """Publish tag-removed at startup when no tag is present on the reader.
+
+        Uses an empty tag_id because there is no previously known tag at boot.
+        Subscribers (e.g. LED-service) use this purely as a state signal, not
+        to identify which tag was removed.
+        """
+        event = TagRemovedEvent(
+            tag_id="",
+            reader_id=self._reader.reader_id,
+        )
+        await self._mqtt.publish(
+            f"{self._topic_prefix}/tag-removed",
+            event.model_dump(),
+            retain=False,
+            qos=1,
+        )
+        logger.info("tag_removed_initial")
 
     async def _publish_status(
         self,
