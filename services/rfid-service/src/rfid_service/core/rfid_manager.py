@@ -11,7 +11,13 @@ import structlog
 from ..exceptions import HardwareError
 from ..infrastructure.hardware import RFIDReader
 from ..infrastructure.mqtt_client import MQTTClient
-from ..models import RFIDStatusEvent, TagRemovedEvent, TagScannedEvent, TagScannedLearningEvent
+from ..models import (
+    RFIDStatusEvent,
+    TagPresenceEvent,
+    TagRemovedEvent,
+    TagScannedEvent,
+    TagScannedLearningEvent,
+)
 
 if TYPE_CHECKING:
     from ..config_schema import AppConfig
@@ -27,6 +33,9 @@ class RFIDManager:
       or different tag to this tag). No repeat events while the same tag stays on.
     - tag-removed: The reader no longer detects a tag (previously present tag
       was removed).
+    - presence: Retained topic always reflecting the current tag presence.
+      Updated on every tag-scanned, tag-removed and at startup. Allows
+      subscribers to recover state after re-initialization.
 
     Responsibilities:
     - Continuous tag scanning loop
@@ -68,27 +77,28 @@ class RFIDManager:
         )
 
     async def start(self) -> None:
-        """Start the RFID manager, publish initial status and initial tag state.
+        """Start the RFID manager, publish initial status and tag presence.
 
         Performs one synchronous read to determine whether a tag is already
-        present on the reader before the scan_loop starts. This ensures that
-        any subscriber (e.g. the LED-service) receives the correct real-world
-        state immediately — without relying on a state-change event that would
-        only arrive once the tag is removed or a new one is placed.
+        present on the reader before the scan_loop starts. Publishes both the
+        specific tag event (tag-scanned / tag-removed) and the retained
+        presence topic so all subscribers immediately have the correct state.
         """
         self._running = True
         await self._publish_status("normal")
 
-        # Initial scan: publish the real-world tag state at boot time.
+        # Initial scan: determine real-world tag state at boot and publish it.
         try:
             tag_uid = self._reader.read_tag_uid()
             if tag_uid:
                 self._current_tag = tag_uid
                 self._last_scan_time[tag_uid] = time.time()
                 await self._publish_tag_scanned(tag_uid)
+                await self._publish_presence(tag_present=True, tag_id=tag_uid)
                 logger.info("initial_tag_present", tag_id=tag_uid)
             else:
                 await self._publish_tag_removed_initial()
+                await self._publish_presence(tag_present=False, tag_id=None)
                 logger.info("initial_no_tag")
         except HardwareError as exc:
             logger.warning("initial_scan_failed", error=str(exc))
@@ -147,7 +157,7 @@ class RFIDManager:
 
         # Tag still on reader – do not publish tag-scanned again (same presence)
         if tag_uid == self._current_tag:
-            self._last_scan_time[tag_uid] = now  # keep timestamp for remove/re-place suppression
+            self._last_scan_time[tag_uid] = now
             return
 
         if tag_uid in self._last_scan_time:
@@ -168,12 +178,15 @@ class RFIDManager:
         else:
             await self._publish_tag_scanned(tag_uid)
 
+        await self._publish_presence(tag_present=True, tag_id=tag_uid)
+
     async def _handle_no_tag(self) -> None:
         """Handle no tag detected: publish tag-removed if a tag was previously present."""
         if self._current_tag is not None:
             removed_tag = self._current_tag
             self._current_tag = None
             await self._publish_tag_removed(removed_tag)
+            await self._publish_presence(tag_present=False, tag_id=None)
 
     async def _publish_tag_scanned(self, tag_uid: str) -> None:
         """Publish tag-scanned: tag was newly placed on reader (normal mode)."""
@@ -221,8 +234,7 @@ class RFIDManager:
         """Publish tag-removed at startup when no tag is present on the reader.
 
         Uses an empty tag_id because there is no previously known tag at boot.
-        Subscribers (e.g. LED-service) use this purely as a state signal, not
-        to identify which tag was removed.
+        Subscribers (e.g. LED-service) use this purely as a state signal.
         """
         event = TagRemovedEvent(
             tag_id="",
@@ -235,6 +247,31 @@ class RFIDManager:
             qos=1,
         )
         logger.info("tag_removed_initial")
+
+    async def _publish_presence(self, *, tag_present: bool, tag_id: str | None) -> None:
+        """Publish the retained presence topic.
+
+        This retained message is the single source of truth for the current
+        tag presence. Subscribers that reconnect or re-initialize (e.g.
+        LED-service after a config reload) receive this immediately without
+        waiting for the next state-change event.
+
+        Args:
+            tag_present: Whether a tag is currently on the reader.
+            tag_id: UID of the present tag, or None when no tag is present.
+        """
+        event = TagPresenceEvent(
+            tag_present=tag_present,
+            tag_id=tag_id,
+            reader_id=self._reader.reader_id,
+        )
+        await self._mqtt.publish(
+            f"{self._topic_prefix}/presence",
+            event.model_dump(),
+            retain=True,
+            qos=1,
+        )
+        logger.debug("presence_published", tag_present=tag_present, tag_id=tag_id)
 
     async def _publish_status(
         self,

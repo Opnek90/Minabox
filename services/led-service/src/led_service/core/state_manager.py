@@ -33,6 +33,10 @@ class StateManager:
             # Issue #63: blocked tag fires rfid_tag_blocked so LED bindings can
             # react (e.g. a red blink pattern) without starting playback.
             f"{prefix}/rfid/tag-blocked": lambda _: "rfid_tag_blocked",
+            # Retained presence topic: allows state recovery after LED config
+            # reload or any other re-initialization. Maps tag_present=true to
+            # rfid_scanned and tag_present=false to rfid_removed.
+            f"{prefix}/rfid/presence": self._derive_rfid_presence_state,
             f"{prefix}/system/service-started": lambda _: "system_online",
             f"{prefix}/system/service-error": lambda _: "system_error",
             f"{prefix}/system/booting": lambda _: "system_booting",
@@ -77,3 +81,24 @@ class StateManager:
         else:
             logger.warning("unknown_audio_state", state=audio_state)
             return "audio_stopped"
+
+    def _derive_rfid_presence_state(self, payload: bytes) -> str:
+        """Derive rfid_scanned / rfid_removed from the retained presence topic.
+
+        This is used for state recovery after LED re-initialization (e.g. after
+        a config reload). The MQTT broker delivers the retained presence message
+        immediately on subscribe, so the LED-service always recovers the correct
+        RFID state without waiting for the next physical scan event.
+
+        Args:
+            payload: JSON payload from minabox/{id}/rfid/presence.
+
+        Returns:
+            'rfid_scanned' if tag_present is True, 'rfid_removed' otherwise.
+        """
+        try:
+            data = json.loads(payload.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise StateError(f"Invalid JSON in rfid/presence payload: {exc}") from exc
+
+        return "rfid_scanned" if data.get("tag_present") else "rfid_removed"

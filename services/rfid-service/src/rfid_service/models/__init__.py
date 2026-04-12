@@ -1,17 +1,15 @@
-"""Data models for RFID service events and messages."""
-
-from __future__ import annotations
-
 from .schemas import (
     RFIDStatusEvent,
+    TagPresenceEvent,
     TagRemovedEvent,
     TagScannedEvent,
     TagScannedLearningEvent,
 )
 
 __all__ = [
+    "RFIDStatusEvent",
+    "TagPresenceEvent",
+    "TagRemovedEvent",
     "TagScannedEvent",
     "TagScannedLearningEvent",
-    "TagRemovedEvent",
-    "RFIDStatusEvent",
 ]
