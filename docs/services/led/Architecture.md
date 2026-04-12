@@ -126,8 +126,7 @@ Analog zum Button-Service besitzt der LED-Service eine Config-API über MQTT.
       "enabled": true,
       "bindings": {
         "system_online": {
-          "pattern_type": "solid",
-          "duration_ms": 0
+          "pattern_type": "solid"
         },
         "system_error": {
           "pattern_type": "blink",
@@ -207,8 +206,7 @@ Der Inhalt wird vom Backend/WebUI verwaltet und per MQTT (`config/update`) in de
       "gpio": 5,
       "bindings": {
         "system_online": {
-          "pattern_type": "solid",
-          "duration_ms": 0
+          "pattern_type": "solid"
         },
         "system_error": {
           "pattern_type": "blink",
@@ -236,14 +234,14 @@ Ein Pattern beschreibt, **wie** die LED auf einen logischen Zustand reagieren so
 Felder im Pattern:
 
 - `pattern_type`: `"solid"` | `"blink"` | `"pulse"` | `"off"`.
-  - `solid`: dauerhaft an (oder aus, wenn kein Binding definiert ist), optional mit begrenzter Dauer.
+  - `solid`: LED dauerhaft einschalten. Bleibt aktiv, bis ein anderes Pattern diese LED überschreibt. **`duration_ms` hat bei `solid` keine Wirkung** und wird beim Einlesen der Konfiguration automatisch ignoriert (mit Warning-Log). Das Feld sollte in neuen Konfigurationen weggelassen werden.
   - `blink`: an/aus im angegebenen Intervall.
   - `pulse`: kurz aufleuchten, dann wieder aus.
   - `off`: LED sofort ausschalten, ohne sichtbaren Puls (z.B. für häufig eintreffende Zustände wie `audio_stopped`/`audio_paused`).
 
 - `duration_ms` (optional): Dauer des Patterns in Millisekunden.
-  - `0` oder fehlend bei `solid`: bleibt aktiv, bis ein anderes Pattern für diese LED angewendet wird.
-  - Bei `pulse`: wie lange der Puls dauert.
+  - **Nicht anwendbar bei `solid`** – wird ignoriert (siehe oben).
+  - Bei `pulse`: wie lange die LED pro Puls eingeschaltet bleibt.
 
 - `interval_ms` (optional, nur für `blink`): Intervall zwischen an/aus in Millisekunden (z.B. 1000 = langsam, 200 = schnell).
 
@@ -253,12 +251,11 @@ Felder im Pattern:
 
 Beispiele:
 
-- `solid` dauerhaft an:
+- `solid` dauerhaft an (kein `duration_ms` nötig):
 
 ```json
 {
-  "pattern_type": "solid",
-  "duration_ms": 0
+  "pattern_type": "solid"
 }
 ```
 
@@ -318,7 +315,7 @@ Ablauf pro LED:
 1. Ein logischer Zustand wird erkannt (z.B. `audio_playing`).
 2. Der Service sucht das Pattern aus `bindings[audio_playing]` für diese LED.
 3. Das Pattern wird angewendet:
-   - `solid`: LED dauerhaft an/aus (je nach Definition).
+   - `solid`: LED dauerhaft an – kein Timeout, kein sleep.
    - `blink`: LED toggelt im angegebenen Intervall, ggf. `repeat`-mal oder unendlich.
    - `pulse`: LED wird für `duration_ms` eingeschaltet, dann wieder ausgeschaltet, ggf. mehrfach.
 4. Bei einem neuen Zustand mit Binding für dieselbe LED wird das vorherige Pattern abgebrochen/überschrieben.
@@ -381,7 +378,9 @@ Ablauf pro LED:
   - `led_state_change` mit `led_id`, `logical_state`, `pattern_type`.
   - `config_update_received` / `config_update_applied` / `config_update_failed`.
   - `gpio_error` mit Pin-Nummer und Fehlerursache.
+  - `solid_pattern_duration_ignored` – Warning, wenn eine `solid`-Konfiguration ein nicht-null `duration_ms` enthält.
 - Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen).
+
 ---
 
 ## 9. Nicht-Ziele / Abgrenzung
@@ -395,4 +394,4 @@ Ablauf pro LED:
 ## 10. Refactoring-Checkliste
 
 - [ ] **Keine groben Inkonsistenzen:** LED-Controller, Patterns und State-Management in core; MQTT in infrastructure.
-- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.
+- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei" in diesem Dokument aktualisieren.

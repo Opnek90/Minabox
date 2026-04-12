@@ -59,6 +59,9 @@ const DEFAULT_SORT_DIR = 'asc' as const;
 
 const TREE_WIDTH = 220;
 
+/** MIME type used for DnD transfer of a track ID */
+const TRACK_DRAG_TYPE = 'application/minabox-track-id';
+
 interface TrackListProps {
   tracks: Track[];
   allTracks: Track[];
@@ -139,6 +142,9 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [mobileView, setMobileView] = useState<'tree' | 'tracks'>(
     currentFolderId === null ? 'tree' : 'tracks'
   );
+
+  /** Track that is currently being dragged (set on dragstart, cleared on dragend) */
+  const [draggingTrackId, setDraggingTrackId] = useState<number | null>(null);
 
   useEffect(() => {
     onRegisterCreateFolder?.(() => setCreateFolderOpen(true));
@@ -221,6 +227,26 @@ export const TrackList: React.FC<TrackListProps> = ({
     setMenuTrack(null);
   };
 
+  // --- Drag & Drop helpers ---
+  const handleDragStart = (e: React.DragEvent, track: Track) => {
+    e.dataTransfer.setData(TRACK_DRAG_TYPE, String(track.id));
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingTrackId(track.id);
+  };
+
+  const handleDragEnd = () => setDraggingTrackId(null);
+
+  /**
+   * Called by FolderTree when a track is dropped onto a folder node.
+   * Looks up the full Track object and delegates to onMoveTrackToFolder.
+   */
+  const handleDropTrackOnFolder = (trackId: number, targetFolderId: number | null) => {
+    const track = allTracks.find((tr) => tr.id === trackId);
+    if (track) {
+      void onMoveTrackToFolder(track, targetFolderId);
+    }
+  };
+
   const MoveMenu = moveTrack ? (
     <Popover
       open
@@ -283,6 +309,9 @@ export const TrackList: React.FC<TrackListProps> = ({
   const renderListItem = (index: number, track: Track) => (
     <ListItem
       key={track.id}
+      draggable={!selectionMode}
+      onDragStart={!selectionMode ? (e) => handleDragStart(e, track) : undefined}
+      onDragEnd={!selectionMode ? handleDragEnd : undefined}
       divider={index < sorted.length - 1}
       secondaryAction={
         !selectionMode && (
@@ -332,6 +361,9 @@ export const TrackList: React.FC<TrackListProps> = ({
       }
       sx={{
         pr: selectionMode ? undefined : isDesktop ? '180px' : '40px',
+        opacity: draggingTrackId === track.id ? 0.4 : 1,
+        cursor: selectionMode ? 'default' : 'grab',
+        transition: 'opacity 0.15s',
         ...(selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
       }}
       onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
@@ -365,8 +397,24 @@ export const TrackList: React.FC<TrackListProps> = ({
   );
 
   const renderGridItem = (_index: number, track: Track) => (
-    <Box sx={{ p: 1, height: '100%' }}>
-      <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box
+      sx={{ p: 1, height: '100%' }}
+      draggable={!selectionMode}
+      onDragStart={!selectionMode ? (e) => handleDragStart(e, track) : undefined}
+      onDragEnd={!selectionMode ? handleDragEnd : undefined}
+    >
+      <Card
+        variant="outlined"
+        sx={{
+          borderRadius: 2,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          opacity: draggingTrackId === track.id ? 0.4 : 1,
+          cursor: selectionMode ? 'default' : 'grab',
+          transition: 'opacity 0.15s',
+        }}
+      >
         {track.cover_art_url && (
           <CardMedia component="img" height="120" image={track.cover_art_url} alt={track.title} sx={{ objectFit: 'cover' }} />
         )}
@@ -627,6 +675,7 @@ export const TrackList: React.FC<TrackListProps> = ({
               onNavigate={handleNavigateFolder}
               onRename={(folder) => setRenameFolder(folder)}
               onDelete={(folder) => void onFolderDelete(folder)}
+              onDropTrack={handleDropTrackOnFolder}
             />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0, pl: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -643,6 +692,7 @@ export const TrackList: React.FC<TrackListProps> = ({
               onNavigate={handleNavigateFolder}
               onRename={(folder) => setRenameFolder(folder)}
               onDelete={(folder) => void onFolderDelete(folder)}
+              onDropTrack={handleDropTrackOnFolder}
             />
           ) : (
             trackPanel

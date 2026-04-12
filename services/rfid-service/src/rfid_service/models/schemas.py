@@ -84,6 +84,49 @@ class TagRemovedEvent(BaseModel):
         }
 
 
+class TagPresenceEvent(BaseModel):
+    """Retained presence state of the RFID reader (tag on / off).
+
+    Published with retain=True whenever the tag presence changes and on
+    service startup. Subscribers (e.g. LED-service) can use this to recover
+    the correct RFID state after a re-initialization without waiting for the
+    next state-change event.
+    """
+
+    tag_present: bool = Field(
+        description="True if a tag is currently on the reader, False otherwise.",
+    )
+    tag_id: str | None = Field(
+        default=None,
+        description="UID of the present tag, or null when no tag is on the reader.",
+    )
+    reader_id: str = Field(
+        description="Identifier of the reader.",
+    )
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        description="ISO-8601 timestamp of the last presence change.",
+    )
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "tag_present": True,
+                    "tag_id": "04A224BC19",
+                    "reader_id": "pn532_i2c",
+                    "timestamp": "2026-02-16T22:48:00Z",
+                },
+                {
+                    "tag_present": False,
+                    "tag_id": None,
+                    "reader_id": "pn532_i2c",
+                    "timestamp": "2026-02-16T22:48:10Z",
+                },
+            ]
+        }
+
+
 class RFIDStatusEvent(BaseModel):
     """Status update for the RFID service (retained message)."""
 

@@ -199,10 +199,11 @@ class LEDController:
         )
 
         if pattern.pattern_type == "solid":
+            # run_solid_pattern takes only (led, led_id) — no duration_ms
+            # because solid means permanently on (see led_patterns.py)
             self._current_task = asyncio.create_task(
                 run_solid_pattern(
                     self._led,
-                    pattern.duration_ms,
                     self.config.id,
                 )
             )

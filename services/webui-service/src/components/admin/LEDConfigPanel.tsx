@@ -108,8 +108,9 @@ export const LEDConfigPanel: React.FC = () => {
     const nextNum = config?.leds.length
       ? Math.max(...config.leds.map((l) => parseInt(l.id.replace(/\D/g, ''), 10) || 0)) + 1
       : 1;
+    // No duration_ms for solid — the solid pattern stays on indefinitely (bug #97)
     setLedForm({ id: `led_${nextNum}`, name: '', gpio: 17 });
-    setBindingsForm({ system_online: { pattern_type: 'solid', duration_ms: 0 } });
+    setBindingsForm({ system_online: { pattern_type: 'solid' } });
     setEditLed({ id: `led_${nextNum}`, name: '', gpio: 17, bindings: {}, enabled: true });
     setIsNewLed(true);
     setActiveStep(0);
@@ -142,7 +143,7 @@ export const LEDConfigPanel: React.FC = () => {
   const addBinding = (state: string) => {
     setBindingsForm((prev) => ({
       ...prev,
-      [state]: { pattern_type: 'solid', duration_ms: 0 },
+      [state]: { pattern_type: 'solid' },
     }));
     setAddBindingState('');
   };
@@ -419,12 +420,15 @@ export const LEDConfigPanel: React.FC = () => {
                           <option key={p} value={p}>{t(`leds.bindings.patterns.${p}`)}</option>
                         ))}
                       </TextField>
-                      <TextField
-                        label={t('leds.bindings.duration_ms')} type="number"
-                        value={pat.duration_ms ?? ''}
-                        onChange={(e) => updateBinding(state, { duration_ms: e.target.value ? parseInt(e.target.value, 10) : undefined })}
-                        size="small" fullWidth inputProps={{ min: 0 }}
-                      />
+                      {/* duration_ms is only relevant for 'pulse' — hidden for 'solid' (bug #97) */}
+                      {(pat.pattern_type || 'solid') !== 'solid' && (
+                        <TextField
+                          label={t('leds.bindings.duration_ms')} type="number"
+                          value={pat.duration_ms ?? ''}
+                          onChange={(e) => updateBinding(state, { duration_ms: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                          size="small" fullWidth inputProps={{ min: 0 }}
+                        />
+                      )}
                       {(pat.pattern_type || 'solid') === 'blink' && (
                         <TextField
                           label={t('leds.bindings.interval_ms')} type="number"
