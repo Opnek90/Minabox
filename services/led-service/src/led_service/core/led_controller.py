@@ -4,6 +4,7 @@ This module handles:
 - Initialization of GPIO pins via gpiozero (NativePinFactory)
 - Pattern execution and cancellation
 - LED state management with graceful fallback for dev environments
+- PWM support for the 'glow' pattern via PWMLED
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from ..config_schema import LEDConfig, LEDPattern
 from ..exceptions import GPIOControlError, GPIOInitError, InvalidPatternError
 from .led_patterns import (
     run_blink_pattern,
+    run_glow_pattern,
     run_off_pattern,
     run_pulse_pattern,
     run_solid_pattern,
@@ -28,7 +30,12 @@ logger = structlog.get_logger(__name__)
 # Pattern types that represent persistent states (LED stays as-is after task finishes).
 # These must NOT clear _current_logical_state so subsequent identical events are
 # correctly suppressed by the idempotency check in apply_pattern().
-_PERSISTENT_PATTERN_TYPES = frozenset({"solid", "off"})
+_PERSISTENT_PATTERN_TYPES = frozenset({"solid", "off", "glow"})
+
+
+def _led_needs_pwm(config: LEDConfig) -> bool:
+    """Return True if any binding in this LED config requires PWM (PWMLED)."""
+    return any(p.pattern_type == "glow" for p in config.bindings.values())
 
 
 class LEDController:
@@ -40,6 +47,10 @@ class LEDController:
         GPIO pin factory is expected to be set once by LEDManager before
         instantiating controllers (issue #36).
 
+        If any binding uses the 'glow' pattern, PWMLED is instantiated
+        instead of LED. PWMLED is backward-compatible: value=1.0 equals on(),
+        value=0.0 equals off().
+
         Args:
             config: LED configuration including GPIO pin and bindings.
         """
@@ -49,6 +60,7 @@ class LEDController:
         self._current_logical_state: str | None = None
         self._gpio_available = False
         self._led = None
+        self._is_pwm = False
 
         disable_gpio = os.getenv("DISABLE_GPIO", "false").lower() == "true"
 
@@ -62,14 +74,21 @@ class LEDController:
             return
 
         try:
-            from gpiozero import LED
-            self._led = LED(config.gpio)
+            use_pwm = _led_needs_pwm(config)
+            if use_pwm:
+                from gpiozero import PWMLED
+                self._led = PWMLED(config.gpio)
+                self._is_pwm = True
+            else:
+                from gpiozero import LED
+                self._led = LED(config.gpio)
             self._gpio_available = True
             logger.debug(
                 "led_initialized",
                 led_id=config.id,
                 led_name=config.name,
                 gpio=config.gpio,
+                pwm=use_pwm,
             )
         except Exception as exc:
             logger.warning(
@@ -86,17 +105,22 @@ class LEDController:
 
         Cancels any running task and releases the GPIO LED object.
         Called by LEDManager.initialize_leds() before creating new controllers.
+        Works with both LED and PWMLED instances.
         """
         if self._current_task and not self._current_task.done():
             self._current_task.cancel()
         if self._led is not None:
             try:
-                self._led.off()
+                if self._is_pwm:
+                    self._led.value = 0.0
+                else:
+                    self._led.off()
                 self._led.close()
             except Exception:
                 pass
             self._led = None
             self._gpio_available = False
+            self._is_pwm = False
 
     async def apply_pattern(self, logical_state: str) -> None:
         """Apply the pattern for a given logical state.
@@ -199,8 +223,6 @@ class LEDController:
         )
 
         if pattern.pattern_type == "solid":
-            # run_solid_pattern takes only (led, led_id) — no duration_ms
-            # because solid means permanently on (see led_patterns.py)
             self._current_task = asyncio.create_task(
                 run_solid_pattern(
                     self._led,
@@ -237,6 +259,23 @@ class LEDController:
                 run_pulse_pattern(
                     self._led,
                     pattern.duration_ms,
+                    pattern.repeat,
+                    self.config.id,
+                    self._cancel_event,
+                )
+            )
+        elif pattern.pattern_type == "glow":
+            if not self._is_pwm:
+                raise InvalidPatternError(
+                    f"Glow pattern for LED '{self.config.name}' requires PWMLED but "
+                    f"LED was initialized without PWM. Re-initialize the controller."
+                )
+            self._current_task = asyncio.create_task(
+                run_glow_pattern(
+                    self._led,
+                    pattern.cycle_ms if pattern.cycle_ms is not None else 2000,
+                    pattern.min_brightness if pattern.min_brightness is not None else 0.0,
+                    pattern.max_brightness if pattern.max_brightness is not None else 1.0,
                     pattern.repeat,
                     self.config.id,
                     self._cancel_event,
@@ -284,7 +323,10 @@ class LEDController:
         await self._cancel_current_pattern()
         if self._led:
             try:
-                self._led.off()
+                if self._is_pwm:
+                    self._led.value = 0.0
+                else:
+                    self._led.off()
             finally:
                 try:
                     self._led.close()
@@ -316,6 +358,9 @@ class LEDController:
 
         Delegates to _run_blink_task() to avoid duplicating task-creation logic.
         Returns True if GPIO is available and test was started, False otherwise.
+
+        Note: test_blink uses the plain on/off interface and is compatible with
+        both LED and PWMLED (PWMLED.on() sets value to 1.0).
 
         Args:
             duration_sec: Total blink duration in seconds.
@@ -355,6 +400,9 @@ class LEDManager:
         Sets the gpiozero pin factory exactly once before creating controllers
         (issue #36). Uses the public close_sync() API on existing controllers
         instead of accessing private attributes (issue #37).
+
+        Each controller auto-selects LED or PWMLED based on whether any
+        binding in its config requires the 'glow' pattern.
 
         Args:
             led_configs: List of LED configurations.

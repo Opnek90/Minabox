@@ -409,6 +409,7 @@ export const LEDConfigPanel: React.FC = () => {
                         '&:last-child': { pb: 1.5 },
                       }}
                     >
+                      {/* Pattern type dropdown */}
                       <TextField
                         select label={t('leds.bindings.pattern')}
                         value={pat.pattern_type || 'solid'}
@@ -420,8 +421,9 @@ export const LEDConfigPanel: React.FC = () => {
                           <option key={p} value={p}>{t(`leds.bindings.patterns.${p}`)}</option>
                         ))}
                       </TextField>
-                      {/* duration_ms is only relevant for 'pulse' — hidden for 'solid' (bug #97) */}
-                      {(pat.pattern_type || 'solid') !== 'solid' && (
+
+                      {/* duration_ms: only for 'pulse' */}
+                      {(pat.pattern_type === 'pulse') && (
                         <TextField
                           label={t('leds.bindings.duration_ms')} type="number"
                           value={pat.duration_ms ?? ''}
@@ -429,7 +431,9 @@ export const LEDConfigPanel: React.FC = () => {
                           size="small" fullWidth inputProps={{ min: 0 }}
                         />
                       )}
-                      {(pat.pattern_type || 'solid') === 'blink' && (
+
+                      {/* interval_ms: only for 'blink' */}
+                      {(pat.pattern_type === 'blink') && (
                         <TextField
                           label={t('leds.bindings.interval_ms')} type="number"
                           value={pat.interval_ms ?? ''}
@@ -437,12 +441,47 @@ export const LEDConfigPanel: React.FC = () => {
                           size="small" fullWidth inputProps={{ min: 50 }}
                         />
                       )}
-                      <TextField
-                        label={t('leds.bindings.repeat')} type="number"
-                        value={pat.repeat ?? ''}
-                        onChange={(e) => updateBinding(state, { repeat: e.target.value ? parseInt(e.target.value, 10) : undefined })}
-                        size="small" fullWidth inputProps={{ min: 0 }} placeholder="0"
-                      />
+
+                      {/* cycle_ms: only for 'glow' */}
+                      {(pat.pattern_type === 'glow') && (
+                        <TextField
+                          label={t('leds.bindings.cycle_ms', { defaultValue: 'Zyklusdauer (ms)' })} type="number"
+                          value={pat.cycle_ms ?? 2000}
+                          onChange={(e) => updateBinding(state, { cycle_ms: e.target.value ? parseInt(e.target.value, 10) : 2000 })}
+                          size="small" fullWidth inputProps={{ min: 500 }}
+                          helperText={t('leds.bindings.cycle_ms_hint', { defaultValue: 'Min. 500 ms, empfohlen: 1000–3000 ms' })}
+                        />
+                      )}
+
+                      {/* min_brightness: only for 'glow' */}
+                      {(pat.pattern_type === 'glow') && (
+                        <TextField
+                          label={t('leds.bindings.min_brightness', { defaultValue: 'Min. Helligkeit (0–1)' })} type="number"
+                          value={pat.min_brightness ?? 0.0}
+                          onChange={(e) => updateBinding(state, { min_brightness: e.target.value !== '' ? parseFloat(e.target.value) : 0.0 })}
+                          size="small" fullWidth inputProps={{ min: 0, max: 1, step: 0.1 }}
+                        />
+                      )}
+
+                      {/* max_brightness: only for 'glow' */}
+                      {(pat.pattern_type === 'glow') && (
+                        <TextField
+                          label={t('leds.bindings.max_brightness', { defaultValue: 'Max. Helligkeit (0–1)' })} type="number"
+                          value={pat.max_brightness ?? 1.0}
+                          onChange={(e) => updateBinding(state, { max_brightness: e.target.value !== '' ? parseFloat(e.target.value) : 1.0 })}
+                          size="small" fullWidth inputProps={{ min: 0, max: 1, step: 0.1 }}
+                        />
+                      )}
+
+                      {/* repeat: for blink, pulse, glow */}
+                      {(pat.pattern_type !== 'solid' && pat.pattern_type !== 'off') && (
+                        <TextField
+                          label={t('leds.bindings.repeat')} type="number"
+                          value={pat.repeat ?? ''}
+                          onChange={(e) => updateBinding(state, { repeat: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                          size="small" fullWidth inputProps={{ min: 0 }} placeholder="0"
+                        />
+                      )}
                     </CardContent>
                   </Card>
                 ))}
