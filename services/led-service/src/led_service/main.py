@@ -72,6 +72,13 @@ class LEDService:
             {"service": "led"},
         )
         
+        # Apply initial states: system is online and no RFID tag is present yet.
+        # rfid_removed is the correct real-world state on boot — without this,
+        # any LED bound to rfid_removed (e.g. a status ring) stays dark until
+        # the first scan event arrives.
+        await self.led_manager.apply_state("system_online")
+        await self.led_manager.apply_state("rfid_removed")
+        
         # Start MQTT message loop
         self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
         
@@ -161,6 +168,7 @@ class LEDService:
                 # fully released before the system_online state is applied.
                 await self.led_manager.initialize_leds(new_config.leds)
                 await self.led_manager.apply_state("system_online")
+                await self.led_manager.apply_state("rfid_removed")
                 logger.debug("config_hot_reload_success")
             except Exception as exc:
                 logger.error(
@@ -180,6 +188,7 @@ class LEDService:
                 # fully released before the system_online state is applied.
                 await self.led_manager.initialize_leds(new_config.leds)
                 await self.led_manager.apply_state("system_online")
+                await self.led_manager.apply_state("rfid_removed")
                 logger.debug("config_reload_success")
             except Exception as exc:
                 logger.error(
