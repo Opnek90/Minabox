@@ -12,7 +12,8 @@ export type SourceType = 'file' | 'remote';
 export type AudioState = 'playing' | 'paused' | 'stopped' | 'error';
 export type ServiceState = 'online' | 'offline' | 'error';
 export type RFIDMode = 'normal' | 'learning';
-export type LEDPatternType = 'solid' | 'blink' | 'pulse' | 'off';
+/** All supported LED pattern types. 'glow' requires PWMLED (Software PWM). */
+export type LEDPatternType = 'solid' | 'blink' | 'pulse' | 'off' | 'glow';
 export type ButtonMode = 'basic' | 'advanced';
 export type ButtonType = 'push' | 'rotary';
 
@@ -183,6 +184,7 @@ export interface StreamUpdate {
 
 export interface Podcast {
   id: number;
+  podcast_id: number;
   title: string;
   rss_url: string;
   description: string | null;
@@ -325,9 +327,18 @@ export interface AudioConfig {
 
 export interface LEDPattern {
   pattern_type: LEDPatternType;
+  /** Only for 'pulse': how long the LED stays on per pulse (ms). */
   duration_ms?: number | null;
+  /** Only for 'blink': toggle interval (ms). */
   interval_ms?: number | null;
+  /** Number of repetitions; 0 or null = infinite. Not used for 'solid' or 'off'. */
   repeat?: number | null;
+  /** Only for 'glow': duration of one full breath cycle (dark→bright→dark) in ms. Min 500, default 2000. */
+  cycle_ms?: number | null;
+  /** Only for 'glow': minimum brightness 0.0–1.0. Default 0.0. */
+  min_brightness?: number | null;
+  /** Only for 'glow': maximum brightness 0.0–1.0. Default 1.0. */
+  max_brightness?: number | null;
 }
 
 export interface LED {

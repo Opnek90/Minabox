@@ -290,6 +290,7 @@ services:
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
       - DISABLE_GPIO=${DISABLE_GPIO:-false}
+      - GPIOZERO_PIN_FACTORY=lgpio
     volumes:
       - ./services/led-service/config:/app/config:ro
     networks:
@@ -298,6 +299,7 @@ services:
       backend:
         condition: service_healthy
     devices:
+      - /dev/gpiochip0:/dev/gpiochip0
       - /dev/gpiomem:/dev/gpiomem
     user: "1000:986"
     group_add:

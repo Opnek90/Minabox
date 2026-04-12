@@ -33,8 +33,8 @@ led_service/
 ├── exceptions.py            # Service-spezifische Exceptions
 ├── core/
 │   ├── __init__.py
-│   ├── led_controller.py    # Steuerung der LEDs: Zustand aus MQTT ableiten, Pattern aus bindings anwenden
-│   ├── led_patterns.py      # Pattern-Ausführung (solid, blink, pulse, off) pro LED
+│   ├── led_controller.py    # Steuerung der LEDs: Zustand aus MQTT ableiten, Pattern aus bindings anwenden; PWMLED-Unterstützung für glow
+│   ├── led_patterns.py      # Pattern-Ausführung (solid, blink, pulse, off, glow) pro LED
 │   └── state_manager.py     # Aktueller logischer Zustand (aus MQTT-Events), FIFO-Verarbeitung
 ├── infrastructure/
 │   ├── __init__.py
@@ -233,14 +233,16 @@ Ein Pattern beschreibt, **wie** die LED auf einen logischen Zustand reagieren so
 
 Felder im Pattern:
 
-- `pattern_type`: `"solid"` | `"blink"` | `"pulse"` | `"off"`.
+- `pattern_type`: `"solid"` | `"blink"` | `"pulse"` | `"off"` | `"glow"`.
   - `solid`: LED dauerhaft einschalten. Bleibt aktiv, bis ein anderes Pattern diese LED überschreibt. **`duration_ms` hat bei `solid` keine Wirkung** und wird beim Einlesen der Konfiguration automatisch ignoriert (mit Warning-Log). Das Feld sollte in neuen Konfigurationen weggelassen werden.
   - `blink`: an/aus im angegebenen Intervall.
   - `pulse`: kurz aufleuchten, dann wieder aus.
   - `off`: LED sofort ausschalten, ohne sichtbaren Puls (z.B. für häufig eintreffende Zustände wie `audio_stopped`/`audio_paused`).
+  - `glow`: sanftes Atmen (Fading ein/aus) über Software PWM (`PWMLED`). Ideal für Ambient-Anzeigen wie Standby oder Wartezustände. Verwendet eine Sinus-Kurve für eine natürlich wirkende Helligkeit. Erfordert keine Hardwareänderung – funktioniert auf Standard-GPIO-Pins des Raspberry Pi.
 
 - `duration_ms` (optional): Dauer des Patterns in Millisekunden.
   - **Nicht anwendbar bei `solid`** – wird ignoriert (siehe oben).
+  - **Nicht anwendbar bei `glow`** – verwende stattdessen `cycle_ms`.
   - Bei `pulse`: wie lange die LED pro Puls eingeschaltet bleibt.
 
 - `interval_ms` (optional, nur für `blink`): Intervall zwischen an/aus in Millisekunden (z.B. 1000 = langsam, 200 = schnell).
@@ -248,6 +250,15 @@ Felder im Pattern:
 - `repeat` (optional): Anzahl der Wiederholungen.
   - `1`: einmal ausführen.
   - `0` oder nicht gesetzt: unendlich, bis ein anderer Zustand die LED überschreibt.
+  - Gilt auch für `glow` (Anzahl der Atemzyklen; 0 = dauerhaft).
+
+- `cycle_ms` (optional, nur für `glow`): Dauer eines vollständigen Atemzyklus (dunkel → hell → dunkel) in Millisekunden. Minimum: 500. Standard: 2000. Empfohlen: 1000–3000 ms.
+
+- `min_brightness` (optional, nur für `glow`): Minimale Helligkeit im Bereich 0.0–1.0 (0.0 = vollständig aus). Standard: 0.0.
+
+- `max_brightness` (optional, nur für `glow`): Maximale Helligkeit im Bereich 0.0–1.0 (1.0 = volle Helligkeit). Standard: 1.0.
+
+> **Hinweis Software PWM:** Das `glow`-Pattern nutzt `gpiozero.PWMLED` (Software PWM). Dies ist vollständig kompatibel mit Standard-GPIO-Pins des Raspberry Pi und erfordert keine Verdrahtungsänderungen. Bei sehr kurzen Zykluszeiten (< 500 ms) kann durch OS-Scheduling geringfügiges Flimmern auftreten – für typische Anwendungsfälle mit Zyklen von 1–3 Sekunden ist dies nicht relevant. Sobald eine LED ein `glow`-Binding besitzt, wird der Controller beim Initialisieren automatisch als `PWMLED` angemeldet (statt `LED`).
 
 Beispiele:
 
@@ -276,6 +287,18 @@ Beispiele:
   "pattern_type": "pulse",
   "duration_ms": 500,
   "repeat": 1
+}
+```
+
+- sanftes Atmen im Standby (2 Sekunden pro Zyklus, dauerhaft):
+
+```json
+{
+  "pattern_type": "glow",
+  "cycle_ms": 2000,
+  "min_brightness": 0.0,
+  "max_brightness": 1.0,
+  "repeat": 0
 }
 ```
 
@@ -318,6 +341,7 @@ Ablauf pro LED:
    - `solid`: LED dauerhaft an – kein Timeout, kein sleep.
    - `blink`: LED toggelt im angegebenen Intervall, ggf. `repeat`-mal oder unendlich.
    - `pulse`: LED wird für `duration_ms` eingeschaltet, dann wieder ausgeschaltet, ggf. mehrfach.
+   - `glow`: LED atmet über eine Sinus-Kurve (50 Schritte/Zyklus) zwischen `min_brightness` und `max_brightness`, ggf. `repeat`-mal oder unendlich.
 4. Bei einem neuen Zustand mit Binding für dieselbe LED wird das vorherige Pattern abgebrochen/überschrieben.
 
 ### 6.3 FIFO-Verarbeitung
@@ -379,6 +403,7 @@ Ablauf pro LED:
   - `config_update_received` / `config_update_applied` / `config_update_failed`.
   - `gpio_error` mit Pin-Nummer und Fehlerursache.
   - `solid_pattern_duration_ignored` – Warning, wenn eine `solid`-Konfiguration ein nicht-null `duration_ms` enthält.
+  - `pattern_glow_started` / `pattern_glow_finished` / `pattern_glow_cancelled` – Logging-Events für das glow-Pattern.
 - Die Log-Konfiguration folgt den globalen Logging-Regeln aus dem Framework (structlog, JSON-Logging, Level-Definitionen).
 
 ---

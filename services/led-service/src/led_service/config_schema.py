@@ -9,7 +9,7 @@ from shared_lib.config import EnvConfigBase
 
 logger = structlog.get_logger(__name__)
 
-PatternType = Literal["solid", "blink", "pulse", "off"]
+PatternType = Literal["solid", "blink", "pulse", "off", "glow"]
 
 class LEDPattern(BaseModel):
     """Pattern description for a logical state on a single LED.
@@ -20,15 +20,16 @@ class LEDPattern(BaseModel):
 
     pattern_type: PatternType = Field(
         description=(
-            "Type of LED pattern: 'solid', 'blink', 'pulse' or 'off'. "
-            "'off' simply turns the LED off immediately without any visible pulse."
+            "Type of LED pattern: 'solid', 'blink', 'pulse', 'off' or 'glow'. "
+            "'off' simply turns the LED off immediately without any visible pulse. "
+            "'glow' creates a smooth breathing/fading effect via Software PWM (PWMLED)."
         ),
     )
     duration_ms: NonNegativeInt | None = Field(
         default=None,
         description=(
             "Pattern duration in milliseconds. "
-            "Not applicable for 'solid' (ignored with a warning). "
+            "Not applicable for 'solid' (ignored with a warning) or 'glow'. "
             "For 'pulse', how long the LED stays on per pulse."
         ),
     )
@@ -41,6 +42,32 @@ class LEDPattern(BaseModel):
         description=(
             "Number of repetitions. 0 or None means repeat indefinitely "
             "until another pattern overrides this one."
+        ),
+    )
+    cycle_ms: int | None = Field(
+        default=None,
+        ge=500,
+        description=(
+            "Duration of one full glow cycle (dark → bright → dark) in milliseconds. "
+            "Only used for 'glow'. Default: 2000. Minimum: 500."
+        ),
+    )
+    min_brightness: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Minimum brightness for 'glow' pattern (0.0 = fully off). "
+            "Only used for 'glow'. Default: 0.0."
+        ),
+    )
+    max_brightness: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Maximum brightness for 'glow' pattern (1.0 = fully on). "
+            "Only used for 'glow'. Default: 1.0."
         ),
     )
 

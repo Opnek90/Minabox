@@ -14,3 +14,6 @@ tenacity>=9.0.0,<10.0.0
 
 # GPIO Hardware
 gpiozero>=2.0.1,<2.1.0
+# lgpio: required pin factory for gpiozero PWMLED support inside Docker.
+# Compiled from source during build (requires swig in builder stage).
+lgpio>=0.2.2.0

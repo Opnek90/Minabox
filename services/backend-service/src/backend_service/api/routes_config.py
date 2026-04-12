@@ -52,7 +52,8 @@ _LED_BINDING_STATES: list[str] = [
 
 # All LED pattern types.
 # Source of truth: led_service/config_schema.py PatternType
-_LED_PATTERN_TYPES: list[str] = ["solid", "blink", "pulse", "off"]
+# NOTE: 'glow' uses PWMLED (Software PWM) for a smooth breathing effect.
+_LED_PATTERN_TYPES: list[str] = ["solid", "blink", "pulse", "off", "glow"]
 
 # All actions the button service can trigger.
 # Source of truth: button_service/event_processor.py

@@ -5,11 +5,13 @@ according to the pattern types defined in the LED service architecture:
 - solid: LED permanently on (duration_ms is intentionally ignored)
 - blink: LED toggles at regular intervals
 - pulse: LED briefly lights up then turns off
+- glow: smooth breathing effect via Software PWM (PWMLED) using a sine curve
 """
 
 from __future__ import annotations
 
 import asyncio
+import math
 from typing import TYPE_CHECKING
 
 import structlog
@@ -20,6 +22,11 @@ if TYPE_CHECKING:
     from gpiozero import LED
 
 logger = structlog.get_logger(__name__)
+
+# Number of brightness steps per glow cycle. Higher = smoother, higher CPU cost.
+# 50 steps is imperceptible on slow cycles (≥ 1 s) and negligible for the Pi.
+_GLOW_STEPS = 50
+
 
 async def run_solid_pattern(
     led: LED,
@@ -192,4 +199,99 @@ async def run_pulse_pattern(
             "pattern_pulse_finished",
             led_id=led_id,
             pulses=pulses,
+        )
+
+
+async def run_glow_pattern(
+    led: "PWMLED",
+    cycle_ms: int,
+    min_brightness: float,
+    max_brightness: float,
+    repeat: int | None,
+    led_id: str,
+    cancel_event: asyncio.Event,
+) -> None:
+    """Run a glow (breathing) pattern using Software PWM via PWMLED.
+
+    Brightness follows a sine curve: dark → bright → dark over one cycle.
+    The effect is smooth and natural for slow ambient cycles (≥ 1 s).
+
+    Stops cleanly on cancel_event between every brightness step so the LED
+    never freezes at an intermediate brightness level after cancellation.
+
+    Args:
+        led: A gpiozero PWMLED instance (not a plain LED).
+        cycle_ms: Duration of one full glow cycle in milliseconds (min 500).
+        min_brightness: Minimum brightness value 0.0–1.0.
+        max_brightness: Maximum brightness value 0.0–1.0.
+        repeat: Number of cycles. 0 or None means infinite.
+        led_id: LED identifier for logging.
+        cancel_event: Event to signal pattern cancellation.
+
+    Raises:
+        InvalidPatternError: If cycle_ms < 500 or brightness values are invalid.
+    """
+    if cycle_ms < 500:
+        raise InvalidPatternError(
+            f"Glow pattern requires cycle_ms >= 500, got {cycle_ms}"
+        )
+    if not (0.0 <= min_brightness <= 1.0 and 0.0 <= max_brightness <= 1.0):
+        raise InvalidPatternError(
+            f"Glow brightness values must be in [0.0, 1.0], "
+            f"got min={min_brightness} max={max_brightness}"
+        )
+    if min_brightness >= max_brightness:
+        raise InvalidPatternError(
+            f"Glow min_brightness ({min_brightness}) must be less than "
+            f"max_brightness ({max_brightness})"
+        )
+
+    step_sec = (cycle_ms / 1000.0) / _GLOW_STEPS
+    brightness_range = max_brightness - min_brightness
+    cycles = 0
+    infinite = repeat is None or repeat == 0
+
+    logger.debug(
+        "pattern_glow_started",
+        led_id=led_id,
+        cycle_ms=cycle_ms,
+        min_brightness=min_brightness,
+        max_brightness=max_brightness,
+        repeat=repeat,
+        infinite=infinite,
+    )
+
+    try:
+        while infinite or cycles < repeat:
+            if cancel_event.is_set():
+                logger.debug("pattern_glow_cancelled", led_id=led_id, cycles=cycles)
+                break
+
+            for step in range(_GLOW_STEPS):
+                if cancel_event.is_set():
+                    break
+
+                # Sine wave: 0 → π*2 over one cycle; starts and ends at minimum
+                angle = (step / _GLOW_STEPS) * math.pi * 2
+                # sin goes -1..1; map to 0..1 then scale to brightness range
+                brightness = min_brightness + brightness_range * (0.5 - 0.5 * math.cos(angle))
+                led.value = brightness
+
+                try:
+                    await asyncio.wait_for(
+                        cancel_event.wait(),
+                        timeout=step_sec,
+                    )
+                    break
+                except asyncio.TimeoutError:
+                    pass
+
+            if not infinite:
+                cycles += 1
+    finally:
+        led.value = 0.0
+        logger.debug(
+            "pattern_glow_finished",
+            led_id=led_id,
+            cycles=cycles,
         )
