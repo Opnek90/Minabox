@@ -14,3 +14,6 @@ tenacity>=9.0.0,<10.0.0
 
 # GPIO Hardware
 gpiozero>=2.0.1,<2.1.0
+# lgpio: required pin factory for gpiozero inside Docker containers on Raspberry Pi.
+# Enables Software-PWM (PWMLED) via /dev/gpiochip0 without pigpiod daemon.
+lgpio>=0.2.2.0
