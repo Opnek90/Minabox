@@ -82,6 +82,9 @@ class MQTTClient:
             f"{prefix}/rfid/tag-scanned",
             f"{prefix}/rfid/tag-removed",
             f"{prefix}/rfid/unknown-tag",
+            # Retained presence topic: always reflects current tag state.
+            # Re-subscribed after config reload to trigger broker re-delivery.
+            f"{prefix}/rfid/presence",
             
             # System events
             f"{prefix}/system/service-started",
@@ -150,6 +153,36 @@ class MQTTClient:
                 logger.warning("mqtt_disconnect_error", error=str(exc))
             finally:
                 self._client = None
+
+    async def resubscribe_retained_topics(self) -> None:
+        """Re-subscribe to retained topics to trigger broker re-delivery.
+
+        The MQTT broker only delivers a retained message when a client
+        subscribes. If the connection stays alive (e.g. after a config reload)
+        no new subscribe happens and retained messages are not re-delivered.
+        Calling this method forces re-delivery of all retained topics so that
+        state-dependent LEDs (e.g. RFID status ring) show the correct state
+        after a re-initialization.
+        """
+        if not self._client:
+            logger.warning("resubscribe_skipped_not_connected")
+            return
+
+        device_id = self._config.env.minabox_device_id
+        prefix = f"minabox/{device_id}"
+        retained_topics = [
+            f"{prefix}/rfid/presence",
+            f"{prefix}/audio/status",
+        ]
+
+        for topic in retained_topics:
+            try:
+                # Unsubscribe first so the broker treats the next subscribe as new
+                await self._client.unsubscribe(topic)
+                await self._client.subscribe(topic, qos=1)
+                logger.debug("mqtt_resubscribed_retained", topic=topic)
+            except Exception as exc:
+                logger.warning("mqtt_resubscribe_failed", topic=topic, error=str(exc))
 
     async def run(self) -> None:
         """Run the MQTT client message loop with automatic reconnection on broker restart."""
@@ -256,6 +289,9 @@ class MQTTClient:
             
             # Pass to callback
             self._on_config_update(new_config)
+
+            # Re-deliver retained topics so state-dependent LEDs recover correctly
+            await self.resubscribe_retained_topics()
             
             # Send success response
             await self._send_config_response(success=True, error=None)
@@ -274,6 +310,10 @@ class MQTTClient:
         
         try:
             self._on_config_reload()
+
+            # Re-deliver retained topics so state-dependent LEDs recover correctly
+            await self.resubscribe_retained_topics()
+
             await self._send_config_response(success=True, error=None)
         except Exception as exc:
             logger.error(
