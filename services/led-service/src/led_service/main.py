@@ -72,12 +72,10 @@ class LEDService:
             {"service": "led"},
         )
         
-        # Apply initial states: system is online and no RFID tag is present yet.
-        # rfid_removed is the correct real-world state on boot — without this,
-        # any LED bound to rfid_removed (e.g. a status ring) stays dark until
-        # the first scan event arrives.
+        # Apply system_online as the only guaranteed initial state.
+        # The RFID state (tag-scanned / tag-removed) is published by the
+        # RFID-service on its own startup, so we do not assume it here.
         await self.led_manager.apply_state("system_online")
-        await self.led_manager.apply_state("rfid_removed")
         
         # Start MQTT message loop
         self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
@@ -164,11 +162,8 @@ class LEDService:
         async def _do_update() -> None:
             try:
                 self.config_manager.update_config(new_config)
-                # initialize_leds() is async; must be awaited so GPIO pins are
-                # fully released before the system_online state is applied.
                 await self.led_manager.initialize_leds(new_config.leds)
                 await self.led_manager.apply_state("system_online")
-                await self.led_manager.apply_state("rfid_removed")
                 logger.debug("config_hot_reload_success")
             except Exception as exc:
                 logger.error(
@@ -184,11 +179,8 @@ class LEDService:
         async def _do_reload() -> None:
             try:
                 new_config = self.config_manager.reload_config()
-                # initialize_leds() is async; must be awaited so GPIO pins are
-                # fully released before the system_online state is applied.
                 await self.led_manager.initialize_leds(new_config.leds)
                 await self.led_manager.apply_state("system_online")
-                await self.led_manager.apply_state("rfid_removed")
                 logger.debug("config_reload_success")
             except Exception as exc:
                 logger.error(
