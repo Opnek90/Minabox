@@ -3,11 +3,9 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
-# Build-Dependencies: gcc + swig + liblgpio-dev required for lgpio (PWMLED support)
+# gcc required for some pip packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    swig \
-    liblgpio-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install shared-lib first, then service requirements (context: ./services)
@@ -21,10 +19,8 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# liblgpio needed at runtime for the lgpio C extension
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    liblgpio-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependencies
