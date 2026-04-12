@@ -3,9 +3,10 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
-# gcc required for some pip packages
+# gcc + swig needed: swig is required to compile the lgpio C extension (PWMLED support)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    swig \
     && rm -rf /var/lib/apt/lists/*
 
 # Install shared-lib first, then service requirements (context: ./services)
@@ -23,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependencies
+# Copy dependencies (including compiled lgpio .so)
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 

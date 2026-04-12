@@ -1,7 +1,7 @@
 """LED controller for managing physical GPIO-based LEDs.
 
 This module handles:
-- Initialization of GPIO pins via gpiozero (NativePinFactory)
+- Initialization of GPIO pins via gpiozero (LGPIOFactory for PWMLED support)
 - Pattern execution and cancellation
 - LED state management with graceful fallback for dev environments
 - PWM support for the 'glow' pattern via PWMLED
@@ -397,9 +397,10 @@ class LEDManager:
     async def initialize_leds(self, led_configs: list[LEDConfig]) -> None:
         """Initialize LED controllers from configuration.
 
-        Sets the gpiozero pin factory exactly once before creating controllers
-        (issue #36). Uses the public close_sync() API on existing controllers
-        instead of accessing private attributes (issue #37).
+        Sets the gpiozero pin factory to LGPIOFactory exactly once before
+        creating controllers. LGPIOFactory (via lgpio) supports Software-PWM
+        (PWMLED) via /dev/gpiochip0 inside Docker without a pigpiod daemon.
+        NativeFactory does NOT support PWM and is no longer used (issue #36).
 
         Each controller auto-selects LED or PWMLED based on whether any
         binding in its config requires the 'glow' pattern.
@@ -411,14 +412,13 @@ class LEDManager:
             controller.close_sync()
         self._controllers.clear()
 
-        # Set pin factory once, before instantiating any LEDController (issue #36)
         disable_gpio = os.getenv("DISABLE_GPIO", "false").lower() == "true"
         if not disable_gpio:
             try:
-                from gpiozero.pins.native import NativeFactory
+                from gpiozero.pins.lgpio import LGPIOFactory
                 from gpiozero import Device
-                Device.pin_factory = NativeFactory()
-                logger.debug("gpio_pin_factory_set", factory="NativeFactory")
+                Device.pin_factory = LGPIOFactory()
+                logger.debug("gpio_pin_factory_set", factory="LGPIOFactory")
             except Exception as exc:
                 logger.warning("gpio_pin_factory_set_failed", error=str(exc))
 
