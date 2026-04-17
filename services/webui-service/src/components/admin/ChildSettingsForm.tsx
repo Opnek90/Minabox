@@ -16,6 +16,7 @@ import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import type { AudioConfig, GeneralConfig, AllowedUsageTimeSlot } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { VolumeSlider } from '@/components/ui/VolumeSlider';
 
 const WEEKDAY_KEYS = [
   'weekday_mo',
@@ -188,56 +189,29 @@ export const ChildSettingsForm: React.FC = () => {
         {t('audio.volume_settings')}
       </Typography>
 
-      <Box>
-        <Typography variant="body2" gutterBottom>
-          {t('audio.min_volume')}: {audioConfig.min_volume ?? 5}%
-        </Typography>
-        <Slider
-          value={audioConfig.min_volume ?? 5}
-          min={0}
-          max={audioConfig.max_volume - 1}
-          step={5}
-          marks
-          valueLabelDisplay="auto"
-          onChange={(_, v) =>
-            setAudioConfig((p) => (p ? { ...p, min_volume: v as number } : p))
-          }
-        />
-      </Box>
+      <VolumeSlider
+        label={t('audio.min_volume')}
+        value={audioConfig.min_volume ?? 5}
+        min={0}
+        max={audioConfig.max_volume - 5}
+        onChange={(v) => setAudioConfig((p) => (p ? { ...p, min_volume: v } : p))}
+      />
 
-      <Box>
-        <Typography variant="body2" gutterBottom>
-          {t('audio.max_volume')}: {audioConfig.max_volume}%
-        </Typography>
-        <Slider
-          value={audioConfig.max_volume}
-          min={(audioConfig.min_volume ?? 5) + 1}
-          max={100}
-          step={5}
-          marks
-          valueLabelDisplay="auto"
-          onChange={(_, v) =>
-            setAudioConfig((p) => (p ? { ...p, max_volume: v as number } : p))
-          }
-        />
-      </Box>
+      <VolumeSlider
+        label={t('audio.max_volume')}
+        value={audioConfig.max_volume}
+        min={(audioConfig.min_volume ?? 5) + 5}
+        max={100}
+        onChange={(v) => setAudioConfig((p) => (p ? { ...p, max_volume: v } : p))}
+      />
 
-      <Box>
-        <Typography variant="body2" gutterBottom>
-          {t('audio.default_volume')}: {audioConfig.default_volume}%
-        </Typography>
-        <Slider
-          value={audioConfig.default_volume}
-          min={audioConfig.min_volume ?? 5}
-          max={audioConfig.max_volume}
-          step={5}
-          marks
-          valueLabelDisplay="auto"
-          onChange={(_, v) =>
-            setAudioConfig((p) => (p ? { ...p, default_volume: v as number } : p))
-          }
-        />
-      </Box>
+      <VolumeSlider
+        label={t('audio.default_volume')}
+        value={audioConfig.default_volume}
+        min={audioConfig.min_volume ?? 5}
+        max={audioConfig.max_volume}
+        onChange={(v) => setAudioConfig((p) => (p ? { ...p, default_volume: v } : p))}
+      />
 
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
