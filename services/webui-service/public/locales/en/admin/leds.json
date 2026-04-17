@@ -31,11 +31,16 @@
         "solid": "Solid",
         "blink": "Blink",
         "pulse": "Pulse",
-        "off": "Off"
+        "off": "Off",
+        "glow": "Glow"
       },
       "interval_ms": "Interval (ms)",
       "duration_ms": "Duration (ms)",
-      "repeat": "Repeats (0 = infinite)"
+      "repeat": "Repeats (0 = infinite)",
+      "cycle_ms": "Cycle Duration (ms)",
+      "cycle_ms_hint": "Min. 500 ms, recommended: 1000–3000 ms",
+      "min_brightness": "Min. Brightness (0–1)",
+      "max_brightness": "Max. Brightness (0–1)"
     },
     "test_led": "Test",
     "test_success": "LED test triggered",
