@@ -1,9 +1,10 @@
-import React, { useCallback, useState } from 'react';
-import { Box, Slider, Tooltip, Typography } from '@mui/material';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Box, Tooltip, Typography } from '@mui/material';
 import VolumeDownIcon from '@mui/icons-material/VolumeDown';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeMuteIcon from '@mui/icons-material/VolumeMute';
 import { useTranslation } from 'react-i18next';
+import { VolumeSlider } from '@/components/ui/VolumeSlider';
 
 interface VolumeControlProps {
   volume: number;
@@ -19,50 +20,35 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
   onVolumeChange,
 }) => {
   const { t } = useTranslation('player');
-  const [localVolume, setLocalVolume] = useState<number>(volume);
 
-  // Sync with external state when it changes significantly
+  const snappedInitial = useMemo(() => Math.round(volume / 5) * 5, [volume]);
+  const [localVolume, setLocalVolume] = useState<number>(snappedInitial);
+
   React.useEffect(() => {
-    setLocalVolume(volume);
+    setLocalVolume(Math.round(volume / 5) * 5);
   }, [volume]);
 
-  const handleChange = useCallback(
-    (_: Event, value: number | number[]) => {
-      const v = Array.isArray(value) ? value[0] : value;
-      setLocalVolume(v);
-    },
-    []
-  );
-
-  const handleChangeCommitted = useCallback(
-    (_: React.SyntheticEvent | Event, value: number | number[]) => {
-      const v = Array.isArray(value) ? value[0] : value;
-      onVolumeChange(v);
-    },
-    [onVolumeChange]
-  );
+  const handleChange = useCallback((v: number) => {
+    setLocalVolume(v);
+    onVolumeChange(v);
+  }, [onVolumeChange]);
 
   const VolumeIcon =
     localVolume <= minVolume ? VolumeMuteIcon : localVolume < 50 ? VolumeDownIcon : VolumeUpIcon;
-
-  // Clamp displayed value so thumb never goes below min (e.g. when muted = 0)
-  const sliderValue = Math.max(minVolume, Math.min(maxVolume, localVolume));
 
   return (
     <Box display="flex" alignItems="center" gap={1} sx={{ width: '100%', px: 1 }}>
       <Tooltip title={t('volume')}>
         <VolumeIcon color="action" />
       </Tooltip>
-      <Slider
-        value={sliderValue}
-        min={minVolume}
-        max={maxVolume}
-        step={1}
-        onChange={handleChange}
-        onChangeCommitted={handleChangeCommitted}
-        aria-label={t('volume')}
-        sx={{ flex: 1 }}
-      />
+      <Box sx={{ flex: 1 }}>
+        <VolumeSlider
+          value={localVolume}
+          min={minVolume}
+          max={maxVolume}
+          onChange={handleChange}
+        />
+      </Box>
       <Typography variant="caption" color="text.secondary" sx={{ minWidth: 36, textAlign: 'right' }}>
         {localVolume}%
       </Typography>
