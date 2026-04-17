@@ -21,7 +21,6 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
 }) => {
   const { t } = useTranslation('player');
 
-  // Snap incoming volume to nearest 5-step for local display
   const snappedInitial = useMemo(() => Math.round(volume / 5) * 5, [volume]);
   const [localVolume, setLocalVolume] = useState<number>(snappedInitial);
 
@@ -42,12 +41,14 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
       <Tooltip title={t('volume')}>
         <VolumeIcon color="action" />
       </Tooltip>
-      <VolumeSlider
-        value={localVolume}
-        min={minVolume}
-        max={maxVolume}
-        onChange={handleChange}
-      />
+      <Box sx={{ flex: 1 }}>
+        <VolumeSlider
+          value={localVolume}
+          min={minVolume}
+          max={maxVolume}
+          onChange={handleChange}
+        />
+      </Box>
       <Typography variant="caption" color="text.secondary" sx={{ minWidth: 36, textAlign: 'right' }}>
         {localVolume}%
       </Typography>
