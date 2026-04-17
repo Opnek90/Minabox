@@ -1,0 +1,8 @@
+{
+  "groups": {
+    "child": "Kind & Profil",
+    "media": "Medienwiedergabe",
+    "hardware": "RFID & Hardware",
+    "system": "System & Sicherheit"
+  }
+}

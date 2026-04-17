@@ -44,6 +44,10 @@
     },
     "test_led": "Testen",
     "test_success": "LED-Test ausgelöst",
-    "save_success": "LED-Einstellungen gespeichert"
+    "test_error": "LED-Test fehlgeschlagen: {{name}}",
+    "save_success": "LED-Einstellungen gespeichert",
+    "save_error": "Speichern fehlgeschlagen",
+    "disable_led": "Deaktivieren",
+    "enable_led": "Aktivieren"
   }
 }

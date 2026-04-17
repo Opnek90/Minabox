@@ -44,6 +44,10 @@
     },
     "test_led": "Test",
     "test_success": "LED test triggered",
-    "save_success": "LED settings saved"
+    "test_error": "LED test failed: {{name}}",
+    "save_success": "LED settings saved",
+    "save_error": "Save failed",
+    "disable_led": "Disable",
+    "enable_led": "Enable"
   }
 }
