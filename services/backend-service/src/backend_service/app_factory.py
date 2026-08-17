@@ -206,7 +206,13 @@ class BackendService:
         async def root_health_check():
             mqtt_connected = self._mqtt_client.is_connected if self._mqtt_client else False
             db_ok = self._db is not None
-            status = "healthy" if (mqtt_connected and db_ok) else "unhealthy"
+            # Startup/readiness: API is usable once DB is up; MQTT can lag behind.
+            if db_ok and mqtt_connected:
+                status = "healthy"
+            elif db_ok:
+                status = "degraded"
+            else:
+                status = "unhealthy"
             return {
                 "status": status,
                 "service": "backend",
