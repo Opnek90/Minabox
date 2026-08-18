@@ -19,10 +19,18 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-# How long a detected sink list stays valid. Long enough to keep the 2s status
-# loop off pactl, short enough that a newly paired Bluetooth speaker shows up
-# without the user waiting noticeably.
-CACHE_TTL_SECONDS = 30.0
+# How long a detected sink list stays valid.
+#
+# The status loop asks every 2s, so this is what keeps pactl off the CPU:
+# 30 calls/min before, 6 calls/min at this TTL. Raising it to 30s would only
+# save another 4 calls/min, but the display-service derives its Bluetooth icon
+# from this data - a speaker that was just connected would then take up to 30s
+# to show up on the OLED. Not worth it for the remaining scraps of CPU.
+#
+# The exact fix would be event-driven invalidation on Bluetooth connect, which
+# needs the host-helper to reach the audio service. Until then this TTL is the
+# ceiling on how stale the icon can be.
+CACHE_TTL_SECONDS = 10.0
 
 
 @dataclass

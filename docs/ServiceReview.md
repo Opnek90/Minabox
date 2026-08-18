@@ -106,15 +106,22 @@ ein blockierendes `subprocess.run(["pactl", "list", "sinks"], timeout=10)`. Also
 ein Prozess-Fork alle 2 Sekunden für immer, der den Audio-Loop währenddessen
 anhält.
 
-**Umgesetzt:** `PulseSinkDetector` cached die Sink-Liste (`CACHE_TTL_SECONDS = 30`)
+**Umgesetzt:** `PulseSinkDetector` cached die Sink-Liste (`CACHE_TTL_SECONDS = 10`)
 und führt `pactl` über `asyncio.to_thread` aus. Invalidiert wird gezielt dort, wo
 sich Sinks tatsächlich ändern (`_reinitialize_and_resume`, also Gerätewechsel,
 Bluetooth und Config-Reload). Die explizite Geräteabfrage der WebUI
 (`GET /devices`) umgeht den Cache per `force_refresh=True`, damit ein gerade
 eingeschalteter Lautsprecher sofort auftaucht.
 
-Effekt: statt 30 `pactl`-Aufrufen pro Minute genau einer, plus je einer bei
-echten Änderungen.
+Effekt: statt 30 `pactl`-Aufrufen pro Minute noch 6, plus je einer bei echten
+Änderungen.
+
+Zur TTL: 30 s wären sparsamer, aber der Display-Service leitet aus
+`bluetooth_sink_available` sein Bluetooth-Symbol ab – ein gerade gekoppelter
+Lautsprecher bräuchte dann bis zu 30 s, bis er auf dem OLED auftaucht. Die
+zusätzlichen 4 eingesparten Aufrufe pro Minute sind das nicht wert. Sauber wäre
+eine ereignisgesteuerte Invalidierung beim Bluetooth-Connect; dafür müsste der
+Host-Helper den Audio-Service erreichen können – offen.
 
 ### [x] Datei-Upload fror das Backend ein
 

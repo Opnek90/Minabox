@@ -93,7 +93,10 @@ def _validate_host_path_under_allowed(path_str: str, allowed_base_paths: list[st
 
 
 @router.get("/health")
-def health() -> dict:
+async def health() -> dict:
+    """Deliberately async: this is what the Docker healthcheck polls, and it
+    does no blocking work. Keeping it off the threadpool means it stays
+    answerable even while a long update occupies the worker threads."""
     return {"status": "ok", "service": "host-helper"}
 
 

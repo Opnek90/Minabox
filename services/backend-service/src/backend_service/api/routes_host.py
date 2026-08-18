@@ -11,6 +11,7 @@ meant a fresh TCP handshake for every button press in the WebUI.
 
 from __future__ import annotations
 
+import copy
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -188,10 +189,14 @@ async def _proxy_optional(
 
     Used for status widgets that must not break the settings page just because
     the Host-Helper is missing or restarting.
+
+    The fallback is deep-copied: callers get an object they may keep or mutate
+    without affecting the next request. A shallow copy would share nested lists
+    such as {"devices": []}.
     """
     api_key = _host_helper_api_key()
     if not api_key:
-        return dict(fallback)
+        return copy.deepcopy(fallback)
     try:
         r = await _request(method, path, api_key, timeout=timeout, params=params)
         if r.status_code == 200:
@@ -200,7 +205,7 @@ async def _proxy_optional(
                 return payload
     except Exception as e:
         logger.debug(log_event, error=str(e))
-    return dict(fallback)
+    return copy.deepcopy(fallback)
 
 
 # ── Request bodies ───────────────────────────────────────────────────────────
@@ -327,15 +332,21 @@ async def get_current_system_alert() -> dict:
 
 @router.get("/audio-path")
 async def get_audio_path() -> dict:
-    """Return the configured media path, falling back to the running config."""
-    fallback = {"path": get_config().env.audio_storage_path}
+    """Return the configured media path, falling back to the running config.
+
+    get_config() is evaluated lazily on purpose: when the Host-Helper knows the
+    saved path, this endpoint must not depend on the service config being
+    loadable at all.
+    """
     data = await _proxy_optional(
         "/audio-path",
         fallback={},
         log_event="host_helper_get_audio_path_failed",
     )
     saved = data.get("audio_files_path")
-    return {"path": saved} if saved else fallback
+    if saved:
+        return {"path": saved}
+    return {"path": get_config().env.audio_storage_path}
 
 
 @router.put("/audio-path")
