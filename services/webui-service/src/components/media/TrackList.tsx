@@ -664,7 +664,17 @@ export const TrackList: React.FC<TrackListProps> = ({
   );
 
   return (
-    <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', flexDirection: 'column' }}>
+    <Box
+      sx={{
+        // dvh: gegen die *kleinste* Viewport-Hoehe rechnen, sonst ragt der
+        // Panel auf Mobil unter die eingeblendete URL-Leiste und die innere
+        // Virtuoso-Liste bekommt einen zweiten, konkurrierenden Scroll.
+        height: 'calc(100vh - 220px)',
+        '@supports (height: 100dvh)': { height: 'calc(100dvh - 220px)' },
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {isDesktop ? (
         <Box sx={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
           <Box sx={{ width: TREE_WIDTH, flexShrink: 0, height: '100%' }}>

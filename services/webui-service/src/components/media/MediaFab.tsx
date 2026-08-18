@@ -5,6 +5,8 @@ import {
   Fab,
   Paper,
   Typography,
+  useMediaQuery,
+  useTheme,
   Zoom,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -19,6 +21,7 @@ import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { MINI_PLAYER_HEIGHT } from '@/components/common/MiniPlayer';
+import { MOBILE_BOTTOM_NAV_HEIGHT, SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
 
 interface MediaFabProps {
   /** 0=Playlists, 1=Tracks, 2=Streams, 3=Podcasts */
@@ -50,18 +53,26 @@ export const MediaFab: React.FC<MediaFabProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const [open, setOpen] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const audioStatus = useAudioStatus();
   const isMiniPlayerVisible =
     audioStatus !== null && audioStatus.state !== 'stopped';
 
-  // Shift the FAB above the MiniPlayer bar when it is visible
-  const fabBottom = isMiniPlayerVisible
-    ? FAB_BOTTOM_DEFAULT + MINI_PLAYER_HEIGHT
-    : FAB_BOTTOM_DEFAULT;
+  // Shift the FAB above the MiniPlayer bar (if visible) and the mobile
+  // BottomNavigation (always present on mobile, MediaPage has no /player route)
+  const fabBottomPx =
+    FAB_BOTTOM_DEFAULT +
+    (isMiniPlayerVisible ? MINI_PLAYER_HEIGHT : 0) +
+    (isMobile ? MOBILE_BOTTOM_NAV_HEIGHT : 0);
+
+  // Auf Mobil zusaetzlich um die Geraete-Schutzzone anheben (Gestenleiste).
+  const safeOffset = isMobile ? ` + ${SAFE_AREA_BOTTOM}` : '';
+  const fabBottom = `calc(${fabBottomPx}px${safeOffset})`;
 
   // The action menu sits directly above the FAB
-  const menuBottom = fabBottom + FAB_SIZE + FAB_GAP;
+  const menuBottom = `calc(${fabBottomPx + FAB_SIZE + FAB_GAP}px${safeOffset})`;
 
   const actionsByTab: Record<number, { icon: React.ReactNode; name: string; onClick: () => void }[]> = {
     0: [

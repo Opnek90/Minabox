@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { createTheme, CssBaseline, ThemeProvider } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { WebSocketProvider } from '@/contexts/WebSocketContext';
 import { ThemeContextProvider, useThemeContext } from '@/contexts/ThemeContext';
@@ -64,6 +68,17 @@ const ThemedApp: React.FC = () => {
             styleOverrides: {
               root: {
                 borderRadius: '50%',
+              },
+              // Touch-Ziel: MUI rendert `size="small"` als 30px (padding 5 +
+              // 20px Icon) – deutlich unter den 44/48px, die Apple/Google fuer
+              // Fingerbedienung ansetzen. Auf Zeigergeraeten mit grober
+              // Aufloesung (Finger) wird die Trefferflaeche daher aufgezogen,
+              // ohne die Icon-Groesse zu aendern; Maus-Desktops bleiben kompakt.
+              sizeSmall: {
+                '@media (pointer: coarse)': {
+                  minWidth: 44,
+                  minHeight: 44,
+                },
               },
             },
           },

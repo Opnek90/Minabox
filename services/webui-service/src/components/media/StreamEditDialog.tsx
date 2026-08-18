@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -13,6 +12,7 @@ import type { Stream } from '@/types/api';
 import { streamsApi } from '@/api/streams';
 import { isValidUrl } from '@/utils/validators';
 import { CoverUploadField } from './CoverUploadField';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 interface StreamEditDialogProps {
   open: boolean;
@@ -108,7 +108,7 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
   const displayCoverUrl = pendingCoverFile ? coverUrl : (coverUrl ?? stream?.cover_art_url ?? null);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <ResponsiveDialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
         {t('streams.edit', { defaultValue: 'Stream bearbeiten' })}
       </DialogTitle>
@@ -153,6 +153,6 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
           {t('save', { ns: 'common' })}
         </Button>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

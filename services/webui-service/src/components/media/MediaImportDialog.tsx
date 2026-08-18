@@ -4,7 +4,6 @@ import {
   Avatar,
   Box,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -23,6 +22,7 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Track } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { formatTime } from '@/utils/formatTime';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 300_000; // 5 minutes
@@ -57,6 +57,12 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
   const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
+  // Editable metadata, pre-filled from the preview once the URL is checked —
+  // lets the user fix a wrong/missing title before the track is actually created.
+  const [editTitle, setEditTitle] = useState('');
+  const [editArtist, setEditArtist] = useState('');
+  const [editAlbum, setEditAlbum] = useState('');
+
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartRef = useRef<number>(0);
 
@@ -78,6 +84,9 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
     setValidating(false);
     setImporting(false);
     setDownloadStatus(null);
+    setEditTitle('');
+    setEditArtist('');
+    setEditAlbum('');
   }, [stopPolling]);
 
   const handleClose = () => {
@@ -137,8 +146,11 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
     setPreview(null);
     setPreviewError(null);
     try {
-      const info = await tracksApi.validateUrl(url.trim());
-      setPreview(info as MediaPreview);
+      const info = await tracksApi.validateUrl(url.trim()) as MediaPreview;
+      setPreview(info);
+      setEditTitle(info.title ?? '');
+      setEditArtist(info.artist ?? '');
+      setEditAlbum('');
     } catch {
       setPreviewError(t('media_import.preview_error'));
     } finally {
@@ -151,7 +163,11 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
     setImporting(true);
     setDownloadStatus('pending');
     try {
-      const { track_id, status } = await tracksApi.fromUrl(url.trim());
+      const { track_id, status } = await tracksApi.fromUrl(url.trim(), {
+        title: editTitle.trim() || undefined,
+        artist: editArtist.trim() || undefined,
+        album: editAlbum.trim() || undefined,
+      });
 
       if (status === 'done') {
         // Duplicate – already fully downloaded
@@ -174,7 +190,7 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
   const isDownloading = importing && (downloadStatus === 'pending' || downloadStatus === 'downloading');
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <ResponsiveDialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
         {t('media_import.title')}
       </DialogTitle>
@@ -229,7 +245,8 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
           </Alert>
         )}
 
-        {/* Preview card */}
+        {/* Preview + editable metadata — user can fix a wrong/missing title
+            etc. before the track is actually created (see handleImport) */}
         {preview && (
           <>
             <Divider />
@@ -246,14 +263,9 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
                 </Avatar>
               )}
               <Box flex={1} minWidth={0}>
-                <Typography variant="subtitle1" fontWeight={600} noWrap>
-                  {preview.title}
+                <Typography variant="caption" color="text.secondary" display="block">
+                  {t('media_import.edit_hint', { defaultValue: 'Angaben vor dem Import anpassen:' })}
                 </Typography>
-                {preview.artist && (
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {preview.artist}
-                  </Typography>
-                )}
                 {preview.duration_ms != null && (
                   <Typography variant="caption" color="text.disabled">
                     {formatTime(preview.duration_ms)}
@@ -261,6 +273,32 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
                 )}
               </Box>
             </Stack>
+            <TextField
+              label={t('tracks.fields.title')}
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              fullWidth
+              size="small"
+              required
+              disabled={isDownloading}
+            />
+            <TextField
+              label={t('tracks.fields.artist')}
+              value={editArtist}
+              onChange={(e) => setEditArtist(e.target.value)}
+              fullWidth
+              size="small"
+              disabled={isDownloading}
+            />
+            <TextField
+              label={t('tracks.fields.album')}
+              value={editAlbum}
+              onChange={(e) => setEditAlbum(e.target.value)}
+              fullWidth
+              size="small"
+              placeholder="Downloads"
+              disabled={isDownloading}
+            />
           </>
         )}
 
@@ -294,12 +332,12 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
         <ActionButton
           actionType="primary"
           onClick={handleImport}
-          disabled={!url.trim() || isDownloading}
+          disabled={!url.trim() || isDownloading || (preview !== null && !editTitle.trim())}
           startIcon={isDownloading ? <CircularProgress size={16} /> : <DownloadIcon />}
         >
           {isDownloading ? t('media_import.downloading_short') : t('media_import.import')}
         </ActionButton>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

@@ -3,7 +3,6 @@ import {
   Avatar,
   Box,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -26,6 +25,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
 import type { Playlist, Track, Stream } from '@/types/api';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 type View = 'list' | 'create';
 
@@ -110,7 +110,7 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
   if (!track) return null;
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
+    <ResponsiveDialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 600, fontSize: '1rem', pb: 0.5 }}>
         {view === 'create' && (
           <Tooltip title={t('back', { ns: 'common' })}>
@@ -229,6 +229,6 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
           </DialogActions>
         </>
       )}
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

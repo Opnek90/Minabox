@@ -6,10 +6,17 @@ import {
   CardContent,
   Chip,
   Collapse,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
   Fade,
   FormControl,
   List,
   ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
   MenuItem,
   Select,
   Popover,
@@ -18,9 +25,11 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
+import SpeakerIcon from '@mui/icons-material/Speaker';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HotelIcon from '@mui/icons-material/Hotel';
@@ -38,7 +47,6 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
-import { useThemeContext } from '@/contexts/ThemeContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type {
@@ -106,7 +114,6 @@ export const PlayerPage: React.FC = () => {
   const queryClient = useQueryClient();
   const audioStatus = useAudioStatus();
   const { sleepTimerStatus, isConnected } = useWebSocket();
-  const { primaryColor } = useThemeContext();
   const [error, setError] = useState<string | null>(null);
   
   const [optimisticVolume, setOptimisticVolume] = useState<number | null>(null);
@@ -115,6 +122,12 @@ export const PlayerPage: React.FC = () => {
   const [sleepAnchor, setSleepAnchor] = useState<HTMLElement | null>(null);
   const [sleepRemainingMs, setSleepRemainingMs] = useState<number | null>(null);
   const sleepDisplayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Overflow menu (kiosk, sleep-timer entry, output device, repeat/shuffle) —
+  // keeps the main card to cover + controls + volume, see docs/services/webui/Redesign.md B2
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [outputDialogOpen, setOutputDialogOpen] = useState(false);
 
   const [buttonFeedback, setButtonFeedback] = useState<string | null>(null);
   const buttonFeedbackTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -343,9 +356,6 @@ export const PlayerPage: React.FC = () => {
   const displayVolume = optimisticVolume ?? volume ?? 0;
   const canSeek = Boolean(duration_ms && duration_ms > 0);
 
-  // Active-state colorOverride: use accent color from ThemeContext
-  const activeColorOverride = { main: primaryColor.main, dark: primaryColor.dark, foreground: primaryColor.contrastText };
-
   return (
     <Box
       display="flex"
@@ -354,6 +364,9 @@ export const PlayerPage: React.FC = () => {
       justifyContent={isSmall ? 'flex-start' : 'center'}
       sx={{
         minHeight: isSmall ? 'calc(100vh - 120px)' : '70vh',
+        ...(isSmall && {
+          '@supports (min-height: 100dvh)': { minHeight: 'calc(100dvh - 120px)' },
+        }),
         p: isSmall ? 1.5 : 2,
         pb: 2,
       }}
@@ -385,7 +398,7 @@ export const PlayerPage: React.FC = () => {
             pb: '16px !important',
           }}
         >
-          {/* Status row: state chip + sleep timer + kiosk */}
+          {/* Status row: state chip + active sleep-timer chip + overflow menu */}
           <Box display="flex" justifyContent="space-between" alignItems="center" minWidth={0}>
             <Chip
               label={t(`states.${state}`)}
@@ -393,7 +406,7 @@ export const PlayerPage: React.FC = () => {
               size="small"
             />
             <Box display="flex" alignItems="center" gap={0.5} flexShrink={0}>
-              {sleepRemainingMs !== null ? (
+              {sleepRemainingMs !== null && (
                 <Chip
                   icon={<HotelIcon fontSize="small" />}
                   label={formatSleepRemaining(sleepRemainingMs)}
@@ -403,34 +416,84 @@ export const PlayerPage: React.FC = () => {
                   onDelete={handleCancelSleepTimer}
                   deleteIcon={<CancelIcon />}
                 />
-              ) : (
-                <Tooltip title={t('sleep_timer.title')}>
-                  <span>
-                    <ActionButton
-                      actionType="icon"
-                      aria-label={t('sleep_timer.title')}
-                      onClick={(e) => setSleepAnchor(e.currentTarget)}
-                    >
-                      <HotelIcon fontSize="small" />
-                    </ActionButton>
-                  </span>
-                </Tooltip>
               )}
-              <Tooltip title={t('kiosk_mode')}>
+              <Tooltip title={t('more_options', { defaultValue: 'More options' })}>
                 <span>
                   <ActionButton
+                    ref={moreButtonRef}
                     actionType="icon"
-                    aria-label={t('kiosk_mode')}
-                    onClick={() => navigate('/kiosk')}
+                    aria-label={t('more_options', { defaultValue: 'More options' })}
+                    onClick={() => setMoreMenuOpen(true)}
                   >
-                    <FullscreenIcon fontSize="small" />
+                    <MoreVertIcon fontSize="small" />
                   </ActionButton>
                 </span>
               </Tooltip>
             </Box>
           </Box>
 
-          {/* Sleep timer popover */}
+          {/* Overflow menu: kiosk mode, sleep timer, output device, repeat/shuffle.
+              Kept out of the main card so the player stays cover + controls + volume
+              for the child using this page day-to-day. */}
+          <Menu
+            anchorEl={moreButtonRef.current}
+            open={moreMenuOpen}
+            onClose={() => setMoreMenuOpen(false)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <MenuItem onClick={() => { setMoreMenuOpen(false); navigate('/kiosk'); }}>
+              <ListItemIcon><FullscreenIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('kiosk_mode')}</ListItemText>
+            </MenuItem>
+            {sleepRemainingMs === null && (
+              <MenuItem onClick={() => { setMoreMenuOpen(false); setSleepAnchor(moreButtonRef.current); }}>
+                <ListItemIcon><HotelIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{t('sleep_timer.title')}</ListItemText>
+              </MenuItem>
+            )}
+            <MenuItem onClick={() => { setMoreMenuOpen(false); setOutputDialogOpen(true); }}>
+              <ListItemIcon><SpeakerIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('player.output_device', { defaultValue: 'Output device' })}</ListItemText>
+            </MenuItem>
+            {session && [
+              <Divider key="divider" />,
+              <MenuItem
+                key="repeat"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  repeatMutation.mutate(session.repeat_mode === 'all' ? 'none' : 'all');
+                }}
+              >
+                <ListItemIcon>
+                  <RepeatIcon fontSize="small" color={session.repeat_mode === 'all' ? 'primary' : 'inherit'} />
+                </ListItemIcon>
+                <ListItemText>
+                  {session.repeat_mode === 'all'
+                    ? t('player.repeat_all', { defaultValue: 'Repeat all' })
+                    : t('player.repeat_off', { defaultValue: 'Repeat off' })}
+                </ListItemText>
+              </MenuItem>,
+              <MenuItem
+                key="shuffle"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  shuffleMutation.mutate(!session.shuffle);
+                }}
+              >
+                <ListItemIcon>
+                  <ShuffleIcon fontSize="small" color={session.shuffle ? 'primary' : 'inherit'} />
+                </ListItemIcon>
+                <ListItemText>
+                  {session.shuffle
+                    ? t('player.shuffle_on', { defaultValue: 'Shuffle on' })
+                    : t('player.shuffle_off', { defaultValue: 'Shuffle off' })}
+                </ListItemText>
+              </MenuItem>,
+            ]}
+          </Menu>
+
+          {/* Sleep timer popover, anchored to the overflow-menu button */}
           <Popover
             open={Boolean(sleepAnchor)}
             anchorEl={sleepAnchor}
@@ -486,8 +549,21 @@ export const PlayerPage: React.FC = () => {
             onVolumeChange={handleVolumeChange}
           />
 
-          {/* Output device selector */}
-          <Box display="flex" alignItems="center" gap={0.5} sx={{ width: '100%', px: 0.5 }}>
+          {/* Up next (collapsible) — Output device, Repeat, Shuffle live in the
+              overflow menu above (see docs/services/webui/Redesign.md B2) */}
+          {session && session.queue.filter((q: QueueItem) => !q.is_current).length > 0 && (
+            <Box sx={{ pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
+              <UpNextCollapse queue={session.queue.filter((q: QueueItem) => !q.is_current).slice(0, 8)} />
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Output device dialog (moved out of the main card, see B2) */}
+      <Dialog open={outputDialogOpen} onClose={() => setOutputDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>{t('player.output_device', { defaultValue: 'Output device' })}</DialogTitle>
+        <DialogContent sx={{ pt: '8px !important' }}>
+          <Box display="flex" alignItems="center" gap={0.5} sx={{ width: '100%' }}>
             <FormControl size="small" sx={{ minWidth: 140, flex: 1 }}>
               <Select
                 value={audioConfig?.output_device_name ?? ''}
@@ -524,55 +600,8 @@ export const PlayerPage: React.FC = () => {
               </span>
             </Tooltip>
           </Box>
-
-          {/* Repeat + Shuffle (icon buttons) and Up next (collapsible) */}
-          {session && (
-            <Box sx={{ pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
-              <Box display="flex" alignItems="center" gap={0.5} sx={{ mb: 0.5 }}>
-                <Tooltip title={session.repeat_mode === 'all'
-                  ? t('player.repeat_all', { defaultValue: 'Repeat all' })
-                  : t('player.repeat_off', { defaultValue: 'Repeat off' })
-                }>
-                  <span>
-                    <ActionButton
-                      actionType="icon"
-                      aria-label={session.repeat_mode === 'all' ? 'Repeat all' : 'Repeat off'}
-                      colorOverride={session.repeat_mode === 'all' ? activeColorOverride : undefined}
-                      onClick={() => {
-                        const mode = session.repeat_mode === 'all' ? 'none' : 'all';
-                        repeatMutation.mutate(mode);
-                      }}
-                    >
-                      <RepeatIcon fontSize="small" />
-                    </ActionButton>
-                  </span>
-                </Tooltip>
-                <Tooltip title={session.shuffle
-                  ? t('player.shuffle_on',  { defaultValue: 'Shuffle on' })
-                  : t('player.shuffle_off', { defaultValue: 'Shuffle off' })
-                }>
-                  <span>
-                    <ActionButton
-                      actionType="icon"
-                      aria-label={session.shuffle ? 'Shuffle on' : 'Shuffle off'}
-                      colorOverride={session.shuffle ? activeColorOverride : undefined}
-                      onClick={() => {
-                        const next = !session.shuffle;
-                        shuffleMutation.mutate(next);
-                      }}
-                    >
-                      <ShuffleIcon fontSize="small" />
-                    </ActionButton>
-                  </span>
-                </Tooltip>
-              </Box>
-              {session.queue.filter((q: QueueItem) => !q.is_current).length > 0 && (
-                <UpNextCollapse queue={session.queue.filter((q: QueueItem) => !q.is_current).slice(0, 8)} />
-              )}
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
       {/* Button action feedback overlay */}
       <Fade in={buttonFeedback !== null} timeout={300}>

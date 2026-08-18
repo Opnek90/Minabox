@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -21,6 +20,7 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from 'react-i18next';
 import { useServiceLogs } from '@/hooks/useServiceLogs';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 /** Strip ANSI escape sequences (colors/formatting) so terminal output is readable in the UI. */
 function stripAnsi(text: string): string {
@@ -199,15 +199,17 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
   } = useServiceLogs(serviceName, open);
 
   return (
-    <Dialog
+    <ResponsiveDialog
       open={open}
       onClose={onClose}
       maxWidth="lg"
       fullWidth
       PaperProps={{
         sx: {
-          minHeight: '60vh',
-          maxHeight: '85vh',
+          // Feste Hoehe nur, solange der Dialog eine Karte ist – im
+          // Vollbild-Sheet unterhalb `sm` fuellt er ohnehin den Schirm.
+          minHeight: { xs: 'auto', sm: '60vh' },
+          maxHeight: { xs: 'none', sm: '85vh' },
         },
       }}
     >
@@ -316,6 +318,6 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
           {t('actions.close', { ns: 'common' })}
         </Button>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

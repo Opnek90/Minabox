@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -13,6 +12,7 @@ import { podcastsApi } from '@/api/podcasts';
 import type { Podcast } from '@/types/api';
 import { isValidUrl } from '@/utils/validators';
 import { CoverUploadField } from './CoverUploadField';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 interface PodcastDialogProps {
   open: boolean;
@@ -62,7 +62,7 @@ export const PodcastDialog: React.FC<PodcastDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <ResponsiveDialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
         {t('podcasts.add')}
       </DialogTitle>
@@ -98,6 +98,6 @@ export const PodcastDialog: React.FC<PodcastDialogProps> = ({
           {t('add', { ns: 'common' })}
         </Button>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

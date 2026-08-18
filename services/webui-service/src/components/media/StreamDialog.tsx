@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -13,6 +12,7 @@ import { streamsApi } from '@/api/streams';
 import { isValidUrl } from '@/utils/validators';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 interface StreamDialogProps {
   open: boolean;
@@ -67,7 +67,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <ResponsiveDialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('stream.title')}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         <CoverUploadField
@@ -113,6 +113,6 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
           {t('add', { ns: 'common' })}
         </ActionButton>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

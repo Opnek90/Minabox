@@ -49,6 +49,7 @@ import { audioApi } from '@/api/audio';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
 import { PlaylistTracksDialog } from './PlaylistTracksDialog';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 type SortKey = 'name' | 'track_count';
 const DEFAULT_SORT_KEY: SortKey = 'name';
@@ -464,7 +465,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
       )}
 
       {/* Create / Edit Dialog */}
-      <Dialog open={formOpen} onClose={() => setFormOpen(false)} maxWidth="sm" fullWidth>
+      <ResponsiveDialog open={formOpen} onClose={() => setFormOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
           {editingPlaylist ? t('playlists.edit') : t('playlists.create')}
         </DialogTitle>
@@ -488,7 +489,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
             {t('save', { ns: 'common' })}
           </ActionButton>
         </DialogActions>
-      </Dialog>
+      </ResponsiveDialog>
 
       <PlaylistTracksDialog
         open={!!tracksDialogPlaylist}

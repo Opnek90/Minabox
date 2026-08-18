@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -15,6 +14,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from 'react-i18next';
 import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 interface SyslogModalProps {
   open: boolean;
@@ -48,7 +48,7 @@ export const SyslogModal: React.FC<SyslogModalProps> = ({ open, onClose }) => {
   }, [open, load]);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <ResponsiveDialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{t('system.syslog')}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
@@ -100,6 +100,6 @@ export const SyslogModal: React.FC<SyslogModalProps> = ({ open, onClose }) => {
           {t('actions.close', { ns: 'common' })}
         </ActionButton>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

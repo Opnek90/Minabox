@@ -17,6 +17,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { AuthSection } from '@/components/admin/AuthSection';
 import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 export const SecurityPanel: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -117,7 +118,7 @@ export const SecurityPanel: React.FC = () => {
         </Box>
       </Box>
 
-      <Dialog open={passwordDialogOpen} onClose={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
+      <ResponsiveDialog open={passwordDialogOpen} onClose={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
         <DialogTitle>{t('system.password_change')}</DialogTitle>
         <DialogContent>
           <TextField autoFocus fullWidth margin="dense" label={t('system.password_user')} value={passwordUser} onChange={(e) => setPasswordUser(e.target.value)} sx={{ mt: 1 }} />
@@ -139,7 +140,7 @@ export const SecurityPanel: React.FC = () => {
             {t('system.password_apply')}
           </ActionButton>
         </DialogActions>
-      </Dialog>
+      </ResponsiveDialog>
 
       <Dialog open={passwordConfirmDialogOpen} onClose={() => setPasswordConfirmDialogOpen(false)}>
         <DialogTitle>{t('system.password_apply')}</DialogTitle>

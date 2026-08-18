@@ -36,6 +36,7 @@ import { streamsApi } from '@/api/streams';
 import { trackFoldersApi, tracksApi } from '@/api/tracks';
 import { tagsApi } from '@/api/tags';
 import type { Playlist, Podcast, Stream, Track, TrackFolder } from '@/types/api';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -417,7 +418,7 @@ export const MediaPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={!!editTrack} onClose={() => { setEditTrack(null); setEditCoverFile(null); }} maxWidth="sm" fullWidth>
+      <ResponsiveDialog open={!!editTrack} onClose={() => { setEditTrack(null); setEditCoverFile(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>{t('tracks.edit')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           <CoverUploadField
@@ -442,7 +443,7 @@ export const MediaPage: React.FC = () => {
             {t('save', { ns: 'common' })}
           </ActionButton>
         </DialogActions>
-      </Dialog>
+      </ResponsiveDialog>
 
       <UploadDialog
         open={uploadOpen}

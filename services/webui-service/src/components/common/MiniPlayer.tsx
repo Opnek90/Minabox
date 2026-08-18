@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
 import { useSleepTimer } from '@/hooks/useSleepTimer';
 import { audioApi } from '@/api/audio';
+import { MOBILE_BOTTOM_NAV_HEIGHT, SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
 
 // Height of the MiniPlayer bar (progress bar 3px + content row ~61px).
 // Exported so other fixed-position elements (e.g. MediaFab) can offset themselves.
@@ -134,7 +135,14 @@ export const MiniPlayer: React.FC = () => {
       elevation={8}
       sx={{
         position: 'fixed',
-        bottom: 0,
+        // Sits directly above the mobile BottomNavigation; flush with the
+        // bottom edge on desktop, where there is no bottom nav. Auf Mobil
+        // kommt die Geraete-Schutzzone dazu, die die BottomNav als Padding
+        // traegt – ohne sie wuerde der MiniPlayer sie ueberlappen.
+        bottom: {
+          xs: `calc(${MOBILE_BOTTOM_NAV_HEIGHT}px + ${SAFE_AREA_BOTTOM})`,
+          md: 0,
+        },
         left: 0,
         right: 0,
         zIndex: 1200,

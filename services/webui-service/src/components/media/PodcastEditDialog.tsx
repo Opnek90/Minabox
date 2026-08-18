@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -13,6 +12,7 @@ import type { Podcast } from '@/types/api';
 import { podcastsApi } from '@/api/podcasts';
 import { isValidUrl } from '@/utils/validators';
 import { CoverUploadField } from './CoverUploadField';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 interface PodcastEditDialogProps {
   open: boolean;
@@ -108,7 +108,7 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
   const displayCoverUrl = pendingCoverFile ? coverUrl : (coverUrl ?? podcast?.cover_art_url ?? null);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <ResponsiveDialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
         {t('podcasts.edit', { defaultValue: 'Podcast bearbeiten' })}
       </DialogTitle>
@@ -154,6 +154,6 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
           {t('save', { ns: 'common' })}
         </Button>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Box,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -16,6 +15,7 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Track } from '@/types/api';
 import { tracksApi } from '@/api/tracks';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 
 interface UploadDialogProps {
@@ -109,7 +109,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <ResponsiveDialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('upload.title')}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
         <input
@@ -213,6 +213,6 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
           {uploading ? t('upload.uploading') : t('upload.title')}
         </ActionButton>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

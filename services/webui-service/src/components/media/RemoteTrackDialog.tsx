@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -12,6 +11,7 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Track } from '@/types/api';
 import { tracksApi } from '@/api/tracks';
 import { CoverUploadField } from './CoverUploadField';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 interface RemoteTrackDialogProps {
   open: boolean;
@@ -77,7 +77,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <ResponsiveDialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
         {t('tracks.add_remote', { defaultValue: 'Remote-Track hinzufügen' })}
       </DialogTitle>
@@ -133,6 +133,6 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
           {t('add', { ns: 'common' })}
         </Button>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

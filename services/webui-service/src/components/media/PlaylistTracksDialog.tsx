@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -11,11 +10,16 @@ import {
   List,
   ListItem,
   ListItemText,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import SearchIcon from '@mui/icons-material/Search';
@@ -40,6 +44,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { playlistsApi } from '@/api/playlists';
 import type { PlaylistDetail, Playlist, Track } from '@/types/api';
+import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 
 // ── Sortable Track Item ───────────────────────────────────────────────────────
@@ -47,9 +52,24 @@ interface SortableTrackItemProps {
   id: string;
   track: Track | undefined;
   onRemove: () => void;
+  /** Touch-Geraete sortieren ueber Pfeil-Buttons statt per Drag. */
+  useArrows: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
 }
 
-const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ id, track, onRemove }) => {
+const SortableTrackItem: React.FC<SortableTrackItemProps> = ({
+  id,
+  track,
+  onRemove,
+  useArrows,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
+}) => {
   const { t } = useTranslation('media');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
@@ -71,33 +91,62 @@ const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ id, track, onRemo
         border: '1px solid',
         borderColor: isDragging ? 'primary.main' : 'divider',
         bgcolor: 'background.paper',
-        pr: 6,
+        // Platz fuer die Aktionen rechts: auf Touch sind es drei Buttons
+        // (hoch/runter/entfernen) a 44px, sonst nur der Entfernen-Button.
+        pr: useArrows ? 18 : 6,
         pl: 0.5,
         transition: 'border-color 0.15s',
       }}
       secondaryAction={
-        <IconButton edge="end" size="small" onClick={onRemove} aria-label={t('playlists.remove_track')}>
-          <DeleteIcon fontSize="small" />
-        </IconButton>
+        <>
+          {useArrows && (
+            <>
+              <IconButton
+                size="small"
+                onClick={onMoveUp}
+                disabled={isFirst}
+                aria-label={t('playlists.move_up')}
+              >
+                <ArrowUpwardIcon fontSize="small" />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={onMoveDown}
+                disabled={isLast}
+                aria-label={t('playlists.move_down')}
+              >
+                <ArrowDownwardIcon fontSize="small" />
+              </IconButton>
+            </>
+          )}
+          <IconButton edge="end" size="small" onClick={onRemove} aria-label={t('playlists.remove_track')}>
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </>
       }
     >
-      <Box
-        {...attributes}
-        {...listeners}
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          cursor: isDragging ? 'grabbing' : 'grab',
-          color: 'text.disabled',
-          px: 0.75,
-          flexShrink: 0,
-          touchAction: 'none',
-          '&:hover': { color: 'text.secondary' },
-        }}
-        aria-label="Drag to reorder"
-      >
-        <DragIndicatorIcon fontSize="small" />
-      </Box>
+      {/* Der Drag-Griff ist nur ~20px breit – auf dem Finger nicht zuverlaessig
+          zu treffen, und ein Drag ueber 30 Positionen im scrollenden Sheet ist
+          ohnehin nicht bedienbar. Touch bekommt deshalb die Pfeil-Buttons. */}
+      {!useArrows && (
+        <Box
+          {...attributes}
+          {...listeners}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            color: 'text.disabled',
+            px: 0.75,
+            flexShrink: 0,
+            touchAction: 'none',
+            '&:hover': { color: 'text.secondary' },
+          }}
+          aria-label="Drag to reorder"
+        >
+          <DragIndicatorIcon fontSize="small" />
+        </Box>
+      )}
       <ListItemText
         primary={
           <Typography variant="body2" fontWeight={500} noWrap>
@@ -136,6 +185,9 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
   const [trackIds, setTrackIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [tab, setTab] = useState(0);
+  // Auf Touch-Geraeten wird per Pfeil-Button sortiert statt per Drag.
+  const useArrows = useMediaQuery('(pointer: coarse)');
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -149,6 +201,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
       setTrackIds([]);
     }
     setSearchQuery('');
+    setTab(0);
   }, [playlist, open]);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -158,6 +211,14 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
       const oldIndex = prev.indexOf(Number(active.id));
       const newIndex = prev.indexOf(Number(over.id));
       return arrayMove(prev, oldIndex, newIndex);
+    });
+  };
+
+  const handleMove = (index: number, delta: number) => {
+    setTrackIds((prev) => {
+      const target = index + delta;
+      if (target < 0 || target >= prev.length) return prev;
+      return arrayMove(prev, index, target);
     });
   };
 
@@ -208,44 +269,61 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
   if (!playlist) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <ResponsiveDialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
         {t('playlists.add_tracks')} – {playlist.name}
       </DialogTitle>
 
-      <DialogContent dividers sx={{ pt: 1 }}>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          {t('playlists.track_count_plural', { count: trackIds.length })}
-        </Typography>
+      {/* Zwei Tabs statt Reihenfolge + Suchliste untereinander: vorher lagen
+          drei Scroll-Container ineinander (Seite > Dialog > Track-Liste), auf
+          dem Telefon konkurrieren die um jede Wischgeste. */}
+      <Tabs
+        value={tab}
+        onChange={(_, value: number) => setTab(value)}
+        variant="fullWidth"
+        sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}
+      >
+        <Tab label={t('playlists.track_order')} />
+        <Tab label={t('playlists.add_tracks')} />
+      </Tabs>
 
-        {/* ── Sortable track list ───────────────────────────────────── */}
-        {trackIds.length === 0 ? (
-          <Typography variant="body2" color="text.disabled" sx={{ py: 1, textAlign: 'center' }}>
-            {t('playlists.no_tracks', { defaultValue: 'Noch keine Tracks.' })}
-          </Typography>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-              <List dense disablePadding sx={{ mb: 1 }}>
-                {trackIds.map((id) => (
-                  <SortableTrackItem
-                    key={id}
-                    id={String(id)}
-                    track={trackMap.get(id) ?? playlist.tracks.find((tr) => tr.id === id)}
-                    onRemove={() => handleRemove(id)}
-                  />
-                ))}
-              </List>
-            </SortableContext>
-          </DndContext>
+      <DialogContent dividers sx={{ pt: 1 }}>
+        {tab === 0 && (
+          <>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {t('playlists.track_count_plural', { count: trackIds.length })}
+            </Typography>
+
+            {trackIds.length === 0 ? (
+              <Typography variant="body2" color="text.disabled" sx={{ py: 1, textAlign: 'center' }}>
+                {t('playlists.no_tracks', { defaultValue: 'Noch keine Tracks.' })}
+              </Typography>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                  <List dense disablePadding sx={{ mb: 1 }}>
+                    {trackIds.map((id, index) => (
+                      <SortableTrackItem
+                        key={id}
+                        id={String(id)}
+                        track={trackMap.get(id) ?? playlist.tracks.find((tr) => tr.id === id)}
+                        onRemove={() => handleRemove(id)}
+                        useArrows={useArrows}
+                        onMoveUp={() => handleMove(index, -1)}
+                        onMoveDown={() => handleMove(index, 1)}
+                        isFirst={index === 0}
+                        isLast={index === trackIds.length - 1}
+                      />
+                    ))}
+                  </List>
+                </SortableContext>
+              </DndContext>
+            )}
+          </>
         )}
 
-        {/* ── Add tracks ───────────────────────────────────────────── */}
-        {availableTracks.length > 0 && (
+        {tab === 1 && (
           <>
-            <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
-              {t('playlists.edit_tracks_add')}
-            </Typography>
             <TextField
               fullWidth size="small"
               placeholder={t('track_selector.search_placeholder')}
@@ -260,30 +338,36 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
               }}
               sx={{ mb: 1 }}
             />
-            <List dense disablePadding sx={{ maxHeight: 240, overflow: 'auto' }}>
-              {filteredAvailable.map((track) => (
-                <ListItem
-                  key={track.id}
-                  sx={{ borderRadius: 1, mb: 0.25, '&:hover': { bgcolor: 'action.hover' } }}
-                  secondaryAction={
-                    <Tooltip title={t('add', { ns: 'common' })}>
-                      <IconButton size="small" onClick={() => handleAddTrack(track.id)}>
-                        <AddIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  }
-                >
-                  <ListItemText
-                    primary={<Typography variant="body2" noWrap>{track.title}</Typography>}
-                    secondary={
-                      <Typography variant="caption" color="text.secondary" noWrap>
-                        {track.artist ?? track.source_type}
-                      </Typography>
+            {availableTracks.length === 0 ? (
+              <Typography variant="body2" color="text.disabled" sx={{ py: 1, textAlign: 'center' }}>
+                {t('playlists.edit_tracks_no_match')}
+              </Typography>
+            ) : (
+              <List dense disablePadding>
+                {filteredAvailable.map((track) => (
+                  <ListItem
+                    key={track.id}
+                    sx={{ borderRadius: 1, mb: 0.25, '&:hover': { bgcolor: 'action.hover' } }}
+                    secondaryAction={
+                      <Tooltip title={t('add', { ns: 'common' })}>
+                        <IconButton size="small" onClick={() => handleAddTrack(track.id)}>
+                          <AddIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     }
-                  />
-                </ListItem>
-              ))}
-            </List>
+                  >
+                    <ListItemText
+                      primary={<Typography variant="body2" noWrap>{track.title}</Typography>}
+                      secondary={
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {track.artist ?? track.source_type}
+                        </Typography>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
             {searchLower && filteredAvailable.length === 0 && (
               <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
                 {t('playlists.edit_tracks_no_match')}
@@ -299,6 +383,6 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
           {t('save', { ns: 'common' })}
         </Button>
       </DialogActions>
-    </Dialog>
+    </ResponsiveDialog>
   );
 };

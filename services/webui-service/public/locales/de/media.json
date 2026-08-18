@@ -83,7 +83,9 @@
     "edit_tracks_no_match": "Keine Tracks gefunden.",
     "track_added": "\"{{track}}\" zu \"{{playlist}}\" hinzugefügt",
     "track_add_error": "Track konnte nicht hinzugefügt werden",
-    "save_error": "Playlist konnte nicht gespeichert werden"
+    "save_error": "Playlist konnte nicht gespeichert werden",
+    "move_up": "Nach oben",
+    "move_down": "Nach unten"
   },
   "tracks": {
     "title": "Tracks",
@@ -176,7 +178,9 @@
     "url_placeholder": "https://www.youtube.com/watch?v=…",
     "check": "Prüfen",
     "preview_error": "URL konnte nicht geprüft werden. Bitte prüfe den Link und versuche es erneut.",
+    "edit_hint": "Angaben vor dem Import anpassen:",
     "import": "Importieren",
+    "download_queued": "Wird in die Warteschlange gestellt…",
     "downloading": "Wird heruntergeladen und konvertiert… (kann einige Minuten dauern)",
     "downloading_short": "Importieren…",
     "success": "\"{{title}}\" wurde erfolgreich importiert.",

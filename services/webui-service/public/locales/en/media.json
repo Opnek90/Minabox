@@ -83,7 +83,9 @@
     "edit_tracks_no_match": "No tracks found.",
     "track_added": "\"{{track}}\" added to \"{{playlist}}\"",
     "track_add_error": "Could not add track to playlist",
-    "save_error": "Could not save playlist"
+    "save_error": "Could not save playlist",
+    "move_up": "Move up",
+    "move_down": "Move down"
   },
   "tracks": {
     "title": "Tracks",
@@ -176,7 +178,9 @@
     "url_placeholder": "https://www.youtube.com/watch?v=…",
     "check": "Check",
     "preview_error": "Could not check URL. Please verify the link and try again.",
+    "edit_hint": "Adjust details before importing:",
     "import": "Import",
+    "download_queued": "Queued for download…",
     "downloading": "Downloading and converting… (may take a few minutes)",
     "downloading_short": "Importing…",
     "success": "\"{{title}}\" imported successfully.",

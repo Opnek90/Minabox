@@ -3,10 +3,16 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { Alert, Box, Button, Snackbar, Toolbar, useMediaQuery, useTheme } from '@mui/material';
 import { Header } from '@/components/common/Header';
 import { SystemAlertBar } from '@/components/common/SystemAlertBar';
-import { Navigation, DRAWER_WIDTH } from '@/components/common/Navigation';
+import {
+  Navigation,
+  MobileBottomNav,
+  DRAWER_WIDTH,
+  MOBILE_BOTTOM_NAV_HEIGHT,
+  SAFE_AREA_BOTTOM,
+} from '@/components/common/Navigation';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
-import { MiniPlayer } from '@/components/common/MiniPlayer';
+import { MiniPlayer, MINI_PLAYER_HEIGHT } from '@/components/common/MiniPlayer';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { ConnectionLostScreen } from '@/components/common/ConnectionLostScreen';
 import { RfidScanDrawer } from '@/components/rfid/RfidScanDrawer';
@@ -91,7 +97,6 @@ const RfidNotifications: React.FC = () => {
 const MainLayout: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
 
   const location = useLocation();
@@ -106,27 +111,36 @@ const MainLayout: React.FC = () => {
     );
   }
 
+  // Bottom padding so page content never sits under the fixed-position bars.
+  // Mobile always has the BottomNav; MiniPlayer additionally sits above it on
+  // every page except Player itself (which shows the full player already).
+  // Die Geraete-Schutzzone kommt oben drauf, weil die unterste Leiste sie als
+  // eigenes Padding traegt (siehe SAFE_AREA_BOTTOM in Navigation.tsx).
+  const bottomBarsHeight =
+    (isMobile ? MOBILE_BOTTOM_NAV_HEIGHT : 0) + (isPlayer ? 0 : MINI_PLAYER_HEIGHT);
+  const bottomBarsOffset = `calc(${bottomBarsHeight}px + ${SAFE_AREA_BOTTOM})`;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
       <SystemAlertBar />
       <Box sx={{ display: 'flex', flexGrow: 1 }}>
-        <Header onMenuToggle={() => setDrawerOpen((p) => !p)} showMenuButton={isMobile} />
+        <Header />
 
-        {isMobile ? (
-          <Navigation variant="temporary" open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-        ) : (
-          <Navigation variant="permanent" open />
-        )}
+        {!isMobile && <Navigation />}
 
         <Box
           component="main"
           sx={{
             flexGrow: 1,
+            // dvh statt vh: Mobile-Browser rechnen 100vh gegen die *groesste*
+            // Viewport-Hoehe (URL-Leiste eingeklappt), Inhalt rutscht sonst
+            // darunter. vh bleibt als Fallback fuer aeltere Engines stehen.
             minHeight: '100vh',
+            '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
             overflowX: 'hidden',
             bgcolor: 'background.default',
             ml: isMobile ? 0 : `${DRAWER_WIDTH}px`,
-            pb: isPlayer ? 0 : '64px',
+            pb: bottomBarsOffset,
           }}
         >
           <Toolbar />
@@ -175,6 +189,7 @@ const MainLayout: React.FC = () => {
         </Box>
 
         {!isPlayer && <MiniPlayer />}
+        {isMobile && <MobileBottomNav />}
         <RfidScanDrawer onAssignNew={(tagId) => setPendingTagId(tagId)} />
         <RfidNotifications />
 

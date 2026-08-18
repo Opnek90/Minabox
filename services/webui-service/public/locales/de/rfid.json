@@ -21,7 +21,8 @@
     "content_type_stream": "Stream",
     "content_type_podcast": "Podcast",
     "select_stream": "Stream auswählen",
-    "select_podcast": "Podcast auswählen"
+    "select_podcast": "Podcast auswählen",
+    "no_options": "Keine Treffer"
   },
   "edit_tag": "Tag bearbeiten",
   "delete_tag": "Tag löschen",
