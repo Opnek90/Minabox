@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[TrackFolderResponse])
-async def list_folders(db: Session = Depends(get_db)) -> list[TrackFolderResponse]:
+def list_folders(db: Session = Depends(get_db)) -> list[TrackFolderResponse]:
     """Return all track folders."""
     logger.info("api_list_track_folders")
     folders = db.query(TrackFolder).order_by(TrackFolder.name).all()
@@ -27,7 +27,7 @@ async def list_folders(db: Session = Depends(get_db)) -> list[TrackFolderRespons
 
 
 @router.get("/{folder_id}", response_model=TrackFolderResponse)
-async def get_folder(folder_id: int, db: Session = Depends(get_db)) -> TrackFolderResponse:
+def get_folder(folder_id: int, db: Session = Depends(get_db)) -> TrackFolderResponse:
     """Return a single folder by ID."""
     folder = db.query(TrackFolder).filter(TrackFolder.id == folder_id).first()
     if not folder:
@@ -39,7 +39,7 @@ async def get_folder(folder_id: int, db: Session = Depends(get_db)) -> TrackFold
 
 
 @router.post("", response_model=TrackFolderResponse, status_code=201)
-async def create_folder(
+def create_folder(
     folder_data: TrackFolderCreate, db: Session = Depends(get_db)
 ) -> TrackFolderResponse:
     """Create a new track folder."""
@@ -59,7 +59,7 @@ async def create_folder(
 
 
 @router.put("/{folder_id}", response_model=TrackFolderResponse)
-async def update_folder(
+def update_folder(
     folder_id: int, folder_data: TrackFolderUpdate, db: Session = Depends(get_db)
 ) -> TrackFolderResponse:
     """Rename a folder or move it under a different parent."""
@@ -92,7 +92,7 @@ async def update_folder(
 
 
 @router.delete("/{folder_id}", status_code=204)
-async def delete_folder(folder_id: int, db: Session = Depends(get_db)) -> None:
+def delete_folder(folder_id: int, db: Session = Depends(get_db)) -> None:
     """Delete a folder. Contained tracks are moved to root (folder_id set to null).
     Child folders are also moved to root.
     """

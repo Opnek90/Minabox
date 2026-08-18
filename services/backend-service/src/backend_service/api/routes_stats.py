@@ -94,7 +94,7 @@ class OverviewResponse(BaseModel):
     response_model=OverviewResponse,
     summary="Dashboard overview (minutes + counts)",
 )
-async def get_overview(db: Session = Depends(get_db)) -> OverviewResponse:
+def get_overview(db: Session = Depends(get_db)) -> OverviewResponse:
     """Return listening minutes (today/total) and counts for tags, tracks, streams, podcasts, playlists.
 
     minutes_today includes both completed events (ended_at IS NOT NULL) and the
@@ -128,7 +128,7 @@ async def get_overview(db: Session = Depends(get_db)) -> OverviewResponse:
     status_code=204,
     summary="Reset listening statistics (Parent Dashboard)",
 )
-async def reset_listening_stats(db: Session = Depends(get_db)) -> None:
+def reset_listening_stats(db: Session = Depends(get_db)) -> None:
     """Delete all playback events. Heute gehört and Gesamt gehört become 0."""
     db.query(PlaybackEvent).delete()
     db.commit()
@@ -139,7 +139,7 @@ async def reset_listening_stats(db: Session = Depends(get_db)) -> None:
     response_model=UsageTodayResponse,
     summary="Today's usage and daily limit (Parent Dashboard)",
 )
-async def get_usage_today(db: Session = Depends(get_db)) -> UsageTodayResponse:
+def get_usage_today(db: Session = Depends(get_db)) -> UsageTodayResponse:
     """Return minutes listened today and daily limit settings.
 
     minutes_today includes both completed events and the current in-progress event
@@ -168,7 +168,7 @@ def _parse_date(s: str) -> datetime | None:
     response_model=ListeningSummaryResponse,
     summary="Listening summary for Parent Dashboard",
 )
-async def get_listening_summary(
+def get_listening_summary(
     from_date: str = Query(..., description="Start date YYYY-MM-DD"),
     to_date: str = Query(..., description="End date YYYY-MM-DD"),
     db: Session = Depends(get_db),

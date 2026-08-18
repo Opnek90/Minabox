@@ -25,7 +25,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[StreamResponse])
-async def list_streams(db: Session = Depends(get_db)) -> list[StreamResponse]:
+def list_streams(db: Session = Depends(get_db)) -> list[StreamResponse]:
     """List all streams."""
     logger.info("api_list_streams")
     streams = db.query(Stream).all()
@@ -33,7 +33,7 @@ async def list_streams(db: Session = Depends(get_db)) -> list[StreamResponse]:
 
 
 @router.get("/{stream_id}", response_model=StreamResponse)
-async def get_stream(
+def get_stream(
     stream_id: int, db: Session = Depends(get_db)
 ) -> StreamResponse:
     """Get stream by ID."""
@@ -54,7 +54,7 @@ async def get_stream(
 
 
 @router.post("", response_model=StreamResponse, status_code=201)
-async def create_stream(
+def create_stream(
     stream_data: StreamCreate,
     db: Session = Depends(get_db),
 ) -> StreamResponse:
@@ -73,7 +73,7 @@ async def create_stream(
 
 
 @router.put("/{stream_id}", response_model=StreamResponse)
-async def update_stream(
+def update_stream(
     stream_id: int,
     stream_data: StreamUpdate,
     db: Session = Depends(get_db),
@@ -104,7 +104,7 @@ async def update_stream(
 
 
 @router.delete("/{stream_id}", status_code=204)
-async def delete_stream(
+def delete_stream(
     stream_id: int, db: Session = Depends(get_db)
 ) -> None:
     """Delete a stream."""
@@ -160,7 +160,7 @@ async def upload_stream_cover(
 
 
 @router.delete("/{stream_id}/cover", response_model=StreamResponse)
-async def delete_stream_cover(
+def delete_stream_cover(
     stream_id: int,
     db: Session = Depends(get_db),
 ) -> StreamResponse:

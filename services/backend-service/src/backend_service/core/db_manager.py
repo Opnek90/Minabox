@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -38,7 +38,7 @@ class DatabaseManager:
             connect_args={"check_same_thread": False, "timeout": 30.0},
         )
 
-        @event.listens_for(Engine, "connect")
+        @event.listens_for(self.engine, "connect")
         def set_sqlite_pragma(dbapi_conn: Any, connection_record: Any) -> None:
             cursor = dbapi_conn.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
@@ -118,14 +118,22 @@ class DatabaseManager:
             for table, column, col_type in migrations:
                 try:
                     conn.execute(
-                        __import__("sqlalchemy").text(
-                            f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
-                        )
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
                     )
                     conn.commit()
                     logger.debug("db_column_added", table=table, column=column)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    conn.rollback()
+                    message = str(exc).lower()
+                    if "duplicate column" in message:
+                        # Expected: the column is already there.
+                        continue
+                    logger.warning(
+                        "db_column_migration_failed",
+                        table=table,
+                        column=column,
+                        error=str(exc),
+                    )
 
     def _migrate_stream_tracks_to_streams(self) -> None:
         """One-time migration: move rows with source_type='stream' from tracks to streams."""
@@ -186,7 +194,7 @@ class DatabaseManager:
             return False
         try:
             with self.engine.connect() as conn:
-                conn.execute("SELECT 1")
+                conn.execute(text("SELECT 1"))
             return True
         except Exception as e:
             logger.error("db_connection_check_failed", error=str(e))

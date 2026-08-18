@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[TagResponse])
-async def list_tags(db: Session = Depends(get_db)) -> list[TagResponse]:
+def list_tags(db: Session = Depends(get_db)) -> list[TagResponse]:
     """List all RFID tags."""
     logger.info("api_list_tags")
     tags: list[Tag] = db.query(Tag).all()
@@ -23,7 +23,7 @@ async def list_tags(db: Session = Depends(get_db)) -> list[TagResponse]:
 
 
 @router.get("/{tag_id}", response_model=TagResponse)
-async def get_tag(tag_id: str, db: Session = Depends(get_db)) -> TagResponse:
+def get_tag(tag_id: str, db: Session = Depends(get_db)) -> TagResponse:
     """Get tag by RFID tag ID."""
     logger.info("api_get_tag", tag_id=tag_id)
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()
@@ -43,7 +43,7 @@ async def get_tag(tag_id: str, db: Session = Depends(get_db)) -> TagResponse:
 
 
 @router.post("", response_model=TagResponse, status_code=201)
-async def create_tag(
+def create_tag(
     tag_data: TagCreate,
     db: Session = Depends(get_db),
 ) -> TagResponse:
@@ -143,7 +143,7 @@ async def update_tag(
 
 
 @router.delete("/{tag_id}", status_code=204)
-async def delete_tag(tag_id: str, db: Session = Depends(get_db)) -> None:
+def delete_tag(tag_id: str, db: Session = Depends(get_db)) -> None:
     """Delete RFID tag mapping."""
     logger.info("api_delete_tag", tag_id=tag_id)
 

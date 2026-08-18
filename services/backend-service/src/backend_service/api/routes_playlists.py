@@ -26,7 +26,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[PlaylistResponse])
-async def list_playlists(db: Session = Depends(get_db)) -> list[PlaylistResponse]:
+def list_playlists(db: Session = Depends(get_db)) -> list[PlaylistResponse]:
     """List all playlists.
 
     Returns:
@@ -38,7 +38,7 @@ async def list_playlists(db: Session = Depends(get_db)) -> list[PlaylistResponse
 
 
 @router.get("/{playlist_id}", response_model=PlaylistDetailResponse)
-async def get_playlist(
+def get_playlist(
     playlist_id: int,
     db: Session = Depends(get_db),
 ) -> PlaylistDetailResponse:
@@ -89,7 +89,7 @@ async def get_playlist(
 
 
 @router.post("", response_model=PlaylistResponse, status_code=201)
-async def create_playlist(
+def create_playlist(
     playlist_data: PlaylistCreate,
     db: Session = Depends(get_db),
 ) -> PlaylistResponse:
@@ -135,7 +135,7 @@ async def create_playlist(
 
 
 @router.put("/{playlist_id}", response_model=PlaylistResponse)
-async def update_playlist(
+def update_playlist(
     playlist_id: int,
     playlist_data: PlaylistUpdate,
     db: Session = Depends(get_db),
@@ -204,7 +204,7 @@ async def update_playlist(
 
 
 @router.delete("/{playlist_id}", status_code=204)
-async def delete_playlist(playlist_id: int, db: Session = Depends(get_db)) -> None:
+def delete_playlist(playlist_id: int, db: Session = Depends(get_db)) -> None:
     """Delete playlist.
 
     Args:
@@ -263,7 +263,7 @@ async def upload_playlist_cover(
 
 
 @router.delete("/{playlist_id}/cover", response_model=PlaylistResponse)
-async def delete_playlist_cover(
+def delete_playlist_cover(
     playlist_id: int,
     db: Session = Depends(get_db),
 ) -> PlaylistResponse:

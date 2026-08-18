@@ -6,6 +6,7 @@ import asyncio
 import os
 import shutil
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
@@ -118,6 +119,42 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
         return None
 
 
+def _store_uploaded_track(
+    upload_stream: Any, track_dir: Path, file_path: Path, track_id: int
+) -> tuple[Path, dict[str, Any]]:
+    """Write the upload to disk and read its metadata.
+
+    Blocking (disk write + tag parsing) - call via asyncio.to_thread. Returns
+    the final path and the metadata the caller should apply to the DB row.
+    """
+    track_dir.mkdir(parents=True, exist_ok=True)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(upload_stream, buffer)
+
+    metadata: dict[str, Any] = {
+        "duration_ms": None,
+        "artist": None,
+        "album": None,
+        "cover_url": None,
+    }
+    try:
+        audio_file = MutagenFile(str(file_path))
+        if audio_file and audio_file.info:
+            metadata["duration_ms"] = int(audio_file.info.length * 1000)
+            if audio_file.tags:
+                if "TPE1" in audio_file.tags:
+                    metadata["artist"] = str(audio_file.tags["TPE1"])
+                if "TALB" in audio_file.tags:
+                    metadata["album"] = str(audio_file.tags["TALB"])
+    except Exception as e:
+        logger.warning(
+            "api_upload_track_metadata_extraction_failed", track_id=track_id, error=str(e)
+        )
+
+    metadata["cover_url"] = _extract_cover_art(file_path, track_id)
+    return file_path, metadata
+
+
 async def _download_thumbnail(thumbnail_url: str, track_id: int) -> str | None:
     """Download a remote thumbnail and save it to COVERS_DIR.
 
@@ -218,7 +255,7 @@ async def _run_download_task(
 
 
 @router.get("", response_model=list[TrackResponse])
-async def list_tracks(
+def list_tracks(
     folder_id: int | None = Query(None, description="Filter by folder ID. Use 0 for root-level tracks (no folder)."),
     db: Session = Depends(get_db),
 ) -> list[TrackResponse]:
@@ -267,7 +304,7 @@ async def validate_media_url(
 
 
 @router.get("/{track_id}/download-status", response_model=dict)
-async def get_download_status(track_id: int, db: Session = Depends(get_db)) -> dict:
+def get_download_status(track_id: int, db: Session = Depends(get_db)) -> dict:
     """Return the async download status for a track imported via POST /from-url."""
     status_entry = _download_status.get(track_id)
     if status_entry is None:
@@ -282,7 +319,7 @@ async def get_download_status(track_id: int, db: Session = Depends(get_db)) -> d
 
 
 @router.get("/{track_id}", response_model=TrackResponse)
-async def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
+def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
     logger.info("api_get_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
@@ -291,7 +328,7 @@ async def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackRespon
 
 
 @router.post("", response_model=TrackResponse, status_code=201)
-async def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -> TrackResponse:
+def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -> TrackResponse:
     logger.info("api_create_track", title=track_data.title, source_type=track_data.source_type)
     if track_data.folder_id is not None:
         folder = db.query(TrackFolder).filter(TrackFolder.id == track_data.folder_id).first()
@@ -425,29 +462,24 @@ async def upload_track(
         db.refresh(track)
 
         track_dir = Path(config.audio_storage_path) / str(track.id)
-        track_dir.mkdir(parents=True, exist_ok=True)
-
         file_ext = Path(file.filename).suffix if file.filename else ".mp3"
         file_path = track_dir / f"original{file_ext}"
 
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Writing the upload to the SD card and parsing its tags takes seconds
+        # for a large audiobook. On the event loop that freezes every other
+        # request including the player WebSocket, so it runs in a thread.
+        file_path, metadata = await asyncio.to_thread(
+            _store_uploaded_track, file.file, track_dir, file_path, track.id
+        )
 
-        try:
-            audio_file = MutagenFile(str(file_path))
-            if audio_file and audio_file.info:
-                track.duration_ms = int(audio_file.info.length * 1000)
-                if audio_file.tags:
-                    if not artist and "TPE1" in audio_file.tags:
-                        track.artist = str(audio_file.tags["TPE1"])
-                    if not album and "TALB" in audio_file.tags:
-                        track.album = str(audio_file.tags["TALB"])
-        except Exception as e:
-            logger.warning("api_upload_track_metadata_extraction_failed", track_id=track.id, error=str(e))
-
-        cover_url = _extract_cover_art(file_path, track.id)
-        if cover_url:
-            track.cover_art_url = cover_url
+        if metadata.get("duration_ms") is not None:
+            track.duration_ms = metadata["duration_ms"]
+        if not artist and metadata.get("artist"):
+            track.artist = metadata["artist"]
+        if not album and metadata.get("album"):
+            track.album = metadata["album"]
+        if metadata.get("cover_url"):
+            track.cover_art_url = metadata["cover_url"]
 
         track.source_uri = str(file_path)
         db.commit()
@@ -484,7 +516,7 @@ async def upload_track_cover(track_id: int, file: UploadFile = File(...), db: Se
 
 
 @router.put("/{track_id}", response_model=TrackResponse)
-async def update_track(track_id: int, track_data: TrackUpdate, db: Session = Depends(get_db)) -> TrackResponse:
+def update_track(track_id: int, track_data: TrackUpdate, db: Session = Depends(get_db)) -> TrackResponse:
     logger.info("api_update_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
@@ -512,7 +544,7 @@ async def update_track(track_id: int, track_data: TrackUpdate, db: Session = Dep
 
 
 @router.delete("/{track_id}/cover", response_model=TrackResponse)
-async def delete_track_cover(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
+def delete_track_cover(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
         raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
@@ -528,7 +560,7 @@ async def delete_track_cover(track_id: int, db: Session = Depends(get_db)) -> Tr
 
 
 @router.delete("/{track_id}", status_code=204)
-async def delete_track(track_id: int, db: Session = Depends(get_db)) -> None:
+def delete_track(track_id: int, db: Session = Depends(get_db)) -> None:
     logger.info("api_delete_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:

@@ -34,6 +34,7 @@ from backend_service.core.db_manager import init_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
 from backend_service.core.podcast_fetcher import run_podcast_fetch_loop
+from backend_service.api.routes_host import close_host_helper_client
 from backend_service.core.temperature_logger import run_temperature_log_loop
 from backend_service.middleware.auth import web_auth_middleware
 
@@ -271,6 +272,9 @@ class BackendService:
                 except asyncio.CancelledError:
                     pass
             await self._mqtt_client.disconnect()
+
+        # Close the pooled Host-Helper HTTP client
+        await close_host_helper_client()
 
         # Disconnect database
         if self._db:

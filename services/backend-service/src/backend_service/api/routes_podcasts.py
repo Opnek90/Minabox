@@ -45,7 +45,7 @@ def _podcast_response_with_latest(
 
 
 @router.get("", response_model=list[PodcastResponse])
-async def list_podcasts(db: Session = Depends(get_db)) -> list[PodcastResponse]:
+def list_podcasts(db: Session = Depends(get_db)) -> list[PodcastResponse]:
     """List all podcasts with latest episode info."""
     logger.info("api_list_podcasts")
     podcasts = db.query(Podcast).all()
@@ -78,7 +78,7 @@ async def list_podcasts(db: Session = Depends(get_db)) -> list[PodcastResponse]:
 
 
 @router.get("/{podcast_id}", response_model=PodcastResponse)
-async def get_podcast(
+def get_podcast(
     podcast_id: int, db: Session = Depends(get_db)
 ) -> PodcastResponse:
     """Get podcast by ID with latest episode info."""
@@ -99,7 +99,7 @@ async def get_podcast(
 
 
 @router.get("/{podcast_id}/episodes", response_model=list[PodcastEpisodeResponse])
-async def list_podcast_episodes(
+def list_podcast_episodes(
     podcast_id: int, db: Session = Depends(get_db)
 ) -> list[PodcastEpisodeResponse]:
     """List episodes of a podcast (newest first)."""
@@ -126,7 +126,7 @@ async def list_podcast_episodes(
 
 
 @router.post("", response_model=PodcastResponse, status_code=201)
-async def create_podcast(
+def create_podcast(
     podcast_data: PodcastCreate,
     db: Session = Depends(get_db),
 ) -> PodcastResponse:
@@ -146,7 +146,7 @@ async def create_podcast(
 
 
 @router.put("/{podcast_id}", response_model=PodcastResponse)
-async def update_podcast(
+def update_podcast(
     podcast_id: int,
     podcast_data: PodcastUpdate,
     db: Session = Depends(get_db),
@@ -179,7 +179,7 @@ async def update_podcast(
 
 
 @router.delete("/{podcast_id}", status_code=204)
-async def delete_podcast(
+def delete_podcast(
     podcast_id: int, db: Session = Depends(get_db)
 ) -> None:
     """Delete a podcast and its episodes."""
@@ -235,7 +235,7 @@ async def upload_podcast_cover(
 
 
 @router.delete("/{podcast_id}/cover", response_model=PodcastResponse)
-async def delete_podcast_cover(
+def delete_podcast_cover(
     podcast_id: int,
     db: Session = Depends(get_db),
 ) -> PodcastResponse:

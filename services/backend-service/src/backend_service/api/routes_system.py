@@ -259,7 +259,7 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
 
 
 @router.get("/health", response_model=HealthCheckResponse)
-async def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
+def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
     uptime_seconds = int(time.time() - _start_time)
     try:
         db.execute(text("SELECT 1"))
