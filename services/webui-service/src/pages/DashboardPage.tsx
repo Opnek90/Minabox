@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Box, Tab, Tabs } from '@mui/material';
+import { Box } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { PageShell } from '@/components/common/PageShell';
-import { StatsDashboard } from '@/components/admin/StatsDashboard';
+import { SectionTabs } from '@/components/common/SectionTabs';
+import { StatsDashboard } from '@/components/dashboard/StatsDashboard';
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
 import { ScanHistoryPanel } from '@/components/dashboard/ScanHistoryPanel';
+import { ChildSettingsForm } from '@/components/dashboard/ChildSettingsForm';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -24,25 +26,28 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <PageShell title={t('navigation.dashboard')}>
-      <Tabs
+      <SectionTabs
         value={tab}
-        onChange={(_, v) => setTab(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        allowScrollButtonsMobile
-        sx={{ borderBottom: 1, borderColor: 'divider', mb: 0 }}
-      >
-        <Tab label={t('dashboard.tabs.overview')} />
-        <Tab label={t('dashboard.tabs.stats')} />
-        <Tab label={t('dashboard.tabs.scan_history', { defaultValue: 'Scan-Verlauf' })} />
-      </Tabs>
+        onChange={setTab}
+        ariaLabel={t('navigation.dashboard')}
+        labels={[
+          t('dashboard.tabs.overview'),
+          t('dashboard.tabs.rules'),
+          t('dashboard.tabs.stats'),
+          t('dashboard.tabs.scan_history'),
+        ]}
+      />
       <TabPanel value={tab} index={0}>
         <DashboardOverview />
       </TabPanel>
+      {/* Regeln stehen bewusst neben der Anzeige, die sie erzeugen (verbleibende Minuten) */}
       <TabPanel value={tab} index={1}>
-        <StatsDashboard />
+        <ChildSettingsForm />
       </TabPanel>
       <TabPanel value={tab} index={2}>
+        <StatsDashboard />
+      </TabPanel>
+      <TabPanel value={tab} index={3}>
         <ScanHistoryPanel />
       </TabPanel>
     </PageShell>

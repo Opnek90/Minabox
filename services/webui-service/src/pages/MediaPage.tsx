@@ -8,8 +8,6 @@ import {
   DialogContentText,
   DialogTitle,
   Stack,
-  Tab,
-  Tabs,
   TextField,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +26,7 @@ import { TrackList } from '@/components/media/TrackList';
 import { UploadDialog } from '@/components/media/UploadDialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageShell } from '@/components/common/PageShell';
+import { SectionTabs } from '@/components/common/SectionTabs';
 import { useToast } from '@/contexts/ToastContext';
 import { useUserPrefs } from '@/contexts/UserPrefsContext';
 import { playlistsApi } from '@/api/playlists';
@@ -276,20 +275,18 @@ export const MediaPage: React.FC = () => {
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>
       )}
 
-      <Tabs
+      <SectionTabs
         value={tab}
-        onChange={(_, v) => setTab(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        allowScrollButtonsMobile
-        sx={{ borderBottom: 1, borderColor: 'divider' }}
-      >
-        <Tab label={t('tabs.overview', { defaultValue: '\u00dcbersicht' })} />
-        <Tab label={t('tabs.playlists')} />
-        <Tab label={t('tabs.tracks')} />
-        <Tab label={t('tabs.streams', { defaultValue: 'Streams' })} />
-        <Tab label={t('tabs.podcasts')} />
-      </Tabs>
+        onChange={setTab}
+        ariaLabel={t('navigation.media', { ns: 'common' })}
+        labels={[
+          t('tabs.overview', { defaultValue: '\u00dcbersicht' }),
+          t('tabs.playlists'),
+          t('tabs.tracks'),
+          t('tabs.streams', { defaultValue: 'Streams' }),
+          t('tabs.podcasts'),
+        ]}
+      />
 
       <TabPanel value={tab} index={0}>
         <MediaOverviewTab
