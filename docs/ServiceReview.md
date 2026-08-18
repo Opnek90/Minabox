@@ -123,6 +123,67 @@ zusätzlichen 4 eingesparten Aufrufe pro Minute sind das nicht wert. Sauber wär
 eine ereignisgesteuerte Invalidierung beim Bluetooth-Connect; dafür müsste der
 Host-Helper den Audio-Service erreichen können – offen.
 
+### [x] Display-Service: httpx-Client pro Poll statt pro Loop
+
+Der Display-Service war mit 5,75 % der zweitgrößte CPU-Verbraucher der Box –
+mehr als das Siebenfache des Audio-Services. Die naheliegende Vermutung (die
+Render-Schleife zeichnet jede Sekunde neu) war **falsch**; ein py-spy-Profil des
+laufenden Containers zeigte die tatsächliche Ursache:
+
+```
+_sleep_timer_poll_loop → _poll_backend → httpx … → aclose → _close_connections
+  → current_async_library → _find_and_load → find_spec → _get_spec
+```
+
+`_poll_backend()` erzeugte den `httpx.AsyncClient` **innerhalb** der Schleife.
+httpcore führt beim Schließen eine Import-Suche aus (`current_async_library`),
+und bei zwei Poll-Loops à 5 s lief diese Import-Maschinerie im Dauerbetrieb.
+
+**Umgesetzt:** Der Client lebt jetzt für die Laufzeit der Schleife – gleiches
+Muster wie beim Host-Helper-Proxy. Nebenbei bleibt die Verbindung offen.
+
+Gemessen bei Ruhe (0 WebUI-Requests/min), im laufenden Betrieb:
+
+| | minabox-display |
+|---|---|
+| vorher | 5,75 % |
+| nachher | 1,45 % / 1,92 % (zwei Messungen) |
+
+Nicht angefasst: Dieselbe Konstruktion steht in `media_downloader_client.py`,
+dort aber in einer Retry-Schleife mit maximal drei Versuchen, die nur beim
+Download läuft. Ein frischer Client nach einem Verbindungsfehler ist dort eher
+erwünscht.
+
+### [~] Display: Vollbild-Neuaufbau im Sekundentakt
+
+Die Render-Schleife rief `show_areas()` jede Sekunde bedingungslos auf – voller
+PIL-Bildaufbau plus I2C-Übertragung. Das Uhr-Element löst aber nur auf `%H:%M`
+auf, im Leerlauf ändert sich der Inhalt also einmal pro Minute; 59 von 60
+Frames waren überflüssig. Der OLED (`0x3c`) teilt sich dabei `/dev/i2c-1` mit
+dem PN532-RFID-Leser (`0x24`) – laut `Optimierungen.md` ohnehin ein
+Robustheitsthema.
+
+**Umgesetzt:** Fingerprint über Inhalt, Schriftgröße und Schriftart; gezeichnet
+wird nur bei Änderung. Dazu ein erzwungener Neuaufbau alle 60 s, damit ein
+verglitchtes Panel sich selbst heilt, und ein Reset des Fingerprints, wenn das
+Display neu verfügbar wird.
+
+**Ehrlich zum Nutzen:** Das brachte **keine messbare CPU-Ersparnis**
+(5,75 % → 6,22 %, danach erst der httpx-Fix). Die eingesparten I2C-Transaktionen
+konnte ich mit den verfügbaren Mitteln nicht direkt messen – `/proc/*/io`
+erfasst sie nicht, weil sie über `ioctl` laufen. Die Änderung bleibt drin, weil
+sie logisch belegt und getestet ist (9 Tests) und die Buslast gegenüber dem
+RFID-Leser senkt; als CPU-Optimierung taugt sie nachweislich nicht.
+
+### [ ] Button-Service: 7,9 % CPU im Leerlauf
+
+Der größte verbleibende Verbraucher. Ein py-spy-Profil zeigt **keinen**
+Python-Code als Ursache; die Last liegt in einem C-Thread, der laut `/proc` in
+`ppoll` hängt – also in der lgpio-Ebene unterhalb von gpiozero, nicht im
+Minabox-Code. Ein Wechsel der Pin-Factory (`RPi.GPIO` steht ohnehin in den
+Requirements) wäre der nächste Ansatz, ist aber ein Hardware-Eingriff mit
+eigenem Testbedarf.
+
 ### [x] Datei-Upload fror das Backend ein
 
 `routes_tracks.py:upload_track` war `async def` und machte

@@ -44,12 +44,17 @@ case "${1:-all}" in
              services/backend-service/src services/backend-service/tests ;;
   audio)   run_suite "audio-service" minabox-audio \
              services/audio-service/src services/audio-service/tests ;;
+  display) run_suite "display-service" minabox-display \
+             services/display-service/src services/display-service/tests ;;
   all)
     run_suite "backend-service" minabox-backend \
       services/backend-service/src services/backend-service/tests
     echo
     run_suite "audio-service" minabox-audio \
       services/audio-service/src services/audio-service/tests
+    echo
+    run_suite "display-service" minabox-display \
+      services/display-service/src services/display-service/tests
     ;;
   *) echo "Usage: $0 [all|backend|audio]"; exit 2 ;;
 esac

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import signal
@@ -27,6 +28,13 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8080")
 SLEEP_TIMER_POLL_INTERVAL = 5.0
 SESSION_POLL_INTERVAL = 5.0
 RENDER_INTERVAL = 1.0
+# The render loop ticks every second, but the OLED shares /dev/i2c-1 with the
+# PN532 RFID reader. Redrawing identical content just adds bus contention on the
+# box's primary input path, and the clock element only resolves to HH:MM - so 59
+# of 60 frames per minute used to be redundant. Frames are therefore only pushed
+# when the rendered content actually changed, with a periodic forced redraw so a
+# glitched display still heals itself.
+FORCE_REDRAW_INTERVAL = 60.0
 
 _HEADER_MAX_ITEMS = 6
 _BODY_MAX_ITEMS = 3
@@ -330,21 +338,27 @@ class DisplayService:
         update_fn: Callable[[dict], None],
         error_event: str,
     ) -> None:
-        """Generic backend polling helper (issue #24)."""
-        while not self._shutdown_event.is_set():
-            try:
-                await asyncio.sleep(interval)
-                async with httpx.AsyncClient(timeout=3.0) as client:
+        """Generic backend polling helper (issue #24).
+
+        The client lives for the whole loop. Building and tearing one down per
+        poll was measurably expensive: httpcore runs an import lookup on every
+        close, and with two loops polling every 5s that dominated this
+        service's CPU time. Reusing it also keeps the connection alive.
+        """
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            while not self._shutdown_event.is_set():
+                try:
+                    await asyncio.sleep(interval)
                     try:
                         r = await client.get(f"{BACKEND_URL}{endpoint}")
                         if r.status_code == 200:
                             update_fn(r.json())
                     except (httpx.ConnectError, httpx.TimeoutException):
                         pass
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                logger.debug(error_event, endpoint=endpoint, error=str(exc))
+                except asyncio.CancelledError:
+                    break
+                except Exception as exc:
+                    logger.debug(error_event, endpoint=endpoint, error=str(exc))
 
     async def _sleep_timer_poll_loop(self) -> None:
         def _update(data: dict) -> None:
@@ -372,22 +386,49 @@ class DisplayService:
             error_event="session_poll_error",
         )
 
+    @staticmethod
+    def _render_fingerprint(areas: list[list[dict]], font_size: str, font: str) -> str:
+        """Stable representation of everything that affects the rendered frame."""
+        return json.dumps([areas, font_size, font], sort_keys=True, default=str)
+
     async def _render_loop(self) -> None:
+        last_fingerprint: str | None = None
+        last_forced = 0.0
+        was_available = False
+
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(RENDER_INTERVAL)
-                if not is_available():
+                available = is_available()
+                if not available:
+                    was_available = False
                     continue
+                if not was_available:
+                    # Display (re-)appeared - the panel content is unknown, redraw.
+                    last_fingerprint = None
+                    was_available = True
+
                 cfg = self._display_config
                 if not cfg or not cfg.enabled:
                     continue
                 areas = self._build_areas()
-                if any(areas):
-                    show_areas(
-                        areas,
-                        font_size=cfg.font_size,
-                        font=cfg.font,
-                    )
+                if not any(areas):
+                    continue
+
+                fingerprint = self._render_fingerprint(areas, cfg.font_size, cfg.font)
+                now = asyncio.get_running_loop().time()
+                forced = (now - last_forced) >= FORCE_REDRAW_INTERVAL
+                if fingerprint == last_fingerprint and not forced:
+                    continue
+
+                show_areas(
+                    areas,
+                    font_size=cfg.font_size,
+                    font=cfg.font,
+                )
+                last_fingerprint = fingerprint
+                if forced:
+                    last_forced = now
             except asyncio.CancelledError:
                 break
             except Exception as exc:
