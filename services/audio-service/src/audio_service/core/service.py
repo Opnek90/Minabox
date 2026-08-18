@@ -6,7 +6,6 @@ Coordinates between MQTT, VLC backend, and state management.
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 from time import time
@@ -28,19 +27,6 @@ from .mqtt_handler import (
 from .state_manager import StateManager
 
 logger = structlog.get_logger(__name__)
-
-
-# #region agent log
-def _agent_log(location: str, message: str, data: dict, hypothesis_id: str) -> None:
-    try:
-        log_path = Path("/cursor-debug/debug-bd7bd2.log") if Path("/cursor-debug").exists() else Path("/home/pi/minabox/.cursor/debug-bd7bd2.log")
-        payload = {"sessionId": "bd7bd2", "timestamp": int(time() * 1000), "location": location, "message": message, "data": data, "hypothesisId": hypothesis_id}
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
-# #endregion
 
 
 def _status_fingerprint(
@@ -155,12 +141,6 @@ class AudioService:
                     audio_cfg.max_volume,
                 )
             initial_volume = max(initial_volume, min_vol)
-            _agent_log(
-                "service.py:start",
-                "initial_volume",
-                {"initial_volume": initial_volume, "state_last_volume": state.last_volume, "max_volume": audio_cfg.max_volume, "min_volume": min_vol},
-                "B",
-            )
             logger.debug("setting_service_initial_volume", volume=initial_volume)
             await self._vlc_backend.set_volume(initial_volume)
 
@@ -434,12 +414,6 @@ class AudioService:
         async def _execute_play():
             async with self._playback_lock:
                 try:
-                    _agent_log(
-                        "service.py:_handle_play",
-                        "play_handler_called",
-                        {"has_command": command is not None, "source_uri": command.source_uri if command else None, "track_id": command.track_id if command else None},
-                        "C_E",
-                    )
                     if command is not None:
                         self._vlc_backend.set_track_metadata(
                             track_id=command.track_id,

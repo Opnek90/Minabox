@@ -715,17 +715,6 @@ async def update_minabox() -> dict:
 @router.get("/wifi/scan")
 async def wifi_scan() -> dict:
     """List available WiFi networks. Proxied to Host-Helper."""
-    # #region agent log
-    try:
-        _log_path = Path("/cursor-debug/debug-0f3d51.log")
-        _url = _host_helper_url()
-        _api_key = _host_helper_api_key()
-        _log_path.open("a").write(
-            __import__("json").dumps({"sessionId": "0f3d51", "location": "routes_host.py:wifi_scan", "message": "wifi_scan entry", "data": {"has_api_key": _api_key is not None, "url": _url}, "timestamp": __import__("time").time() * 1000, "hypothesisId": "H1,H2"}) + "\n"
-        )
-    except Exception:
-        pass
-    # #endregion
     url = _host_helper_url()
     api_key = _host_helper_api_key()
     if not api_key:
@@ -734,27 +723,9 @@ async def wifi_scan() -> dict:
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(f"{url}/wifi/scan", headers={"X-Api-Key": api_key})
             payload = r.json() if r.status_code == 200 else None
-            # #region agent log
-            try:
-                _log_path = Path("/cursor-debug/debug-0f3d51.log")
-                _log_path.open("a").write(
-                    __import__("json").dumps({"sessionId": "0f3d51", "location": "routes_host.py:wifi_scan", "message": "host_helper response", "data": {"status_code": r.status_code, "networks_len": len((payload or {}).get("networks") or [])}, "timestamp": __import__("time").time() * 1000, "hypothesisId": "H2,H4"}) + "\n"
-                )
-            except Exception:
-                pass
-            # #endregion
             if r.status_code == 200 and payload is not None:
                 return payload
     except Exception as e:
-        # #region agent log
-        try:
-            _log_path = Path("/cursor-debug/debug-0f3d51.log")
-            _log_path.open("a").write(
-                __import__("json").dumps({"sessionId": "0f3d51", "location": "routes_host.py:wifi_scan", "message": "host_helper request failed", "data": {"error": str(e)}, "timestamp": __import__("time").time() * 1000, "hypothesisId": "H2"}) + "\n"
-            )
-        except Exception:
-            pass
-        # #endregion
         logger.debug("host_helper_wifi_scan_failed", error=str(e))
     return {"networks": []}
 

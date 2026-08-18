@@ -451,25 +451,7 @@ async def wifi_scan(_: None = Depends(_check_api_key)) -> dict:
     except HTTPException:
         raise
     except OSError as e:
-        # #region agent log
-        try:
-            Path("/cursor-debug/debug-0f3d51.log").open("a").write(
-                __import__("json").dumps({"sessionId": "0f3d51", "location": "routes.py:wifi_scan", "message": "nmcli OSError", "data": {"error": str(e)}, "timestamp": __import__("time").time() * 1000, "hypothesisId": "H-host"}) + "\n"
-            )
-        except Exception:
-            pass
-        # #endregion
         raise HTTPException(status_code=503, detail=f"WiFi scan failed: {e}") from e
-    # #region agent log
-    try:
-        _out = (r.stdout or "").strip()
-        _lines = _out.splitlines() if _out else []
-        Path("/cursor-debug/debug-0f3d51.log").open("a").write(
-            __import__("json").dumps({"sessionId": "0f3d51", "location": "routes.py:wifi_scan", "message": "nmcli result", "data": {"returncode": r.returncode, "line_count": len(_lines), "raw_lines": _lines[:20], "stderr": (r.stderr or "")[:200]}, "timestamp": __import__("time").time() * 1000, "hypothesisId": "H-host"}) + "\n"
-        )
-    except Exception:
-        pass
-    # #endregion
     if r.returncode != 0:
         raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Scan failed")[:500])
     networks: list[dict] = []
