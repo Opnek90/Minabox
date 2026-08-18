@@ -5,13 +5,20 @@ Phoniebox-/Jukebox-System mit RFID, Audio, WebUI und optionaler Hardware (LED, B
 ## Schnellstart
 
 ```bash
-cp .env.example .env   # anpassen: MQTT_BROKER, MINABOX_DEVICE_ID, etc.
+cp .env.example .env
+echo "HOST_HELPER_API_KEY=$(openssl rand -hex 32)" >> .env
 docker compose up -d
 ```
 
+`HOST_HELPER_API_KEY` ist Pflicht – ohne den Wert bricht `docker compose up` ab.
+Die uebrigen Werte (`MQTT_BROKER`, `MINABOX_DEVICE_ID`, `LOG_LEVEL`) sind in
+`.env.example` vorbelegt und koennen so bleiben.
+
 - **Deployment & Installation:** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - **Entwicklung & Struktur:** [docs/Framework.md](docs/Framework.md), [docs/DEVELOPMENT_INSTRUCTIONS.md](docs/DEVELOPMENT_INSTRUCTIONS.md)
+- **Service-Review (Backend, Audio, Host-Helper, …):** [docs/ServiceReview.md](docs/ServiceReview.md)
 - **Dev-Tools:** `./scripts/dev-tools.sh` (format, check, install, test, venv)
+- **Tests:** `./scripts/run-tests.sh`
 
 ## Wichtige Pfade
 

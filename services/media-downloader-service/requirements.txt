@@ -1,8 +1,17 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
+# Core Framework
+fastapi>=0.126.0,<0.127.0
+uvicorn[standard]>=0.34.0,<0.35.0
+pydantic>=2.12.0,<2.13.0
+
+# Logging
+structlog>=25.4.0,<25.5.0
+
+# Retry & Error Handling
+tenacity>=9.0.0,<10.0.0
+
+# HTTP Client
+httpx>=0.28.0,<0.29.0
+
+# Download & Metadata
 yt-dlp>=2025.3.31
-mutagen==1.47.0
-httpx==0.28.1
-pydantic==2.10.4
-structlog==25.1.0
-tenacity==9.0.0
+mutagen>=1.47.0,<2.0.0

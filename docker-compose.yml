@@ -84,6 +84,7 @@ services:
       - STATIC_DIR=/data/static
       - HOST_HELPER_URL=http://host-helper:8000
       - HOST_HELPER_API_KEY=${HOST_HELPER_API_KEY:-}
+      - WEB_AUTH_SECRET=${WEB_AUTH_SECRET:-}
       - ALLOWED_AUDIO_PATHS=${ALLOWED_AUDIO_PATHS:-/media,/mnt,/home/pi}
       - MEDIA_DOWNLOADER_URL=http://media-downloader:8007
     volumes:

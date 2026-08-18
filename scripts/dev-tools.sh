@@ -33,6 +33,10 @@ case "$1" in
     echo -e "${BLUE}🧪 Running pre-commit on all files...${NC}"
     pre-commit run --all-files
     ;;
+  pytest)
+    echo -e "${BLUE}🧪 Running service test suites...${NC}"
+    "$SCRIPT_DIR/run-tests.sh" "${2:-all}"
+    ;;
   venv)
     echo -e "${BLUE}🐍 Activating virtual environment...${NC}"
     source .venv/bin/activate

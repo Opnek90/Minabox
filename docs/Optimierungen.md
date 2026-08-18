@@ -2,6 +2,10 @@
 
 Diese Datei dokumentiert potenzielle Verbesserungen, Architektur-Optimierungen und vor allem Maßnahmen zur maximalen Ausfallsicherheit ("Robustheit") des Minabox-Projekts. Das Ziel ist es, das System so stabil zu machen, dass es den rauen Kinderzimmer-Alltag problemlos übersteht.
 
+> **Services außerhalb der WebUI:** siehe [ServiceReview.md](ServiceReview.md) –
+> eigenes Review von Backend, Audio, Host-Helper, Media-Downloader und shared-lib
+> (behobene Fehler, blockierende I/O, offene Punkte).
+
 ## 1. System & Hardware (Chuck-Norris-Proofing)
 
 ### RFID & I2C Ausfallsicherheit
