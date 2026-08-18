@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import io
 import os
+import secrets
 import shutil
 import subprocess
 import threading
@@ -12,7 +13,9 @@ import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+import docker
 import structlog
+from docker.errors import APIError as DockerAPIError, NotFound as DockerNotFound
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
@@ -51,7 +54,13 @@ def set_config(cfg: dict) -> None:
 
 
 def _check_api_key(x_api_key: str | None = Header(None, alias="X-Api-Key")) -> None:
-    if not x_api_key or x_api_key.strip() != get_config()["api_key"].strip():
+    """Validate the shared secret. This is the only gate in front of a service
+    that runs as root with the host filesystem mounted, so the comparison must
+    not leak the key through its timing."""
+    expected = get_config()["api_key"].strip()
+    if not x_api_key or not expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    if not secrets.compare_digest(x_api_key.strip(), expected):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
@@ -84,12 +93,12 @@ def _validate_host_path_under_allowed(path_str: str, allowed_base_paths: list[st
 
 
 @router.get("/health")
-async def health() -> dict:
+def health() -> dict:
     return {"status": "ok", "service": "host-helper"}
 
 
 @router.get("/audio-path")
-async def get_audio_path(_: None = Depends(_check_api_key)) -> dict:
+def get_audio_path(_: None = Depends(_check_api_key)) -> dict:
     """Read AUDIO_FILES_PATH from .env (saved value for next start)."""
     cfg = get_config()
     env_path: Path = cfg["env_file_path"]
@@ -108,7 +117,7 @@ async def get_audio_path(_: None = Depends(_check_api_key)) -> dict:
 
 
 @router.post("/apply-audio-path")
-async def apply_audio_path(
+def apply_audio_path(
     body: ApplyAudioPathBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -231,7 +240,7 @@ def _run_move(source: Path, dest: Path, items: list[Path] | None = None) -> None
 
 
 @router.post("/move")
-async def move(
+def move(
     body: MoveBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -279,7 +288,7 @@ async def move(
 
 
 @router.get("/move-status")
-async def move_status(_: None = Depends(_check_api_key)) -> dict:
+def move_status(_: None = Depends(_check_api_key)) -> dict:
     """Return current move job progress (status: idle | running | done | error)."""
     with _move_lock:
         state = dict(_move_state)
@@ -309,7 +318,7 @@ def _run_on_host_via_nsenter(args: list[str], timeout: int = 30) -> subprocess.C
 
 
 @router.post("/reboot")
-async def reboot_host(_: None = Depends(_check_api_key)) -> dict:
+def reboot_host(_: None = Depends(_check_api_key)) -> dict:
     """Reboot the host (Pi). Runs on the host via nsenter."""
     try:
         nsenter_bin = _nsenter_bin()
@@ -330,7 +339,7 @@ async def reboot_host(_: None = Depends(_check_api_key)) -> dict:
 
 
 @router.post("/shutdown")
-async def shutdown_host(_: None = Depends(_check_api_key)) -> dict:
+def shutdown_host(_: None = Depends(_check_api_key)) -> dict:
     """Shutdown the host (Pi). Runs on the host via nsenter."""
     try:
         nsenter_bin = _nsenter_bin()
@@ -350,7 +359,7 @@ async def shutdown_host(_: None = Depends(_check_api_key)) -> dict:
 
 
 @router.post("/restart")
-async def restart_services(_: None = Depends(_check_api_key)) -> dict:
+def restart_services(_: None = Depends(_check_api_key)) -> dict:
     """Restart Minabox containers. Runs on the host via nsenter (docker compose restart)."""
     try:
         nsenter_bin = _nsenter_bin()
@@ -438,7 +447,7 @@ class HotspotStartBody(BaseModel):
 
 
 @router.get("/wifi/scan")
-async def wifi_scan(_: None = Depends(_check_api_key)) -> dict:
+def wifi_scan(_: None = Depends(_check_api_key)) -> dict:
     """List available WiFi networks (SSID, signal). Uses host network namespace so wlan0 is visible."""
     try:
         _run_nmcli_host_network(["dev", "wifi", "rescan"], timeout=15)
@@ -475,7 +484,7 @@ def _wifi_connection_name(ssid: str) -> str:
 
 
 @router.post("/wifi/connect")
-async def wifi_connect(
+def wifi_connect(
     body: WifiConnectBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -518,7 +527,7 @@ HOTSPOT_CONN_ID = "Minabox-Setup"
 
 
 @router.post("/wifi/hotspot/start")
-async def wifi_hotspot_start(
+def wifi_hotspot_start(
     body: HotspotStartBody | None = None,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -546,7 +555,7 @@ async def wifi_hotspot_start(
 
 
 @router.post("/wifi/hotspot/stop")
-async def wifi_hotspot_stop(_: None = Depends(_check_api_key)) -> dict:
+def wifi_hotspot_stop(_: None = Depends(_check_api_key)) -> dict:
     """Stop the hotspot and bring wlan0 back to client mode."""
     try:
         _run_nmcli_host_network(["con", "down", HOTSPOT_CONN_ID], timeout=10)
@@ -557,7 +566,7 @@ async def wifi_hotspot_stop(_: None = Depends(_check_api_key)) -> dict:
 
 
 @router.get("/wifi/hotspot/status")
-async def wifi_hotspot_status(_: None = Depends(_check_api_key)) -> dict:
+def wifi_hotspot_status(_: None = Depends(_check_api_key)) -> dict:
     """Return whether the hotspot is currently active."""
     try:
         r = _run_nmcli_host_network(["-t", "-f", "NAME,STATE", "con", "show", "--active"], timeout=5)
@@ -628,7 +637,7 @@ def _run_lsblk() -> list[dict]:
 
 
 @router.get("/usb/devices")
-async def usb_devices(_: None = Depends(_check_api_key)) -> dict:
+def usb_devices(_: None = Depends(_check_api_key)) -> dict:
     """List USB (and other removable) block devices."""
     devices = _run_lsblk()
     return {"devices": devices}
@@ -644,7 +653,7 @@ class UsbEjectBody(BaseModel):
 
 
 @router.get("/usb/{device_id}/files")
-async def usb_files(
+def usb_files(
     device_id: str,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -698,7 +707,7 @@ async def usb_files(
 
 
 @router.post("/usb/import")
-async def usb_import(
+def usb_import(
     body: UsbImportBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -708,7 +717,6 @@ async def usb_import(
         raise HTTPException(status_code=400, detail="Invalid device_id")
     cfg = get_config()
     dest_base = Path(cfg.get("audio_storage_path", "/workspace/audio")).resolve()
-    allowed = cfg.get("allowed_base_paths") or []
     host_root = cfg.get("host_root") or "/host"
     root_path = Path(host_root).resolve()
     devices = _run_lsblk()
@@ -742,7 +750,7 @@ async def usb_import(
 
 
 @router.post("/usb/eject")
-async def usb_eject(
+def usb_eject(
     body: UsbEjectBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -787,7 +795,7 @@ def _backup_allowed_path(rel_path: str, workspace: Path) -> bool:
 
 
 @router.get("/backup/download")
-async def backup_download(_: None = Depends(_check_api_key)) -> Response:
+def backup_download(_: None = Depends(_check_api_key)) -> Response:
     """Create a ZIP of minabox.db, general_settings.json, static, and service state/config."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
@@ -832,6 +840,53 @@ async def backup_download(_: None = Depends(_check_api_key)) -> Response:
     )
 
 
+def _restore_backup_archive(content: bytes, workspace: Path, compose_file: Path) -> None:
+    """Validate, stop containers, extract the archive and start containers again.
+
+    Blocking by nature - call via asyncio.to_thread.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
+            for name in zf.namelist():
+                if not _backup_allowed_path(name, workspace):
+                    raise HTTPException(status_code=400, detail=f"Invalid path in backup: {name}")
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid ZIP file") from None
+
+    try:
+        subprocess.run(
+            ["docker", "compose", "-f", str(compose_file), "down"],
+            cwd=str(workspace),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        logger.warning("backup_restore_compose_down_failed", error=str(e))
+
+    with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
+        for name in zf.namelist():
+            if name.endswith("/"):
+                continue
+            target = workspace / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(zf.read(name))
+
+    try:
+        subprocess.run(
+            ["docker", "compose", "-f", str(compose_file), "up", "-d"],
+            cwd=str(workspace),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        logger.warning("backup_restore_compose_up_failed", error=str(e))
+        raise HTTPException(
+            status_code=500, detail="Failed to start containers after restore"
+        ) from e
+
+
 @router.post("/backup/restore")
 async def backup_restore(
     file: UploadFile = File(...),
@@ -846,44 +901,9 @@ async def backup_restore(
     if not compose_file.exists():
         raise HTTPException(status_code=500, detail="docker-compose.yml not found")
     content = await file.read()
-    try:
-        with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
-            for name in zf.namelist():
-                if not _backup_allowed_path(name, workspace):
-                    raise HTTPException(status_code=400, detail=f"Invalid path in backup: {name}")
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid ZIP file")
-    # Stop containers
-    try:
-        subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "down"],
-            cwd=str(workspace),
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        logger.warning("backup_restore_compose_down_failed", error=str(e))
-    # Extract
-    with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
-        for name in zf.namelist():
-            if name.endswith("/"):
-                continue
-            target = workspace / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(zf.read(name))
-    # Start containers
-    try:
-        subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "up", "-d"],
-            cwd=str(workspace),
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        logger.warning("backup_restore_compose_up_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to start containers after restore")
+    # Everything below blocks for minutes (compose down/up plus extraction),
+    # so it must not run on the event loop.
+    await asyncio.to_thread(_restore_backup_archive, content, workspace, compose_file)
     logger.info("backup_restore_done")
     return {"ok": True, "message": "Restore completed"}
 
@@ -992,14 +1012,14 @@ def _read_host_status(cfg: dict) -> dict:
 
 
 @router.get("/host-status")
-async def host_status(_: None = Depends(_check_api_key)) -> dict:
+def host_status(_: None = Depends(_check_api_key)) -> dict:
     """Return host info (hostname, IP, memory, CPU, disk) from mounted host paths."""
     cfg = get_config()
     return _read_host_status(cfg)
 
 
 @router.get("/syslog")
-async def get_syslog(
+def get_syslog(
     n: int = 200,
     source: str = "kernel",  # kernel | docker
     _: None = Depends(_check_api_key),
@@ -1054,7 +1074,7 @@ class TimezoneBody(BaseModel):
 
 
 @router.put("/system/timezone")
-async def set_timezone(
+def set_timezone(
     body: TimezoneBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -1089,7 +1109,7 @@ async def set_timezone(
 
 
 @router.get("/system/time-status")
-async def get_time_status(_: None = Depends(_check_api_key)) -> dict:
+def get_time_status(_: None = Depends(_check_api_key)) -> dict:
     """Return host timezone, NTP sync status, and local time."""
     host_root = get_config().get("host_root") or "/host"
     root_path = Path(host_root).resolve()
@@ -1138,14 +1158,14 @@ def _read_hostname(cfg: dict) -> str | None:
 
 
 @router.get("/system/hostname")
-async def get_hostname(_: None = Depends(_check_api_key)) -> dict:
+def get_hostname(_: None = Depends(_check_api_key)) -> dict:
     """Return current hostname."""
     cfg = get_config()
     return {"hostname": _read_hostname(cfg)}
 
 
 @router.put("/system/hostname")
-async def set_hostname(
+def set_hostname(
     body: HostnameBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -1272,7 +1292,7 @@ def _board_led_paths(root_path: Path) -> tuple[Path | None, Path | None]:
 
 
 @router.get("/system/board-leds")
-async def get_board_leds(_: None = Depends(_check_api_key)) -> dict:
+def get_board_leds(_: None = Depends(_check_api_key)) -> dict:
     """Return current board LED state (stealth on/off)."""
     host_root = get_config().get("host_root") or "/host"
     root_path = Path(host_root).resolve()
@@ -1298,7 +1318,7 @@ class BoardLedsBody(BaseModel):
 
 
 @router.put("/system/board-leds")
-async def set_board_leds(
+def set_board_leds(
     body: BoardLedsBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -1357,7 +1377,7 @@ def _parse_ipv4_address(addr: str) -> tuple[str | None, str | None]:
 
 
 @router.get("/system/network")
-async def get_network(_: None = Depends(_check_api_key)) -> dict:
+def get_network(_: None = Depends(_check_api_key)) -> dict:
     """Return current IPv4 config (DHCP or manual, address, gateway, dns) for active connection."""
     out = {"method": "dhcp", "address": None, "netmask": None, "gateway": None, "dns": None}
     con_name = _get_active_connection_name()
@@ -1399,7 +1419,7 @@ class NetworkBody(BaseModel):
 
 
 @router.put("/system/network")
-async def set_network(
+def set_network(
     body: NetworkBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -1459,7 +1479,7 @@ class PasswordBody(BaseModel):
 
 
 @router.post("/system/password")
-async def set_system_password(
+def set_system_password(
     body: PasswordBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -1498,7 +1518,7 @@ async def set_system_password(
 # ── Docker prune (on host via nsenter) ───────────────────────────────────────
 
 @router.post("/system/docker-prune")
-async def docker_prune(_: None = Depends(_check_api_key)) -> dict:
+def docker_prune(_: None = Depends(_check_api_key)) -> dict:
     """Run docker system prune -f on the host (Raspberry Pi OS) via nsenter. Keeps tagged images and build cache."""
     cfg = get_config()
     host_root = cfg.get("host_root") or "/host"
@@ -1549,7 +1569,7 @@ def _run_host_systemctl(args: list[str], timeout: int = 15) -> subprocess.Comple
 
 
 @router.get("/system/ssh-status")
-async def get_ssh_status(_: None = Depends(_check_api_key)) -> dict:
+def get_ssh_status(_: None = Depends(_check_api_key)) -> dict:
     """Return whether SSH is enabled and active on the host."""
     out = {"enabled": False, "active": False}
     try:
@@ -1569,7 +1589,7 @@ class SshToggleBody(BaseModel):
 
 
 @router.post("/system/ssh-toggle")
-async def ssh_toggle(
+def ssh_toggle(
     body: SshToggleBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -1610,7 +1630,7 @@ class FactoryResetBody(BaseModel):
 
 
 @router.post("/system/factory-reset")
-async def factory_reset(
+def factory_reset(
     body: FactoryResetBody | None = None,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -1712,7 +1732,7 @@ async def factory_reset(
 # ── Minabox Update & Version ──────────────────────────────────────────────
 
 @router.post("/system/update-minabox")
-async def update_minabox(_: None = Depends(_check_api_key)) -> dict:
+def update_minabox(_: None = Depends(_check_api_key)) -> dict:
     """Pull latest images and restart containers (docker compose pull && up -d)."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
@@ -1749,7 +1769,7 @@ async def update_minabox(_: None = Depends(_check_api_key)) -> dict:
 
 
 @router.get("/system/version")
-async def get_version(_: None = Depends(_check_api_key)) -> dict:
+def get_version(_: None = Depends(_check_api_key)) -> dict:
     """Return current version (commit) and whether an update is available."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
@@ -1813,7 +1833,7 @@ def _os_update_wait_and_finish(proc: subprocess.Popen, log_path: Path, pid_path:
 
 
 @router.post("/system/update-os")
-async def update_os(_: None = Depends(_check_api_key)) -> dict:
+def update_os(_: None = Depends(_check_api_key)) -> dict:
     """Start apt-get update && apt-get upgrade -y on the host in background; return immediately."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
@@ -1858,7 +1878,7 @@ async def update_os(_: None = Depends(_check_api_key)) -> dict:
 
 
 @router.get("/system/update-os/log")
-async def update_os_log(_: None = Depends(_check_api_key)) -> dict:
+def update_os_log(_: None = Depends(_check_api_key)) -> dict:
     """Return current OS update log and whether the process is still running."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
@@ -1945,10 +1965,10 @@ async def bluetooth_scan(_: None = Depends(_check_api_key)) -> dict:
         proc.stdin.flush()
         proc.stdin.close()
         try:
-            proc.wait(timeout=5)
+            await asyncio.to_thread(proc.wait, 5)
         except subprocess.TimeoutExpired:
             proc.kill()
-        reader.join(timeout=2)
+        await asyncio.to_thread(reader.join, 2)
         for line in stdout_lines:
             if line.startswith("Device "):
                 parts = line[7:].strip().split(" ", 1)
@@ -1964,7 +1984,7 @@ async def bluetooth_scan(_: None = Depends(_check_api_key)) -> dict:
 
 
 @router.post("/bluetooth/pair")
-async def bluetooth_pair(
+def bluetooth_pair(
     body: BluetoothPairBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -1994,7 +2014,7 @@ async def bluetooth_pair(
 
 
 @router.get("/bluetooth/paired")
-async def bluetooth_paired(_: None = Depends(_check_api_key)) -> dict:
+def bluetooth_paired(_: None = Depends(_check_api_key)) -> dict:
     """Return list of paired Bluetooth devices only (address, name, connected). No scan.
     Filters by bluetoothctl info <addr> Paired: yes so discovered-but-not-paired devices are excluded."""
     try:
@@ -2035,7 +2055,7 @@ class BluetoothAddressBody(BaseModel):
 
 
 @router.post("/bluetooth/connect")
-async def bluetooth_connect(
+def bluetooth_connect(
     body: BluetoothAddressBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -2058,7 +2078,7 @@ async def bluetooth_connect(
 
 
 @router.post("/bluetooth/disconnect")
-async def bluetooth_disconnect(
+def bluetooth_disconnect(
     body: BluetoothAddressBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -2081,7 +2101,7 @@ async def bluetooth_disconnect(
 
 
 @router.post("/bluetooth/remove")
-async def bluetooth_remove(
+def bluetooth_remove(
     body: BluetoothAddressBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
@@ -2112,6 +2132,14 @@ def _is_allowed_container_name(name: str) -> bool:
     )
 
 
+def _read_container_logs(container_name: str, tail: int) -> dict:
+    """Blocking Docker SDK call - run via asyncio.to_thread."""
+    client = docker.from_env()
+    container = client.containers.get(container_name)
+    out = container.logs(tail=tail, stdout=True, stderr=True)
+    return {"lines": out.decode("utf-8", errors="replace").strip(), "tail": tail}
+
+
 @router.get("/container-logs")
 async def container_logs(
     container_name: str,
@@ -2123,16 +2151,11 @@ async def container_logs(
         raise HTTPException(status_code=400, detail="Invalid container name")
     tail = max(1, min(int(tail), 500))
     try:
-        import docker
-        client = docker.from_env()
-        container = client.containers.get(container_name)
-        out = container.logs(tail=tail, stdout=True, stderr=True)
-        content = out.decode("utf-8", errors="replace").strip()
-        return {"lines": content, "tail": tail}
-    except docker.errors.NotFound:
-        raise HTTPException(status_code=404, detail="Container not found")
-    except docker.errors.APIError as e:
-        raise HTTPException(status_code=502, detail=str(e.explanation or str(e))[:500])
+        return await asyncio.to_thread(_read_container_logs, container_name, tail)
+    except DockerNotFound:
+        raise HTTPException(status_code=404, detail="Container not found") from None
+    except DockerAPIError as e:
+        raise HTTPException(status_code=502, detail=str(e.explanation or str(e))[:500]) from e
     except Exception as e:
         logger.exception("container_logs_failed")
-        raise HTTPException(status_code=503, detail="Docker not available")
+        raise HTTPException(status_code=503, detail="Docker not available") from e
