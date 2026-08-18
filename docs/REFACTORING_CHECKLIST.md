@@ -24,7 +24,7 @@ Dieses Dokument bündelt potentielle Verbesserungen und identifizierte Inkonsist
 | Button | [services/button/Architecture.md](services/button/Architecture.md) | Abschnitt 9 |
 | LED | [services/led/Architecture.md](services/led/Architecture.md) | Abschnitt 10 |
 | RFID | [services/rfid/Architecture.md](services/rfid/Architecture.md) | Abschnitt 8 |
-| WebUI | [services/webui/Architecture.md](services/webui/Architecture.md) | Abschnitt 12 |
+| WebUI | [services/webui/Architecture.md](services/webui/Architecture.md) | Abschnitt 12 (siehe auch [services/webui/Redesign.md](services/webui/Redesign.md)) |
 
 ### 2.1 Kurzfassung der Service-Checklisten
 
@@ -34,7 +34,7 @@ Dieses Dokument bündelt potentielle Verbesserungen und identifizierte Inkonsist
 - **Display:** `main.py` optional entlasten (Poll-Loops, Area-Build in eigene Module).
 - **Host-Helper:** `api/routes.py` nach Domänen in mehrere Route-Module aufteilen.
 - **Button, LED, RFID:** Keine groben Inkonsistenzen; nach Refactoring Doku aktualisieren.
-- **WebUI:** Struktur-Doku an Code angepasst; Konsistenz Komponenten-/API-Namen in Doku prüfen.
+- **WebUI:** Struktur-Doku an Code angepasst; Konsistenz Komponenten-/API-Namen in Doku prüfen. Redesign-Review mit priorisierter Umsetzungsreihenfolge (Nginx-Upstream-Fix, Mobile-Navigation, Datenschicht-Vereinheitlichung, neue Features) in [services/webui/Redesign.md](services/webui/Redesign.md).
 
 ---
 

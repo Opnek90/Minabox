@@ -1170,6 +1170,7 @@ console.error('[WebUI] API call failed:', error);
 
 ## 12. Refactoring-Checkliste
 
+- [ ] **Redesign-Review:** Siehe [Redesign.md](Redesign.md) – vollständige Bewertung (Docker-Randbedingungen, Struktur, Funktionsoptimierungen, neue Features) mit priorisierter Umsetzungsreihenfolge.
 - [ ] **Struktur-Doku angepasst:** Die Datei- und Ordnerstruktur in Abschnitt 3 wurde an die tatsächliche Codebasis angeglichen (z. B. `api/auth.ts`, `api/system.ts`, `components/admin/ConfigForm/` mit GeneralSettingsForm, ControlSettingsForm, DesignSettingsForm, ChildSettingsForm, AudioConfigForm, RFIDConfigForm; AuthSection, SecurityPanel, SystemMaintenanceSection; `contexts/ThemeContext`, `ToastContext`; `hooks/useSleepTimer`, `useDashboardOverview`, `useStatsDashboard`, `useServiceLogs`; `components/dashboard/DashboardOverview`).
 - [ ] **Konsistenz prüfen:** Komponenten- und API-Modulnamen in den Abschnitten „Seiten & Features“ und „Admin“ mit der tatsächlichen Struktur abgleichen (z. B. ParentSettingsForm vs. ChildSettingsForm, ConfigForm vs. ConfigForm/*).
 - [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.

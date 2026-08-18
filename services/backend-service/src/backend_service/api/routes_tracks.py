@@ -145,8 +145,16 @@ async def _run_download_task(
     clean_url: str,
     track_dir: Path,
     db_url: str,
+    title_override: str | None = None,
+    artist_override: str | None = None,
+    album_override: str | None = None,
 ) -> None:
-    """Background task: download audio, update track in DB, resolve cover art."""
+    """Background task: download audio, update track in DB, resolve cover art.
+
+    title_override/artist_override/album_override let the caller (WebUI's
+    "edit before import" dialog) pin metadata the user typed in; yt-dlp's
+    extracted values are only used as a fallback for fields left blank.
+    """
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -166,9 +174,9 @@ async def _run_download_task(
             _download_status[track_id] = {"status": "error", "error": "Track record not found"}
             return
 
-        track.title = result["title"]
-        track.artist = result.get("artist")
-        track.album = result.get("album", "Downloads")
+        track.title = title_override or result["title"]
+        track.artist = artist_override or result.get("artist")
+        track.album = album_override or result.get("album", "Downloads")
         track.duration_ms = result.get("duration_ms")
         track.source_uri = str(mp3_path)
         db.commit()
@@ -311,18 +319,27 @@ async def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -
 @router.post("/from-url", status_code=202)
 async def create_track_from_url(
     url: str = Query(..., description="Video URL to download as audio track"),
+    title: str | None = Query(None, description="User-supplied title override (takes precedence over yt-dlp metadata)"),
+    artist: str | None = Query(None, description="User-supplied artist override"),
+    album: str | None = Query(None, description="User-supplied album override"),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
     """Start an async background download for *url*.
 
     Returns HTTP 202 immediately with the created track ID so the client can
-    poll ``GET /tracks/{id}/download-status`` for progress.
+    poll ``GET /tracks/{id}/download-status`` for progress. title/artist/album
+    let the caller pin metadata edited in the "check" preview before import;
+    yt-dlp's extracted values only fill in fields left blank.
     """
+    title = title.strip() if title and title.strip() else None
+    artist = artist.strip() if artist and artist.strip() else None
+    album = album.strip() if album and album.strip() else None
+
     clean_url = _strip_playlist_params(url)
     _check_allowed_domain(clean_url)
     if clean_url != url:
         logger.info("api_create_track_from_url_playlist_stripped", original=url, clean=clean_url)
-    logger.info("api_create_track_from_url", url=clean_url)
+    logger.info("api_create_track_from_url", url=clean_url, title_override=title)
 
     existing = (
         db.query(Track)
@@ -332,13 +349,23 @@ async def create_track_from_url(
     )
     if existing is not None:
         logger.info("api_create_track_from_url_duplicate", track_id=existing.id, url=clean_url)
+        if title or artist or album:
+            if title:
+                existing.title = title
+            if artist:
+                existing.artist = artist
+            if album:
+                existing.album = album
+            db.commit()
         return JSONResponse(
             status_code=200,
             content={"track_id": existing.id, "status": "done"},
         )
 
     track = Track(
-        title="...",
+        title=title or "...",
+        artist=artist,
+        album=album,
         source_type="file",
         source_uri=clean_url,
     )
@@ -360,6 +387,9 @@ async def create_track_from_url(
             clean_url=clean_url,
             track_dir=track_dir,
             db_url=db_url,
+            title_override=title,
+            artist_override=artist,
+            album_override=album,
         )
     )
 

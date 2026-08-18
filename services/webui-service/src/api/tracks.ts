@@ -97,11 +97,14 @@ export const tracksApi = {
    * Start an async background download for a URL.
    * Returns { track_id, status: "pending" | "done" } immediately (HTTP 202 or 200 for duplicates).
    */
-  fromUrl: async (url: string): Promise<{ track_id: number; status: string }> => {
+  fromUrl: async (
+    url: string,
+    overrides?: { title?: string; artist?: string; album?: string },
+  ): Promise<{ track_id: number; status: string }> => {
     const response = await apiClient.post<{ track_id: number; status: string }>(
       '/tracks/from-url',
       null,
-      { params: { url }, timeout: 15_000 },
+      { params: { url, ...overrides }, timeout: 15_000 },
     );
     return response.data;
   },

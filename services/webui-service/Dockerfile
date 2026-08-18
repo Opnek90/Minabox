@@ -17,9 +17,9 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install --no-audit --no-fund
 
 # Copy source and build (build:fast = vite only, no tsc; much faster on Raspberry Pi)
-# i18n:merge-admin must run before vite build so public/locales/*/admin.json is up to date
+# Locales werden direkt aus public/locales/ kopiert – kein Generierungsschritt mehr.
 COPY . .
-RUN npm run i18n:merge-admin && npm run build:fast
+RUN npm run build:fast
 
 # ---- Stage 2: Serve with Nginx ----
 FROM nginx:alpine

@@ -23,6 +23,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import SearchIcon from '@mui/icons-material/Search';
+import SettingsIcon from '@mui/icons-material/Settings';
 import StreamIcon from '@mui/icons-material/Stream';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -31,9 +32,12 @@ import { playlistsApi } from '@/api/playlists';
 import { tracksApi } from '@/api/tracks';
 import { streamsApi } from '@/api/streams';
 import { podcastsApi } from '@/api/podcasts';
+import { SETTINGS_SECTIONS } from '@/config/settingsIndex';
 import type { Playlist, Podcast, Stream, Track } from '@/types/api';
 
-type CommandGroup = 'navigation' | 'playback' | 'sleep_timer' | 'tracks' | 'playlists' | 'streams' | 'podcasts';
+type CommandGroup =
+  | 'navigation' | 'playback' | 'sleep_timer' | 'settings'
+  | 'tracks' | 'playlists' | 'streams' | 'podcasts';
 
 interface CommandItem {
   id: string;
@@ -49,20 +53,13 @@ interface CommandItem {
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
+  /** Ohne diesen Callback kann Ctrl/Cmd+K die Palette nur schließen, nicht öffnen. */
+  onOpen?: () => void;
 }
 
-const GROUP_LABELS: Record<CommandGroup, string> = {
-  navigation: 'Navigation',
-  playback: 'Wiedergabe',
-  sleep_timer: 'Sleep Timer',
-  tracks: 'Tracks',
-  playlists: 'Playlists',
-  streams: 'Streams',
-  podcasts: 'Podcasts',
-};
-
-export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose }) => {
+export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, onOpen }) => {
   const { t } = useTranslation('common');
+  const { t: tAdmin } = useTranslation('admin');
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
@@ -90,17 +87,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
     }).catch(() => {});
   }, [open, mediaLoaded]);
 
-  // Ctrl+K / Cmd+K global shortcut
+  // Ctrl+K / Cmd+K global shortcut – schaltet die Palette um
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        open ? onClose() : undefined;
+        if (open) onClose();
+        else onOpen?.();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose]);
+  }, [open, onClose, onOpen]);
 
   const staticCommands: CommandItem[] = useMemo(
     () => [
@@ -122,6 +120,23 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
       { id: 'sleep-cancel', group: 'sleep_timer' as CommandGroup, label: t('command_palette.sleep_timer.cancel'), run: () => audioApi.cancelSleepTimer() },
     ],
     [t, navigate]
+  );
+
+  // Jede Settings-Section ist direkt anspringbar. Gesucht wird auch über die
+  // Labels der enthaltenen Felder, damit „MQTT" oder „WLAN" die Section findet,
+  // ohne dass man weiß, in welcher Gruppe sie liegt.
+  const settingsCommands: CommandItem[] = useMemo(
+    () =>
+      SETTINGS_SECTIONS.map((section) => ({
+        id: `settings-${section.key}`,
+        group: 'settings' as CommandGroup,
+        label: tAdmin(section.titleKey),
+        sublabel: tAdmin(section.groupLabelKey),
+        icon: <SettingsIcon fontSize="small" />,
+        keywords: section.searchKeys.map((key) => tAdmin(key)),
+        run: () => navigate(`/admin?section=${section.key}`),
+      })),
+    [tAdmin, navigate]
   );
 
   const mediaCommands: CommandItem[] = useMemo(() => [
@@ -153,7 +168,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
     })),
   ], [tracks, playlists, streams, podcasts, navigate]);
 
-  const allCommands = useMemo(() => [...staticCommands, ...mediaCommands], [staticCommands, mediaCommands]);
+  const allCommands = useMemo(
+    () => [...staticCommands, ...settingsCommands, ...mediaCommands],
+    [staticCommands, settingsCommands, mediaCommands]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -196,14 +214,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
         <Box sx={{ px: 2, pt: 1, pb: 1 }}>
           <TextField
             autoFocus fullWidth size="small"
-            placeholder={isMediaSearch ? 'Track, Playlist, Stream …' : t('command_palette.placeholder')}
+            placeholder={
+              isMediaSearch
+                ? t('command_palette.placeholder_media')
+                : t('command_palette.placeholder')
+            }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             InputProps={{
               startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
               endAdornment: isMediaSearch ? (
                 <InputAdornment position="end">
-                  <Chip label="Mediathek" size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
+                  <Chip label={t('navigation.media')} size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
                 </InputAdornment>
               ) : undefined,
             }}
@@ -212,7 +234,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
 
         {grouped.size === 0 ? (
           <Typography variant="body2" color="text.disabled" sx={{ px: 2, py: 3, textAlign: 'center' }}>
-            {t('actions.retry')}
+            {t('command_palette.no_results')}
           </Typography>
         ) : (
           <List dense disablePadding>
@@ -221,7 +243,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose })
                 {groupIdx > 0 && <Divider />}
                 <Typography variant="overline" color="text.secondary"
                   sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'block', lineHeight: 1 }}>
-                  {GROUP_LABELS[group] ?? group}
+                  {t(`command_palette.groups.${group}`, { defaultValue: group })}
                 </Typography>
                 {items.slice(0, 8).map((cmd) => (
                   <ListItemButton key={cmd.id} onClick={() => handleRun(cmd)} sx={{ px: 2, py: 0.75 }}>

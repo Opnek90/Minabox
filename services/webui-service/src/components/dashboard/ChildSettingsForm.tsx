@@ -9,12 +9,14 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import SaveIcon from '@mui/icons-material/Save';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { useFormState } from '@/hooks/useFormState';
 import { configApi } from '@/api/config';
 import type { AudioConfig, GeneralConfig, AllowedUsageTimeSlot } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { VolumeSlider } from '@/components/ui/VolumeSlider';
 
 const WEEKDAY_KEYS = [
   'weekday_mo',
@@ -26,7 +28,7 @@ const WEEKDAY_KEYS = [
   'weekday_su',
 ] as const;
 
-export const ParentSettingsForm: React.FC = () => {
+export const ChildSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');
   const { t: tCommon } = useTranslation('common');
   const { showSuccess } = useToast();
@@ -35,12 +37,8 @@ export const ParentSettingsForm: React.FC = () => {
   const [general, setGeneral] = useState<GeneralConfig | null>(null);
   const [audioConfig, setAudioConfig] = useState<AudioConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [loadFailedUnauth, setLoadFailedUnauth] = useState(false);
 
   useEffect(() => {
-    setLoadFailed(false);
-    setLoadFailedUnauth(false);
     Promise.all([configApi.getGeneral(), configApi.getAudio()])
       .then(([g, audio]) => {
         const gen = g as GeneralConfig;
@@ -56,17 +54,16 @@ export const ParentSettingsForm: React.FC = () => {
           usage_times_enabled: gen.usage_times_enabled ?? false,
           daily_limit_enabled: gen.daily_limit_enabled ?? false,
           daily_limit_minutes: gen.daily_limit_minutes ?? 120,
+          bedtime_fade_enabled: gen.bedtime_fade_enabled ?? false,
+          bedtime_fade_duration_minutes: gen.bedtime_fade_duration_minutes ?? 15,
+          bedtime_fade_interval_seconds: gen.bedtime_fade_interval_seconds ?? 30,
+          bedtime_fade_step_percent: gen.bedtime_fade_step_percent ?? 2,
         });
         setAudioConfig(audio);
       })
-      .catch((err: unknown) => {
-        const status = (err as { response?: { status?: number } })?.response?.status;
-        setLoadFailed(true);
-        if (status === 401) setLoadFailedUnauth(true);
-        else setError('Laden fehlgeschlagen');
-      })
+      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
       .finally(() => setLoading(false));
-  }, [setError]);
+  }, []);
 
   const handleSave = () =>
     run(async () => {
@@ -76,9 +73,13 @@ export const ParentSettingsForm: React.FC = () => {
         usage_times_enabled: general.usage_times_enabled,
         daily_limit_enabled: general.daily_limit_enabled,
         daily_limit_minutes: general.daily_limit_minutes,
+        bedtime_fade_enabled: general.bedtime_fade_enabled,
+        bedtime_fade_duration_minutes: general.bedtime_fade_duration_minutes,
+        bedtime_fade_interval_seconds: general.bedtime_fade_interval_seconds,
+        bedtime_fade_step_percent: general.bedtime_fade_step_percent,
       });
       await configApi.updateAudio({
-        min_volume: audioConfig.min_volume ?? 5,
+        min_volume: audioConfig.min_volume,
         max_volume: audioConfig.max_volume,
         default_volume: audioConfig.default_volume,
       });
@@ -87,29 +88,11 @@ export const ParentSettingsForm: React.FC = () => {
     });
 
   if (loading) return null;
-
-  if (!general || !audioConfig) {
-    return (
-      <Box display="flex" flexDirection="column" maxWidth={480} sx={{ gap: 2 }}>
-        {loadFailedUnauth ? (
-          <>
-            <Alert severity="info">
-              {tCommon('dashboard.settings_login_required')}
-            </Alert>
-            <Typography variant="body2" color="text.secondary">
-              {tCommon('dashboard.settings_login_hint')}
-            </Typography>
-          </>
-        ) : loadFailed ? (
-          <Alert severity="error">{error || tCommon('dashboard.settings_load_failed')}</Alert>
-        ) : null}
-      </Box>
-    );
-  }
+  if (!general || !audioConfig) return null;
 
   return (
-    <Box display="flex" flexDirection="column" maxWidth={480} sx={{ gap: 3 }}>
-      <Typography variant="subtitle1" color="text.secondary">
+    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: 3 }}>
+      <Typography variant="overline" color="text.secondary">
         {t('general.usage_times')}
       </Typography>
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
@@ -172,7 +155,7 @@ export const ParentSettingsForm: React.FC = () => {
 
       <Divider />
 
-      <Typography variant="subtitle1" color="text.secondary">
+      <Typography variant="overline" color="text.secondary">
         {tCommon('dashboard.daily_limit')}
       </Typography>
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
@@ -210,46 +193,123 @@ export const ParentSettingsForm: React.FC = () => {
 
       <Divider />
 
-      <Typography variant="subtitle1" color="text.secondary">
-        {t('audio.max_volume')}
+      <Typography variant="overline" color="text.secondary">
+        {t('audio.volume_settings')}
       </Typography>
-      <Box>
-        <Typography variant="body2" gutterBottom>
-          {t('audio.max_volume')}: {audioConfig.max_volume}%
-        </Typography>
-        <Slider
-          value={audioConfig.max_volume}
-          min={(audioConfig.min_volume ?? 5) + 1}
-          max={100}
-          step={5}
-          marks
-          valueLabelDisplay="auto"
-          onChange={(_, v) =>
-            setAudioConfig((p) => (p ? { ...p, max_volume: v as number } : p))
-          }
-        />
-      </Box>
-      <Box>
-        <Typography variant="body2" gutterBottom>
-          {t('audio.default_volume')}: {audioConfig.default_volume}%
-        </Typography>
-        <Slider
-          value={audioConfig.default_volume}
-          min={audioConfig.min_volume ?? 5}
-          max={audioConfig.max_volume}
-          step={5}
-          marks
-          valueLabelDisplay="auto"
-          onChange={(_, v) =>
-            setAudioConfig((p) => (p ? { ...p, default_volume: v as number } : p))
-          }
-        />
-      </Box>
+
+      <VolumeSlider
+        label={t('audio.min_volume')}
+        value={audioConfig.min_volume ?? 5}
+        min={0}
+        max={audioConfig.max_volume - 5}
+        onChange={(v) => setAudioConfig((p) => (p ? { ...p, min_volume: v } : p))}
+      />
+
+      <VolumeSlider
+        label={t('audio.max_volume')}
+        value={audioConfig.max_volume}
+        min={(audioConfig.min_volume ?? 5) + 5}
+        max={100}
+        onChange={(v) => setAudioConfig((p) => (p ? { ...p, max_volume: v } : p))}
+      />
+
+      <VolumeSlider
+        label={t('audio.default_volume')}
+        value={audioConfig.default_volume}
+        min={audioConfig.min_volume ?? 5}
+        max={audioConfig.max_volume}
+        onChange={(v) => setAudioConfig((p) => (p ? { ...p, default_volume: v } : p))}
+      />
+
+      <Divider />
+
+      <Typography variant="overline" color="text.secondary">
+        {t('general.bedtime_fade')}
+      </Typography>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={general.bedtime_fade_enabled ?? false}
+            onChange={(e) =>
+              setGeneral((p) => (p ? { ...p, bedtime_fade_enabled: e.target.checked } : p))
+            }
+          />
+        }
+        label={t('general.bedtime_fade_enabled')}
+      />
+      {(general.bedtime_fade_enabled ?? false) && (
+        <Box
+          display="flex"
+          gap={2}
+          flexWrap="wrap"
+          sx={{ '& .MuiTextField-root': { flex: '1 1 140px', minWidth: 0 } }}
+        >
+          <TextField
+            label={t('general.bedtime_fade_duration_minutes')}
+            type="number"
+            value={general.bedtime_fade_duration_minutes ?? 15}
+            onChange={(e) =>
+              setGeneral((p) =>
+                p
+                  ? {
+                      ...p,
+                      bedtime_fade_duration_minutes: Math.max(1, parseInt(e.target.value, 10) || 15),
+                    }
+                  : p
+              )
+            }
+            size="small"
+            inputProps={{ min: 1, max: 120 }}
+          />
+          <TextField
+            label={t('general.bedtime_fade_interval_seconds')}
+            type="number"
+            value={general.bedtime_fade_interval_seconds ?? 30}
+            onChange={(e) =>
+              setGeneral((p) =>
+                p
+                  ? {
+                      ...p,
+                      bedtime_fade_interval_seconds: Math.max(5, parseInt(e.target.value, 10) || 30),
+                    }
+                  : p
+              )
+            }
+            size="small"
+            inputProps={{ min: 5, max: 300 }}
+          />
+          <TextField
+            label={t('general.bedtime_fade_step_percent')}
+            type="number"
+            value={general.bedtime_fade_step_percent ?? 2}
+            onChange={(e) =>
+              setGeneral((p) =>
+                p
+                  ? {
+                      ...p,
+                      bedtime_fade_step_percent: Math.max(
+                        0.5,
+                        Math.min(50, parseFloat(e.target.value) || 2)
+                      ),
+                    }
+                  : p
+              )
+            }
+            size="small"
+            inputProps={{ min: 0.5, max: 50, step: 0.5 }}
+          />
+        </Box>
+      )}
 
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <ActionButton actionType="primary" onClick={handleSave} disabled={saving}>
-          {tCommon('actions.save')}
+        <ActionButton
+          actionType="primary"
+          startIcon={<SaveIcon />}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {t('save', { ns: 'common' })}
         </ActionButton>
       </Box>
     </Box>

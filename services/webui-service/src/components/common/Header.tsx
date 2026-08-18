@@ -3,25 +3,18 @@ import {
   AppBar,
   Box,
   Chip,
-  IconButton,
   Toolbar,
   Tooltip,
   Typography,
 } from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
 import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
 import { useTranslation } from 'react-i18next';
 import { useWebSocket } from '@/contexts/WebSocketContext';
-import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
+import SearchIcon from '@mui/icons-material/Search';
 import { CommandPalette } from '@/components/common/CommandPalette';
 
-interface HeaderProps {
-  onMenuToggle?: () => void;
-  showMenuButton?: boolean;
-}
-
-export const Header: React.FC<HeaderProps> = ({ onMenuToggle, showMenuButton = false }) => {
+export const Header: React.FC = () => {
   const { t } = useTranslation('common');
   const { isConnected } = useWebSocket();
   const [logoError, setLogoError] = useState(false);
@@ -36,12 +29,6 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle, showMenuButton = f
   return (
     <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
       <Toolbar>
-        {showMenuButton && (
-          <IconButton color="inherit" edge="start" onClick={onMenuToggle} sx={{ mr: 1 }}>
-            <MenuIcon />
-          </IconButton>
-        )}
-
         {/* Custom logo (if uploaded) */}
         {!logoError && (
           <Box
@@ -75,13 +62,46 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle, showMenuButton = f
   />
 </Tooltip>
 
-<Tooltip title="Quick actions">
-  <IconButton color="inherit" size="small" onClick={() => setCommandPaletteOpen(true)} sx={{ ml: 1 }}>
-    <ElectricBoltIcon fontSize="small" />
-  </IconButton>
+{/* Sichtbares Suchfeld statt reinem Icon: die Palette ist die globale Suche
+    (Navigation, Einstellungen, Mediathek) und war vorher nicht auffindbar. */}
+<Tooltip title={t('command_palette.title')}>
+  <Box
+    component="button"
+    type="button"
+    onClick={() => setCommandPaletteOpen(true)}
+    aria-label={t('command_palette.title')}
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 0.75,
+      ml: 1.5,
+      px: 1.25,
+      py: 0.5,
+      font: 'inherit',
+      fontSize: '0.8rem',
+      color: 'inherit',
+      cursor: 'pointer',
+      borderRadius: 1,
+      border: '1px solid rgba(255,255,255,0.5)',
+      bgcolor: 'transparent',
+      '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+    }}
+  >
+    <SearchIcon fontSize="small" />
+    <Box
+      component="span"
+      sx={{ display: { xs: 'none', md: 'inline' }, whiteSpace: 'nowrap' }}
+    >
+      {t('command_palette.placeholder')}
+    </Box>
+  </Box>
 </Tooltip>
 
-<CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+<CommandPalette
+  open={commandPaletteOpen}
+  onOpen={() => setCommandPaletteOpen(true)}
+  onClose={() => setCommandPaletteOpen(false)}
+/>
       </Toolbar>
     </AppBar>
   );
