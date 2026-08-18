@@ -6,9 +6,9 @@
   "dashboard": {
     "tabs": {
       "overview": "Übersicht",
-      "stats": "Statistik",
-      "settings": "Kinderschutz",
-      "scan_history": "Scan-Verlauf"
+      "rules": "Zeit & Regeln",
+      "stats": "Auswertung",
+      "scan_history": "Verlauf"
     },
     "daily_limit": "Tageslimit",
     "daily_limit_hint": "Nach Überschreitung wird ausgeblendet und keine neue Wiedergabe gestartet.",
@@ -45,7 +45,8 @@
     "rfid": "RFID-Tags",
     "media": "Mediathek",
     "admin": "Einstellungen",
-    "dashboard": "Eltern-Dashboard"
+    "dashboard": "Eltern-Dashboard",
+    "dashboard_short": "Eltern"
   },
   "actions": {
     "save": "Speichern",
@@ -90,7 +91,12 @@
     "groups": {
       "navigation": "Navigation",
       "playback": "Wiedergabe",
-      "sleep_timer": "Sleep-Timer"
+      "sleep_timer": "Sleep-Timer",
+      "settings": "Einstellungen",
+      "tracks": "Tracks",
+      "playlists": "Playlists",
+      "streams": "Streams",
+      "podcasts": "Podcasts"
     },
     "nav": {
       "player": "Wiedergabe",
@@ -109,6 +115,8 @@
     "sleep_timer": {
       "preset": "Sleep-Timer: {{minutes}} Min.",
       "cancel": "Sleep-Timer abbrechen"
-    }
+    },
+    "placeholder_media": "Track, Playlist, Stream …",
+    "no_results": "Keine Treffer."
   }
 }

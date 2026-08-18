@@ -43,7 +43,10 @@ const navItems: NavItem[] = [
   { path: '/player', labelKey: 'navigation.player', icon: <PlayCircleOutlineIcon /> },
   { path: '/rfid', labelKey: 'navigation.rfid', icon: <NfcIcon /> },
   { path: '/media', labelKey: 'navigation.media', icon: <LibraryMusicIcon /> },
-  { path: '/dashboard', labelKey: 'navigation.dashboard', icon: <BarChartIcon /> },
+  // Kurzform: In der BottomNav teilen sich fuenf Eintraege ~390px, also ~70px
+  // Textbreite je Eintrag – "Eltern-Dashboard" bricht dort auf zwei Zeilen und
+  // sprengt die Leiste. Der volle Name steht weiterhin als Seitentitel.
+  { path: '/dashboard', labelKey: 'navigation.dashboard_short', icon: <BarChartIcon /> },
   { path: '/admin', labelKey: 'navigation.admin', icon: <SettingsIcon /> },
 ];
 
