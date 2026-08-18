@@ -101,7 +101,11 @@ async def get_devices(
     if _service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
     try:
-        items = await _service.get_audio_devices(enabled_only=enabled_only)
+        # Explicit user-facing query: bypass the detector cache so a speaker
+        # switched on a second ago actually shows up.
+        items = await _service.get_audio_devices(
+            enabled_only=enabled_only, force_refresh=True
+        )
         return DevicesResponse(
             devices=[DeviceItem(**d) for d in items],
         )

@@ -1,15 +1,28 @@
 """PulseAudio/PipeWire sink detection for the Audio Service.
 
 Lists available Pulse sinks when PULSE_SERVER is set (e.g. in Docker with host socket).
+
+Sink discovery shells out to `pactl`, which is expensive on a Raspberry Pi and
+was previously called on every status publish (every 2 seconds, forever). The
+detector now caches the result for CACHE_TTL_SECONDS and exposes invalidate()
+for the moments where the sink list genuinely changes - device switch,
+re-initialisation and config reload.
 """
 
+import asyncio
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+# How long a detected sink list stays valid. Long enough to keep the 2s status
+# loop off pactl, short enough that a newly paired Bluetooth speaker shows up
+# without the user waiting noticeably.
+CACHE_TTL_SECONDS = 30.0
 
 
 @dataclass
@@ -23,10 +36,23 @@ class PulseSink:
 
 
 class PulseSinkDetector:
-    """Detects available PulseAudio/PipeWire sinks."""
+    """Detects available PulseAudio/PipeWire sinks, with a short-lived cache."""
 
-    async def detect_sinks(self) -> list[PulseSink]:
+    def __init__(self) -> None:
+        self._cache: list[PulseSink] | None = None
+        self._cached_at: float = 0.0
+        self._lock = asyncio.Lock()
+
+    def invalidate(self) -> None:
+        """Drop the cached sink list, so the next detect_sinks() re-runs pactl."""
+        self._cache = None
+        self._cached_at = 0.0
+
+    async def detect_sinks(self, *, force: bool = False) -> list[PulseSink]:
         """Detect all available Pulse sinks. Only runs when PULSE_SERVER is set.
+
+        Args:
+            force: Bypass the cache and always shell out to pactl.
 
         Returns:
             List of PulseSink objects (sink_name = id for API/config).
@@ -35,6 +61,27 @@ class PulseSinkDetector:
             logger.debug("pulse_detector_skipped", reason="PULSE_SERVER not set")
             return []
 
+        if not force and self._is_cache_fresh():
+            return list(self._cache or [])
+
+        async with self._lock:
+            # Another waiter may have refreshed while we waited for the lock.
+            if not force and self._is_cache_fresh():
+                return list(self._cache or [])
+
+            sinks = await asyncio.to_thread(self._detect_sinks_blocking)
+            self._cache = sinks
+            self._cached_at = time.monotonic()
+            return list(sinks)
+
+    def _is_cache_fresh(self) -> bool:
+        return (
+            self._cache is not None
+            and (time.monotonic() - self._cached_at) < CACHE_TTL_SECONDS
+        )
+
+    def _detect_sinks_blocking(self) -> list[PulseSink]:
+        """Run pactl and parse its output. Blocking - call via asyncio.to_thread."""
         try:
             result = subprocess.run(
                 ["pactl", "list", "sinks"],

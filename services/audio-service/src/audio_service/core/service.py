@@ -376,6 +376,7 @@ class AudioService:
         previously appeared verbatim in both _handle_config_reload() and
         switch_output_device().
         """
+        self._pulse_detector.invalidate()
         snapshot = await self._vlc_backend.reinitialize(config)
         if snapshot.get("source_uri") and snapshot.get("state") in (
             PlaybackState.PLAYING.value,
@@ -638,9 +639,17 @@ class AudioService:
         """Get current audio status."""
         return await self._vlc_backend.get_status()
 
-    async def get_audio_devices(self, enabled_only: bool = False) -> list[dict]:
-        """Get detected Pulse sinks, optionally filtered by enabled_output_devices."""
-        sinks = await self._pulse_detector.detect_sinks()
+    async def get_audio_devices(
+        self, enabled_only: bool = False, *, force_refresh: bool = False
+    ) -> list[dict]:
+        """Get detected Pulse sinks, optionally filtered by enabled_output_devices.
+
+        Args:
+            enabled_only: Only return sinks listed in enabled_output_devices.
+            force_refresh: Skip the detector cache (use for explicit user-facing
+                queries; the periodic status loop must leave this off).
+        """
+        sinks = await self._pulse_detector.detect_sinks(force=force_refresh)
         config = self._get_audio_config()
         enabled = getattr(config, "enabled_output_devices", None) or []
         display_names = getattr(config, "device_display_names", None) or {}

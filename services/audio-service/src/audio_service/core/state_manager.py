@@ -1,6 +1,8 @@
 """State manager for audio playback state persistence."""
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import structlog
@@ -47,10 +49,29 @@ class StateManager:
             raise StateError(f"Failed to load state: {e}") from e
 
     def save(self, state: AudioState) -> None:
+        """Persist the state atomically.
+
+        The box is meant to survive having its plug pulled at any moment. A
+        plain open("w") truncates the file first, so losing power mid-write
+        left a half-written JSON behind. Writing to a temp file in the same
+        directory and renaming it means readers only ever see a complete file.
+        """
         try:
             self._state_file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._state_file_path, "w", encoding="utf-8") as f:
-                json.dump(state.model_dump(), f, indent=2)
+            fd, tmp_name = tempfile.mkstemp(
+                dir=str(self._state_file_path.parent),
+                prefix=f".{self._state_file_path.name}.",
+                suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(state.model_dump(), f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_name, self._state_file_path)
+            except Exception:
+                Path(tmp_name).unlink(missing_ok=True)
+                raise
             self._state = state
             logger.debug("state_saved", path=str(self._state_file_path))
         except Exception as e:
