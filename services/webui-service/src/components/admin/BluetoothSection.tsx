@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 type PairedDevice = { address: string; name: string | null; connected?: boolean };
 type ScanDevice = { address: string; name: string | null };
@@ -142,12 +143,8 @@ export const BluetoothSection: React.FC = () => {
     pairing === addr || connecting === addr || disconnecting === addr || removing === addr;
 
   return (
-    <Box sx={{ mt: 3 }}>
-      <Typography variant="overline" color="text.secondary">
-        {t('system.bluetooth')}
-      </Typography>
-
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, mt: 1 }}>
+    <SettingsBlock title={t('system.bluetooth')}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
         {t('system.bluetooth_paired')}
       </Typography>
       <Card variant="outlined" sx={{ mb: 2 }}>
@@ -299,6 +296,6 @@ export const BluetoothSection: React.FC = () => {
           </ActionButton>
         </DialogActions>
       </Dialog>
-    </Box>
+    </SettingsBlock>
   );
 };

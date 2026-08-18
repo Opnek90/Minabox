@@ -34,6 +34,7 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { systemApi, type HostStatusResponse, type TemperatureHistoryResponse } from '@/api/system';
 import type { SystemStatus as SystemStatusType } from '@/types/api';
 import { formatUptime } from '@/utils/formatTime';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 interface StatTileProps {
   icon: React.ReactNode;
@@ -159,11 +160,8 @@ export const SystemStatusPanel: React.FC = () => {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {(hostStatus || status) && (
-        <Box mb={2.5}>
-          <Typography variant="overline" color="text.secondary">
-            {t('system.host_title')}
-          </Typography>
-          <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
+        <SettingsBlock title={t('system.host_title')}>
+          <Grid container spacing={1.5}>
             {status?.device_id && (
               <Grid item xs={12} sm={6} md={4}>
                 <StatTile
@@ -244,7 +242,7 @@ export const SystemStatusPanel: React.FC = () => {
               </Grid>
             )}
           </Grid>
-        </Box>
+        </SettingsBlock>
       )}
 
       <Dialog
@@ -284,9 +282,7 @@ export const SystemStatusPanel: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      <Typography variant="overline" color="text.secondary">
-        {t('system.container_status')}
-      </Typography>
+      <SettingsBlock title={t('system.container_status')}>
 
       {loading ? (
         <Stack spacing={1} sx={{ mt: 1 }}>
@@ -313,6 +309,7 @@ export const SystemStatusPanel: React.FC = () => {
         onClose={() => setLogsModalService(null)}
       />
       <SyslogModal open={syslogModalOpen} onClose={() => setSyslogModalOpen(false)} />
+      </SettingsBlock>
     </Box>
   );
 };

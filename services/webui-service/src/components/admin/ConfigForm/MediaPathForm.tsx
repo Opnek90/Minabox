@@ -7,13 +7,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  Divider,
-  FormControl,
   IconButton,
-  InputLabel,
   LinearProgress,
-  MenuItem,
-  Select,
   TextField,
   Tooltip,
   Typography,
@@ -22,18 +17,13 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import SaveIcon from '@mui/icons-material/Save';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
-import { useFormState } from '@/hooks/useFormState';
-import { configApi } from '@/api/config';
 import { systemApi } from '@/api/system';
-import type { GeneralConfig, AllowedUsageTimeSlot } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
 
-export const GeneralSettingsForm: React.FC = () => {
+/** Wo die Musik auf dem Gerät liegt – inklusive Umzug auf einen anderen Datenträger. */
+export const MediaPathForm: React.FC = () => {
   const { t } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
-  const { saving, error, setError, run } = useFormState();
-
-  const [general, setGeneral] = useState<GeneralConfig | null>(null);
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [newAudioPath, setNewAudioPath] = useState('');
   const [audioPathSaving, setAudioPathSaving] = useState(false);
@@ -48,16 +38,6 @@ export const GeneralSettingsForm: React.FC = () => {
   }>({ status: 'idle', total: 0, current: 0, error: null });
 
   useEffect(() => {
-    configApi.getGeneral().then((data) => {
-      const g = data as GeneralConfig;
-      const times = Array.isArray(g.allowed_usage_times) ? g.allowed_usage_times : [];
-      const slots: AllowedUsageTimeSlot[] = [];
-      for (let wd = 0; wd <= 6; wd++) {
-        const existing = times.find((s) => s.weekday === wd);
-        slots.push(existing ?? { weekday: wd, start: '07:00', end: '19:00' });
-      }
-      setGeneral({ ...g, allowed_usage_times: slots });
-    }).catch(() => setError('Laden fehlgeschlagen'));
     systemApi.getAudioPath().then((r) => setAudioPath(r.path)).catch(() => setAudioPath(null));
   }, []);
 
@@ -144,14 +124,6 @@ export const GeneralSettingsForm: React.FC = () => {
     }
   };
 
-  const handleSaveGeneral = () =>
-    run(async () => {
-      if (!general) return;
-      const updated = await configApi.updateGeneral(general);
-      setGeneral(updated);
-      showSuccess(t('general.save_success'));
-    });
-
   const handleCopyPath = async () => {
     if (!audioPath) return;
     try {
@@ -163,10 +135,7 @@ export const GeneralSettingsForm: React.FC = () => {
   };
 
   return (
-    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: { xs: 2, sm: 3 } }}>
-      <Typography variant="overline" color="text.secondary">
-        {t('general.media_path_title')}
-      </Typography>
+    <Box display="flex" flexDirection="column" sx={{ gap: { xs: 2, sm: 3 } }}>
       {audioPath != null && (
         <Box display="flex" alignItems="center" gap={0.5} flexWrap="wrap">
           <Typography variant="body2" color="text.secondary">
@@ -188,14 +157,16 @@ export const GeneralSettingsForm: React.FC = () => {
         fullWidth
         helperText={t('general.media_path_restart_hint')}
       />
-      <ActionButton
-        actionType="secondary"
-        startIcon={<SaveIcon />}
-        onClick={() => setMediaPathDialogOpen(true)}
-        disabled={audioPathSaving || !newAudioPath.trim()}
-      >
-        {t('general.media_path_save')}
-      </ActionButton>
+      <Box>
+        <ActionButton
+          actionType="secondary"
+          startIcon={<SaveIcon />}
+          onClick={() => setMediaPathDialogOpen(true)}
+          disabled={audioPathSaving || !newAudioPath.trim()}
+        >
+          {t('general.media_path_save')}
+        </ActionButton>
+      </Box>
       {audioPathError && <Alert severity="error">{audioPathError}</Alert>}
 
       <Dialog open={mediaPathDialogOpen} onClose={() => setMediaPathDialogOpen(false)}>
@@ -298,65 +269,6 @@ export const GeneralSettingsForm: React.FC = () => {
           )}
         </DialogActions>
       </Dialog>
-
-      <Divider />
-
-      {general && (
-        <>
-          <Typography variant="overline" color="text.secondary">
-            {t('general.connection')}
-          </Typography>
-          <TextField
-            label={t('general.device_id')}
-            value={general.minabox_device_id}
-            onChange={(e) => setGeneral((p) => (p ? { ...p, minabox_device_id: e.target.value } : p))}
-            size="small"
-            fullWidth
-          />
-          <FormControl fullWidth size="small">
-            <InputLabel>{t('general.log_level')}</InputLabel>
-            <Select
-              value={general.log_level}
-              label={t('general.log_level')}
-              onChange={(e) => setGeneral((p) => (p ? { ...p, log_level: e.target.value } : p))}
-            >
-              {['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'].map((lvl) => (
-                <MenuItem key={lvl} value={lvl}>{lvl}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TextField
-            label={t('general.mqtt_broker')}
-            value={general.mqtt_broker}
-            onChange={(e) => setGeneral((p) => (p ? { ...p, mqtt_broker: e.target.value } : p))}
-            size="small"
-            fullWidth
-          />
-          <TextField
-            label={t('general.mqtt_port')}
-            type="number"
-            value={general.mqtt_port}
-            onChange={(e) =>
-              setGeneral((p) => (p ? { ...p, mqtt_port: parseInt(e.target.value, 10) || 1883 } : p))
-            }
-            size="small"
-            fullWidth
-            inputProps={{ min: 1, max: 65535 }}
-          />
-          <Typography variant="caption" color="text.secondary">
-            {t('general.restart_required')}
-          </Typography>
-          {error && <Alert severity="error">{error}</Alert>}
-          <ActionButton
-            actionType="primary"
-            startIcon={<SaveIcon />}
-            onClick={handleSaveGeneral}
-            disabled={saving}
-          >
-            {t('save', { ns: 'common' })}
-          </ActionButton>
-        </>
-      )}
     </Box>
   );
 };

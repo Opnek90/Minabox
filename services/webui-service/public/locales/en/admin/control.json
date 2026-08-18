@@ -1,8 +1,0 @@
-{
-  "control": {
-    "title": "Control & Playback",
-    "section_rfid": "RFID Behaviour",
-    "stop_playback_on_tag_remove": "Stop playback when tag is removed",
-    "resume_on_tag_rescan": "Resume from last position (place tag again)"
-  }
-}

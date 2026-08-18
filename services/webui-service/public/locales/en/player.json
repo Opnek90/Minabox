@@ -37,5 +37,6 @@
     "preset": "Stop in {{minutes}} min"
   },
   "kiosk_mode": "Kiosk Mode",
-  "kiosk_exit": "Exit Kiosk Mode"
+  "kiosk_exit": "Exit Kiosk Mode",
+  "more_options": "More options"
 }

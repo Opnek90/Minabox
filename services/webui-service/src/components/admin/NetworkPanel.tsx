@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Checkbox,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -13,28 +11,22 @@ import {
   Radio,
   RadioGroup,
   Stack,
-  Switch,
   TextField,
   Typography,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
-import UsbIcon from '@mui/icons-material/Usb';
 import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
-import {
-  systemApi,
-  type BoardLedsResponse,
-  type NetworkResponse,
-} from '@/api/system';
-import { SystemMaintenanceSection } from '@/components/admin/SystemMaintenanceSection';
+import { systemApi, type NetworkResponse } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
-export const SystemPanel: React.FC = () => {
+/** WLAN, IP-Adresse und Gerätename – alles, was die Box im Netzwerk erreichbar macht. */
+export const NetworkPanel: React.FC = () => {
   const { t } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
-  const [boardLeds, setBoardLeds] = useState<BoardLedsResponse | null>(null);
   const [wifiNetworks, setWifiNetworks] = useState<Array<{ ssid: string; signal: number }>>([]);
   const [wifiScanning, setWifiScanning] = useState(false);
   const [wifiConnectSsid, setWifiConnectSsid] = useState('');
@@ -54,25 +46,17 @@ export const SystemPanel: React.FC = () => {
   const [hostnameDialogOpen, setHostnameDialogOpen] = useState(false);
   const [hostnameEdit, setHostnameEdit] = useState('');
   const [hostnameSaving, setHostnameSaving] = useState(false);
-  const [usbDevices, setUsbDevices] = useState<Array<{ id: string; device: string; size: string; mountpoint: string | null; label: string | null }>>([]);
-  const [usbSelectedId, setUsbSelectedId] = useState<string | null>(null);
-  const [usbEntries, setUsbEntries] = useState<Array<{ path: string; name: string; type: string }>>([]);
-  const [usbSelectedPaths, setUsbSelectedPaths] = useState<string[]>([]);
-  const [usbLoading, setUsbLoading] = useState(false);
-  const [usbImporting, setUsbImporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setError(null);
     try {
-      const [leds, hotspot, net, hostnameRes] = await Promise.all([
-        systemApi.getBoardLeds().catch(() => null),
+      const [hotspot, net, hostnameRes] = await Promise.all([
         systemApi.wifiHotspotStatus().catch(() => ({ active: false, ssid: null })),
         systemApi.getNetwork().catch(() => null),
         systemApi.getHostname().catch(() => null),
       ]);
-      setBoardLeds(leds ?? null);
       setHotspotStatus(hotspot ?? { active: false, ssid: null });
       if (net) {
         setNetwork(net);
@@ -86,23 +70,13 @@ export const SystemPanel: React.FC = () => {
       }
       setHostname(hostnameRes?.hostname ?? null);
     } catch {
-      setError('Daten konnten nicht geladen werden');
+      setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' }));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  const handleStealthChange = async (on: boolean) => {
-    try {
-      await systemApi.setBoardLeds(on);
-      const next = await systemApi.getBoardLeds();
-      setBoardLeds(next);
-    } catch {
-      showError(t('system.logs_unavailable'));
-    }
-  };
 
   const handleWifiScan = async () => {
     setWifiScanning(true);
@@ -218,86 +192,15 @@ export const SystemPanel: React.FC = () => {
     }
   };
 
-  const handleUsbLoadDevices = async () => {
-    setUsbLoading(true);
-    try {
-      const data = await systemApi.usbDevices();
-      setUsbDevices(data.devices ?? []);
-      setUsbSelectedId(null);
-      setUsbEntries([]);
-      setUsbSelectedPaths([]);
-    } catch {
-      setUsbDevices([]);
-    } finally {
-      setUsbLoading(false);
-    }
-  };
-
-  const handleUsbSelectDevice = async (id: string) => {
-    setUsbSelectedId(id);
-    setUsbEntries([]);
-    setUsbSelectedPaths([]);
-    try {
-      const data = await systemApi.usbFiles(id);
-      setUsbEntries(data.entries ?? []);
-    } catch {
-      setUsbEntries([]);
-    }
-  };
-
-  const handleUsbImport = async () => {
-    if (!usbSelectedId || usbSelectedPaths.length === 0) return;
-    setUsbImporting(true);
-    try {
-      const data = await systemApi.usbImport(usbSelectedId, usbSelectedPaths);
-      showSuccess(t('system.usb_import_success', { count: data.files_copied ?? 0 }));
-    } catch {
-      showError(t('system.logs_unavailable'));
-    } finally {
-      setUsbImporting(false);
-    }
-  };
-
-  const handleUsbEject = async () => {
-    if (!usbSelectedId) return;
-    try {
-      await systemApi.usbEject(usbSelectedId);
-      showSuccess(t('system.usb_eject'));
-      handleUsbLoadDevices();
-    } catch {
-      showError(t('system.logs_unavailable'));
-    }
-  };
-
   if (loading) return null;
 
   return (
     <Box>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* ── Hardware ────────────────────────────────────────────────────────── */}
-      {boardLeds != null && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="overline" color="text.secondary">
-            {t('system.hardware_title')}
-          </Typography>
-          <FormControlLabel
-            control={<Switch checked={boardLeds.stealth} onChange={(_, checked) => handleStealthChange(checked)} color="primary" />}
-            label={t('system.stealth_mode')}
-            sx={{ mt: 1, display: 'block' }}
-          />
-          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-            {t('system.stealth_hint')}
-          </Typography>
-        </Box>
-      )}
-
       {/* ── WLAN ─────────────────────────────────────────────────────────────── */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="overline" color="text.secondary">
-          {t('system.wifi')}
-        </Typography>
-        <Box display="flex" flexDirection="column" gap={1.5} sx={{ mt: 1 }}>
+      <SettingsBlock title={t('system.wifi')}>
+        <Box display="flex" flexDirection="column" gap={1.5}>
           <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
             <ActionButton
               actionType="secondary"
@@ -333,7 +236,7 @@ export const SystemPanel: React.FC = () => {
           {hotspotInfo && (
             <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
               <Typography variant="body2">
-                SSID: <strong>{hotspotInfo.ssid}</strong> · Passwort: <strong>{hotspotInfo.password}</strong>
+                SSID: <strong>{hotspotInfo.ssid}</strong> · {t('system.wifi_password')}: <strong>{hotspotInfo.password}</strong>
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {t('system.wifi_hotspot_connected')}
@@ -370,14 +273,27 @@ export const SystemPanel: React.FC = () => {
             </Box>
           )}
         </Box>
-      </Box>
+      </SettingsBlock>
 
-      {/* ── Netzwerk (IP) ────────────────────────────────────────────────────── */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="overline" color="text.secondary">
-          {t('system.network_title')}
-        </Typography>
-        {network === null && !loading ? (
+      {/* ── Gerätename ───────────────────────────────────────────────────────── */}
+      <SettingsBlock title={t('system.host_hostname')}>
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+          {hostname != null && (
+            <Typography variant="body2" color="text.secondary">{hostname}</Typography>
+          )}
+          <ActionButton
+            actionType="secondary"
+            onClick={handleOpenHostnameDialog}
+            disabled={hostnameSaving}
+          >
+            {t('system.hostname_edit')}
+          </ActionButton>
+        </Box>
+      </SettingsBlock>
+
+      {/* ── IP-Adresse ───────────────────────────────────────────────────────── */}
+      <SettingsBlock title={t('system.network_title')}>
+        {network === null ? (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{t('system.network_no_connection')}</Typography>
         ) : (
           <Box display="flex" flexDirection="column" gap={1.5} sx={{ mt: 1 }}>
@@ -399,7 +315,7 @@ export const SystemPanel: React.FC = () => {
                 actionType="primary"
                 startIcon={<SaveIcon />}
                 onClick={handleNetworkApply}
-                disabled={networkSaving || network === null}
+                disabled={networkSaving}
                 loading={networkSaving}
               >
                 {t('system.network_apply')}
@@ -407,83 +323,8 @@ export const SystemPanel: React.FC = () => {
             </Box>
           </Box>
         )}
-      </Box>
+      </SettingsBlock>
 
-      {/* ── Hostname ─────────────────────────────────────────────────────────── */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="overline" color="text.secondary">
-          {t('system.host_hostname')}
-        </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center" sx={{ mt: 1 }}>
-          {hostname != null && (
-            <Typography variant="body2" color="text.secondary">{hostname}</Typography>
-          )}
-          <ActionButton
-            actionType="secondary"
-            onClick={handleOpenHostnameDialog}
-            disabled={hostnameSaving}
-          >
-            {t('system.hostname_edit')}
-          </ActionButton>
-        </Box>
-      </Box>
-
-      {/* ── USB Import ───────────────────────────────────────────────────────── */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="overline" color="text.secondary">
-          {t('system.usb')}
-        </Typography>
-        <Box display="flex" flexDirection="column" gap={1.5} sx={{ mt: 1 }}>
-          <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
-            <ActionButton
-              actionType="secondary"
-              startIcon={<UsbIcon />}
-              onClick={handleUsbLoadDevices}
-              disabled={usbLoading}
-              loading={usbLoading}
-            >
-              {t('system.usb_devices')}
-            </ActionButton>
-          </Box>
-          {usbDevices.length > 0 && (
-            <>
-              <Box display="flex" flexWrap="wrap" gap={1}>
-                {usbDevices.map((d) => (
-                  <Chip key={d.id} label={`${d.id} ${d.size} ${d.label || ''}`.trim()} onClick={() => handleUsbSelectDevice(d.id)} color={usbSelectedId === d.id ? 'primary' : 'default'} variant={usbSelectedId === d.id ? 'filled' : 'outlined'} />
-                ))}
-              </Box>
-              {usbSelectedId && (
-                <>
-                  <Typography variant="caption" color="text.secondary">{t('system.usb_files')}</Typography>
-                  <Box display="flex" flexWrap="wrap" gap={0.5}>
-                    {usbEntries.map((e) => (
-                      <FormControlLabel
-                        key={e.path}
-                        control={
-                          <Checkbox size="small" checked={usbSelectedPaths.includes(e.path)} onChange={(_, checked) => setUsbSelectedPaths((prev) => checked ? [...prev, e.path] : prev.filter((p) => p !== e.path))} />
-                        }
-                        label={e.name + (e.type === 'dir' ? ' (Ordner)' : '')}
-                      />
-                    ))}
-                  </Box>
-                  <Box display="flex" gap={1}>
-                    <ActionButton actionType="primary" onClick={handleUsbImport} disabled={usbImporting || usbSelectedPaths.length === 0} loading={usbImporting}>
-                      {t('system.usb_import')}
-                    </ActionButton>
-                    <ActionButton actionType="secondary" onClick={handleUsbEject}>
-                      {t('system.usb_eject')}
-                    </ActionButton>
-                  </Box>
-                </>
-              )}
-            </>
-          )}
-        </Box>
-      </Box>
-
-      <SystemMaintenanceSection />
-
-      {/* ── Hostname Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={hostnameDialogOpen} onClose={() => setHostnameDialogOpen(false)}>
         <DialogTitle>{t('system.hostname_dialog_title')}</DialogTitle>
         <DialogContent>

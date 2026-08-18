@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { systemApi, type VersionResponse } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 export const SystemMaintenanceSection: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -199,11 +200,8 @@ export const SystemMaintenanceSection: React.FC = () => {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {/* ── Sicherung ───────────────────────────────────────────────────────── */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="overline" color="text.secondary">
-          {t('system.backup_title')}
-        </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center" sx={{ mt: 1 }}>
+      <SettingsBlock title={t('system.backup_title')}>
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
           <ActionButton
             actionType="secondary"
             startIcon={<CloudDownloadIcon />}
@@ -224,14 +222,11 @@ export const SystemMaintenanceSection: React.FC = () => {
             {restoreFile ? restoreFile.name : t('system.backup_restore_select')}
           </Typography>
         </Box>
-      </Box>
+      </SettingsBlock>
 
       {/* ── Wartung ──────────────────────────────────────────────────────────── */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="overline" color="text.secondary">
-          {t('system.maintenance_title')}
-        </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center" sx={{ mt: 1 }}>
+      <SettingsBlock title={t('system.maintenance_title')}>
+        <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
           <Typography variant="body2">
             {t('system.version')}: {version?.current_version ?? version?.current_commit ?? '–'}
           </Typography>
@@ -264,14 +259,11 @@ export const SystemMaintenanceSection: React.FC = () => {
             {t('system.cleanup')}
           </ActionButton>
         </Box>
-      </Box>
+      </SettingsBlock>
 
       {/* ── Neustart ─────────────────────────────────────────────────────────── */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="overline" color="text.secondary">
-          {t('system.restart_group')}
-        </Typography>
-        <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
+      <SettingsBlock title={t('system.restart_group')}>
+        <Box display="flex" flexWrap="wrap" gap={1}>
           <ActionButton actionType="secondary" startIcon={<RestartAltIcon />} onClick={() => setRestartDialogOpen(true)}>
             {t('system.restart')}
           </ActionButton>
@@ -290,7 +282,7 @@ export const SystemMaintenanceSection: React.FC = () => {
             {t('system.factory_reset')}
           </ActionButton>
         </Box>
-      </Box>
+      </SettingsBlock>
 
       {/* ── Dialogs ─────────────────────────────────────────────────────────── */}
       <Dialog open={restartDialogOpen} onClose={() => setRestartDialogOpen(false)}>

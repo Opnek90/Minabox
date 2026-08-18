@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Divider,
   FormControlLabel,
   List,
   ListItemButton,
@@ -17,6 +16,7 @@ import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type { AudioConfig, AudioDeviceItem } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 function getDeviceKey(device: AudioDeviceItem): string {
   return device.sink_name ?? device.alsa_device ?? device.id;
@@ -99,7 +99,8 @@ export const AudioConfigForm: React.FC = () => {
   if (loading || !config) return null;
 
   return (
-    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: { xs: 2, sm: 3 } }}>
+    <Box>
+      <SettingsBlock title={t('audio.device_section')}>
       <TextField
         label={t('audio.output_device_type')}
         value={config.output_device_type}
@@ -115,13 +116,12 @@ export const AudioConfigForm: React.FC = () => {
         size="small"
         fullWidth
       />
-      <Divider sx={{ my: 1 }} />
-      <Typography variant="overline" color="text.secondary">
-        {t('audio.output_devices_section')}
-      </Typography>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-        {t('audio.output_devices_bluetooth_hint')}
-      </Typography>
+      </SettingsBlock>
+
+      <SettingsBlock
+        title={t('audio.output_devices_section')}
+        description={t('audio.output_devices_bluetooth_hint')}
+      >
       <ActionButton
         actionType="secondary"
         size="small"
@@ -189,7 +189,10 @@ export const AudioConfigForm: React.FC = () => {
           })}
         </List>
       )}
+      </SettingsBlock>
+
       {config.resume_on_startup !== undefined && (
+        <SettingsBlock title={t('audio.startup_section')}>
         <FormControlLabel
           control={
             <Switch
@@ -201,6 +204,7 @@ export const AudioConfigForm: React.FC = () => {
           }
           label={t('audio.resume_on_startup')}
         />
+        </SettingsBlock>
       )}
       {error && <Alert severity="error">{error}</Alert>}
       <Box>

@@ -1,5 +1,6 @@
 export { AudioConfigForm } from './AudioConfigForm';
 export { RFIDConfigForm } from './RFIDConfigForm';
-export { ControlSettingsForm } from './ControlSettingsForm';
+export { PlaybackSettingsForm } from './PlaybackSettingsForm';
 export { DesignSettingsForm } from './DesignSettingsForm';
-export { GeneralSettingsForm } from './GeneralSettingsForm';
+export { MediaPathForm } from './MediaPathForm';
+export { AdvancedSettingsForm } from './AdvancedSettingsForm';

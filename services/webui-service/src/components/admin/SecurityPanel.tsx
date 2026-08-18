@@ -18,6 +18,7 @@ import { AuthSection } from '@/components/admin/AuthSection';
 import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 export const SecurityPanel: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -85,10 +86,7 @@ export const SecurityPanel: React.FC = () => {
     <Box>
       <AuthSection />
 
-      <Box sx={{ mt: 3, mb: 3 }}>
-        <Typography variant="overline" color="text.secondary">
-          {t('system.security_title')}
-        </Typography>
+      <SettingsBlock title={t('system.security_title')}>
         {sshStatus != null && (
           <>
             <FormControlLabel
@@ -116,7 +114,7 @@ export const SecurityPanel: React.FC = () => {
             {t('system.password_change')}
           </ActionButton>
         </Box>
-      </Box>
+      </SettingsBlock>
 
       <ResponsiveDialog open={passwordDialogOpen} onClose={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
         <DialogTitle>{t('system.password_change')}</DialogTitle>

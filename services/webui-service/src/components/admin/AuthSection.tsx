@@ -9,7 +9,6 @@ import {
   FormControlLabel,
   Switch,
   TextField,
-  Typography,
 } from '@mui/material';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { setPassword, updateAuthConfig, resetAuth } from '@/api/auth';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 const PATH_TO_AREA: Record<string, string> = {
   '/admin': 'admin',
@@ -145,16 +145,9 @@ export const AuthSection: React.FC = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        {t('auth.tab_title')}
-      </Typography>
-
+    <Box>
       {/* ── Geschützte Bereiche ────────────────────────────────────────────── */}
-      <Box>
-        <Typography variant="subtitle2" gutterBottom>
-          {t('auth.protected_areas_title')}
-        </Typography>
+      <SettingsBlock title={t('auth.protected_areas_title')}>
         <FormControlLabel
           control={<Switch checked={adminProtected} onChange={(_, v) => setAdminProtected(v)} />}
           label={t('auth.protected_admin')}
@@ -177,13 +170,11 @@ export const AuthSection: React.FC = () => {
             {t('auth.save_areas')}
           </ActionButton>
         </Box>
-      </Box>
+      </SettingsBlock>
 
       {/* ── Passwort festlegen / ändern ───────────────────────────────────── */}
+      <SettingsBlock title={authEnabled ? t('auth.change_password') : t('auth.set_password')}>
       <Box component="form" onSubmit={handleSetPassword} sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400 }}>
-        <Typography variant="subtitle2">
-          {authEnabled ? t('auth.change_password') : t('auth.set_password')}
-        </Typography>
         {authEnabled && (
           <TextField
             fullWidth
@@ -231,6 +222,7 @@ export const AuthSection: React.FC = () => {
           </ActionButton>
         </Box>
       </Box>
+      </SettingsBlock>
 
       {/* ── Logout ────────────────────────────────────────────────────────── */}
       {authEnabled && (

@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
-  Divider,
   FormControl,
   InputLabel,
   MenuItem,
@@ -20,6 +19,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
 import { useThemeContext, COLOR_PRESETS, type ColorPresetKey } from '@/contexts/ThemeContext';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
   orange: 'Orange',
@@ -72,9 +72,8 @@ export const DesignSettingsForm: React.FC = () => {
   };
 
   return (
-    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: { xs: 2, sm: 3 } }}>
-      <Box>
-        <Typography variant="overline" gutterBottom>{t('general.logo')}</Typography>
+    <Box>
+      <SettingsBlock title={t('general.logo')}>
         <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
           {logoUrl && (
             <Box
@@ -119,8 +118,9 @@ export const DesignSettingsForm: React.FC = () => {
             </ActionButton>
           )}
         </Box>
-      </Box>
+      </SettingsBlock>
 
+      <SettingsBlock title={t('general.language')}>
       <FormControl fullWidth size="small">
         <InputLabel>{t('general.language')}</InputLabel>
         <Select
@@ -132,13 +132,9 @@ export const DesignSettingsForm: React.FC = () => {
           <MenuItem value="en">{t('general.language_en')}</MenuItem>
         </Select>
       </FormControl>
+      </SettingsBlock>
 
-      <Divider />
-
-      <Typography variant="overline" color="text.secondary">
-        {t('general.appearance')}
-      </Typography>
-
+      <SettingsBlock title={t('general.appearance')}>
       <Box display="flex" alignItems="center" justifyContent="space-between">
         <Typography variant="body2">{t('general.color_mode')}</Typography>
         <ToggleButtonGroup
@@ -184,6 +180,7 @@ export const DesignSettingsForm: React.FC = () => {
           ))}
         </Box>
       </Box>
+      </SettingsBlock>
     </Box>
   );
 };

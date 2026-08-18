@@ -49,7 +49,7 @@ export const RFIDConfigForm: React.FC = () => {
   if (loading || !config) return null;
 
   return (
-    <Box display="flex" flexDirection="column" maxWidth={560} sx={{ gap: { xs: 2, sm: 3 } }}>
+    <Box display="flex" flexDirection="column" sx={{ gap: { xs: 2, sm: 3 } }}>
       <FormControl fullWidth size="small">
         <InputLabel>{t('rfid.fields.reader_type')}</InputLabel>
         <Select

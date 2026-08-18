@@ -37,6 +37,7 @@ import type {
   DisplayFont,
 } from '@/types/api';
 import { DISPLAY_CONDITIONAL_TYPES, DISPLAY_AREA_LIMITS } from '@/types/api';
+import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 function mergeElements(
   existing: DisplayElement[],
@@ -197,7 +198,7 @@ export const DisplayConfigPanel: React.FC = () => {
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
           <Box display="flex" alignItems="center" gap={2}>
-            <Typography variant="subtitle1" fontWeight={600}>
+            <Typography variant="overline" color="text.secondary">
               {t('display.enabled')}
             </Typography>
             <Switch
@@ -271,12 +272,7 @@ export const DisplayConfigPanel: React.FC = () => {
         </Alert>
       )}
 
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-        {t('display.elements')}
-      </Typography>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-        {t('display.elements_hint')}
-      </Typography>
+      <SettingsBlock title={t('display.elements')} description={t('display.elements_hint')}>
 
       {/* ── Mobile Card-View ── */}
       {isMobile ? (
@@ -462,6 +458,7 @@ export const DisplayConfigPanel: React.FC = () => {
       >
         {saving ? '…' : t('display.save_button', { defaultValue: 'Speichern' })}
       </Button>
+      </SettingsBlock>
     </Box>
   );
 };
