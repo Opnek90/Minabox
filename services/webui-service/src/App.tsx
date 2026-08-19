@@ -162,7 +162,12 @@ const MainLayout: React.FC = () => {
             // darunter. vh bleibt als Fallback fuer aeltere Engines stehen.
             minHeight: '100vh',
             '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
+            // `clip` statt `hidden`: `hidden` macht `main` zum Scroll-Container,
+            // womit `position: sticky` der Bereichsleiste darin wirkungslos bleibt.
+            // `clip` schneidet genauso ab, erzeugt aber keinen Scrollport. Aeltere
+            // Engines ohne `clip` behalten `hidden` – dort klebt die Leiste eben nicht.
             overflowX: 'hidden',
+            '@supports (overflow: clip)': { overflowX: 'clip' },
             bgcolor: 'background.default',
             ml: isMobile ? 0 : `${isTablet ? RAIL_WIDTH : DRAWER_WIDTH}px`,
             pb: bottomBarsOffset,
