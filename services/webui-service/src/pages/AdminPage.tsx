@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Accordion, AccordionDetails, AccordionSummary,
-  Box, Chip, InputAdornment, List, ListItemButton, Tab, Tabs, TextField, Typography,
+  Box, Chip, InputAdornment, List, ListItemButton, TextField, Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { PageShell } from '@/components/common/PageShell';
+import { SectionTabs } from '@/components/common/SectionTabs';
+import { SETTINGS_GROUP_ICONS } from '@/components/admin/settingsIcons';
 import { SecurityPanel } from '@/components/admin/SecurityPanel';
 import { BluetoothSection } from '@/components/admin/BluetoothSection';
 import { BoardLedsToggle } from '@/components/admin/BoardLedsToggle';
@@ -100,20 +102,15 @@ const DesktopLayout: React.FC<LayoutProps> = ({
   const activeGroup = groups[tabIndex];
   return (
     <>
-      <Tabs
+      <SectionTabs
         value={tabIndex}
-        onChange={(_, v: number) => onActiveGroupChange(groups[v].key)}
-        variant="scrollable"
-        scrollButtons="auto"
-        allowScrollButtonsMobile
-        visibleScrollbar
-        sx={{
-          borderBottom: 1, borderColor: 'divider', minHeight: 48,
-          '& .MuiTab-root': { minWidth: 'auto', px: 2, whiteSpace: 'nowrap' },
-        }}
-      >
-        {groups.map((g) => <Tab key={g.key} label={t(g.labelKey)} />)}
-      </Tabs>
+        onChange={(v) => onActiveGroupChange(groups[v].key)}
+        ariaLabel={t('title')}
+        sections={groups.map((g) => ({
+          label: t(g.labelKey),
+          icon: SETTINGS_GROUP_ICONS[g.key],
+        }))}
+      />
       <Box sx={{ pt: 3 }}>
         {activeGroup.sections.map((section) => (
           <RenderedSection
@@ -147,9 +144,22 @@ const MobileLayout: React.FC<LayoutProps> = ({
         >
           <AccordionSummary
             expandIcon={<ExpandMoreIcon />}
-            sx={{ minHeight: 52, '& .MuiAccordionSummary-content': { my: 1 } }}
+            sx={{ minHeight: 56, '& .MuiAccordionSummary-content': { my: 1, minWidth: 0 } }}
           >
-            <Typography variant="subtitle1" fontWeight={600}>{t(group.labelKey)}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', color: 'text.secondary', '& svg': { fontSize: 22 } }}>
+                {SETTINGS_GROUP_ICONS[group.key]}
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle1" fontWeight={600}>{t(group.labelKey)}</Typography>
+                {/* Sagt vor dem Aufklappen, was in der Gruppe steckt – die
+                    Section-Titel sind bereits uebersetzt, es braucht keine
+                    zusaetzlichen Texte. */}
+                <Typography variant="caption" color="text.secondary" display="block" noWrap>
+                  {group.sections.map((section) => t(section.titleKey)).join(' \u00b7 ')}
+                </Typography>
+              </Box>
+            </Box>
           </AccordionSummary>
           <AccordionDetails sx={{ pt: 1, pb: 2, px: 2 }}>
             {group.sections.map((section) => (
