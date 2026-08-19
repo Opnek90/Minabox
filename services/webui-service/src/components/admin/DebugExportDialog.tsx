@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -80,6 +80,8 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
   const [selection, setSelection] = useState<Selection>(PRESET_VALUES.recommended);
   const [elevated, setElevated] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Blocks a second submit within the same tick, before `busy` re-renders.
+  const inFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [dbConfirmed, setDbConfirmed] = useState(false);
@@ -136,8 +138,21 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
 
   const describeError = useCallback(
     (e: unknown) => {
-      const status = (e as { response?: { status?: number } })?.response?.status;
-      if (status === 429) return t('system.debug_export.error_rate_limited');
+      const response = (e as {
+        response?: { status?: number; data?: { detail?: unknown } };
+      })?.response;
+      const status = response?.status;
+      const detail = response?.data?.detail;
+      // The backend sends a code for the two different 429 reasons; older
+      // builds send a plain string, so fall back on the status alone.
+      const code =
+        detail && typeof detail === 'object'
+          ? (detail as { code?: string }).code
+          : undefined;
+
+      if (code === 'export_in_progress') return t('system.debug_export.error_in_progress');
+      if (code === 'export_rate_limited') return t('system.debug_export.error_rate_limited');
+      if (status === 429) return t('system.debug_export.error_in_progress');
       if (status === 403) return t('system.debug_export.error_remote');
       if (status === 404) return t('system.debug_export.preview_expired');
       return t('system.debug_export.error');
@@ -146,6 +161,8 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
   );
 
   const handlePreview = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setDone(false);
@@ -158,12 +175,14 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
     } catch (e) {
       setError(describeError(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }, [options, selection.client, describeError]);
 
   const handlePreviewDownload = useCallback(async () => {
-    if (!preview) return;
+    if (!preview || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -176,11 +195,17 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
       // The cached archive is gone after an expiry, so the preview must go too.
       setPreview(null);
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }, [preview, saveBlob, describeError]);
 
   const handleCreate = useCallback(async () => {
+    // The disabled prop only takes effect after a re-render; a fast second
+    // click otherwise slips through and the box answers the second POST with
+    // 429. This ref blocks it in the same tick.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setDone(false);
@@ -195,6 +220,7 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
     } catch (e) {
       setError(describeError(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }, [options, selection.client, saveBlob, describeError]);

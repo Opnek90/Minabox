@@ -527,6 +527,7 @@
       "creating": "Paket wird erstellt…",
       "created": "Paket wurde heruntergeladen.",
       "error": "Das Paket konnte nicht erstellt werden.",
+      "error_in_progress": "Es läuft schon ein Export, bitte einen Moment warten.",
       "error_rate_limited": "Es wurde gerade eben schon ein Paket erstellt. Bitte kurz warten.",
       "error_remote": "Das Paket ist nur aus dem heimischen Netzwerk abrufbar.",
       "duration_hint": "Das dauert je nach Box einige Sekunden.",

@@ -134,6 +134,34 @@ async def test_second_export_is_rate_limited(app, tiny_export):
 
 
 @pytest.mark.asyncio
+async def test_rate_limited_429_is_machine_readable(app, tiny_export):
+    """The WebUI must tell the two 429 reasons apart without parsing German."""
+    async with _client(app, "192.168.1.42") as client:
+        await client.post("/api/v1/system/debug-export", json={})
+        second = await client.post("/api/v1/system/debug-export", json={})
+    assert second.status_code == 429
+    detail = second.json()["detail"]
+    assert detail["code"] == "export_rate_limited"
+    assert detail["retry_after"] >= 0
+    assert second.headers["Retry-After"]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_export_reports_in_progress(app, tiny_export, monkeypatch):
+    """Double-click: the second request must say "already running", not "just made one"."""
+
+    class _HeldLock:
+        def locked(self) -> bool:
+            return True
+
+    monkeypatch.setattr(routes_debug, "_export_lock", _HeldLock())
+    async with _client(app, "192.168.1.42") as client:
+        response = await client.post("/api/v1/system/debug-export", json={})
+    assert response.status_code == 429
+    assert response.json()["detail"]["code"] == "export_in_progress"
+
+
+@pytest.mark.asyncio
 async def test_without_session_the_elevated_tiers_are_stripped(
     app, password_protected, tiny_export
 ):

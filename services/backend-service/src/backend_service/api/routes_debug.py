@@ -158,16 +158,30 @@ async def _build_archive(
             detail="Diagnose-Paket ist nur aus dem lokalen Netz abrufbar.",
         )
 
+    # Both cases are 429, but they mean different things to the user: one is
+    # "your own export is still running" (the usual double-click), the other is
+    # "you just made one". The code lets the WebUI say which without parsing
+    # German prose.
     if _export_lock.locked():
         raise HTTPException(
-            status_code=429, detail="Es läuft bereits ein Export. Bitte kurz warten."
+            status_code=429,
+            detail={
+                "code": "export_in_progress",
+                "message": "Es läuft bereits ein Export. Bitte kurz warten.",
+            },
         )
 
     since_last = time.monotonic() - _last_export_at
     if _last_export_at and since_last < RATE_LIMIT_SECONDS:
+        retry_after = int(RATE_LIMIT_SECONDS - since_last)
         raise HTTPException(
             status_code=429,
-            detail=f"Bitte {int(RATE_LIMIT_SECONDS - since_last)} Sekunden warten.",
+            detail={
+                "code": "export_rate_limited",
+                "message": f"Bitte {retry_after} Sekunden warten.",
+                "retry_after": retry_after,
+            },
+            headers={"Retry-After": str(max(1, retry_after))},
         )
 
     options = ExportOptions.from_payload(payload.get("options"))

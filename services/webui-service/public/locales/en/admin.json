@@ -527,6 +527,7 @@
       "creating": "Creating package…",
       "created": "Package downloaded.",
       "error": "The package could not be created.",
+      "error_in_progress": "An export is already running, please wait a moment.",
       "error_rate_limited": "A package was just created. Please wait a moment.",
       "error_remote": "The package can only be retrieved from your home network.",
       "duration_hint": "This takes a few seconds depending on your box.",
