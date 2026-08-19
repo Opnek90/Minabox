@@ -4,7 +4,7 @@
   "view_mode_list": "List view",
   "never_played": "Not played yet",
   "tabs": {
-    "overview": "Overview",
+    "recent": "Recent",
     "playlists": "Playlists",
     "tracks": "Tracks",
     "streams": "Streams",
@@ -12,6 +12,13 @@
   },
   "overview": {
     "recently_played": "Recently played",
+    "recently_added": "Recently added",
+    "playlists_updated": "Recently changed playlists",
+    "show_all": "Show all",
+    "kind_track": "Track",
+    "kind_stream": "Stream",
+    "kind_podcast": "Podcast",
+    "empty": "Nothing played and nothing added yet.",
     "track_count": "{{count}} track",
     "track_count_plural": "{{count}} tracks"
   },

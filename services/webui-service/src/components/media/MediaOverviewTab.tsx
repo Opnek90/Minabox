@@ -2,8 +2,8 @@ import React from 'react';
 import {
   Avatar,
   Box,
+  Button,
   Card,
-  CardActionArea,
   CardContent,
   Chip,
   Divider,
@@ -19,6 +19,7 @@ import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
 import type { Playlist, Podcast, Stream, Track } from '@/types/api';
@@ -32,26 +33,95 @@ interface MediaOverviewTabProps {
   onNavigateTab: (tab: number) => void;
 }
 
-const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; color: string; onClick: () => void }> = ({
-  icon, label, value, color, onClick,
-}) => (
+/**
+ * Startbereich der Mediathek: was zuletzt lief und was neu dazugekommen ist.
+ *
+ * Frueher stand hier zusaetzlich eine Reihe Kacheln "Symbol + Zahl + Name" je
+ * Bereich. Seit die Bereichsleiste genau das dauerhaft zeigt – Symbol, Name und
+ * Menge, einen Tipp entfernt – waren die Kacheln eine Dublette der Leiste
+ * direkt darueber, ebenso die Podcast-Chips zum Podcast-Bereich. Uebrig bleibt,
+ * was es sonst nirgends gibt: die juengste Aktivitaet.
+ *
+ * Alle drei Bloecke rechnen aus Daten, die `MediaPage` ohnehin geladen hat –
+ * die Seite loest keinen zusaetzlichen Aufruf aus.
+ */
+
+/** Gemeinsame Zeilenform fuer Tracks, Streams und Podcasts. */
+interface Entry {
+  key: string;
+  title: string;
+  subtitle: string | null;
+  cover: string | null;
+  icon: React.ReactNode;
+  durationMs: number | null;
+  play: () => void;
+  /** Zeitstempel, nach denen die beiden Bloecke sortieren. */
+  played: string | null;
+  added: string | null;
+}
+
+/** Sortiert absteigend nach einem der beiden Zeitstempel. */
+const newestBy = (field: 'played' | 'added') => (a: Entry, b: Entry): number =>
+  new Date(b[field]!).getTime() - new Date(a[field]!).getTime();
+
+const EntryList: React.FC<{ entries: Entry[] }> = ({ entries }) => (
   <Card variant="outlined" sx={{ borderRadius: 2 }}>
-    <CardActionArea onClick={onClick} sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-      <Box
-        sx={{
-          width: 48, height: 48, borderRadius: 2,
-          bgcolor: `${color}.main`, color: `${color}.contrastText`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}
-      >
-        {icon}
-      </Box>
-      <Box>
-        <Typography variant="h5" fontWeight={700} lineHeight={1}>{value}</Typography>
-        <Typography variant="caption" color="text.secondary">{label}</Typography>
-      </Box>
-    </CardActionArea>
+    <List dense disablePadding>
+      {entries.map((entry, i) => (
+        <React.Fragment key={entry.key}>
+          <ListItem
+            secondaryAction={
+              entry.durationMs != null && (
+                <Chip
+                  label={formatTime(entry.durationMs)}
+                  size="small"
+                  variant="outlined"
+                  sx={{ height: 18, fontSize: '0.65rem' }}
+                />
+              )
+            }
+            sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+            onClick={entry.play}
+          >
+            <ListItemAvatar sx={{ minWidth: 40 }}>
+              <Avatar
+                src={entry.cover ?? undefined}
+                variant="rounded"
+                sx={{ width: 32, height: 32, bgcolor: 'action.selected' }}
+              >
+                {entry.icon}
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              primary={entry.title}
+              secondary={entry.subtitle}
+              primaryTypographyProps={{ noWrap: true, variant: 'body2' }}
+              secondaryTypographyProps={{ noWrap: true, variant: 'caption' }}
+            />
+          </ListItem>
+          {i < entries.length - 1 && <Divider component="li" />}
+        </React.Fragment>
+      ))}
+    </List>
   </Card>
+);
+
+const BlockHeading: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  action?: { label: string; onClick: () => void };
+}> = ({ icon, title, action }) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+    {icon}
+    <Typography variant="subtitle1" fontWeight={600}>
+      {title}
+    </Typography>
+    {action && (
+      <Button size="small" onClick={action.onClick} sx={{ ml: 'auto' }}>
+        {action.label}
+      </Button>
+    )}
+  </Box>
 );
 
 export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
@@ -59,9 +129,52 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
 }) => {
   const { t } = useTranslation('media');
 
-  const recentTracks = [...tracks]
-    .filter((tr) => tr.last_played_at != null)
-    .sort((a, b) => new Date(b.last_played_at!).getTime() - new Date(a.last_played_at!).getTime())
+  // Tracks, Streams und Podcasts tragen alle `last_played_at` und `created_at`;
+  // die Bloecke mischen sie deshalb, statt nur Tracks zu zeigen.
+  const entries: Entry[] = [
+    ...tracks.map((tr) => ({
+      key: `track-${tr.id}`,
+      title: tr.title,
+      subtitle: tr.artist ?? t('overview.kind_track'),
+      cover: tr.cover_art_url ?? null,
+      icon: <AudiotrackIcon sx={{ fontSize: 16 }} />,
+      durationMs: tr.duration_ms,
+      play: () => void audioApi.play({ track_id: tr.id }),
+      played: tr.last_played_at,
+      added: tr.created_at,
+    })),
+    ...streams.map((st) => ({
+      key: `stream-${st.id}`,
+      title: st.title,
+      subtitle: st.artist ?? t('overview.kind_stream'),
+      cover: st.cover_art_url,
+      icon: <StreamIcon sx={{ fontSize: 16 }} />,
+      durationMs: null,
+      play: () => void audioApi.play({ stream_id: st.id }),
+      played: st.last_played_at,
+      added: st.created_at,
+    })),
+    ...podcasts.map((pod) => ({
+      key: `podcast-${pod.id}`,
+      title: pod.title,
+      subtitle: pod.latest_episode_title ?? t('overview.kind_podcast'),
+      cover: pod.cover_art_url,
+      icon: <PodcastsIcon sx={{ fontSize: 16 }} />,
+      durationMs: null,
+      play: () => void audioApi.play({ podcast_id: pod.id }),
+      played: pod.last_played_at,
+      added: pod.created_at,
+    })),
+  ];
+
+  const recentlyPlayed = entries
+    .filter((e) => e.played != null)
+    .sort(newestBy('played'))
+    .slice(0, 6);
+
+  const recentlyAdded = entries
+    .filter((e) => e.added != null)
+    .sort(newestBy('added'))
     .slice(0, 6);
 
   const recentPlaylists = [...playlists]
@@ -69,73 +182,51 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
     .sort((a, b) => new Date(b.updated_at!).getTime() - new Date(a.updated_at!).getTime())
     .slice(0, 4);
 
+  const isEmpty =
+    recentlyPlayed.length === 0 && recentlyAdded.length === 0 && recentPlaylists.length === 0;
+
+  if (isEmpty) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography color="text.secondary">{t('overview.empty')}</Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} sm={3}>
-          <StatCard icon={<AudiotrackIcon />} label={t('tabs.tracks')} value={tracks.length} color="primary" onClick={() => onNavigateTab(2)} />
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <StatCard icon={<PlaylistPlayIcon />} label={t('tabs.playlists')} value={playlists.length} color="secondary" onClick={() => onNavigateTab(1)} />
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <StatCard icon={<StreamIcon />} label={t('tabs.streams')} value={streams.length} color="info" onClick={() => onNavigateTab(3)} />
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <StatCard icon={<PodcastsIcon />} label={t('tabs.podcasts')} value={podcasts.length} color="success" onClick={() => onNavigateTab(4)} />
-        </Grid>
-      </Grid>
-
       <Grid container spacing={3}>
-        {recentTracks.length > 0 && (
+        {recentlyPlayed.length > 0 && (
           <Grid item xs={12} md={6}>
-            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AccessTimeIcon fontSize="small" color="action" />
-              {t('overview.recently_played')}
-            </Typography>
-            <Card variant="outlined" sx={{ borderRadius: 2 }}>
-              <List dense disablePadding>
-                {recentTracks.map((track, i) => (
-                  <React.Fragment key={track.id}>
-                    <ListItem
-                      secondaryAction={
-                        track.duration_ms != null && (
-                          <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined"
-                            sx={{ height: 18, fontSize: '0.65rem' }} />
-                        )
-                      }
-                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
-                      onClick={() => void audioApi.play({ track_id: track.id })}
-                    >
-                      <ListItemAvatar sx={{ minWidth: 40 }}>
-                        <Avatar src={track.cover_art_url ?? undefined} variant="rounded" sx={{ width: 32, height: 32, bgcolor: 'action.selected' }}>
-                          <AudiotrackIcon sx={{ fontSize: 16 }} />
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={track.title}
-                        secondary={track.artist}
-                        primaryTypographyProps={{ noWrap: true, variant: 'body2' }}
-                        secondaryTypographyProps={{ noWrap: true, variant: 'caption' }}
-                      />
-                    </ListItem>
-                    {i < recentTracks.length - 1 && <Divider component="li" />}
-                  </React.Fragment>
-                ))}
-              </List>
-            </Card>
+            <BlockHeading
+              icon={<AccessTimeIcon fontSize="small" color="action" />}
+              title={t('overview.recently_played')}
+            />
+            <EntryList entries={recentlyPlayed} />
+          </Grid>
+        )}
+
+        {recentlyAdded.length > 0 && (
+          <Grid item xs={12} md={6}>
+            <BlockHeading
+              icon={<NewReleasesIcon fontSize="small" color="action" />}
+              title={t('overview.recently_added')}
+              action={{ label: t('overview.show_all'), onClick: () => onNavigateTab(2) }}
+            />
+            <EntryList entries={recentlyAdded} />
           </Grid>
         )}
 
         {recentPlaylists.length > 0 && (
-          <Grid item xs={12} md={6}>
-            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PlaylistPlayIcon fontSize="small" color="action" />
-              {t('tabs.playlists')}
-            </Typography>
+          <Grid item xs={12}>
+            <BlockHeading
+              icon={<PlaylistPlayIcon fontSize="small" color="action" />}
+              title={t('overview.playlists_updated')}
+              action={{ label: t('overview.show_all'), onClick: () => onNavigateTab(1) }}
+            />
             <Grid container spacing={1}>
               {recentPlaylists.map((pl) => (
-                <Grid item xs={6} key={pl.id}>
+                <Grid item xs={6} md={3} key={pl.id}>
                   <Card
                     variant="outlined"
                     sx={{ borderRadius: 2, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
@@ -160,27 +251,6 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
                 </Grid>
               ))}
             </Grid>
-          </Grid>
-        )}
-
-        {podcasts.length > 0 && (
-          <Grid item xs={12}>
-            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PodcastsIcon fontSize="small" color="action" />
-              {t('tabs.podcasts')}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {podcasts.slice(0, 6).map((p) => (
-                <Chip
-                  key={p.id}
-                  icon={<PodcastsIcon />}
-                  label={p.title}
-                  onClick={() => onNavigateTab(4)}
-                  variant="outlined"
-                  sx={{ cursor: 'pointer' }}
-                />
-              ))}
-            </Box>
           </Grid>
         )}
       </Grid>

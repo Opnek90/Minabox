@@ -10,7 +10,7 @@ import {
   Stack,
   TextField,
 } from '@mui/material';
-import GridViewIcon from '@mui/icons-material/GridView';
+import HistoryIcon from '@mui/icons-material/History';
 import MicNoneIcon from '@mui/icons-material/MicNone';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
@@ -285,7 +285,7 @@ export const MediaPage: React.FC = () => {
         onChange={setTab}
         ariaLabel={t('navigation.media', { ns: 'common' })}
         sections={[
-          { label: t('tabs.overview', { defaultValue: '\u00dcbersicht' }), icon: <GridViewIcon /> },
+          { label: t('tabs.recent'), icon: <HistoryIcon /> },
           { label: t('tabs.playlists'), icon: <QueueMusicIcon />, count: playlists.length },
           { label: t('tabs.tracks'), icon: <MusicNoteIcon />, count: tracks.length },
           { label: t('tabs.streams', { defaultValue: 'Streams' }), icon: <RadioIcon />, count: streams.length },

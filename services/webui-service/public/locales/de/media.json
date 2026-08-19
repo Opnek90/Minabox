@@ -4,7 +4,7 @@
   "view_mode_list": "Listenansicht",
   "never_played": "Noch nicht abgespielt",
   "tabs": {
-    "overview": "Übersicht",
+    "recent": "Zuletzt",
     "playlists": "Playlists",
     "tracks": "Tracks",
     "streams": "Streams",
@@ -12,6 +12,13 @@
   },
   "overview": {
     "recently_played": "Zuletzt gespielt",
+    "recently_added": "Neu hinzugefügt",
+    "playlists_updated": "Zuletzt geänderte Playlists",
+    "show_all": "Alle anzeigen",
+    "kind_track": "Track",
+    "kind_stream": "Stream",
+    "kind_podcast": "Podcast",
+    "empty": "Noch nichts gehört und nichts hinzugefügt.",
     "track_count": "{{count}} Track",
     "track_count_plural": "{{count}} Tracks"
   },
