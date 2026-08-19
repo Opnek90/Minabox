@@ -19,8 +19,6 @@ import {
   TableRow,
   TextField,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import NfcIcon from '@mui/icons-material/Nfc';
@@ -29,6 +27,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { scanHistoryApi, type ScanEvent } from '@/api/scanHistory';
+import { useLayout } from '@/hooks/useLayout';
 
 const ACTION_COLORS: Record<string, 'success' | 'error' | 'warning' | 'default'> = {
   play: 'success',
@@ -38,8 +37,7 @@ const ACTION_COLORS: Record<string, 'success' | 'error' | 'warning' | 'default'>
 
 export const ScanHistoryPanel: React.FC = () => {
   const { t } = useTranslation('common');
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useLayout().isMobile;
   const [events, setEvents] = useState<ScanEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTagId, setFilterTagId] = useState('');

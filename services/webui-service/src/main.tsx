@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
+import { installGlobalErrorCapture } from '@/utils/debugRingBuffer';
 import { BrowserRouter } from 'react-router-dom';
 import { createTheme, CssBaseline, ThemeProvider } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -146,6 +147,10 @@ const ThemedApp: React.FC = () => {
 // ============================================================================
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
+
+// Muss vor dem ersten Render laufen, sonst entgehen uns genau die
+// Fehler, die beim Start auftreten.
+installGlobalErrorCapture();
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>

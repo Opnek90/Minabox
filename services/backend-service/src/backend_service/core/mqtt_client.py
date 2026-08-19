@@ -20,6 +20,8 @@ from tenacity import (
 from backend_service.config_schema import AppConfig, BackendConfig
 from backend_service.exceptions import MQTTConnectionError, MQTTPublishError
 
+from backend_service.core.debug_export.runtime_buffers import record_mqtt
+
 logger = structlog.get_logger(__name__)
 
 
@@ -114,6 +116,7 @@ class MQTTClient:
         try:
             message = json.dumps(payload)
             await self.client.publish(topic, message, qos=qos, retain=retain)
+            record_mqtt("out", topic, message)
             logger.debug("mqtt_published", topic=topic, payload=payload, qos=qos)
         except Exception as e:
             logger.error("mqtt_publish_failed", topic=topic, error=str(e))
@@ -139,6 +142,7 @@ class MQTTClient:
             topic: Message topic
             payload: Message payload (JSON string)
         """
+        record_mqtt("in", topic, payload)
         try:
             data = json.loads(payload)
             logger.debug("mqtt_message_received", topic=topic, data=data)

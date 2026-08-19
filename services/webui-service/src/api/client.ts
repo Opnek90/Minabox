@@ -1,5 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import type { ErrorResponse } from '@/types/api';
+import { recordFailedRequest } from '@/utils/debugRingBuffer';
 
 const RETRY_MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS_INITIAL = 1000;
@@ -37,6 +38,11 @@ export const apiClient = axios.create({
   },
 });
 
+apiClient.interceptors.request.use((config) => {
+  (config as InternalAxiosRequestConfig & { __startedAt?: number }).__startedAt = Date.now();
+  return config;
+});
+
 let onUnauthorized: (() => void) | null = null;
 export function setOnUnauthorized(cb: (() => void) | null): void {
   onUnauthorized = cb;
@@ -61,6 +67,17 @@ apiClient.interceptors.response.use(
       await delay(backoff);
       return apiClient.request(config);
     }
+
+    // Record the failure for the debug export before it is handed on. Only
+    // the final outcome lands here, not each retry.
+    const startedAt = (config as (InternalAxiosRequestConfig & { __startedAt?: number }) | undefined)?.__startedAt;
+    recordFailedRequest({
+      method: (config?.method ?? 'get').toUpperCase(),
+      url: config?.url ?? 'unbekannt',
+      status: error.response?.status,
+      durationMs: startedAt ? Date.now() - startedAt : undefined,
+      message: error.message,
+    });
 
     if (error.response) {
       const errorData = error.response.data as ErrorResponse;

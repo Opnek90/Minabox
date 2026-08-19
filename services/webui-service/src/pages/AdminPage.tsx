@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Accordion, AccordionDetails, AccordionSummary,
   Box, Chip, InputAdornment, List, ListItemButton, Tab, Tabs, TextField, Typography,
-  useMediaQuery, useTheme,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
@@ -28,6 +27,7 @@ import {
   SETTINGS_INDEX, SETTINGS_SECTIONS, sectionDomId,
   type SettingsGroupMeta, type SettingsSectionMeta,
 } from '@/config/settingsIndex';
+import { useLayout } from '@/hooks/useLayout';
 
 /**
  * Formular je Section. Der Zuschnitt der Gruppen/Sections selbst liegt in
@@ -236,8 +236,7 @@ const SearchResults: React.FC<{ query: string; onSelect: (sectionKey: string) =>
 
 export const AdminPage: React.FC = () => {
   const { t } = useTranslation('admin');
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useLayout().isMobile;
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);

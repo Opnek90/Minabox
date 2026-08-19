@@ -6,6 +6,7 @@ from backend_service.api import (
     routes_audio,
     routes_auth,
     routes_config,
+    routes_debug,
     routes_host,
     routes_playlists,
     routes_podcasts,
@@ -41,6 +42,7 @@ api_router.include_router(routes_rfid.router, prefix="/rfid", tags=["RFID"])
 api_router.include_router(routes_config.router, prefix="/config", tags=["Config"])
 api_router.include_router(routes_stats.router, prefix="/stats", tags=["Stats"])
 api_router.include_router(routes_system.router, prefix="/system", tags=["System"])
+api_router.include_router(routes_debug.router, prefix="/system", tags=["System"])
 api_router.include_router(routes_host.router, prefix="/system", tags=["System"])
 api_router.include_router(
     routes_scan_history.router, prefix="/scan-history", tags=["Scan History"]

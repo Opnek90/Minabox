@@ -87,6 +87,7 @@ services:
       - WEB_AUTH_SECRET=${WEB_AUTH_SECRET:-}
       - ALLOWED_AUDIO_PATHS=${ALLOWED_AUDIO_PATHS:-/media,/mnt,/home/pi}
       - MEDIA_DOWNLOADER_URL=http://media-downloader:8007
+      - HOST_DIAG_ROOT=/host
     volumes:
       - ./data:/data
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio
@@ -97,6 +98,18 @@ services:
       - ./services/rfid-service/config:/app/config_services/rfid
       - ./services/display-service/config:/app/config_services/display
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Read-only host files for the debug export (docs/DebugExport.md 4.3).
+      # Reading these here keeps the collectors out of the root-privileged
+      # Host-Helper. Nothing writable, nothing secret: no /etc/shadow, no
+      # /etc/ssh, no /root, no /home, no /var/lib/docker.
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /etc/rpi-issue:/host/etc/rpi-issue:ro
+      - /etc/timezone:/host/etc/timezone:ro
+      - /boot/firmware:/host/boot:ro
+      - /var/lib/dpkg/status:/host/var/lib/dpkg/status:ro
+      - /var/log/apt:/host/var/log/apt:ro
       - ./.cursor:/cursor-debug
     group_add:
       - "999"

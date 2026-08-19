@@ -332,11 +332,20 @@
   "stats": {
     "from": "From",
     "heatmap": "When is listening? (hour × weekday)",
+    "heatmap_legend": "Colour intensity = listening time in that hour:",
+    "heatmap_legend_none": "none",
+    "heatmap_selected": "{{day}}, {{from}}:00–{{to}}:00 · {{minutes}} min",
+    "heatmap_tap_hint": "Tap a bar to see the listening time.",
     "hide_date_axis": "Hide date axis",
     "load": "Load",
     "minutes_per_day": "Listening time per day (min)",
+    "minutes_short": "{{value}} min",
     "no_data": "No data for the selected period.",
     "period": "Period",
+    "plays_one": "{{count}} play",
+    "plays_other": "{{count}} plays",
+    "scans_one": "{{count}} scan",
+    "scans_other": "{{count}} scans",
     "show_date_axis": "Show date axis",
     "title": "Listening statistics",
     "to": "To",
@@ -496,7 +505,98 @@
     "wifi_password": "Password",
     "wifi_scan": "Scan networks",
     "wifi_ssid": "Network (SSID)",
-    "board_leds_title": "Board LEDs"
+    "board_leds_title": "Board LEDs",
+    "debug_export": {
+      "title": "Create diagnostic package",
+      "intro": "The box collects troubleshooting information into a single file. You download it and can send it to the developer.",
+      "preset_label": "Preset",
+      "preset_minimal": "Bare minimum",
+      "preset_recommended": "Recommended",
+      "preset_full": "Everything",
+      "selection_label": "What should be included?",
+      "always_on": "always included",
+      "contains": "Contains",
+      "helps": "Helps with",
+      "not_included": "Not included",
+      "good_to_know": "Good to know",
+      "locked_hint": "Only selectable after signing in as administrator.",
+      "media_level": "Detail",
+      "media_counts": "Counts only",
+      "media_filenames": "With file names",
+      "create": "Create package",
+      "creating": "Creating package…",
+      "created": "Package downloaded.",
+      "error": "The package could not be created.",
+      "error_rate_limited": "A package was just created. Please wait a moment.",
+      "error_remote": "The package can only be retrieved from your home network.",
+      "duration_hint": "This takes a few seconds depending on your box.",
+      "privacy_title": "What happens with this data",
+      "privacy_storage": "The package is created on your device and downloaded there. It is never uploaded anywhere automatically, and nobody sees it unless you send it yourself.",
+      "privacy_removed": "Automatically removed: passwords, password hashes, Wi-Fi keys and access tokens. The Wi-Fi name, device serial numbers and card numbers are replaced with unreadable strings.",
+      "privacy_never": "Never included: your music and audio files, cover images, and your password for this interface.",
+      "privacy_maybe": "May be included, depending on your selection above: names of music files and folders, times of what was played when, technical details about your device and network.",
+      "privacy_check": "You can open and inspect the package before sending it: it is a normal ZIP file and all contents are text. A README.txt inside explains every file.",
+      "blocks": {
+        "system": {
+          "label": "Technical state of the box",
+          "contains": "Temperature, free disk space, memory, power supply, how long the box has been running, which parts are running or crashed, version numbers, model and operating system.",
+          "helps": "Crashes, restarts, “the box gets hot”, “nothing works any more”.",
+          "not_included": "Nothing personal – these are pure device readings."
+        },
+        "logs": {
+          "label": "Error logs from the last few hours",
+          "contains": "The box's activity log – what it did recently and where something went wrong. Names of music files and folders may appear in it.",
+          "helps": "Almost everything. This is the part most faults can be read from.",
+          "not_included": "Passwords, keys and Wi-Fi credentials are automatically masked beforehand."
+        },
+        "settings": {
+          "label": "Your settings",
+          "contains": "How the box is set up – volume limits, bedtime settings, button assignments, LED and display settings, installed software packages.",
+          "helps": "“the button does the wrong thing”, “the box switches off at the wrong time”.",
+          "not_included": "Your password for the web interface (not even hashed)."
+        },
+        "network": {
+          "label": "Network state",
+          "contains": "Whether the box is on Wi-Fi, how stable the connection is, whether the clock is correct.",
+          "helps": "Streams cutting out, failed downloads, unreachable web interface.",
+          "not_included": "Your Wi-Fi password. The Wi-Fi name is replaced by a string – we can tell it is the same network, but not what it is called."
+        },
+        "media": {
+          "label": "Overview of your media",
+          "contains": "How many tracks, playlists, streams and podcasts exist, which file formats occur, and whether a file is missing for an entry. With “With file names”, the names of files and folders as well.",
+          "helps": "“a track will not play”, “the playlist is empty”, “music missing after the update”.",
+          "not_included": "The music files themselves and the cover images. Audio is never included."
+        },
+        "history": {
+          "label": "Playback history and card usage",
+          "contains": "When which card was placed and what was played for how long.",
+          "helps": "“the card is sometimes not recognised”, “the box stops in the middle of a story”.",
+          "good_to_know": "This reveals when and for how long your child listened. Card numbers are converted into an unreadable string, but the timeline stays visible. That is why it is off by default – please enable it only if the fault involves cards or playback."
+        },
+        "client": {
+          "label": "Information about your browser",
+          "contains": "Which browser and screen size, plus error messages the interface showed or silently swallowed while you used it.",
+          "helps": "“the button does not react”, “the page stays blank”, “different on phone than on PC”.",
+          "not_included": "Visited websites, history, bookmarks or data from other sites. Only this application."
+        },
+        "database": {
+          "label": "Complete database",
+          "contains": "The box's complete database – all tracks with paths, all cards, the full playback history.",
+          "helps": "Faults that are hard to pin down when the overview above was not enough.",
+          "good_to_know": "This is the most extensive and most personal part. Please only include it if the developer explicitly asked for it.",
+          "confirm": "Yes, include the complete database."
+        }
+      },
+      "preview": "Inspect contents first",
+      "preview_title": "What is in the package",
+      "preview_hint": "These files will be sent. If you are not comfortable with any of them, stop here.",
+      "preview_size": "Total size: {{size}}",
+      "preview_failed_parts": "Could not be collected: {{names}}",
+      "preview_download": "Download now",
+      "preview_back": "Back to selection",
+      "preview_expired": "The preview has expired. Please create the package again."
+    },
+    "debug_export_short": "Diagnostic package"
   },
   "title": "Settings"
 }

@@ -49,6 +49,7 @@ import { formatTime } from '@/utils/formatTime';
 import { AddToPlaylistDialog } from './AddToPlaylistDialog';
 import { FolderCreateDialog } from './FolderCreateDialog';
 import { FolderTree } from './FolderTree';
+import { useLayout } from '@/hooks/useLayout';
 
 type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
 type FilterSource = 'all' | 'file' | 'remote';
@@ -93,7 +94,7 @@ const gridComponents = {
     <Grid container spacing={2} {...props} ref={ref} />
   )),
   Item: ({ children, ...props }: any) => (
-    <Grid item xs={12} sm={6} md={4} {...props}>{children}</Grid>
+    <Grid item xs={12} sm={6} lg={4} {...props}>{children}</Grid>
   ),
 };
 gridComponents.List.displayName = 'GridList';
@@ -125,7 +126,15 @@ export const TrackList: React.FC<TrackListProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  // Zwei Fragen, die vorher an derselben Grenze hingen und deshalb auf
+  // Tablets beide falsch beantwortet wurden:
+  // (1) Ist Platz fuer Sortierung, Filter und Zeilenaktionen in der Leiste?
+  //     Ja ab Tablet – 834px reichen dafuer laengst.
+  const hasInlineControls = useLayout().hasRoomForInlineControls;
+  // (2) Passen Ordnerbaum und Trackliste nebeneinander? Der Baum belegt fix
+  //     220px; darunter bliebe fuer die Liste zu wenig uebrig, also bleibt
+  //     der Master-Detail-Wechsel bewusst bei 900px statt bei der Tablet-Kante.
+  const hasSplitView = useMediaQuery(theme.breakpoints.up('md'));
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -213,7 +222,7 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   const handleNavigateFolder = (folderId: number | null) => {
     onNavigateFolder(folderId);
-    if (!isDesktop) setMobileView('tracks');
+    if (!hasSplitView) setMobileView('tracks');
   };
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, track: Track) => {
@@ -316,7 +325,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       secondaryAction={
         !selectionMode && (
           <Box display="flex" alignItems="center">
-            {isDesktop && (
+            {hasInlineControls && (
               <>
                 <Tooltip title={t('tracks.play')}>
                   <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
@@ -351,7 +360,7 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </Tooltip>
               </>
             )}
-            {!isDesktop && (
+            {!hasInlineControls && (
               <IconButton size="small" onClick={(e) => handleMenuOpen(e, track)}>
                 <MoreVertIcon fontSize="small" />
               </IconButton>
@@ -360,7 +369,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         )
       }
       sx={{
-        pr: selectionMode ? undefined : isDesktop ? '180px' : '40px',
+        pr: selectionMode ? undefined : hasInlineControls ? '180px' : '40px',
         opacity: draggingTrackId === track.id ? 0.4 : 1,
         cursor: selectionMode ? 'default' : 'grab',
         transition: 'opacity 0.15s',
@@ -518,7 +527,7 @@ export const TrackList: React.FC<TrackListProps> = ({
 
   const trackPanel = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      {!isDesktop && (
+      {!hasSplitView && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <IconButton size="small" onClick={() => setMobileView('tree')}>
             <ArrowBackIcon fontSize="small" />
@@ -546,9 +555,9 @@ export const TrackList: React.FC<TrackListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        {isDesktop && <>{filterControls}{sortControls}</>}
+        {hasInlineControls && <>{filterControls}{sortControls}</>}
 
-        {!isDesktop && (
+        {!hasInlineControls && (
           <Tooltip title={t('tracks.filter.open')}>
             <IconButton
               ref={filterBtnRef}
@@ -597,7 +606,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       )}
 
       <Popover
-        open={popoverOpen && !isDesktop}
+        open={popoverOpen && !hasInlineControls}
         anchorEl={filterBtnRef.current}
         onClose={() => setPopoverOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
@@ -675,7 +684,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         flexDirection: 'column',
       }}
     >
-      {isDesktop ? (
+      {hasSplitView ? (
         <Box sx={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
           <Box sx={{ width: TREE_WIDTH, flexShrink: 0, height: '100%' }}>
             <FolderTree

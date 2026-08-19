@@ -5,7 +5,16 @@ import viteCompression from 'vite-plugin-compression';
 import { resolve } from 'path';
 
 // https://vitejs.dev/config/
+// Build-Kennung: haengt an den Uebersetzungs-URLs (siehe src/i18n.ts). Ohne sie
+// haben die Locale-Dateien ueber alle Builds hinweg dieselbe URL - eine einmal
+// falsch oder unvollstaendig gecachte admin.json bleibt dann im Browser haengen
+// und laesst JSON.parse scheitern, was den kompletten Namespace ausfallen laesst.
+const BUILD_ID = Date.now().toString(36);
+
 export default defineConfig({
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   plugins: [
     react(),
     VitePWA({

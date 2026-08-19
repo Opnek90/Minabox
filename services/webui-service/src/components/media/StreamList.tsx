@@ -22,8 +22,6 @@ import {
   ToggleButtonGroup,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -40,6 +38,7 @@ import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
 import { StreamEditDialog } from '@/components/media/StreamEditDialog';
 import type { Stream } from '@/types/api';
+import { useLayout } from '@/hooks/useLayout';
 
 type SortKey = 'title' | 'artist' | 'last_played_at';
 
@@ -73,8 +72,11 @@ export const StreamList: React.FC<StreamListProps> = ({
   onViewModeChange,
 }) => {
   const { t } = useTranslation('media');
-  const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  // Ab Tablet-Breite ist Platz fuer Sortierung, Filter und Zeilenaktionen
+  // direkt in der Leiste; nur auf dem Handy wandern sie ins Popover bzw. in
+  // ein Ueberlaufmenue. Vorher lag diese Grenze bei 900px, wodurch ein
+  // 834px-Tablet die volle Handy-Bedienung bekam, obwohl die Breite reicht.
+  const hasInlineControls = useLayout().hasRoomForInlineControls;
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -202,9 +204,9 @@ export const StreamList: React.FC<StreamListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        {isDesktop && sortControls}
+        {hasInlineControls && sortControls}
 
-        {!isDesktop && (
+        {!hasInlineControls && (
           <Tooltip title={t('streams.sort.open')}>
             <IconButton
               ref={filterBtnRef}
@@ -248,7 +250,7 @@ export const StreamList: React.FC<StreamListProps> = ({
 
       {/* Mobile Sort Popover */}
       <Popover
-        open={popoverOpen && !isDesktop}
+        open={popoverOpen && !hasInlineControls}
         anchorEl={filterBtnRef.current}
         onClose={() => setPopoverOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
@@ -290,7 +292,7 @@ export const StreamList: React.FC<StreamListProps> = ({
       {viewMode === 'card' ? (
         <Grid container spacing={2}>
           {sorted.map((stream) => (
-            <Grid item xs={12} sm={6} md={4} key={stream.id}>
+            <Grid item xs={12} sm={6} lg={4} key={stream.id}>
               <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {stream.cover_art_url && (
                   <CardMedia component="img" height="120" image={stream.cover_art_url} alt={stream.title} sx={{ objectFit: 'cover' }} />
@@ -304,7 +306,7 @@ export const StreamList: React.FC<StreamListProps> = ({
                   )}
                 </CardContent>
                 <CardActions sx={{ pt: 0 }}>
-                  {isDesktop ? desktopActions(stream) : mobileMenuButton(stream)}
+                  {hasInlineControls ? desktopActions(stream) : mobileMenuButton(stream)}
                 </CardActions>
               </Card>
             </Grid>
@@ -318,10 +320,10 @@ export const StreamList: React.FC<StreamListProps> = ({
               <ListItem
                 secondaryAction={
                   <Box display="flex" alignItems="center">
-                    {isDesktop ? desktopActions(stream) : mobileMenuButton(stream)}
+                    {hasInlineControls ? desktopActions(stream) : mobileMenuButton(stream)}
                   </Box>
                 }
-                sx={{ pr: isDesktop ? LIST_ITEM_PR_DESKTOP : LIST_ITEM_PR_MOBILE }}
+                sx={{ pr: hasInlineControls ? LIST_ITEM_PR_DESKTOP : LIST_ITEM_PR_MOBILE }}
               >
                 {stream.cover_art_url ? (
                   <Box component="img" src={stream.cover_art_url} alt=""

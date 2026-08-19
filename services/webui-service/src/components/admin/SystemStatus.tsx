@@ -23,6 +23,7 @@ import MemoryIcon from '@mui/icons-material/Memory';
 import RouterIcon from '@mui/icons-material/Router';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StorageIcon from '@mui/icons-material/Storage';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import TerminalIcon from '@mui/icons-material/Terminal';
 import ThermostatIcon from '@mui/icons-material/Thermostat';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +36,7 @@ import { systemApi, type HostStatusResponse, type TemperatureHistoryResponse } f
 import type { SystemStatus as SystemStatusType } from '@/types/api';
 import { formatUptime } from '@/utils/formatTime';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { DebugExportDialog } from '@/components/admin/DebugExportDialog';
 
 interface StatTileProps {
   icon: React.ReactNode;
@@ -88,6 +90,12 @@ export const SystemStatusPanel: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syslogModalOpen, setSyslogModalOpen] = useState(false);
+  // Deep-Link fuer den Support: .../admin?section=diagnose&action=debug-export
+  // oeffnet den Dialog direkt, damit eine Support-Mail aus einem Link besteht
+  // statt aus einer Klickanleitung.
+  const [debugExportOpen, setDebugExportOpen] = useState(
+    () => new URLSearchParams(window.location.search).get('action') === 'debug-export'
+  );
   const [logsModalService, setLogsModalService] = useState<string | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusResponse | null>(null);
   const [temperatureHistory, setTemperatureHistory] = useState<TemperatureHistoryResponse['readings']>([]);
@@ -155,6 +163,14 @@ export const SystemStatusPanel: React.FC = () => {
         >
           {t('system.syslog')}
         </ActionButton>
+        <ActionButton
+          actionType="secondary"
+          size="small"
+          startIcon={<BugReportIcon />}
+          onClick={() => setDebugExportOpen(true)}
+        >
+          {t('system.debug_export_short')}
+        </ActionButton>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -163,7 +179,7 @@ export const SystemStatusPanel: React.FC = () => {
         <SettingsBlock title={t('system.host_title')}>
           <Grid container spacing={1.5}>
             {status?.device_id && (
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} lg={4}>
                 <StatTile
                   icon={<FingerprintIcon fontSize="small" />}
                   label={t('system.device_id')}
@@ -173,7 +189,7 @@ export const SystemStatusPanel: React.FC = () => {
               </Grid>
             )}
             {uptimeSeconds != null && (
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} lg={4}>
                 <StatTile
                   icon={<AccessTimeIcon fontSize="small" />}
                   label={t('system.uptime')}
@@ -183,7 +199,7 @@ export const SystemStatusPanel: React.FC = () => {
               </Grid>
             )}
             {hostStatus?.hostname != null && (
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} lg={4}>
                 <StatTile
                   icon={<ComputerIcon fontSize="small" />}
                   label={t('system.host_hostname')}
@@ -193,7 +209,7 @@ export const SystemStatusPanel: React.FC = () => {
               </Grid>
             )}
             {hostStatus?.ip != null && (
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} lg={4}>
                 <StatTile
                   icon={<RouterIcon fontSize="small" />}
                   label={t('system.host_ip')}
@@ -202,7 +218,7 @@ export const SystemStatusPanel: React.FC = () => {
               </Grid>
             )}
             {hostStatus?.memory != null && (
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} lg={4}>
                 <StatTile
                   icon={<MemoryIcon fontSize="small" />}
                   label={t('system.host_memory')}
@@ -211,7 +227,7 @@ export const SystemStatusPanel: React.FC = () => {
               </Grid>
             )}
             {hostStatus?.cpu != null && (
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} lg={4}>
                 <StatTile
                   icon={<SpeedIcon fontSize="small" />}
                   label={t('system.host_cpu')}
@@ -223,7 +239,7 @@ export const SystemStatusPanel: React.FC = () => {
               </Grid>
             )}
             {hostStatus?.disk != null && (
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} lg={4}>
                 <StatTile
                   icon={<StorageIcon fontSize="small" />}
                   label={t('system.host_disk')}
@@ -232,7 +248,7 @@ export const SystemStatusPanel: React.FC = () => {
               </Grid>
             )}
             {hostStatus?.temperature_celsius != null && (
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} lg={4}>
                 <StatTile
                   icon={<ThermostatIcon fontSize="small" />}
                   label={t('system.host_temperature')}
@@ -309,6 +325,7 @@ export const SystemStatusPanel: React.FC = () => {
         onClose={() => setLogsModalService(null)}
       />
       <SyslogModal open={syslogModalOpen} onClose={() => setSyslogModalOpen(false)} />
+      <DebugExportDialog open={debugExportOpen} onClose={() => setDebugExportOpen(false)} />
       </SettingsBlock>
     </Box>
   );

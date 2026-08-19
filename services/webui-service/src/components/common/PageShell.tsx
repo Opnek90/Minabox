@@ -1,10 +1,6 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
+import { Box, Typography } from '@mui/material';
+import { useLayout } from '@/hooks/useLayout';
 
 interface PageShellProps {
   title: string;
@@ -19,13 +15,15 @@ export const PageShell: React.FC<PageShellProps> = ({
   children,
   maxWidth,
 }) => {
-  const theme = useTheme();
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+  // `isCompact` deckt Handy *und* Tablet ab: der Titel darf dort umbrechen und
+  // Aktionen duerfen in die naechste Zeile. Die Polsterung staffelt dagegen
+  // dreistufig, weil 24px Rand auf einem 834px-Tablet spuerbar Breite kostet.
+  const { isMobile, isCompact, pagePadding } = useLayout();
 
   return (
     <Box
       sx={{
-        p: isSmall ? 1.5 : 3,
+        p: pagePadding,
         maxWidth: maxWidth ?? 'none',
         mx: maxWidth ? 'auto' : undefined,
         // Kein overflowX:hidden hier – das wuerde Badges und Buttons abschneiden.
@@ -35,14 +33,14 @@ export const PageShell: React.FC<PageShellProps> = ({
       {/* Title row */}
       <Box
         display="flex"
-        alignItems={isSmall ? 'flex-start' : 'center'}
+        alignItems={isCompact ? 'flex-start' : 'center'}
         justifyContent="space-between"
         flexWrap="wrap"
         gap={1}
         mb={2.5}
       >
         <Typography
-          variant={isSmall ? 'h6' : 'h5'}
+          variant={isMobile ? 'h6' : 'h5'}
           fontWeight={700}
           sx={{
             overflow: 'hidden',
@@ -61,7 +59,7 @@ export const PageShell: React.FC<PageShellProps> = ({
             gap={1}
             flexWrap="wrap"
             sx={{
-              flex: isSmall ? '1 1 100%' : '0 0 auto',
+              flex: isMobile ? '1 1 100%' : '0 0 auto',
             }}
           >
             {actions}

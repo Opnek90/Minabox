@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Card,
@@ -8,15 +8,16 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
   useTheme,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useTranslation } from 'react-i18next';
 import type { HeatmapItem, MinutesPerDayItem, TopPlaylistItem, TopTagItem } from '@/types/api';
 import { useStatsDashboard } from '@/hooks/useStatsDashboard';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { useLayout } from '@/hooks/useLayout';
 
 const WEEKDAY_KEYS = [
   'weekday_0',
@@ -40,74 +41,178 @@ function formatChartDate(dateStr: string, locale: string): string {
 
 // ── Timeline Heatmap helpers ────────────────────────────────────────────────
 
-function hourColor(minutes: number, maxMinutes: number): string {
+function hourColor(minutes: number, maxMinutes: number, baseColor: string): string {
   if (minutes <= 0) return 'transparent';
   const intensity = 0.25 + (minutes / Math.max(maxMinutes, 1)) * 0.75;
-  return `rgba(94, 53, 177, ${intensity})`;
+  return alpha(baseColor, intensity);
+}
+
+/** Short minute label; keeps one decimal while the scale is still tiny. */
+function formatMinutes(value: number, maxMinutes: number): string {
+  return maxMinutes < 4 ? value.toFixed(1) : String(Math.round(value));
+}
+
+interface SelectedCell {
+  weekday: number;
+  hour: number;
+  minutes: number;
 }
 
 interface TimelineRowProps {
   label: string;
   hours: { hour: number; minutes: number }[];
   maxMinutes: number;
+  baseColor: string;
+  /** Touch devices have no hover: tapping a row selects the hour under the finger. */
+  selectable?: boolean;
+  selectedHour?: number | null;
+  onSelectHour?: (hour: number, minutes: number) => void;
 }
 
-const TimelineRow: React.FC<TimelineRowProps> = ({ label, hours, maxMinutes }) => (
-  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-    <Typography
-      variant="caption"
-      sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontSize: '0.72rem' }}
-    >
-      {label}
-    </Typography>
-    <Box
-      sx={{
-        flex: 1,
-        height: 18,
-        borderRadius: '4px',
-        bgcolor: 'action.hover',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {hours.map((h) => (
-        <Tooltip
-          key={h.hour}
-          title={`${h.hour}:00\u2013${h.hour + 1}:00 \u2013 ${Math.round(h.minutes)}\u202fmin`}
-          placement="top"
-          arrow
-        >
+const TimelineRow: React.FC<TimelineRowProps> = ({
+  label,
+  hours,
+  maxMinutes,
+  baseColor,
+  selectable = false,
+  selectedHour = null,
+  onSelectHour,
+}) => {
+  const handleSelect = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!selectable || !onSelectHour) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientX - rect.left) / rect.width;
+    const hour = Math.min(23, Math.max(0, Math.floor(ratio * 24)));
+    onSelectHour(hour, hours[hour]?.minutes ?? 0);
+  };
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Typography
+        variant="caption"
+        sx={{ width: 28, flexShrink: 0, color: 'text.secondary', fontSize: '0.72rem' }}
+      >
+        {label}
+      </Typography>
+      <Box
+        onClick={handleSelect}
+        sx={{
+          flex: 1,
+          height: { xs: 26, sm: 18 },
+          borderRadius: '4px',
+          bgcolor: 'action.hover',
+          position: 'relative',
+          overflow: 'hidden',
+          cursor: selectable ? 'pointer' : 'default',
+        }}
+      >
+        {hours.map((h) => {
+          const cell = (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: `${(h.hour / 24) * 100}%`,
+                width: `${(1 / 24) * 100}%`,
+                bgcolor: hourColor(h.minutes, maxMinutes, baseColor),
+                borderRight: h.minutes > 0 ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                ...(selectedHour === h.hour
+                  ? {
+                      outline: '2px solid',
+                      outlineColor: 'text.primary',
+                      outlineOffset: '-2px',
+                      zIndex: 1,
+                    }
+                  : {}),
+              }}
+            />
+          );
+          // No hover on touch devices – the tap handler on the track reports the value instead.
+          return selectable ? (
+            <React.Fragment key={h.hour}>{cell}</React.Fragment>
+          ) : (
+            <Tooltip
+              key={h.hour}
+              title={`${h.hour}:00\u2013${h.hour + 1}:00 \u2013 ${Math.round(h.minutes)}\u202fmin`}
+              placement="top"
+              arrow
+            >
+              {cell}
+            </Tooltip>
+          );
+        })}
+        {[6, 12, 18].map((h) => (
           <Box
+            key={`tick-${h}`}
             sx={{
               position: 'absolute',
               top: 0,
               bottom: 0,
-              left: `${(h.hour / 24) * 100}%`,
-              width: `${(1 / 24) * 100}%`,
-              bgcolor: hourColor(h.minutes, maxMinutes),
-              borderRight: h.minutes > 0 ? '1px solid rgba(255,255,255,0.15)' : 'none',
+              left: `${(h / 24) * 100}%`,
+              width: '1px',
+              bgcolor: 'divider',
+              opacity: 0.5,
+              pointerEvents: 'none',
             }}
           />
-        </Tooltip>
-      ))}
-      {[6, 12, 18].map((h) => (
-        <Box
-          key={`tick-${h}`}
-          sx={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: `${(h / 24) * 100}%`,
-            width: '1px',
-            bgcolor: 'divider',
-            opacity: 0.5,
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
+        ))}
+      </Box>
     </Box>
-  </Box>
-);
+  );
+};
+
+const LEGEND_STEPS = [0.25, 0.5, 0.75, 1] as const;
+
+const HeatmapLegend: React.FC<{ maxMinutes: number; baseColor: string }> = ({
+  maxMinutes,
+  baseColor,
+}) => {
+  const { t } = useTranslation('admin');
+
+  const swatch = (color: string, outlined: boolean) => ({
+    width: 24,
+    height: 12,
+    borderRadius: '3px',
+    bgcolor: color,
+    border: outlined ? '1px solid' : 'none',
+    borderColor: 'divider',
+  });
+
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mt: 2 }}>
+      <Typography variant="caption" color="text.secondary">
+        {t('stats.heatmap_legend')}
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75 }}>
+        <Box sx={{ textAlign: 'center' }}>
+          <Box sx={swatch('transparent', true)} />
+          <Typography
+            variant="caption"
+            sx={{ display: 'block', fontSize: '0.65rem', color: 'text.secondary' }}
+          >
+            {t('stats.heatmap_legend_none')}
+          </Typography>
+        </Box>
+        {LEGEND_STEPS.map((step, i) => (
+          <Box key={step} sx={{ textAlign: 'center' }}>
+            <Box sx={swatch(hourColor(step * maxMinutes, maxMinutes, baseColor), false)} />
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', fontSize: '0.65rem', color: 'text.secondary' }}
+            >
+              {i === LEGEND_STEPS.length - 1
+                ? t('stats.minutes_short', {
+                    value: formatMinutes(step * maxMinutes, maxMinutes),
+                  })
+                : formatMinutes(step * maxMinutes, maxMinutes)}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+};
 
 // ── Main component ──────────────────────────────────────────────────────────
 
@@ -115,8 +220,9 @@ export const StatsDashboard: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const locale = i18n.language || 'de-DE';
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useLayout().isMobile;
   const [showDateAxis, setShowDateAxis] = useState(false);
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const {
     fromDate,
     toDate,
@@ -129,6 +235,11 @@ export const StatsDashboard: React.FC = () => {
     heatmapMax,
     load,
   } = useStatsDashboard();
+
+  // A new period means new numbers – drop the tapped cell instead of showing stale ones.
+  useEffect(() => setSelectedCell(null), [data]);
+
+  const heatmapColor = theme.palette.primary.main;
 
   return (
     <Box sx={{ py: 2 }}>
@@ -307,8 +418,9 @@ export const StatsDashboard: React.FC = () => {
                     {data.top_tags.map((tag: TopTagItem) => (
                       <li key={tag.tag_id}>
                         <Typography variant="body2">
-                          {tag.name || `Tag #${tag.tag_id}`} \u2014 {tag.scan_count}{' '}
-                          {t('stats.top_tags').toLowerCase()}
+                          {tag.name || `Tag #${tag.tag_id}`}
+                          {'\u2005\u2014\u2005'}
+                          {t('stats.scans', { count: tag.scan_count })}
                         </Typography>
                       </li>
                     ))}
@@ -334,8 +446,9 @@ export const StatsDashboard: React.FC = () => {
                     {data.top_playlists.map((pl: TopPlaylistItem) => (
                       <li key={pl.playlist_id}>
                         <Typography variant="body2">
-                          {pl.name || `Playlist #${pl.playlist_id}`} \u2014 {pl.play_count}{' '}
-                          plays
+                          {pl.name || `Playlist #${pl.playlist_id}`}
+                          {'\u2005\u2014\u2005'}
+                          {t('stats.plays', { count: pl.play_count })}
                         </Typography>
                       </li>
                     ))}
@@ -366,6 +479,12 @@ export const StatsDashboard: React.FC = () => {
                         label={t(`stats.${WEEKDAY_KEYS[wd]}`)}
                         hours={cells}
                         maxMinutes={heatmapMax}
+                        baseColor={heatmapColor}
+                        selectable={isMobile}
+                        selectedHour={selectedCell?.weekday === wd ? selectedCell.hour : null}
+                        onSelectHour={(hour, minutes) =>
+                          setSelectedCell({ weekday: wd, hour, minutes })
+                        }
                       />
                     );
                   })}
@@ -385,6 +504,31 @@ export const StatsDashboard: React.FC = () => {
                     </Box>
                   ))}
                 </Box>
+
+                {isMobile && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      mt: 1.5,
+                      minHeight: 20,
+                      color: selectedCell ? 'text.primary' : 'text.secondary',
+                    }}
+                  >
+                    {selectedCell
+                      ? t('stats.heatmap_selected', {
+                          day: t(`stats.${WEEKDAY_KEYS[selectedCell.weekday]}`),
+                          from: selectedCell.hour,
+                          to: selectedCell.hour + 1,
+                          minutes: Math.round(selectedCell.minutes),
+                        })
+                      : t('stats.heatmap_tap_hint')}
+                  </Typography>
+                )}
+
+                {data.heatmap.length > 0 && (
+                  <HeatmapLegend maxMinutes={heatmapMax} baseColor={heatmapColor} />
+                )}
               </CardContent>
             </Card>
           </Grid>

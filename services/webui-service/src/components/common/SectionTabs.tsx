@@ -9,12 +9,11 @@ import {
   Tab,
   Tabs,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
+import { useLayout } from '@/hooks/useLayout';
 
 interface SectionTabsProps {
   value: number;
@@ -47,8 +46,7 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
   labels,
   ariaLabel,
 }) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useLayout().isMobile;
   const [open, setOpen] = useState(false);
 
   if (!isMobile) {

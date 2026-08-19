@@ -15,8 +15,6 @@ import {
   ListItemText,
   TextField,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
 import CloseIcon from '@mui/icons-material/Close';
@@ -34,6 +32,7 @@ import { streamsApi } from '@/api/streams';
 import { podcastsApi } from '@/api/podcasts';
 import { SETTINGS_SECTIONS } from '@/config/settingsIndex';
 import type { Playlist, Podcast, Stream, Track } from '@/types/api';
+import { useLayout } from '@/hooks/useLayout';
 
 type CommandGroup =
   | 'navigation' | 'playback' | 'sleep_timer' | 'settings'
@@ -60,8 +59,7 @@ interface CommandPaletteProps {
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, onOpen }) => {
   const { t } = useTranslation('common');
   const { t: tAdmin } = useTranslation('admin');
-  const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const fullScreen = useLayout().isMobile;
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 

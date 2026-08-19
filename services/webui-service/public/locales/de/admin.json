@@ -332,11 +332,20 @@
   "stats": {
     "from": "Von",
     "heatmap": "Wann wird gehört? (Stunde × Wochentag)",
+    "heatmap_legend": "Farbintensität = Hördauer in dieser Stunde:",
+    "heatmap_legend_none": "keine",
+    "heatmap_selected": "{{day}}, {{from}}–{{to}} Uhr · {{minutes}} Min.",
+    "heatmap_tap_hint": "Auf einen Balken tippen, um die Hördauer zu sehen.",
     "hide_date_axis": "Datumsachse ausblenden",
     "load": "Laden",
     "minutes_per_day": "Hördauer pro Tag (Min.)",
+    "minutes_short": "{{value}} Min.",
     "no_data": "Keine Daten für den gewählten Zeitraum.",
     "period": "Zeitraum",
+    "plays_one": "{{count}} Wiedergabe",
+    "plays_other": "{{count}} Wiedergaben",
+    "scans_one": "{{count}} Scan",
+    "scans_other": "{{count}} Scans",
     "show_date_axis": "Datumsachse anzeigen",
     "title": "Hörstatistiken",
     "to": "Bis",
@@ -496,7 +505,98 @@
     "wifi_password": "Passwort",
     "wifi_scan": "Netzwerke suchen",
     "wifi_ssid": "Netzwerk (SSID)",
-    "board_leds_title": "Board-LEDs"
+    "board_leds_title": "Board-LEDs",
+    "debug_export": {
+      "title": "Diagnose-Paket erstellen",
+      "intro": "Damit sammelt die Box Informationen zur Fehlersuche in einer Datei. Du lädst sie herunter und kannst sie dem Entwickler schicken.",
+      "preset_label": "Voreinstellung",
+      "preset_minimal": "Nur das Nötigste",
+      "preset_recommended": "Empfohlen",
+      "preset_full": "Alles",
+      "selection_label": "Was soll mitgeschickt werden?",
+      "always_on": "immer enthalten",
+      "contains": "Enthält",
+      "helps": "Hilft bei",
+      "not_included": "Nicht enthalten",
+      "good_to_know": "Gut zu wissen",
+      "locked_hint": "Nur nach Anmeldung als Administrator wählbar.",
+      "media_level": "Umfang",
+      "media_counts": "Nur Anzahl",
+      "media_filenames": "Mit Dateinamen",
+      "create": "Paket erstellen",
+      "creating": "Paket wird erstellt…",
+      "created": "Paket wurde heruntergeladen.",
+      "error": "Das Paket konnte nicht erstellt werden.",
+      "error_rate_limited": "Es wurde gerade eben schon ein Paket erstellt. Bitte kurz warten.",
+      "error_remote": "Das Paket ist nur aus dem heimischen Netzwerk abrufbar.",
+      "duration_hint": "Das dauert je nach Box einige Sekunden.",
+      "privacy_title": "Was mit diesen Daten passiert",
+      "privacy_storage": "Das Paket wird nur auf deinem Gerät erstellt und heruntergeladen. Es wird nirgendwo automatisch hochgeladen und niemand bekommt es zu sehen, solange du es nicht selbst verschickst.",
+      "privacy_removed": "Automatisch entfernt werden: Passwörter, Passwort-Merkmale, WLAN-Kennwörter und Zugangsschlüssel. Der WLAN-Name, Geräte-Seriennummern und Kartennummern werden durch unlesbare Zeichenfolgen ersetzt.",
+      "privacy_never": "Nie enthalten sind: deine Musik- und Audiodateien, Cover-Bilder und dein Passwort für diese Oberfläche.",
+      "privacy_maybe": "Enthalten sein können – je nach Auswahl oben: Namen von Musikdateien und Ordnern, Zeiten wann was gespielt wurde, technische Angaben zu deinem Gerät und Netzwerk.",
+      "privacy_check": "Du kannst das Paket vor dem Verschicken öffnen und ansehen: es ist eine normale ZIP-Datei, alle Inhalte sind Text. Eine README.txt darin erklärt jede Datei.",
+      "blocks": {
+        "system": {
+          "label": "Technischer Zustand der Box",
+          "contains": "Temperatur, freier Speicherplatz, Arbeitsspeicher, Stromversorgung, wie lange die Box läuft, welche Programmteile laufen oder abgestürzt sind, Versionsnummern sowie Modell und Betriebssystem.",
+          "helps": "Abstürzen, Neustarts, „die Box wird heiß“, „nichts geht mehr“.",
+          "not_included": "Nichts Persönliches – das sind reine Gerätewerte."
+        },
+        "logs": {
+          "label": "Fehlerprotokolle der letzten Stunden",
+          "contains": "Das Ablaufprotokoll der Box – was sie zuletzt getan hat und wo etwas schiefging. Darin können Namen von Musikdateien und Ordnern auftauchen.",
+          "helps": "Fast allem. Das ist der Teil, aus dem sich die meisten Fehler lesen lassen.",
+          "not_included": "Passwörter, Schlüssel und WLAN-Kennwörter werden vorher automatisch unkenntlich gemacht."
+        },
+        "settings": {
+          "label": "Deine Einstellungen",
+          "contains": "Wie die Box eingerichtet ist – Lautstärkegrenzen, Schlummerzeiten, Tastenbelegung, LED- und Display-Einstellungen, installierte Zusatzprogramme.",
+          "helps": "„der Knopf macht etwas Falsches“, „die Box schaltet sich zur falschen Zeit ab“.",
+          "not_included": "Dein Passwort für die Weboberfläche (auch nicht verschlüsselt)."
+        },
+        "network": {
+          "label": "Netzwerk-Zustand",
+          "contains": "Ob die Box im WLAN ist, wie stabil die Verbindung ist, ob die Uhrzeit stimmt.",
+          "helps": "Streams brechen ab, Downloads schlagen fehl, Weboberfläche nicht erreichbar.",
+          "not_included": "Dein WLAN-Passwort. Der WLAN-Name wird durch eine Buchstabenfolge ersetzt – wir sehen, dass es dasselbe Netz ist, aber nicht, wie es heißt."
+        },
+        "media": {
+          "label": "Übersicht deiner Medien",
+          "contains": "Wie viele Titel, Playlists, Streams und Podcasts es gibt, welche Dateiformate vorkommen, und ob zu Einträgen die Datei fehlt. Mit „Mit Dateinamen“ zusätzlich die Namen der Dateien und Ordner.",
+          "helps": "„ein Titel spielt nicht“, „die Playlist ist leer“, „nach dem Update fehlt Musik“.",
+          "not_included": "Die Musikdateien selbst und die Cover-Bilder. Es geht nie Audio mit."
+        },
+        "history": {
+          "label": "Abspielverlauf und Karten-Nutzung",
+          "contains": "Wann welche Karte aufgelegt und was wie lange gespielt wurde.",
+          "helps": "„die Karte wird manchmal nicht erkannt“, „die Box stoppt mitten im Hörspiel“.",
+          "good_to_know": "Daraus lässt sich ablesen, wann und wie lange dein Kind gehört hat. Kartennummern werden in eine unlesbare Zeichenfolge umgerechnet, der zeitliche Verlauf bleibt aber sichtbar. Deshalb standardmäßig aus – bitte nur zuschalten, wenn der Fehler mit Karten oder Wiedergabe zu tun hat."
+        },
+        "client": {
+          "label": "Infos zu deinem Browser",
+          "contains": "Welcher Browser und welche Bildschirmgröße, sowie Fehlermeldungen, die die Bedienoberfläche während deiner Nutzung angezeigt oder still verschluckt hat.",
+          "helps": "„der Knopf reagiert nicht“, „die Seite bleibt leer“, „auf dem Handy anders als am PC“.",
+          "not_included": "Besuchte Webseiten, Verlauf, Lesezeichen oder Daten anderer Seiten. Nur diese Anwendung."
+        },
+        "database": {
+          "label": "Komplette Datenbank",
+          "contains": "Die vollständige Datenbank der Box – alle Titel mit Pfaden, alle Karten, der komplette Abspielverlauf.",
+          "helps": "Schwer eingrenzbaren Fehlern, wenn die Übersicht oben nicht gereicht hat.",
+          "good_to_know": "Das ist der umfassendste und persönlichste Teil. Schick ihn bitte nur mit, wenn der Entwickler ausdrücklich darum gebeten hat.",
+          "confirm": "Ja, ich möchte die komplette Datenbank mitschicken."
+        }
+      },
+      "preview": "Inhalt vorher ansehen",
+      "preview_title": "Das steckt im Paket",
+      "preview_hint": "Diese Dateien werden verschickt. Wenn dir etwas davon nicht gefällt, brich hier ab.",
+      "preview_size": "Gesamtgröße: {{size}}",
+      "preview_failed_parts": "Nicht sammelbar: {{names}}",
+      "preview_download": "Jetzt herunterladen",
+      "preview_back": "Zurück zur Auswahl",
+      "preview_expired": "Die Vorschau ist abgelaufen. Bitte das Paket neu erstellen."
+    },
+    "debug_export_short": "Diagnose-Paket"
   },
   "title": "Einstellungen"
 }

@@ -27,11 +27,19 @@ _PROTECTED_PREFIXES: dict[str, str] = {
 }
 
 # Paths that are always publicly accessible (auth endpoints themselves).
+#
+# The debug export is deliberately in this list: it is the one thing a user
+# still needs when the password itself is the problem. It is not unguarded —
+# it enforces a private-network check, a rate limit and, without a valid
+# session, the standard tier (no filenames, no history, no database copy).
+# See docs/DebugExport.md section 4.5.
 _PUBLIC_PATHS: frozenset[str] = frozenset({
     "/api/v1/auth/config",
     "/api/v1/auth/login",
     "/api/v1/auth/logout",
     "/api/v1/auth/password",
+    "/api/v1/system/debug-export",
+    "/api/v1/system/debug-export/options",
 })
 
 

@@ -22,8 +22,6 @@ import {
   Popover,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -54,6 +52,7 @@ import type {
   QueueItem,
   RepeatMode,
 } from '@/types/api';
+import { useLayout } from '@/hooks/useLayout';
 
 
 const SLEEP_PRESETS = [15, 30, 45, 60];
@@ -108,8 +107,7 @@ const BUTTON_ACTION_LABELS: Record<string, string> = {
 export const PlayerPage: React.FC = () => {
   const { t } = useTranslation('player');
   const { showError } = useToast();
-  const theme = useTheme();
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+  const isSmall = useLayout().isMobile;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const audioStatus = useAudioStatus();

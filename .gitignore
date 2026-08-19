@@ -241,6 +241,11 @@ services/audio-service/state/
 # =================================
 # Agenten-Tooling (lokaler Zustand)
 # =================================
-.claude/
+# Claude-Code-Arbeitsdaten bleiben lokal - die Skills sind aber Teil des
+# Support-Werkzeugs und sollen mit dem Repo mitwandern. Deshalb .claude/* statt
+# .claude/: eine Ausnahme innerhalb eines ignorierten *Verzeichnisses* greift
+# nicht, das Verzeichnis selbst muss sichtbar bleiben.
+.claude/*
+!.claude/skills/
 .agents/
 skills-lock.json

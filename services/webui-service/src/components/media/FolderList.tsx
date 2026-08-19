@@ -30,7 +30,7 @@ export const FolderList: React.FC<FolderListProps> = ({
         const trackCount = allTracks.filter((t) => t.folder_id === folder.id).length;
         const subfolderCount = folders.filter((f) => f.parent_id === folder.id).length;
         return (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={folder.id}>
+          <Grid item xs={12} sm={6} lg={3} key={folder.id}>
             <FolderCard
               folder={folder}
               trackCount={trackCount}

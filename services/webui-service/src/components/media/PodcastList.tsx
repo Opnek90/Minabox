@@ -22,8 +22,6 @@ import {
   ToggleButtonGroup,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -40,6 +38,7 @@ import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
 import { PodcastEditDialog } from '@/components/media/PodcastEditDialog';
 import type { Podcast } from '@/types/api';
+import { useLayout } from '@/hooks/useLayout';
 
 type SortKey = 'title' | 'last_fetched_at' | 'last_played_at';
 
@@ -73,8 +72,11 @@ export const PodcastList: React.FC<PodcastListProps> = ({
   onViewModeChange,
 }) => {
   const { t } = useTranslation('media');
-  const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  // Ab Tablet-Breite ist Platz fuer Sortierung, Filter und Zeilenaktionen
+  // direkt in der Leiste; nur auf dem Handy wandern sie ins Popover bzw. in
+  // ein Ueberlaufmenue. Vorher lag diese Grenze bei 900px, wodurch ein
+  // 834px-Tablet die volle Handy-Bedienung bekam, obwohl die Breite reicht.
+  const hasInlineControls = useLayout().hasRoomForInlineControls;
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -204,9 +206,9 @@ export const PodcastList: React.FC<PodcastListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        {isDesktop && sortControls}
+        {hasInlineControls && sortControls}
 
-        {!isDesktop && (
+        {!hasInlineControls && (
           <Tooltip title={t('podcasts.sort.open')}>
             <IconButton
               ref={filterBtnRef}
@@ -250,7 +252,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
 
       {/* Mobile Sort Popover */}
       <Popover
-        open={popoverOpen && !isDesktop}
+        open={popoverOpen && !hasInlineControls}
         anchorEl={filterBtnRef.current}
         onClose={() => setPopoverOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
@@ -292,7 +294,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
       {viewMode === 'card' ? (
         <Grid container spacing={2}>
           {sorted.map((podcast) => (
-            <Grid item xs={12} sm={6} md={4} key={podcast.id}>
+            <Grid item xs={12} sm={6} lg={4} key={podcast.id}>
               <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {podcast.cover_art_url && (
                   <CardMedia component="img" height="120" image={podcast.cover_art_url} alt={podcast.title} sx={{ objectFit: 'cover' }} />
@@ -308,7 +310,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                   )}
                 </CardContent>
                 <CardActions sx={{ pt: 0 }}>
-                  {isDesktop ? desktopActions(podcast) : mobileMenuButton(podcast)}
+                  {hasInlineControls ? desktopActions(podcast) : mobileMenuButton(podcast)}
                 </CardActions>
               </Card>
             </Grid>
@@ -322,10 +324,10 @@ export const PodcastList: React.FC<PodcastListProps> = ({
               <ListItem
                 secondaryAction={
                   <Box display="flex" alignItems="center">
-                    {isDesktop ? desktopActions(podcast) : mobileMenuButton(podcast)}
+                    {hasInlineControls ? desktopActions(podcast) : mobileMenuButton(podcast)}
                   </Box>
                 }
-                sx={{ pr: isDesktop ? LIST_ITEM_PR_DESKTOP : LIST_ITEM_PR_MOBILE }}
+                sx={{ pr: hasInlineControls ? LIST_ITEM_PR_DESKTOP : LIST_ITEM_PR_MOBILE }}
               >
                 {podcast.cover_art_url ? (
                   <Box component="img" src={podcast.cover_art_url} alt=""

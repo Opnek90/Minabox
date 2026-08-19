@@ -1,7 +1,8 @@
 import React from 'react';
-import { Dialog, useMediaQuery, useTheme } from '@mui/material';
+import { Dialog, useTheme } from '@mui/material';
 import type { DialogProps } from '@mui/material';
 import { SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
+import { useLayout } from '@/hooks/useLayout';
 
 /**
  * Dialog, der auf Telefonen als Vollbild-Sheet auftritt.
@@ -21,7 +22,7 @@ import { SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
  */
 export const ResponsiveDialog: React.FC<DialogProps> = ({ sx, ...props }) => {
   const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const fullScreen = useLayout().isMobile;
 
   return (
     <Dialog

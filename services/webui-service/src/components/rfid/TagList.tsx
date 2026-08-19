@@ -169,7 +169,7 @@ export const TagList: React.FC<TagListProps> = ({
   return (
     <Grid container spacing={2}>
       {tags.map((tag) => (
-        <Grid item xs={12} sm={6} md={4} key={tag.id}>
+        <Grid item xs={12} sm={6} lg={4} key={tag.id}>
           <TagCard tag={tag} contentName={getContentName(tag)}
             onEdit={onEdit} onDelete={onDelete} onToggleDisabled={onToggleDisabled} />
         </Grid>

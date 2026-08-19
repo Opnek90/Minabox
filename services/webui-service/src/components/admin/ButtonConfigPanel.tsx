@@ -27,8 +27,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -42,13 +40,13 @@ import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { ButtonConfig, Button as ButtonType, ButtonRawEventMessage } from '@/types/api';
+import { useLayout } from '@/hooks/useLayout';
 
 
 export const ButtonConfigPanel: React.FC = () => {
   const { t } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
-  const theme = useTheme();
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+  const isSmall = useLayout().isMobile;
 
   const [config, setConfig] = useState<ButtonConfig | null>(null);
   const [buttonActions, setButtonActions] = useState<string[]>([]);

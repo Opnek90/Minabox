@@ -26,6 +26,7 @@ run_suite() {
   docker run --rm \
     -v "$REPO_ROOT/$src:/w/src:ro" \
     -v "$REPO_ROOT/$tests:/w/tests:ro" \
+    -v "$REPO_ROOT/.claude/skills/minabox-debug-analyze/references:/w/references:ro" \
     -w /w \
     -e PYTHONPATH=/w/src \
     -e PYTHONDONTWRITEBYTECODE=1 \

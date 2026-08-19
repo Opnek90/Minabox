@@ -5,8 +5,6 @@ import {
   Fab,
   Paper,
   Typography,
-  useMediaQuery,
-  useTheme,
   Zoom,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -20,6 +18,7 @@ import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
+import { useLayout } from '@/hooks/useLayout';
 import { MINI_PLAYER_HEIGHT } from '@/components/common/MiniPlayer';
 import { MOBILE_BOTTOM_NAV_HEIGHT, SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
 
@@ -53,8 +52,9 @@ export const MediaFab: React.FC<MediaFabProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const [open, setOpen] = useState(false);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  // Nur auf Handy-Breiten liegt eine BottomNav unter dem FAB; ab Tablet
+  // sitzt die Navigation seitlich als Rail.
+  const { isMobile } = useLayout();
 
   const audioStatus = useAudioStatus();
   const isMiniPlayerVisible =

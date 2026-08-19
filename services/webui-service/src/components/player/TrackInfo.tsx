@@ -1,7 +1,8 @@
 import React from 'react';
-import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import { useTranslation } from 'react-i18next';
+import { useLayout } from '@/hooks/useLayout';
 
 interface TrackInfoProps {
   title: string | null | undefined;
@@ -25,8 +26,7 @@ export const TrackInfo: React.FC<TrackInfoProps> = ({
   stopped = false,
 }) => {
   const { t } = useTranslation('player');
-  const theme = useTheme();
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+  const isSmall = useLayout().isMobile;
 
   const artSize = isSmall ? 120 : 180;
   const iconSize = isSmall ? 48 : 80;

@@ -18,8 +18,6 @@ import {
   ToggleButtonGroup,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -43,6 +41,7 @@ import { streamsApi } from '@/api/streams';
 import { tracksApi } from '@/api/tracks';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { Tag, Playlist, Podcast, Stream, Track, ContentType, RFIDScannedMessage } from '@/types/api';
+import { useLayout } from '@/hooks/useLayout';
 
 type TagFilter = 'all' | 'active' | 'blocked' | 'unassigned';
 type SortKey = 'name' | 'last_scanned_at';
@@ -60,8 +59,11 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
   const { t } = useTranslation('rfid');
   const { showSuccess, showError } = useToast();
   const { prefs, setViewMode, setSort, setFilter } = useUserPrefs();
-  const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  // Ab Tablet-Breite ist Platz fuer Sortierung, Filter und Zeilenaktionen
+  // direkt in der Leiste; nur auf dem Handy wandern sie ins Popover bzw. in
+  // ein Ueberlaufmenue. Vorher lag diese Grenze bei 900px, wodurch ein
+  // 834px-Tablet die volle Handy-Bedienung bekam, obwohl die Breite reicht.
+  const hasInlineControls = useLayout().hasRoomForInlineControls;
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -355,7 +357,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
         />
 
         {/* Desktop: Filter & Sort direkt inline */}
-        {isDesktop && (
+        {hasInlineControls && (
           <>
             {filterControls}
             {sortControls}
@@ -363,7 +365,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
         )}
 
         {/* Mobile: kompakter Icon-Button mit Badge */}
-        {!isDesktop && (
+        {!hasInlineControls && (
           <Tooltip title={t('filter.open')}>
             <IconButton
               ref={filterBtnRef}
@@ -450,7 +452,7 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
 
       {/* ── Mobile Popover ───────────────────────────────────────────────── */}
       <Popover
-        open={popoverOpen && !isDesktop}
+        open={popoverOpen && !hasInlineControls}
         anchorEl={filterBtnRef.current}
         onClose={() => setPopoverOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}

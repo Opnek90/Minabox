@@ -30,8 +30,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -44,13 +42,13 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
 import type { LEDConfig, LED, LEDPattern } from '@/types/api';
+import { useLayout } from '@/hooks/useLayout';
 
 
 export const LEDConfigPanel: React.FC = () => {
   const { t } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
-  const theme = useTheme();
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+  const isSmall = useLayout().isMobile;
 
   const [config, setConfig] = useState<LEDConfig | null>(null);
   const [ledStates, setLedStates] = useState<string[]>([]);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, CircularProgress, IconButton, Tooltip, useMediaQuery, useTheme } from '@mui/material';
+import { Box, CircularProgress, IconButton, Tooltip } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import StopIcon from '@mui/icons-material/Stop';
@@ -7,6 +7,7 @@ import SkipNextIcon from '@mui/icons-material/SkipNext';
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import { useTranslation } from 'react-i18next';
 import type { AudioState } from '@/types/api';
+import { useLayout } from '@/hooks/useLayout';
 
 interface PlaybackControlsProps {
   state: AudioState;
@@ -28,8 +29,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   loading = false,
 }) => {
   const { t } = useTranslation('player');
-  const theme = useTheme();
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+  const isSmall = useLayout().isMobile;
   const isPlaying = state === 'playing';
   const isStopped = state === 'stopped';
 

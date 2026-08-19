@@ -45,6 +45,45 @@ export interface TemperatureHistoryResponse {
   readings: Array<{ t: string; celsius: number }>;
 }
 
+export type DebugExportMediaLevel = 'off' | 'counts' | 'filenames';
+
+export interface DebugExportOptions {
+  preset?: 'minimal' | 'recommended' | 'full';
+  system?: boolean;
+  logs?: boolean;
+  settings?: boolean;
+  network?: boolean;
+  media?: DebugExportMediaLevel;
+  history?: boolean;
+  client?: boolean;
+  include_db?: boolean;
+}
+
+export interface DebugExportPreviewFile {
+  path: string;
+  bytes: number;
+  /** One plain-language sentence about what this file is. */
+  description: string;
+}
+
+export interface DebugExportPreview {
+  export_id: string;
+  filename: string;
+  total_bytes: number;
+  schema_version: number;
+  files: DebugExportPreviewFile[];
+  collectors_failed: { name: string; error?: string }[];
+  expires_in_seconds: number;
+}
+
+export interface DebugExportCapabilities {
+  schema_version: number;
+  /** True when the caller may pick the tiers that need an admin session. */
+  elevated: boolean;
+  presets: string[];
+  blocks: { key: string; always_on: boolean; requires_session?: boolean; levels?: string[] }[];
+}
+
 export const systemApi = {
   getStatus: async (): Promise<SystemStatus> => {
     const response = await apiClient.get<SystemStatus>('/system/status');
@@ -123,6 +162,53 @@ export const systemApi = {
     const response = await apiClient.get<SyslogResponse>('/system/syslog', {
       params: { n, source },
     });
+    return response.data;
+  },
+
+  /**
+   * Build the debug export. Runs without a login, but the backend forces the
+   * standard tier unless an admin session is present.
+   */
+  createDebugExport: async (
+    options: DebugExportOptions,
+    client?: unknown
+  ): Promise<Blob> => {
+    const response = await apiClient.post<Blob>(
+      '/system/debug-export',
+      { options, client },
+      { responseType: 'blob', timeout: 180000 }
+    );
+    return response.data;
+  },
+
+  /**
+   * Build the archive and describe its contents without downloading it yet.
+   * The backend keeps the built archive, so the download does not rebuild it.
+   */
+  previewDebugExport: async (
+    options: DebugExportOptions,
+    client?: unknown
+  ): Promise<DebugExportPreview> => {
+    const response = await apiClient.post<DebugExportPreview>(
+      '/system/debug-export/preview',
+      { options, client },
+      { timeout: 180000 }
+    );
+    return response.data;
+  },
+
+  /** Fetch the archive the preview already built. */
+  downloadDebugExport: async (exportId: string): Promise<Blob> => {
+    const response = await apiClient.get<Blob>(
+      `/system/debug-export/download/${encodeURIComponent(exportId)}`,
+      { responseType: 'blob', timeout: 180000 }
+    );
+    return response.data;
+  },
+
+  /** Which parts of the export this caller is allowed to select. */
+  getDebugExportCapabilities: async (): Promise<DebugExportCapabilities> => {
+    const response = await apiClient.get<DebugExportCapabilities>('/system/debug-export/options');
     return response.data;
   },
 

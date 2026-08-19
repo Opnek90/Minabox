@@ -10,6 +10,8 @@ import httpx
 import structlog
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from shared_lib.logging import setup_structlog
+
+from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 from shared_lib.mqtt import get_mqtt_topic
 
 from backend_service.config import get_config
@@ -254,9 +256,12 @@ async def update_general_config(body: dict) -> dict:
 
     # Live-update log level in this process and broadcast to other services
     if "log_level" in data:
+        # Ohne extra_processors wuerde der Ringpuffer des Diagnose-Pakets beim
+        # Umschalten des Log-Levels stillschweigend abgehaengt.
         setup_structlog(
             data["log_level"],
             silence_loggers=["alembic.runtime.migration", "sqlalchemy.engine"],
+            extra_processors=[structlog_ring_processor],
         )
     if _mqtt_client is not None:
         config = get_config()

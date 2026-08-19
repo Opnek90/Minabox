@@ -139,9 +139,11 @@ export const MiniPlayer: React.FC = () => {
         // bottom edge on desktop, where there is no bottom nav. Auf Mobil
         // kommt die Geraete-Schutzzone dazu, die die BottomNav als Padding
         // traegt – ohne sie wuerde der MiniPlayer sie ueberlappen.
+        // sm statt md: Ab der Tablet-Stufe uebernimmt die Icon-Rail, die
+        // BottomNav existiert nur noch auf Handy-Breiten.
         bottom: {
           xs: `calc(${MOBILE_BOTTOM_NAV_HEIGHT}px + ${SAFE_AREA_BOTTOM})`,
-          md: 0,
+          sm: 0,
         },
         left: 0,
         right: 0,

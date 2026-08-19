@@ -26,8 +26,6 @@ import {
   ToggleButtonGroup,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -50,6 +48,7 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
 import { PlaylistTracksDialog } from './PlaylistTracksDialog';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
+import { useLayout } from '@/hooks/useLayout';
 
 type SortKey = 'name' | 'track_count';
 const DEFAULT_SORT_KEY: SortKey = 'name';
@@ -97,8 +96,11 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
-  const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  // Ab Tablet-Breite ist Platz fuer Sortierung, Filter und Zeilenaktionen
+  // direkt in der Leiste; nur auf dem Handy wandern sie ins Popover bzw. in
+  // ein Ueberlaufmenue. Vorher lag diese Grenze bei 900px, wodurch ein
+  // 834px-Tablet die volle Handy-Bedienung bekam, obwohl die Breite reicht.
+  const hasInlineControls = useLayout().hasRoomForInlineControls;
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -280,9 +282,9 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        {isDesktop && sortControls}
+        {hasInlineControls && sortControls}
 
-        {!isDesktop && (
+        {!hasInlineControls && (
           <Tooltip title={t('playlists.sort.open', { defaultValue: 'Sortierung' })}>
             <IconButton
               ref={filterBtnRef}
@@ -326,7 +328,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 
       {/* Mobile Popover */}
       <Popover
-        open={popoverOpen && !isDesktop}
+        open={popoverOpen && !hasInlineControls}
         anchorEl={filterBtnRef.current}
         onClose={() => setPopoverOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
@@ -426,7 +428,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
       ) : (
         <Grid container spacing={2}>
           {sorted.map((pl) => (
-            <Grid item xs={12} sm={6} md={4} key={pl.id}>
+            <Grid item xs={12} sm={6} lg={4} key={pl.id}>
               <Card variant="outlined" sx={{ borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {pl.cover_art_url && (
                   <CardMedia component="img" height="120" image={pl.cover_art_url} alt={pl.name} sx={{ objectFit: 'cover' }} />

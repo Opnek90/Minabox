@@ -2162,3 +2162,49 @@ async def container_logs(
     except Exception as e:
         logger.exception("container_logs_failed")
         raise HTTPException(status_code=503, detail="Docker not available") from e
+
+
+# ── Diagnostics (read-only, fuer den Debug-Export) ───────────────────
+
+# Fixed command list. This is the single route the debug export adds to a
+# service that runs as root with the host mounted, so it takes no parameters at
+# all: nothing from the caller can influence what runs here.
+# See docs/DebugExport.md section 4.3.
+_DIAGNOSTIC_COMMANDS: tuple[tuple[str, list[str], int], ...] = (
+    ("failed_units", ["systemctl", "--failed", "--no-legend"], 15),
+    (
+        "journal_errors",
+        ["journalctl", "-p", "3", "-n", "200", "--no-pager", "-o", "short-iso"],
+        20,
+    ),
+    ("timedatectl", ["timedatectl", "show"], 10),
+)
+
+_DIAGNOSTIC_OUTPUT_LIMIT = 64 * 1024
+
+
+def _run_diagnostic(args: list[str], timeout: int) -> dict:
+    """Run one fixed command on the host. Never raises - failures are data."""
+    try:
+        result = _run_on_host_via_nsenter(args, timeout=timeout)
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"[:300], "output": ""}
+    output = ((result.stdout or "") + (result.stderr or ""))[:_DIAGNOSTIC_OUTPUT_LIMIT]
+    return {
+        "ok": result.returncode == 0,
+        "exit_code": result.returncode,
+        "output": output,
+    }
+
+
+@router.get("/diagnostics/host")
+def diagnostics_host(_: None = Depends(_check_api_key)) -> dict:
+    """Read-only host diagnostics: failed units, journal errors, clock status."""
+    results = {
+        name: _run_diagnostic(args, timeout)
+        for name, args, timeout in _DIAGNOSTIC_COMMANDS
+    }
+    return {
+        "collected_at": datetime.now(UTC).isoformat(),
+        "commands": results,
+    }

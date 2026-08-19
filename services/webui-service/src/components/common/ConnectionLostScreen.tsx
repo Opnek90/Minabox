@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Fade, Typography } from '@mui/material';
+import { Box, Button, Fade, Typography } from '@mui/material';
 import SensorsOffIcon from '@mui/icons-material/SensorsOff';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { DebugExportDialog } from '@/components/admin/DebugExportDialog';
 
 /**
  * Shown as a full-page overlay after the WebSocket has been disconnected
@@ -15,6 +17,7 @@ const GRACE_PERIOD_MS = 3000;
 export const ConnectionLostScreen: React.FC = () => {
   const { isConnected } = useWebSocket();
   const [showOverlay, setShowOverlay] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     if (isConnected) {
@@ -49,6 +52,18 @@ export const ConnectionLostScreen: React.FC = () => {
           <Typography variant="body2" sx={{ opacity: 0.7 }}>
             Verbindung zur Box unterbrochen. Verbinde automatisch wieder …
           </Typography>
+          {/* Der WebSocket kann tot sein, waehrend HTTP noch antwortet - dann
+              kommt der Nutzer hier trotzdem an sein Diagnose-Paket. */}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<BugReportIcon />}
+            sx={{ mt: 3 }}
+            onClick={() => setExportOpen(true)}
+          >
+            Diagnose-Paket erstellen
+          </Button>
+          <DebugExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
         </Box>
       </Box>
     </Fade>

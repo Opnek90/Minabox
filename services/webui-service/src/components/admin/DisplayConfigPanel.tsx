@@ -19,8 +19,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -38,6 +36,7 @@ import type {
 } from '@/types/api';
 import { DISPLAY_CONDITIONAL_TYPES, DISPLAY_AREA_LIMITS } from '@/types/api';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { useLayout } from '@/hooks/useLayout';
 
 function mergeElements(
   existing: DisplayElement[],
@@ -85,9 +84,7 @@ export const DisplayConfigPanel: React.FC = () => {
   const [elementTypes, setElementTypes] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useLayout().isMobile;
 
   useEffect(() => {
     configApi

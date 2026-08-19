@@ -9,8 +9,6 @@ import {
   Grid,
   Skeleton,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from '@mui/material';
 import AlbumIcon from '@mui/icons-material/Album';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -23,6 +21,7 @@ import NfcIcon from '@mui/icons-material/Nfc';
 import { useTranslation } from 'react-i18next';
 import { useDashboardOverview } from '@/hooks/useDashboardOverview';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { useLayout } from '@/hooks/useLayout';
 
 interface StatTileProps {
   icon: React.ReactNode;
@@ -60,8 +59,7 @@ const StatTile: React.FC<StatTileProps> = ({ icon, label, value }) => (
 
 export const DashboardOverview: React.FC = () => {
   const { t } = useTranslation('common');
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useLayout().isMobile;
   const {
     data,
     loading,

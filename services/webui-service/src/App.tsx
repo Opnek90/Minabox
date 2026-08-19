@@ -1,12 +1,13 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Alert, Box, Button, Snackbar, Toolbar, useMediaQuery, useTheme } from '@mui/material';
+import { Alert, Box, Button, Snackbar, Toolbar } from '@mui/material';
 import { Header } from '@/components/common/Header';
 import { SystemAlertBar } from '@/components/common/SystemAlertBar';
 import {
   Navigation,
   MobileBottomNav,
   DRAWER_WIDTH,
+  RAIL_WIDTH,
   MOBILE_BOTTOM_NAV_HEIGHT,
   SAFE_AREA_BOTTOM,
 } from '@/components/common/Navigation';
@@ -20,6 +21,7 @@ import { ToastProvider } from '@/contexts/ToastContext';
 import { UserPrefsProvider } from '@/contexts/UserPrefsContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { useTranslation } from 'react-i18next';
+import { useLayout } from '@/hooks/useLayout';
 
 const PlayerPage = React.lazy(() =>
   import('@/pages/PlayerPage').then((m) => ({ default: m.PlayerPage }))
@@ -95,8 +97,10 @@ const RfidNotifications: React.FC = () => {
 
 // ── Main layout ───────────────────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  // Drei Stufen: Handy bekommt die BottomNav, Tablet die Icon-Rail, Desktop
+  // den vollen Drawer. Frueher kippte hier `down('md')` direkt von BottomNav
+  // auf 220px-Drawer – dazwischen lag kein Zustand fuer Tablet-Breiten.
+  const { isMobile, isTablet } = useLayout();
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
 
   const location = useLocation();
@@ -126,7 +130,7 @@ const MainLayout: React.FC = () => {
       <Box sx={{ display: 'flex', flexGrow: 1 }}>
         <Header />
 
-        {!isMobile && <Navigation />}
+        {!isMobile && <Navigation variant={isTablet ? 'rail' : 'full'} />}
 
         <Box
           component="main"
@@ -139,7 +143,7 @@ const MainLayout: React.FC = () => {
             '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
             overflowX: 'hidden',
             bgcolor: 'background.default',
-            ml: isMobile ? 0 : `${DRAWER_WIDTH}px`,
+            ml: isMobile ? 0 : `${isTablet ? RAIL_WIDTH : DRAWER_WIDTH}px`,
             pb: bottomBarsOffset,
           }}
         >
