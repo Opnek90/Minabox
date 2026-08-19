@@ -53,6 +53,18 @@ const ThemedApp: React.FC = () => {
           fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
           h5: { fontWeight: 700 },
           h6: { fontWeight: 600 },
+          // Nebentexte (Interpret, "zuletzt gespielt", Hinweiszeilen) laufen
+          // durchgehend ueber `caption`. MUIs Standard sind 12px im Schnitt
+          // 400 - auf einem grossen Monitor ohne Skalierung sind die Striche
+          // dafuer zu fein. 13px im Schnitt 500 (Roboto 500 ist ohnehin
+          // geladen) macht sie deutlich ruhiger lesbar. lineHeight faellt von
+          // 1.66 auf 1.5, damit die Zeilenhoehe trotz groesserer Glyphen
+          // praktisch gleich bleibt und keine Liste umbricht.
+          caption: {
+            fontSize: '0.8125rem',
+            fontWeight: 500,
+            lineHeight: 1.5,
+          },
         },
         shape: { borderRadius: 8 },
         components: {

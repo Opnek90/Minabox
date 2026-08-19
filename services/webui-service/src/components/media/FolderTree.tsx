@@ -354,8 +354,8 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
       {rootFolders.length === 0 && (
         <Typography
           variant="caption"
-          color="text.disabled"
-          sx={{ px: 1.5, py: 1.5, display: 'block', fontStyle: 'italic', fontSize: '0.75rem' }}
+          color="text.secondary"
+          sx={{ px: 1.5, py: 1.5, display: 'block' }}
         >
           {t('folders.empty_hint')}
         </Typography>

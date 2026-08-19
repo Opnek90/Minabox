@@ -12,7 +12,9 @@ interface LastPlayedCaptionProps {
   separator?: boolean;
   /**
    * Text fuer "noch nie gespielt". Ohne diesen Wert bleibt die Zeile leer –
-   * so kann etwa "zuletzt abgerufen" weiterhin ganz entfallen.
+   * so kann etwa "zuletzt abgerufen" weiterhin ganz entfallen. Bewusst nicht
+   * kursiv ausgezeichnet: es ist kein Kursiv-Schnitt geladen, der Browser
+   * wuerde die Glyphen nur schraegstellen.
    */
   emptyLabel?: string;
 }
@@ -46,7 +48,7 @@ export const LastPlayedCaption: React.FC<LastPlayedCaptionProps> = ({
       // text.secondary statt text.disabled: das blasse Disabled-Grau (38 %
       // Deckkraft) ist im hellen Theme kaum noch zu lesen.
       color="text.secondary"
-      sx={{ flexShrink: 0, ...(relative ? {} : { fontStyle: 'italic' }) }}
+      sx={{ flexShrink: 0 }}
       title={absolute ? `${caption}: ${absolute}` : undefined}
     >
       {separator ? '· ' : ''}
