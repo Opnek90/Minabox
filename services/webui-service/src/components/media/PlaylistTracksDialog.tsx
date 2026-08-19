@@ -295,7 +295,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
             </Typography>
 
             {trackIds.length === 0 ? (
-              <Typography variant="body2" color="text.disabled" sx={{ py: 1, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>
                 {t('playlists.no_tracks', { defaultValue: 'Noch keine Tracks.' })}
               </Typography>
             ) : (
@@ -339,7 +339,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
               sx={{ mb: 1 }}
             />
             {availableTracks.length === 0 ? (
-              <Typography variant="body2" color="text.disabled" sx={{ py: 1, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>
                 {t('playlists.edit_tracks_no_match')}
               </Typography>
             ) : (

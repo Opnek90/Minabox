@@ -267,7 +267,7 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
                   {t('media_import.edit_hint', { defaultValue: 'Angaben vor dem Import anpassen:' })}
                 </Typography>
                 {preview.duration_ms != null && (
-                  <Typography variant="caption" color="text.disabled">
+                  <Typography variant="caption" color="text.secondary">
                     {formatTime(preview.duration_ms)}
                   </Typography>
                 )}
