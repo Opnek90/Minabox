@@ -44,8 +44,9 @@ def create_app(
         
         Returns service status and basic statistics.
         """
+        # is_connected is the live socket state, so an outage shows up here.
         return {
-            "status": "healthy",
+            "status": "healthy" if mqtt_client.is_connected else "degraded",
             "service": "button",
             "device_id": config.env.minabox_device_id,
             "buttons_configured": get_buttons_count(),

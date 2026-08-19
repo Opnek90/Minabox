@@ -62,24 +62,24 @@ class LEDService:
         led_config = self.config_manager.load_config()
         await self.led_manager.initialize_leds(led_config.leds)
         
-        # Connect to MQTT
-        await self.mqtt_client.connect()
-        
-        # Publish service-started event
+        # Start the supervised MQTT loop. It connects in the background and
+        # retries forever, so an unreachable broker no longer fails startup.
+        self._mqtt_task = await self.mqtt_client.start()
+
+        # Publish service-started event (remembered, so it is re-announced
+        # after a reconnect -- the broker may have been restarted).
         device_id = self.config.env.minabox_device_id
         await self.mqtt_client.publish(
             f"minabox/{device_id}/system/service-started",
             {"service": "led"},
+            remember=True,
         )
-        
+
         # Apply system_online as the only guaranteed initial state.
         # The RFID state (tag-scanned / tag-removed) is published by the
         # RFID-service on its own startup, so we do not assume it here.
         await self.led_manager.apply_state("system_online")
-        
-        # Start MQTT message loop
-        self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
-        
+
         # Start FastAPI server
         await self._start_api_server()
         

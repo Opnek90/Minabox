@@ -55,18 +55,21 @@ class RFIDService:
             self._reader = create_reader(self.config.rfid.reader)
             self._reader.initialize()
 
-            await self.mqtt_client.connect()
+            # Connects in the background and retries forever, so an unreachable
+            # broker no longer fails startup.
+            self._mqtt_task = await self.mqtt_client.start()
 
-            # Use get_mqtt_topic() instead of manual f-string (issue #28)
+            # Use get_mqtt_topic() instead of manual f-string (issue #28).
+            # remember=True: re-announced after a reconnect.
             await self.mqtt_client.publish(
                 self.config.get_mqtt_topic("system", "service-started"),
                 {"service": "rfid"},
+                remember=True,
             )
 
             self._manager = RFIDManager(self.config, self._reader, self.mqtt_client)
             await self._manager.start()
 
-            self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
             self._scan_task = asyncio.create_task(self._manager.scan_loop())
 
             await self._start_api_server()

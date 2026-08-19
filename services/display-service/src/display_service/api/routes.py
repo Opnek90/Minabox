@@ -29,8 +29,9 @@ def create_app(
     async def health_check() -> HealthResponse:
         """Health check endpoint."""
         display_config = config_manager.get_current_config()
+        # is_connected is the live socket state, so an outage shows up here.
         return HealthResponse(
-            status="healthy",
+            status="healthy" if mqtt_client.is_connected else "degraded",
             service="display",
             device_id=config.env.minabox_device_id,
             display_enabled=display_config.enabled if display_config else False,

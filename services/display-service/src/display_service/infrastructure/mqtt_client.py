@@ -1,15 +1,15 @@
-"""MQTT client for the display service: audio/status and config/reload."""
+"""MQTT client for the display service: audio/status and config/reload.
+
+Connection lifecycle, reconnection and status replay come from
+``shared_lib.mqtt.BaseMQTTClient``.
+"""
 
 from __future__ import annotations
 
-import asyncio
-import json
 from typing import TYPE_CHECKING, Callable
 
 import structlog
-from aiomqtt import Client, MqttError
-from shared_lib.logging import setup_structlog
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from shared_lib.mqtt import BaseMQTTClient
 
 if TYPE_CHECKING:
     from ..config_schema import AppConfig
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
-class MQTTClient:
+class MQTTClient(BaseMQTTClient):
     """MQTT client for the display service."""
 
     def __init__(
@@ -26,124 +26,37 @@ class MQTTClient:
         on_message_callback: Callable[[str, bytes], None],
         on_config_reload_callback: Callable[[], None],
     ) -> None:
+        super().__init__(
+            config.env.mqtt_broker,
+            config.env.mqtt_port,
+            identifier=f"display-service-{config.env.minabox_device_id}",
+            service_name="display",
+        )
         self._config = config
         self._on_message = on_message_callback
         self._on_config_reload = on_config_reload_callback
-        self._client: Client | None = None
-        self._running = False
+
         device_id = config.env.minabox_device_id
         prefix = f"minabox/{device_id}"
-        self._topics = [
+        # Registered up front; the base client applies them on every connect.
+        for topic in (
             f"{prefix}/audio/status",
             f"{prefix}/audio/error",
             f"{prefix}/system/service-error",
             f"{prefix}/display/config/reload",
             f"{prefix}/config/general",
-        ]
+        ):
+            self._subscriptions[topic] = 1
 
-    @property
-    def is_connected(self) -> bool:
-        """True if MQTT client is connected and running."""
-        return self._client is not None and self._running
-
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=2, min=2, max=60),
-        retry=retry_if_exception_type(MqttError),
-    )
-    async def connect(self) -> None:
-        """Connect to the MQTT broker."""
-        logger.info(
-            "mqtt_connecting",
-            broker=self._config.env.mqtt_broker,
-            port=self._config.env.mqtt_port,
-        )
-        self._client = Client(
-            hostname=self._config.env.mqtt_broker,
-            port=self._config.env.mqtt_port,
-        )
-        await self._client.__aenter__()
-        for topic in self._topics:
-            await self._client.subscribe(topic, qos=1)
-            logger.debug("mqtt_subscribed", topic=topic)
-        logger.info("mqtt_connected")
-
-    async def disconnect(self) -> None:
-        """Disconnect from the MQTT broker."""
-        if self._client:
+    async def on_message(self, topic: str, payload: bytes) -> None:
+        """Dispatch an incoming message to the display handlers."""
+        if topic.endswith("/display/config/reload"):
+            logger.info("config_reload_received")
             try:
-                await self._client.__aexit__(None, None, None)
-                logger.info("mqtt_disconnected")
+                self._on_config_reload()
             except Exception as exc:
-                logger.warning("mqtt_disconnect_error", error=str(exc))
-            finally:
-                self._client = None
-
-    async def run(self) -> None:
-        """Run the MQTT message loop with automatic reconnection on broker restart."""
-        self._running = True
-        logger.info("mqtt_client_running")
-        reconnect_delay = 2.0
-        while self._running:
-            try:
-                if self._client is None:
-                    await self.connect()
-                reconnect_delay = 2.0
-                async for message in self._client.messages:
-                    if not self._running:
-                        break
-                    topic = message.topic.value
-                    payload = message.payload
-                    if topic.endswith("/display/config/reload"):
-                        logger.info("config_reload_received")
-                        try:
-                            self._on_config_reload()
-                        except Exception as exc:
-                            logger.error("config_reload_failed", error=str(exc), exc_info=True)
-                    elif topic.endswith("/config/general"):
-                        try:
-                            data = json.loads(payload.decode("utf-8"))
-                            level = (data.get("log_level") or "INFO").upper()
-                            if level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
-                                setup_structlog(level)
-                                logger.info("log_level_applied", log_level=level)
-                            else:
-                                logger.warning("invalid_log_level", log_level=level)
-                        except (json.JSONDecodeError, TypeError) as exc:
-                            logger.warning("config_general_parse_failed", error=str(exc))
-                    else:
-                        try:
-                            self._on_message(topic, payload)
-                        except Exception as exc:
-                            logger.error(
-                                "message_callback_error",
-                                topic=topic,
-                                error=str(exc),
-                                exc_info=True,
-                            )
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                if not self._running:
-                    raise
-                logger.warning("mqtt_connection_lost_reconnecting", error=str(exc))
-                await self.disconnect()
-                await asyncio.sleep(reconnect_delay)
-                reconnect_delay = min(reconnect_delay * 2, 60.0)
-
-    async def stop(self) -> None:
-        """Stop the MQTT message loop."""
-        logger.info("mqtt_client_stopping")
-        self._running = False
-
-    async def publish(self, topic: str, payload: dict) -> None:
-        """Publish a message to an MQTT topic."""
-        if not self._client:
-            logger.warning("mqtt_publish_skipped_not_connected", topic=topic)
-            return
-        try:
-            payload_json = json.dumps(payload)
-            await self._client.publish(topic, payload_json, qos=1)
-            logger.debug("mqtt_published", topic=topic)
-        except Exception as exc:
-            logger.error("mqtt_publish_failed", topic=topic, error=str(exc), exc_info=True)
+                logger.error("config_reload_failed", error=str(exc), exc_info=True)
+        elif topic.endswith("/config/general"):
+            await self.apply_general_config(payload)
+        else:
+            self._on_message(topic, payload)

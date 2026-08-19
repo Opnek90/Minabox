@@ -68,11 +68,11 @@ def create_app(
         current_config = led_manager._controllers
         leds_count = len(current_config)
         
-        # Check MQTT connection status
-        mqtt_connected = mqtt_client._client is not None and mqtt_client._running
-        
+        # Live connection state, not "did startup succeed once".
+        mqtt_connected = mqtt_client.is_connected
+
         return {
-            "status": "healthy",
+            "status": "healthy" if mqtt_connected else "degraded",
             "service": "led",
             "device_id": config.env.minabox_device_id,
             "leds_configured": leds_count,

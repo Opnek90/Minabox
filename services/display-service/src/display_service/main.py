@@ -189,13 +189,15 @@ class DisplayService:
                     hint="Display disabled. Check I2C bus configuration.",
                 )
         self._warn_overcrowded_areas(self._display_config)
-        await self.mqtt_client.connect()
+        # Connects in the background and retries forever, so an unreachable
+        # broker no longer fails startup.
+        self._mqtt_task = await self.mqtt_client.start()
         device_id = self.config.env.minabox_device_id
         await self.mqtt_client.publish(
             f"minabox/{device_id}/system/service-started",
             {"service": "display"},
+            remember=True,
         )
-        self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
         self._render_task = asyncio.create_task(self._render_loop())
         self._sleep_poll_task = asyncio.create_task(self._sleep_timer_poll_loop())
         self._session_poll_task = asyncio.create_task(self._session_poll_loop())

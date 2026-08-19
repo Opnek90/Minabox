@@ -23,12 +23,15 @@ run_suite() {
     return 0
   fi
   echo -e "${BLUE}▶ $name${NC}"
+  # shared-lib is baked into the images; mount the repo copy in front of it so
+  # the tests exercise the working tree, not the version from the last build.
   docker run --rm \
     -v "$REPO_ROOT/$src:/w/src:ro" \
     -v "$REPO_ROOT/$tests:/w/tests:ro" \
+    -v "$REPO_ROOT/services/shared-lib/shared_lib:/w/shared/shared_lib:ro" \
     -v "$REPO_ROOT/.claude/skills/minabox-debug-analyze/references:/w/references:ro" \
     -w /w \
-    -e PYTHONPATH=/w/src \
+    -e PYTHONPATH=/w/shared:/w/src \
     -e PYTHONDONTWRITEBYTECODE=1 \
     -e DATA_PATH=/tmp \
     -e STATIC_DIR=/tmp/static \
@@ -41,6 +44,8 @@ run_suite() {
 }
 
 case "${1:-all}" in
+  shared)  run_suite "shared-lib" minabox-audio \
+             services/shared-lib services/shared-lib/tests ;;
   backend) run_suite "backend-service" minabox-backend \
              services/backend-service/src services/backend-service/tests ;;
   audio)   run_suite "audio-service" minabox-audio \
@@ -48,6 +53,9 @@ case "${1:-all}" in
   display) run_suite "display-service" minabox-display \
              services/display-service/src services/display-service/tests ;;
   all)
+    run_suite "shared-lib" minabox-audio \
+      services/shared-lib services/shared-lib/tests
+    echo
     run_suite "backend-service" minabox-backend \
       services/backend-service/src services/backend-service/tests
     echo
@@ -57,7 +65,7 @@ case "${1:-all}" in
     run_suite "display-service" minabox-display \
       services/display-service/src services/display-service/tests
     ;;
-  *) echo "Usage: $0 [all|backend|audio]"; exit 2 ;;
+  *) echo "Usage: $0 [all|shared|backend|audio|display]"; exit 2 ;;
 esac
 
 echo

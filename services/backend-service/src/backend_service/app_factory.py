@@ -86,7 +86,10 @@ class BackendService:
         # Initialize MQTT client
         logger.debug("initializing_mqtt_client")
         self._mqtt_client = MQTTClient(self.config)
-        await self._mqtt_client.connect()
+        # Connects in the background and retries forever. Startup must not
+        # depend on the broker being reachable -- that dependency is what took
+        # the services down when the broker restarted.
+        self._mqtt_task = await self._mqtt_client.start()
 
         # Initialize MQTT handlers
         self._mqtt_handlers = MQTTHandlers(self._mqtt_client, ws_manager)
@@ -131,18 +134,18 @@ class BackendService:
         set_rfid_mqtt_client(self._mqtt_client)
         set_system_mqtt_client(self._mqtt_client)
 
-        # Publish current general config (e.g. log_level) as retained so other services get it on subscribe
+        # Publish current general config (e.g. log_level) as retained so other
+        # services get it on subscribe. publish_state() does not raise and is
+        # replayed after a reconnect, so a broker outage neither fails startup
+        # nor loses the retained value when the broker comes back.
         topic = get_mqtt_topic(self.config.env.minabox_device_id, "config", "general")
-        await self._mqtt_client.publish(
+        await self._mqtt_client.publish_state(
             topic,
             {"log_level": self.config.env.log_level},
             qos=1,
             retain=True,
         )
         logger.debug("config_general_published_retained", topic=topic)
-
-        # Start MQTT listening task
-        self._mqtt_task = asyncio.create_task(self._mqtt_client.run())
 
         # Start podcast RSS fetch loop (daily)
         self._podcast_fetch_task = asyncio.create_task(run_podcast_fetch_loop(self._db))

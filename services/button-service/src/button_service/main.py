@@ -88,15 +88,17 @@ class ButtonService:
                 )
                 self._gpio_manager = None
 
-        await self.mqtt_client.connect()
+        # Connects in the background and retries forever, so an unreachable
+        # broker no longer fails startup.
+        self._mqtt_task = await self.mqtt_client.start()
 
-        # Use get_mqtt_topic() instead of manual f-string (issue #16)
+        # Use get_mqtt_topic() instead of manual f-string (issue #16).
+        # remember=True: re-announced after a reconnect.
         await self.mqtt_client.publish(
             self.config.get_mqtt_topic("system", "service-started"),
             {"service": "button"},
+            remember=True,
         )
-
-        self._mqtt_task = asyncio.create_task(self.mqtt_client.run())
 
         self._processor_task = asyncio.create_task(
             run_event_processor(

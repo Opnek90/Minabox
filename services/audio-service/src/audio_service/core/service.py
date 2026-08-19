@@ -144,13 +144,15 @@ class AudioService:
             logger.debug("setting_service_initial_volume", volume=initial_volume)
             await self._vlc_backend.set_volume(initial_volume)
 
-            await self._mqtt_client.connect()
-            await self._subscribe_to_topics()
             self._mqtt_client._on_message = self._mqtt_handler.handle_message
+            await self._subscribe_to_topics()
 
             self._running = True
             self._status_publish_task = asyncio.create_task(self._status_publish_loop())
-            self._mqtt_task = asyncio.create_task(self._mqtt_client.run())
+            # Connects in the background and retries forever. Startup must not
+            # depend on the broker being reachable -- that dependency is what
+            # took the service down when the broker restarted.
+            self._mqtt_task = await self._mqtt_client.start()
 
             await self._publish_system_event("service-started")
 
@@ -292,7 +294,10 @@ class AudioService:
             }
 
             topic = self._config.get_mqtt_topic("audio", "status")
-            await self._mqtt_client.publish(topic, payload, retain=True)
+            # remember=True: replayed after a reconnect, so a broker restart
+            # does not leave us connected but mute (the fingerprint check below
+            # would otherwise suppress the next identical status).
+            await self._mqtt_client.publish(topic, payload, retain=True, remember=True)
             self._last_published_fingerprint = fingerprint
 
         except Exception as exc:
@@ -310,14 +315,20 @@ class AudioService:
         await self._mqtt_client.publish(topic, payload)
 
     async def _publish_system_event(self, event: str) -> None:
-        """Publish system event to MQTT."""
+        """Publish system event to MQTT.
+
+        ``service-started`` is remembered so the announcement is repeated after
+        a reconnect; the broker may have been restarted and lost it.
+        """
         payload = {
             "event": event,
             "service": "audio",
             "timestamp": datetime.now(UTC).isoformat(),
         }
         topic = self._config.get_mqtt_topic("system", event)
-        await self._mqtt_client.publish(topic, payload)
+        await self._mqtt_client.publish(
+            topic, payload, remember=(event == "service-started")
+        )
 
     async def _publish_config_response(
         self, success: bool, error: str | None = None
