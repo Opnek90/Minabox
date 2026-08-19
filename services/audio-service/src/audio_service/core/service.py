@@ -599,11 +599,42 @@ class AudioService:
                 await self._reinitialize_and_resume(current)
             else:
                 self._vlc_backend.update_config(current)
+            await self._enforce_volume_limits(current)
             await self._publish_config_response(success=True)
             logger.debug("config_reload_successful")
         except Exception as exc:
             logger.error("config_reload_failed", error=str(exc))
             await self._publish_config_response(success=False, error=str(exc))
+
+    async def _enforce_volume_limits(self, config: AudioConfig) -> None:
+        """Pull the running volume back into [min_volume, max_volume].
+
+        update_config() nur auszutauschen reicht nicht: die Grenzen greifen
+        sonst erst beim naechsten set_volume(). Senken die Eltern das Limit von
+        40 auf 30, waehrend gerade auf 40 gespielt wird, bleibt es real bei 40
+        und der Regler in der WebUI steht ausserhalb seiner eigenen Skala.
+        Liegt die Lautstaerke bereits im erlaubten Bereich, passiert nichts.
+        """
+        if not self._vlc_backend.is_initialized:
+            return
+        try:
+            current_volume = await self._vlc_backend.get_volume()
+            min_vol = getattr(config, "min_volume", 0)
+            clamped = min(max(current_volume, min_vol), config.max_volume)
+            if clamped == current_volume:
+                return
+            await self._vlc_backend.set_volume(clamped)
+            await self._save_current_state()
+            await self._publish_status()
+            logger.info(
+                "volume_clamped_to_limits",
+                previous=current_volume,
+                applied=clamped,
+                min_volume=min_vol,
+                max_volume=config.max_volume,
+            )
+        except Exception as exc:
+            logger.error("enforce_volume_limits_failed", error=str(exc))
 
     async def _handle_config_get(self) -> None:
         """Handle config get request."""

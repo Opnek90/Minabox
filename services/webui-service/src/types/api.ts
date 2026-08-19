@@ -484,6 +484,7 @@ export interface ServiceLogsResponse {
 
 export type WebSocketMessageType =
   | 'audio_status'
+  | 'audio_config'
   | 'rfid_scanned'
   | 'rfid_scanned_learning'
   | 'rfid_removed'

@@ -20,6 +20,8 @@ import { RfidScanDrawer } from '@/components/rfid/RfidScanDrawer';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { UserPrefsProvider } from '@/contexts/UserPrefsContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useQueryClient } from '@tanstack/react-query';
+import type { AudioConfig } from '@/types/api';
 import { useTranslation } from 'react-i18next';
 import { useLayout } from '@/hooks/useLayout';
 
@@ -41,6 +43,25 @@ const DashboardPage = React.lazy(() =>
 const KioskPage = React.lazy(() =>
   import('@/pages/KioskPage').then((m) => ({ default: m.KioskPage }))
 );
+
+// ── Audio-Config live halten ─────────────────────────────────────────────────
+// Das Eltern-Dashboard schreibt min/max/default-Lautstaerke; die Player-Seite
+// liest dieselben Werte aus dem React-Query-Cache (staleTime 5 min). Ohne
+// diesen Abgleich zeigt ein offener Player – im selben Tab wie auf der Box
+// nebenan – bis zum Hard-Reload die alten Regler-Grenzen.
+const AudioConfigSync: React.FC = () => {
+  const { lastMessage } = useWebSocket();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (lastMessage?.type !== 'audio_config') return;
+    const data = lastMessage.data as AudioConfig | undefined;
+    if (!data) return;
+    queryClient.setQueryData(['config', 'audio'], data);
+  }, [lastMessage, queryClient]);
+
+  return null;
+};
 
 // ── RFID global notifications ────────────────────────────────────────────────
 const RfidNotifications: React.FC = () => {
@@ -196,6 +217,7 @@ const MainLayout: React.FC = () => {
         {isMobile && <MobileBottomNav />}
         <RfidScanDrawer onAssignNew={(tagId) => setPendingTagId(tagId)} />
         <RfidNotifications />
+        <AudioConfigSync />
 
         {/* Offline overlay – shown after 3s without WebSocket connection */}
         <ConnectionLostScreen />

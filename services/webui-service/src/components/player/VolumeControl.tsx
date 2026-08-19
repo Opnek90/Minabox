@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Box, Tooltip, Typography } from '@mui/material';
 import VolumeDownIcon from '@mui/icons-material/VolumeDown';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -21,12 +21,24 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
 }) => {
   const { t } = useTranslation('player');
 
-  const snappedInitial = useMemo(() => Math.round(volume / 5) * 5, [volume]);
-  const [localVolume, setLocalVolume] = useState<number>(snappedInitial);
+  // In die erlaubte Skala zwingen: senken die Eltern das Limit unter die
+  // laufende Lautstaerke, liefert der Status kurzzeitig (und bei gestopptem
+  // Player dauerhaft) einen Wert oberhalb von maxVolume. MUI zeichnet den
+  // Slider-Thumb dann ausserhalb der Schiene. Das 5er-Raster wird nach dem
+  // Clamp angewendet, damit das Runden nicht wieder ueber das Limit schiebt.
+  const snap = useCallback(
+    (v: number) => {
+      const clamped = Math.min(Math.max(v, minVolume), maxVolume);
+      return Math.min(Math.max(Math.round(clamped / 5) * 5, minVolume), maxVolume);
+    },
+    [minVolume, maxVolume]
+  );
+
+  const [localVolume, setLocalVolume] = useState<number>(() => snap(volume));
 
   React.useEffect(() => {
-    setLocalVolume(Math.round(volume / 5) * 5);
-  }, [volume]);
+    setLocalVolume(snap(volume));
+  }, [volume, snap]);
 
   const handleChange = useCallback((v: number) => {
     setLocalVolume(v);

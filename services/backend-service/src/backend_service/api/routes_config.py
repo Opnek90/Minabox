@@ -11,6 +11,7 @@ import structlog
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from shared_lib.logging import setup_structlog
 
+from backend_service.api.websocket import ws_manager
 from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 from shared_lib.mqtt import get_mqtt_topic
 
@@ -330,6 +331,9 @@ async def update_audio_config(body: dict) -> dict:
             topic = config.get_mqtt_topic("audio", "config/reload")
             await _mqtt_client.publish(topic, {})
             logger.info("audio_config_reload_published", topic=topic)
+        # Ohne diesen Push merkt eine offene Player-Seite nichts von neuen
+        # Lautstaerke-Grenzen und zeigt bis zum Reload den alten Regler-Bereich.
+        await ws_manager.broadcast({"type": "audio_config", "data": merged})
         return merged
     except OSError as e:
         logger.error("config_write_failed", service="audio", error=str(e))
