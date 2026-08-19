@@ -191,7 +191,11 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
                 textOverflow: 'ellipsis',
-                fontSize: '0.875rem',
+                // Groesse aus dem Thema statt als rem-Literal: Damit folgt die
+                // Pille der Schriftgroessen-Umschaltung und landet dabei auf
+                // ganzen Pixeln (14px bzw. 16px), statt bei 18px Wurzel auf
+                // 15,75px zu rastern.
+                fontSize: (theme) => theme.typography.body2.fontSize,
                 // 700 statt 600: Roboto liegt nur in 300/400/500/700 vor, 600
                 // wuerde der Browser ohnehin auf 700 hochziehen.
                 fontWeight: 700,
@@ -208,7 +212,7 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
                 component="span"
                 sx={{
                   ml: 0.75,
-                  fontSize: '0.8125rem',
+                  fontSize: (theme) => theme.typography.caption.fontSize,
                   fontWeight: 500,
                   lineHeight: 1.2,
                   opacity: 0.7,

@@ -31,7 +31,8 @@ const queryClient = new QueryClient({
 // Themed wrapper – reads ThemeContext and builds MUI theme dynamically
 // ============================================================================
 const ThemedApp: React.FC = () => {
-  const { mode, primaryColor } = useThemeContext();
+  const { mode, primaryColor, fontScale } = useThemeContext();
+  const large = fontScale === 'large';
 
   const theme = useMemo(
     () =>
@@ -49,10 +50,27 @@ const ThemedApp: React.FC = () => {
             ? { background: { default: '#121212', paper: '#1e1e1e' } }
             : { background: { default: '#f5f5f5', paper: '#ffffff' } }),
         },
+        // Die Textgroessen stehen bewusst in *ganzen Pixeln* je Stufe, nicht in
+        // rem: Die Schriftgroessen-Umschaltung stellt zwar die Wurzelgroesse
+        // (16px/18px), aber MUIs rem-Werte sind in Sechzehnteln gedacht - bei
+        // 18px Wurzel wird aus `body2` 15,75px und aus `caption` 14,625px.
+        // Glyphen auf Bruchteilen von Geraetepixeln rastern weicher, und auf
+        // einem Monitor ohne Verdopplung (DPR 1) liest sich das als unscharf.
+        // Mit festen Pixelwerten je Stufe landen genau die Textsorten, die man
+        // dauernd liest, auf ganzen Pixeln. Kleinteilige `sx`-Groessen (Chips,
+        // Marken) laufen weiter ueber rem und wachsen mit der Wurzel mit - die
+        // sind schon im Standard krumm und fallen dabei nicht ins Gewicht.
         typography: {
           fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-          h5: { fontWeight: 700 },
-          h6: { fontWeight: 600 },
+          h4: { fontSize: large ? '38px' : '34px' },
+          h5: { fontWeight: 700, fontSize: large ? '27px' : '24px' },
+          h6: { fontWeight: 600, fontSize: large ? '23px' : '20px' },
+          subtitle1: { fontSize: large ? '18px' : '16px' },
+          subtitle2: { fontSize: large ? '16px' : '14px' },
+          body1: { fontSize: large ? '18px' : '16px' },
+          body2: { fontSize: large ? '16px' : '14px' },
+          button: { fontSize: large ? '16px' : '14px' },
+          overline: { fontSize: large ? '14px' : '12px' },
           // Nebentexte (Interpret, "zuletzt gespielt", Hinweiszeilen) laufen
           // durchgehend ueber `caption`. MUIs Standard sind 12px im Schnitt
           // 400 - auf einem grossen Monitor ohne Skalierung sind die Striche
@@ -61,7 +79,7 @@ const ThemedApp: React.FC = () => {
           // 1.66 auf 1.5, damit die Zeilenhoehe trotz groesserer Glyphen
           // praktisch gleich bleibt und keine Liste umbricht.
           caption: {
-            fontSize: '0.8125rem',
+            fontSize: large ? '15px' : '13px',
             fontWeight: 500,
             lineHeight: 1.5,
           },
@@ -139,7 +157,7 @@ const ThemedApp: React.FC = () => {
           },
         },
       }),
-    [mode, primaryColor]
+    [mode, primaryColor, large]
   );
 
   return (
