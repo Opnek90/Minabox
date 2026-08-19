@@ -168,6 +168,13 @@ const MainLayout: React.FC = () => {
             // Engines ohne `clip` behalten `hidden` – dort klebt die Leiste eben nicht.
             overflowX: 'hidden',
             '@supports (overflow: clip)': { overflowX: 'clip' },
+            // Zwingend zusammen mit `clip`: `main` ist Flex-Kind, und dessen
+            // automatische Mindestbreite ist die *Min-Content-Breite* seines
+            // Inhalts. `hidden` setzte sie nebenbei auf 0, weil Scroll-Container
+            // davon ausgenommen sind – `clip` ist keiner. Ohne `minWidth: 0`
+            // waechst `main` deshalb ueber den Bildschirm hinaus, und die ganze
+            // Seite scrollt waagerecht (Optionen, Podcasts).
+            minWidth: 0,
             bgcolor: 'background.default',
             ml: isMobile ? 0 : `${isTablet ? RAIL_WIDTH : DRAWER_WIDTH}px`,
             pb: bottomBarsOffset,
