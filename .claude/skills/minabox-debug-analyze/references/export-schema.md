@@ -70,6 +70,28 @@ logs/syslog-kernel.txt             Kernel-Log des Hosts
 logs/syslog-docker.txt             Docker-Unit-Log
 logs/kernel_findings.json          Zaehler fuer Unterspannungs-/Drosselungszeilen
 logs/syslog_unavailable.json       nur wenn der Host-Helper fehlt
+```
+
+### Kopfzeilen gekuerzter Logs
+
+Jede gefilterte oder gekuerzte Log-Datei beginnt mit einem Kommentarblock
+(`#`-Zeilen, abgeschlossen durch eine Zeile `#`):
+
+```
+# Quelle: journalctl kernel
+# Abgedeckter Zeitraum: 2026-08-18T09:00:01+0200 bis 2026-08-18T13:45:01+0200
+# Zeilen: 84 von 4210 behalten, 4126 verworfen (Rauschen: 4100, Kuerzung: 26)
+# Immer behalten: 8 Zeile(n) zu Unterspannung, Drosselung, mmc/SD, E/A-Fehler, OOM oder Boot
+# Hinweis: Diese Datei ist gefiltert und gekuerzt. Fehlt hier ein Hinweis, ist
+# das kein Beleg dafuer, dass es das Problem nicht gab.
+```
+
+Beim Kernel-Log wird Docker-veth-/Bridge-Rauschen verworfen, *bevor* gekuerzt
+wird; Zeilen zu Unterspannung, Drosselung, mmc/SD, E/A-Fehlern, OOM und Boot
+werden immer behalten. Der Zaehler in `logs/kernel_findings.json` zaehlt auf dem
+ungefilterten Strom, ist also unabhaengig vom Zeilenbudget.
+
+```
 
 config/general_settings.json       Nutzereinstellungen
 config/auth_settings.shape.json    nur Struktur - nie der Hash

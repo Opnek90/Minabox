@@ -20,6 +20,7 @@ from backend_service.core.debug_export.framework import (
     ExportContext,
     register,
 )
+from backend_service.core.debug_export import logfilter
 from backend_service.core.debug_export.redaction import pseudonymize
 
 logger = structlog.get_logger(__name__)
@@ -168,7 +169,9 @@ async def collect_service_logs(ctx: ExportContext) -> dict[str, Any]:
     missing: list[str] = []
     for service_id, content in results:
         if content:
-            files[f"services/{service_id}/logs.txt"] = content
+            files[f"services/{service_id}/logs.txt"] = logfilter.render_truncated_text(
+                content, tail, source=f"container {service_id}"
+            )
         else:
             missing.append(service_id)
     if missing:
@@ -182,7 +185,12 @@ async def collect_service_logs(ctx: ExportContext) -> dict[str, Any]:
     return files
 
 
-@register("logs.syslog", BLOCK_LOGS, timeout=30.0, bulky=True)
+# Fetched wide, kept narrow: the difference is what the noise filter removes.
+SYSLOG_FETCH_LINES = 20000
+SYSLOG_KEEP_LINES = 800
+
+
+@register("logs.syslog", BLOCK_LOGS, timeout=45.0, bulky=True)
 async def collect_syslog(ctx: ExportContext) -> dict[str, Any]:
     """Kernel and docker unit logs from the host, plus an under-voltage scan.
 
@@ -203,27 +211,33 @@ async def collect_syslog(ctx: ExportContext) -> dict[str, Any]:
     undervoltage_hits = 0
     for source in ("kernel", "docker"):
         try:
+            # Ask for a wide window and do the trimming here: the noise has to
+            # be dropped *before* the line budget applies, otherwise veth churn
+            # eats the history (2026-08-18: 799 lines, all of it bridge chatter,
+            # window starting two hours after the last boot).
             response = await _request(
                 "GET",
                 "/syslog",
                 api_key,
-                timeout=15.0,
-                params={"n": 800, "source": source},
+                timeout=20.0,
+                params={"n": SYSLOG_FETCH_LINES, "source": source},
             )
             if response.status_code != 200:
                 files[f"logs/syslog-{source}.txt"] = (
                     f"(Host-Helper antwortete mit HTTP {response.status_code})"
                 )
                 continue
-            lines = (response.json() or {}).get("lines") or []
-            text = "\n".join(str(line) for line in lines)
-            files[f"logs/syslog-{source}.txt"] = text
+            lines = [str(line) for line in ((response.json() or {}).get("lines") or [])]
+            files[f"logs/syslog-{source}.txt"] = logfilter.render_filtered_log(
+                lines, SYSLOG_KEEP_LINES, source=f"journalctl {source}"
+            )
             if source == "kernel":
+                # Counted on the unfiltered stream: these lines are kept by the
+                # filter anyway, but the count must not depend on the budget.
                 undervoltage_hits = sum(
                     1
                     for line in lines
-                    if "under-voltage" in str(line).lower()
-                    or "throttl" in str(line).lower()
+                    if "under-voltage" in line.lower() or "throttl" in line.lower()
                 )
         except Exception as e:
             files[f"logs/syslog-{source}.txt"] = (

@@ -1027,8 +1027,13 @@ def get_syslog(
     source: str = "kernel",  # kernel | docker
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Return last N lines of host kernel or docker unit logs via journalctl or /var/log."""
-    n = max(1, min(int(n), 1000))
+    """Return last N lines of host kernel or docker unit logs via journalctl or /var/log.
+
+    The cap is generous on purpose: the debug export filters container-network
+    noise out of the kernel log *before* it truncates, so it has to be able to
+    ask for a window wide enough to still contain the last boot.
+    """
+    n = max(1, min(int(n), 20000))
     host_root = get_config().get("host_root") or "/host"
     root_path = Path(host_root).resolve()
     if not root_path.exists():
