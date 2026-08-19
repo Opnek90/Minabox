@@ -36,6 +36,7 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
+import { LastPlayedCaption } from '@/components/media/LastPlayedCaption';
 import { PodcastEditDialog } from '@/components/media/PodcastEditDialog';
 import type { Podcast } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
@@ -339,7 +340,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                   primary={podcast.title}
                   primaryTypographyProps={{ noWrap: true }}
                   secondary={
-                    podcast.latest_episode_title || podcast.last_played_at || podcast.last_fetched_at ? (
+                    (
                       <Box component="span" display="flex" flexDirection="column" gap={0.25}>
                         {podcast.latest_episode_title && (
                           <Typography component="span" variant="caption" display="block" noWrap>
@@ -349,25 +350,18 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                           </Typography>
                         )}
                         <Box component="span" display="flex" gap={1} flexWrap="wrap" alignItems="center">
-                          {podcast.last_played_at && (
-                            <Typography component="span" variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
-                              {t('podcasts.last_played')}:{' '}
-                              {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                                -Math.round((Date.now() - new Date(podcast.last_played_at).getTime()) / 60_000), 'minute'
-                              )}
-                            </Typography>
-                          )}
-                          {podcast.last_fetched_at && (
-                            <Typography component="span" variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
-                              {t('podcasts.last_fetched_label')}:{' '}
-                              {new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                                -Math.round((Date.now() - new Date(podcast.last_fetched_at).getTime()) / 86_400_000), 'day'
-                              )}
-                            </Typography>
-                          )}
+                          <LastPlayedCaption
+                            value={podcast.last_played_at}
+                            label={t('podcasts.last_played')}
+                            emptyLabel={t('never_played')}
+                          />
+                          <LastPlayedCaption
+                            value={podcast.last_fetched_at}
+                            label={t('podcasts.last_fetched_label')}
+                          />
                         </Box>
                       </Box>
-                    ) : null
+                    )
                   }
                 />
               </ListItem>

@@ -2,6 +2,7 @@
   "title": "Mediathek",
   "view_mode_card": "Kartenansicht",
   "view_mode_list": "Listenansicht",
+  "never_played": "Noch nicht abgespielt",
   "tabs": {
     "overview": "Übersicht",
     "playlists": "Playlists",

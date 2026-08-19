@@ -47,6 +47,7 @@ import { audioApi } from '@/api/audio';
 import type { Playlist, Track, TrackFolder } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
 import { AddToPlaylistDialog } from './AddToPlaylistDialog';
+import { LastPlayedCaption } from './LastPlayedCaption';
 import { FolderCreateDialog } from './FolderCreateDialog';
 import { FolderTree } from './FolderTree';
 import { useLayout } from '@/hooks/useLayout';
@@ -391,14 +392,22 @@ export const TrackList: React.FC<TrackListProps> = ({
       <ListItemText
         primary={track.title}
         primaryTypographyProps={{ noWrap: true }}
+        secondaryTypographyProps={{ component: 'span' }}
         secondary={
-          <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
-            {track.artist && <Typography component="span" variant="caption" noWrap>{track.artist}</Typography>}
-            {track.album && <Typography component="span" variant="caption" color="text.disabled" noWrap>· {track.album}</Typography>}
-            {track.duration_ms != null && (
-              <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined"
-                sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
-            )}
+          <Box component="span" display="flex" flexDirection="column" gap={0.25}>
+            <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
+              {track.artist && <Typography component="span" variant="caption" noWrap>{track.artist}</Typography>}
+              {track.album && <Typography component="span" variant="caption" color="text.secondary" noWrap>· {track.album}</Typography>}
+              {track.duration_ms != null && (
+                <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined"
+                  sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
+              )}
+            </Box>
+            <LastPlayedCaption
+              value={track.last_played_at}
+              label={t('tracks.fields.last_played')}
+              emptyLabel={t('never_played')}
+            />
           </Box>
         }
       />
@@ -442,6 +451,13 @@ export const TrackList: React.FC<TrackListProps> = ({
           {track.duration_ms != null && (
             <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined" sx={{ mt: 1 }} />
           )}
+          <Box sx={{ mt: 0.5 }}>
+            <LastPlayedCaption
+              value={track.last_played_at}
+              label={t('tracks.fields.last_played')}
+              emptyLabel={t('never_played')}
+            />
+          </Box>
         </CardContent>
         <CardActions sx={{ pt: 0 }}>
           {!selectionMode && (

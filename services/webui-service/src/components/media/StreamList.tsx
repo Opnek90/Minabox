@@ -36,6 +36,7 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
+import { LastPlayedCaption } from '@/components/media/LastPlayedCaption';
 import { StreamEditDialog } from '@/components/media/StreamEditDialog';
 import type { Stream } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
@@ -337,13 +338,12 @@ export const StreamList: React.FC<StreamListProps> = ({
                   secondary={
                     <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
                       {stream.artist && <Typography component="span" variant="caption" noWrap>{stream.artist}</Typography>}
-                      {stream.last_played_at && (
-                        <Typography component="span" variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
-                          ·{' '}{new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-                            -Math.round((Date.now() - new Date(stream.last_played_at).getTime()) / 3_600_000), 'hour'
-                          )}
-                        </Typography>
-                      )}
+                      <LastPlayedCaption
+                        value={stream.last_played_at}
+                        label={t('streams.fields.last_played')}
+                        emptyLabel={t('never_played')}
+                        separator={Boolean(stream.artist)}
+                      />
                     </Box>
                   }
                 />
