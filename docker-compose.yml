@@ -112,7 +112,12 @@ services:
       - /var/log/apt:/host/var/log/apt:ro
       - ./.cursor:/cursor-debug
     group_add:
-      - "999"
+      # GID der Host-Gruppe "docker" - nur damit ist der read-only gemountete
+      # /var/run/docker.sock lesbar. Der Wert ist hostabhaengig (hier 984), die
+      # frueher fest verdrahtete 999 passte nicht und der Docker-Collector lief
+      # in PermissionError(13). Ermitteln mit:
+      #   getent group docker | cut -d: -f3
+      - "${DOCKER_GID:-984}"
     networks:
       - minabox-network
     depends_on:
@@ -160,7 +165,12 @@ services:
       - /:/host:rw
       - ./.cursor:/cursor-debug
     group_add:
-      - "999"
+      # GID der Host-Gruppe "docker" - nur damit ist der read-only gemountete
+      # /var/run/docker.sock lesbar. Der Wert ist hostabhaengig (hier 984), die
+      # frueher fest verdrahtete 999 passte nicht und der Docker-Collector lief
+      # in PermissionError(13). Ermitteln mit:
+      #   getent group docker | cut -d: -f3
+      - "${DOCKER_GID:-984}"
     networks:
       - minabox-network
     depends_on:

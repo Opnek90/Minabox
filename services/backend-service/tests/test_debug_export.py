@@ -190,6 +190,73 @@ async def test_collector_timeout_is_recorded_not_raised(clean_registry):
 
 
 @pytest.mark.asyncio
+async def test_collector_returning_only_an_error_is_failed_not_ok(clean_registry):
+    """The 2026-08-18 package had system/docker.json = {"error": ...} at status "ok".
+
+    The triage checks the manifest, saw "ok", and reported "kein Befund" while
+    restart counts and OOM kills were in fact missing.
+    """
+
+    @fw.register("test.caught_its_own_error", fw.BLOCK_SYSTEM)
+    def caught(ctx):
+        return {
+            "system/docker.json": {
+                "error": "DockerException: Permission denied",
+            }
+        }
+
+    outcomes = await fw.run_collectors(_context())
+    assert outcomes[0].status == "failed"
+    assert "Permission denied" in outcomes[0].error
+    # The error file still travels with the archive - it is evidence.
+    assert "system/docker.json" in outcomes[0].files
+
+
+@pytest.mark.asyncio
+async def test_partial_result_with_a_side_error_stays_ok(clean_registry):
+    """Real data plus a sub-error is a partial result, not a failure."""
+
+    @fw.register("test.partial", fw.BLOCK_SYSTEM)
+    def partial(ctx):
+        return {
+            "system/docker.json": {
+                "server_version": "29.7.2",
+                "df_error": "TimeoutError",
+            }
+        }
+
+    outcomes = await fw.run_collectors(_context())
+    assert outcomes[0].status == "ok"
+
+
+@pytest.mark.asyncio
+async def test_one_good_file_beside_an_error_file_stays_ok(clean_registry):
+    @fw.register("test.mixed", fw.BLOCK_SYSTEM)
+    def mixed(ctx):
+        return {
+            "system/a.json": {"error": "nope"},
+            "system/b.json": {"value": 1},
+        }
+
+    outcomes = await fw.run_collectors(_context())
+    assert outcomes[0].status == "ok"
+
+
+@pytest.mark.asyncio
+async def test_manifest_carries_the_failed_status(clean_registry):
+    """Whatever the collector did, the manifest must not claim success."""
+
+    @fw.register("system.docker", fw.BLOCK_SYSTEM)
+    def docker_collector(ctx):
+        return {"system/docker.json": {"error": "DockerException: Permission denied"}}
+
+    outcomes = await fw.run_collectors(_context())
+    entry = outcomes[0].as_manifest()
+    assert entry["status"] == "failed"
+    assert "Permission denied" in entry["error"]
+
+
+@pytest.mark.asyncio
 async def test_deselected_blocks_are_reported_as_skipped(clean_registry):
     @fw.register("test.history", fw.BLOCK_HISTORY)
     def history(ctx):  # pragma: no cover - must not run

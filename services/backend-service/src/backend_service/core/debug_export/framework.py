@@ -245,6 +245,21 @@ class CollectorOutcome:
         return entry
 
 
+# Keys a collector uses when it has nothing but a failure to report. A payload
+# carrying one of these *alongside* real data (docker.json's "info_error", say)
+# is a partial result and still counts as ok.
+_ERROR_ONLY_KEYS = frozenset({"error", "detail", "hint"})
+
+
+def _error_only_payload(payload: Any) -> str | None:
+    """Return the error message if this file is nothing but an error object."""
+    if isinstance(payload, dict) and payload:
+        keys = set(payload)
+        if "error" in keys and keys <= _ERROR_ONLY_KEYS:
+            return str(payload["error"])
+    return None
+
+
 async def _run_one(collector: Collector, ctx: ExportContext) -> CollectorOutcome:
     started = time.monotonic()
     try:
@@ -275,8 +290,24 @@ async def _run_one(collector: Collector, ctx: ExportContext) -> CollectorOutcome
         return CollectorOutcome(
             collector.name, "failed", ms, error="Collector lieferte kein Dateiobjekt"
         )
-    status = "ok" if files else "empty"
-    return CollectorOutcome(collector.name, status, ms, files=files)
+    if not files:
+        return CollectorOutcome(collector.name, "empty", ms)
+
+    # A collector that caught its own exception and returned it as file content
+    # used to land in the manifest as "ok" - the triage then reported "kein
+    # Befund" while the data was in fact missing. Judged here, centrally, so a
+    # new collector cannot get this wrong again.
+    errors = [_error_only_payload(payload) for payload in files.values()]
+    if all(error is not None for error in errors):
+        return CollectorOutcome(
+            collector.name,
+            "failed",
+            ms,
+            files=files,
+            error="; ".join(dict.fromkeys(errors)),
+        )
+
+    return CollectorOutcome(collector.name, "ok", ms, files=files)
 
 
 async def run_collectors(
