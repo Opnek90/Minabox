@@ -74,6 +74,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'general.color_mode',
           'general.theme_light',
           'general.theme_dark',
+          'general.font_size',
           'general.accent_color',
           'general.logo',
         ],

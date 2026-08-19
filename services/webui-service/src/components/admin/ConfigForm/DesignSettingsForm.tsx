@@ -14,6 +14,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import FormatSizeIcon from '@mui/icons-material/FormatSize';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
@@ -27,12 +28,15 @@ const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
   green: 'Green',
   purple: 'Purple',
   red: 'Red',
+  pink: 'Pink',
+  indigo: 'Indigo',
+  teal: 'Petrol',
 };
 
 export const DesignSettingsForm: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
-  const { mode, colorPreset, toggleMode, setColorPreset } = useThemeContext();
+  const { mode, colorPreset, fontScale, toggleMode, setColorPreset, setFontScale } = useThemeContext();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -150,6 +154,27 @@ export const DesignSettingsForm: React.FC = () => {
           <ToggleButton value="dark">
             <DarkModeIcon fontSize="small" sx={{ mr: 0.5 }} />
             {t('general.theme_dark')}
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      {/* Schriftgroesse steht bei Hell/Dunkel, weil beide dasselbe betreffen:
+          wie die Oberflaeche aussieht, nicht was sie tut. */}
+      <Box display="flex" alignItems="center" justifyContent="space-between" gap={2}>
+        <Typography variant="body2">{t('general.font_size')}</Typography>
+        <ToggleButtonGroup
+          value={fontScale}
+          exclusive
+          onChange={(_, v) => { if (v) setFontScale(v); }}
+          size="small"
+        >
+          <ToggleButton value="standard">
+            <FormatSizeIcon fontSize="small" sx={{ mr: 0.5, fontSize: 16 }} />
+            {t('general.font_size_standard')}
+          </ToggleButton>
+          <ToggleButton value="large">
+            <FormatSizeIcon fontSize="small" sx={{ mr: 0.5 }} />
+            {t('general.font_size_large')}
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>
