@@ -10,6 +10,11 @@ import {
   Stack,
   TextField,
 } from '@mui/material';
+import GridViewIcon from '@mui/icons-material/GridView';
+import MicNoneIcon from '@mui/icons-material/MicNone';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import QueueMusicIcon from '@mui/icons-material/QueueMusic';
+import RadioIcon from '@mui/icons-material/Radio';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
@@ -279,12 +284,12 @@ export const MediaPage: React.FC = () => {
         value={tab}
         onChange={setTab}
         ariaLabel={t('navigation.media', { ns: 'common' })}
-        labels={[
-          t('tabs.overview', { defaultValue: '\u00dcbersicht' }),
-          t('tabs.playlists'),
-          t('tabs.tracks'),
-          t('tabs.streams', { defaultValue: 'Streams' }),
-          t('tabs.podcasts'),
+        sections={[
+          { label: t('tabs.overview', { defaultValue: '\u00dcbersicht' }), icon: <GridViewIcon /> },
+          { label: t('tabs.playlists'), icon: <QueueMusicIcon />, count: playlists.length },
+          { label: t('tabs.tracks'), icon: <MusicNoteIcon />, count: tracks.length },
+          { label: t('tabs.streams', { defaultValue: 'Streams' }), icon: <RadioIcon />, count: streams.length },
+          { label: t('tabs.podcasts'), icon: <MicNoneIcon />, count: podcasts.length },
         ]}
       />
 

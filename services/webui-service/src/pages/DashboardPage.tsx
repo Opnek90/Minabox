@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import { Box } from '@mui/material';
+import GridViewIcon from '@mui/icons-material/GridView';
+import HistoryIcon from '@mui/icons-material/History';
+import InsightsIcon from '@mui/icons-material/Insights';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import { useTranslation } from 'react-i18next';
 import { PageShell } from '@/components/common/PageShell';
 import { SectionTabs } from '@/components/common/SectionTabs';
@@ -30,11 +34,11 @@ export const DashboardPage: React.FC = () => {
         value={tab}
         onChange={setTab}
         ariaLabel={t('navigation.dashboard')}
-        labels={[
-          t('dashboard.tabs.overview'),
-          t('dashboard.tabs.rules'),
-          t('dashboard.tabs.stats'),
-          t('dashboard.tabs.scan_history'),
+        sections={[
+          { label: t('dashboard.tabs.overview'), icon: <GridViewIcon /> },
+          { label: t('dashboard.tabs.rules'), icon: <ScheduleIcon /> },
+          { label: t('dashboard.tabs.stats'), icon: <InsightsIcon /> },
+          { label: t('dashboard.tabs.scan_history'), icon: <HistoryIcon /> },
         ]}
       />
       <TabPanel value={tab} index={0}>
