@@ -12,7 +12,7 @@ i18n
     fallbackLng: 'en',
     lng: localStorage.getItem('minabox-language') ?? 'en',
     supportedLngs: ['de', 'en'],
-    ns: ['common', 'player', 'rfid', 'media', 'admin', 'errors'],
+    ns: ['common', 'player', 'rfid', 'media', 'admin', 'errors', 'setup'],
     defaultNS: 'common',
     backend: {
       // Die Build-Kennung macht die URL pro Build eindeutig, damit ein alter oder

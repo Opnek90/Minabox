@@ -506,3 +506,45 @@ async def switch_audio_device(body: SwitchDeviceRequest) -> dict:
     except Exception as e:
         logger.warning("audio_service_switch_device_failed", error=str(e))
         raise HTTPException(status_code=503, detail="Audio service unavailable")
+
+
+class TestToneRequest(BaseModel):
+    """Request body for POST /test-tone."""
+
+    sink_name: str | None = Field(
+        default=None,
+        description="Sink to play the tone on; defaults to the active output",
+    )
+
+
+@router.post("/test-tone")
+async def play_test_tone(body: TestToneRequest | None = None) -> dict:
+    """Play a short test tone (proxied to audio-service).
+
+    Used by the setup wizard to verify the speaker actually works. The tone is
+    played alongside any current playback, not instead of it.
+    """
+    payload = {"sink_name": body.sink_name if body else None}
+    # Der Zeitrahmen muss ueber der Tonlaenge plus Anlaufzeit liegen, sonst
+    # laeuft der Proxy ab, waehrend der Ton noch spielt.
+    timeout = AUDIO_SERVICE_TIMEOUT + 10.0
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(
+                f"{AUDIO_SERVICE_BASE}/api/v1/test-tone",
+                json=payload,
+            )
+            r.raise_for_status()
+            return r.json()
+    except httpx.TimeoutException:
+        logger.warning("audio_service_test_tone_timeout")
+        raise HTTPException(status_code=503, detail="Audio service timeout")
+    except httpx.HTTPStatusError as e:
+        logger.warning("audio_service_test_tone_error", status=e.response.status_code)
+        raise HTTPException(
+            status_code=502 if e.response.status_code >= 500 else e.response.status_code,
+            detail=e.response.text or "Audio service error",
+        )
+    except Exception as e:
+        logger.warning("audio_service_test_tone_failed", error=str(e))
+        raise HTTPException(status_code=503, detail="Audio service unavailable")

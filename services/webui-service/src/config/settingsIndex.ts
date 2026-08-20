@@ -4,7 +4,7 @@
  * Leitgedanke des Zuschnitts: Die Einstellungen sind der *Einrichtungs*-Bereich.
  * Alles, was Eltern im Alltag brauchen (Zeiten, Limits, Auswertung), liegt im
  * Eltern-Dashboard – nicht hier. Die Gruppen sind nach Alltagsfragen benannt
- * („Ton", „Aussehen", „Angeschlossene Geräte"), nicht nach Technik; alles
+ * („Abspielen", „Ton", „Aussehen"), nicht nach Technik; alles
  * Technische sammelt sich bewusst ganz unten in „Technische Details".
  *
  * Bewusst frei von React-Inhalten: `AdminPage` hängt die Formulare über
@@ -31,6 +31,38 @@ export interface SettingsGroupMeta {
 
 export const SETTINGS_INDEX: SettingsGroupMeta[] = [
   {
+    // Steht bewusst vor „Ton": „Ton" ist Klang (Lautsprecher, Bluetooth),
+    // „Abspielen" ist Verhalten. Wer wissen will, was die Box beim Auflegen
+    // einer Karte tut, sucht das nicht unter der Lautsprecher-Einstellung.
+    key: 'playback',
+    labelKey: 'groups.playback',
+    sections: [
+      {
+        key: 'playback',
+        titleKey: 'playback.title',
+        searchKeys: [
+          'control.section_rfid',
+          'control.stop_playback_on_tag_remove',
+          'control.resume_on_tag_rescan',
+          'playback.end_title',
+          'playback.end_stop',
+          'playback.end_repeat',
+          'playback.end_repeat_while_tag',
+          'playback.guard_enabled',
+          'playback.guard_minutes',
+        ],
+      },
+      {
+        key: 'sleep',
+        titleKey: 'playback.sleep_title',
+        searchKeys: [
+          'general.sleep_timer',
+          'general.sleep_timer_minutes',
+        ],
+      },
+    ],
+  },
+  {
     key: 'sound',
     labelKey: 'groups.sound',
     sections: [
@@ -46,17 +78,6 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'audio.fade_out',
           'system.bluetooth',
           'system.bluetooth_pair',
-        ],
-      },
-      {
-        key: 'playback',
-        titleKey: 'playback.title',
-        searchKeys: [
-          'control.section_rfid',
-          'control.stop_playback_on_tag_remove',
-          'control.resume_on_tag_rescan',
-          'general.sleep_timer',
-          'general.sleep_timer_minutes',
         ],
       },
     ],
@@ -184,6 +205,11 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'general.mqtt_broker',
           'general.mqtt_port',
         ],
+      },
+      {
+        key: 'setup_wizard',
+        titleKey: 'setup:title',
+        searchKeys: ['setup:subtitle'],
       },
       {
         key: 'diagnose',

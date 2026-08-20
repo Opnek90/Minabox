@@ -24,6 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { AudioConfig } from '@/types/api';
 import { useTranslation } from 'react-i18next';
 import { useLayout } from '@/hooks/useLayout';
+import { useSetupStatus } from '@/hooks/useSetupStatus';
 
 const PlayerPage = React.lazy(() =>
   import('@/pages/PlayerPage').then((m) => ({ default: m.PlayerPage }))
@@ -42,6 +43,9 @@ const DashboardPage = React.lazy(() =>
 );
 const KioskPage = React.lazy(() =>
   import('@/pages/KioskPage').then((m) => ({ default: m.KioskPage }))
+);
+const SetupWizardPage = React.lazy(() =>
+  import('@/pages/SetupWizardPage').then((m) => ({ default: m.SetupWizardPage }))
 );
 
 // ── Audio-Config live halten ─────────────────────────────────────────────────
@@ -125,8 +129,27 @@ const MainLayout: React.FC = () => {
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
 
   const location = useLocation();
+  const navigate = useNavigate();
+  const { t: tSetup } = useTranslation('setup');
   const isKiosk = location.pathname === '/kiosk';
   const isPlayer = location.pathname === '/player' || location.pathname === '/';
+  const isSetup = location.pathname === '/setup';
+
+  // Ersteinrichtung: beim allerersten Aufruf einmalig hinleiten, danach nur
+  // noch der Hinweis. Der Nutzer soll nicht bei jedem Seitenwechsel wieder im
+  // Assistenten landen, nur weil er ihn abgebrochen hat.
+  const { needsSetup } = useSetupStatus();
+  const [setupRedirected, setSetupRedirected] = useState(
+    () => sessionStorage.getItem('minabox-setup-seen') === '1',
+  );
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!needsSetup || setupRedirected || isSetup || isKiosk) return;
+    sessionStorage.setItem('minabox-setup-seen', '1');
+    setSetupRedirected(true);
+    navigate('/setup', { replace: true });
+  }, [needsSetup, setupRedirected, isSetup, isKiosk, navigate]);
 
   if (isKiosk) {
     return (
@@ -148,6 +171,24 @@ const MainLayout: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column' }}>
       <SystemAlertBar />
+      {needsSetup && !isSetup && !bannerDismissed && (
+        <Alert
+          severity="info"
+          sx={{ borderRadius: 0 }}
+          action={
+            <>
+              <Button color="inherit" size="small" onClick={() => navigate('/setup')}>
+                {tSetup('banner_action')}
+              </Button>
+              <Button color="inherit" size="small" onClick={() => setBannerDismissed(true)}>
+                {tSetup('banner_dismiss')}
+              </Button>
+            </>
+          }
+        >
+          {tSetup('banner')}
+        </Alert>
+      )}
       <Box sx={{ display: 'flex', flexGrow: 1 }}>
         <Header />
 
@@ -219,6 +260,10 @@ const MainLayout: React.FC = () => {
                     </ProtectedRoute>
                   }
                 />
+                {/* Bewusst ohne ProtectedRoute: der Assistent setzt in
+                    Schritt 2 selbst das Passwort und wuerde sich sonst
+                    mitten im Ablauf aussperren. */}
+                <Route path="/setup" element={<SetupWizardPage />} />
                 <Route path="*" element={<Navigate to="/player" replace />} />
               </Routes>
             </Suspense>

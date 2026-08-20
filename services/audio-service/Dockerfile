@@ -44,6 +44,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code (paths relative to context ./services)
 COPY audio-service/src/ ./src/
 COPY audio-service/config/ ./config/
+# Testton fuer den Ersteinrichtungs-Assistenten (POST /test-tone)
+COPY audio-service/assets/ ./assets/
 
 # Create state directory
 RUN mkdir -p ./state

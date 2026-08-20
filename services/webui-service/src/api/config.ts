@@ -35,6 +35,11 @@ export const configApi = {
     await apiClient.post('/config/leds/test', { led_id: ledId });
   },
 
+  /** Shows a brief test pattern on the OLED. Rejects with 404 if none is attached. */
+  testDisplay: async (): Promise<void> => {
+    await apiClient.post('/config/display/test');
+  },
+
   getLedStates: async (): Promise<string[]> => {
     const response = await apiClient.get<string[]>('/config/leds/states');
     return response.data;

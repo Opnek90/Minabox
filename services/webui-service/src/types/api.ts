@@ -447,6 +447,9 @@ export interface AllowedUsageTimeSlot {
   end: string;     // "HH:MM"
 }
 
+/** Was passiert, wenn der letzte Titel einer Karte durchgelaufen ist. */
+export type PlaybackEndBehavior = 'stop' | 'repeat' | 'repeat_while_tag';
+
 export interface GeneralConfig {
   minabox_device_id: string;
   log_level: string;
@@ -465,6 +468,13 @@ export interface GeneralConfig {
   stop_playback_on_tag_remove?: boolean;
   /** Resume playback from last saved position when tag is placed back on reader. */
   resume_on_tag_rescan?: boolean;
+  playback_end_behavior?: PlaybackEndBehavior;
+  /** Minutes of continuous repetition before the box fades out; 0 = no limit. */
+  playback_loop_guard_minutes?: number;
+  /** True once the setup wizard has been completed (or explicitly dismissed). */
+  setup_completed?: boolean;
+  /** Version of the wizard that was completed; lets a later release offer it again. */
+  setup_version?: number;
 }
 
 export interface SleepTimerStatus {

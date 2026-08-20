@@ -23,7 +23,7 @@ import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import { SettingsSection } from '@/components/admin/SettingsSection';
 import {
   AdvancedSettingsForm, AudioConfigForm, DesignSettingsForm,
-  MediaPathForm, PlaybackSettingsForm, RFIDConfigForm,
+  MediaPathForm, PlaybackSettingsForm, RFIDConfigForm, SleepTimerSettingsForm,
 } from '@/components/admin/ConfigForm';
 import {
   SETTINGS_INDEX, SETTINGS_SECTIONS, sectionDomId,
@@ -36,6 +36,8 @@ import { useLayout } from '@/hooks/useLayout';
  * `@/config/settingsIndex`, damit die CommandPalette dieselbe Struktur
  * durchsuchen kann, ohne die React-Inhalte zu kennen.
  */
+import { SetupWizardRestart } from '@/components/admin/SetupWizardRestart';
+
 const SECTION_CONTENT: Record<string, React.ReactNode> = {
   audio: (
     <>
@@ -44,6 +46,7 @@ const SECTION_CONTENT: Record<string, React.ReactNode> = {
     </>
   ),
   playback: <PlaybackSettingsForm />,
+  sleep: <SleepTimerSettingsForm />,
   design: <DesignSettingsForm />,
   rfid: <RFIDConfigForm />,
   buttons: <ButtonConfigPanel />,
@@ -60,6 +63,7 @@ const SECTION_CONTENT: Record<string, React.ReactNode> = {
   maintenance: <SystemMaintenanceSection />,
   security: <SecurityPanel />,
   advanced: <AdvancedSettingsForm />,
+  setup_wizard: <SetupWizardRestart />,
   diagnose: <SystemStatusPanel />,
 };
 

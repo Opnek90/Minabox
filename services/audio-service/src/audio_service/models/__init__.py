@@ -8,6 +8,8 @@ from .schemas import (
     HealthResponse,
     StatusResponse,
     SwitchDeviceBody,
+    TestToneBody,
+    TestToneResponse,
 )
 
 __all__ = [
@@ -16,4 +18,6 @@ __all__ = [
     "HealthResponse",
     "StatusResponse",
     "SwitchDeviceBody",
+    "TestToneBody",
+    "TestToneResponse",
 ]

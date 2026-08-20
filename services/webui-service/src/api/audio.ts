@@ -77,6 +77,14 @@ export const audioApi = {
     return response.data;
   },
 
+  /**
+   * Plays a short test tone. Runs alongside any current playback instead of
+   * replacing it, so checking the speaker never stops the music.
+   */
+  playTestTone: async (sinkName?: string): Promise<void> => {
+    await apiClient.post('/audio/test-tone', { sink_name: sinkName ?? null });
+  },
+
   switchDevice: async (sinkName: string): Promise<AudioStatus> => {
     const response = await apiClient.post<{ status: AudioStatus; timestamp: string }>(
       '/audio/switch-device',

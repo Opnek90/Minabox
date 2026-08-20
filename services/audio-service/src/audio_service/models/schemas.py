@@ -41,6 +41,23 @@ class DevicesResponse(BaseModel):
     devices: list[DeviceItem]
 
 
+class TestToneBody(BaseModel):
+    """Request body for POST /test-tone."""
+
+    sink_name: str | None = Field(
+        default=None,
+        description="Sink to play the tone on; defaults to the active output",
+    )
+
+
+class TestToneResponse(BaseModel):
+    """Response for POST /test-tone."""
+
+    played: bool
+    sink_name: str | None = None
+    timestamp: str
+
+
 class SwitchDeviceBody(BaseModel):
     """Request body for POST /switch-device."""
 

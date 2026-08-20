@@ -20,7 +20,14 @@ from .config import load_app_config
 from .config_manager import ConfigManager
 from .config_schema import AppConfig, DisplayServiceConfig
 from .core import StateManager
-from .infrastructure import MQTTClient, clear, init as display_init, is_available, show_areas
+from .infrastructure import (
+    MQTTClient,
+    clear,
+    init as display_init,
+    is_available,
+    show_areas,
+    show_lines,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -35,6 +42,8 @@ RENDER_INTERVAL = 1.0
 # when the rendered content actually changed, with a periodic forced redraw so a
 # glitched display still heals itself.
 FORCE_REDRAW_INTERVAL = 60.0
+# Anzeigedauer des Testbilds aus dem Ersteinrichtungs-Assistenten.
+TEST_PATTERN_SECONDS = 6.0
 
 _HEADER_MAX_ITEMS = 6
 _BODY_MAX_ITEMS = 3
@@ -171,6 +180,8 @@ class DisplayService:
         self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._display_config: DisplayServiceConfig | None = None
+        # Deadline, bis zu der der Render-Loop das Testbild stehen laesst.
+        self._test_pattern_until: float = 0.0
 
     async def start(self) -> None:
         """Start the display service."""
@@ -205,7 +216,7 @@ class DisplayService:
         logger.info("display_service_started")
 
     async def _start_api_server(self) -> None:
-        app = create_app(self.config, self.config_manager, self.mqtt_client)
+        app = create_app(self.config, self.config_manager, self.mqtt_client, self)
         port = self.config.env.api_port
         server_config = uvicorn.Config(
             app=app,
@@ -393,6 +404,32 @@ class DisplayService:
         """Stable representation of everything that affects the rendered frame."""
         return json.dumps([areas, font_size, font], sort_keys=True, default=str)
 
+    async def show_test_pattern(self) -> bool:
+        """Show a short test pattern so the user can confirm the panel works.
+
+        Returns False when no display is attached; the caller turns that into a
+        404 rather than pretending the test ran.
+        """
+        if not is_available():
+            return False
+        cfg = self._display_config
+        if not cfg or not cfg.enabled:
+            return False
+
+        # Erst die Sperre setzen, dann zeichnen - sonst kann der Render-Loop
+        # zwischen Zeichnen und Sperren dazwischenfunken.
+        self._test_pattern_until = (
+            asyncio.get_running_loop().time() + TEST_PATTERN_SECONDS
+        )
+        try:
+            show_lines(["Minabox", "Display OK"])
+        except Exception as exc:
+            self._test_pattern_until = 0.0
+            logger.warning("display_test_pattern_failed", error=str(exc))
+            return False
+        logger.info("display_test_pattern_shown")
+        return True
+
     async def _render_loop(self) -> None:
         last_fingerprint: str | None = None
         last_forced = 0.0
@@ -409,6 +446,12 @@ class DisplayService:
                     # Display (re-)appeared - the panel content is unknown, redraw.
                     last_fingerprint = None
                     was_available = True
+
+                # Das Testbild wuerde sonst nach spaetestens einer Sekunde
+                # vom normalen Frame ueberschrieben und waere nicht ablesbar.
+                if asyncio.get_running_loop().time() < self._test_pattern_until:
+                    last_fingerprint = None
+                    continue
 
                 cfg = self._display_config
                 if not cfg or not cfg.enabled:

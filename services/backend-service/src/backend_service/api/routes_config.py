@@ -16,6 +16,12 @@ from backend_service.core.debug_export.runtime_buffers import structlog_ring_pro
 from shared_lib.mqtt import get_mqtt_topic
 
 from backend_service.config import get_config
+from backend_service.core.playback_settings import (
+    DEFAULT_END_BEHAVIOR,
+    DEFAULT_LOOP_GUARD_MINUTES,
+    clamp_end_behavior,
+    clamp_loop_guard_minutes,
+)
 
 # Static files directory (shared with static mount in main.py)
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
@@ -131,6 +137,8 @@ def _general_settings_read() -> dict:
     daily_limit_minutes = 120
     stop_playback_on_tag_remove = False
     resume_on_tag_rescan = True
+    playback_end_behavior = DEFAULT_END_BEHAVIOR
+    playback_loop_guard_minutes = DEFAULT_LOOP_GUARD_MINUTES
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -144,6 +152,11 @@ def _general_settings_read() -> dict:
             daily_limit_minutes = max(1, min(1440, int(data.get("daily_limit_minutes", 120))))
             stop_playback_on_tag_remove = bool(data.get("stop_playback_on_tag_remove", False))
             resume_on_tag_rescan = bool(data.get("resume_on_tag_rescan", True))
+            playback_end_behavior = clamp_end_behavior(data.get("playback_end_behavior"))
+            if "playback_loop_guard_minutes" in data:
+                playback_loop_guard_minutes = clamp_loop_guard_minutes(
+                    data["playback_loop_guard_minutes"]
+                )
             raw_times = data.get("allowed_usage_times")
             if isinstance(raw_times, list):
                 allowed_usage_times = [
@@ -169,6 +182,8 @@ def _general_settings_read() -> dict:
         "daily_limit_minutes": daily_limit_minutes,
         "stop_playback_on_tag_remove": stop_playback_on_tag_remove,
         "resume_on_tag_rescan": resume_on_tag_rescan,
+        "playback_end_behavior": playback_end_behavior,
+        "playback_loop_guard_minutes": playback_loop_guard_minutes,
         "allowed_usage_times": allowed_usage_times,
     }
 
@@ -205,13 +220,24 @@ async def update_general_config(body: dict) -> dict:
         "usage_times_enabled", "daily_limit_enabled", "daily_limit_minutes",
         "stop_playback_on_tag_remove",
         "resume_on_tag_rescan",
+        "playback_end_behavior",
+        "playback_loop_guard_minutes",
         "allowed_usage_times",
+        # Ersteinrichtungs-Assistent (docs/services/webui/Setup-Wizard.md).
+        # Fehlen die Schluessel hier, verwirft der Filter unten sie
+        # stillschweigend und der Assistent kaeme bei jedem Aufruf wieder.
+        "setup_completed",
+        "setup_version",
     }
     data = {k: v for k, v in body.items() if k in allowed}
     if "log_level" in data:
         data["log_level"] = str(data["log_level"]).upper()
     if "disable_gpio" in data:
         data["disable_gpio"] = bool(data["disable_gpio"])
+    if "setup_completed" in data:
+        data["setup_completed"] = bool(data["setup_completed"])
+    if "setup_version" in data:
+        data["setup_version"] = max(0, int(data["setup_version"]))
     if "sleep_timer_minutes" in data:
         data["sleep_timer_minutes"] = max(1, int(data["sleep_timer_minutes"]))
     if "bedtime_fade_enabled" in data:
@@ -232,6 +258,12 @@ async def update_general_config(body: dict) -> dict:
         data["stop_playback_on_tag_remove"] = bool(data.get("stop_playback_on_tag_remove", False))
     if "resume_on_tag_rescan" in data:
         data["resume_on_tag_rescan"] = bool(data.get("resume_on_tag_rescan", True))
+    if "playback_end_behavior" in data:
+        data["playback_end_behavior"] = clamp_end_behavior(data["playback_end_behavior"])
+    if "playback_loop_guard_minutes" in data:
+        data["playback_loop_guard_minutes"] = clamp_loop_guard_minutes(
+            data["playback_loop_guard_minutes"]
+        )
     if "allowed_usage_times" in data:
         raw = data["allowed_usage_times"]
         data["allowed_usage_times"] = _validate_allowed_usage_times(raw if isinstance(raw, list) else [])
@@ -437,6 +469,31 @@ async def update_buttons_config(body: dict) -> dict:
     except OSError as e:
         logger.error("config_write_failed", service="buttons", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to write button config") from e
+
+
+@router.post("/display/test")
+async def test_display() -> dict:
+    """Show a brief test pattern on the OLED via the display service REST API."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post("http://display:8000/test")
+        if response.status_code == 404:
+            raise HTTPException(
+                status_code=404,
+                detail=response.json().get("detail", "Display not available"),
+            )
+        response.raise_for_status()
+        return response.json()
+    except httpx.ConnectError:
+        logger.warning("display_service_unreachable")
+        raise HTTPException(
+            status_code=503, detail="Display service not reachable"
+        ) from None
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("display_test_failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Display test failed") from e
 
 
 @router.get("/display/element-types")

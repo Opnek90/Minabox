@@ -5,7 +5,10 @@ Provides health check, status, devices, and switch-device endpoints.
 
 from __future__ import annotations
 
+import asyncio
+import os
 from datetime import UTC, datetime
+from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, FastAPI, HTTPException, Query
@@ -18,11 +21,21 @@ from ..models import (
     HealthResponse,
     StatusResponse,
     SwitchDeviceBody,
+    TestToneBody,
+    TestToneResponse,
 )
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+# Mitgelieferter Testton fuer den Ersteinrichtungs-Assistenten. Bewusst ein
+# eigenes Asset und kein Titel aus der Mediathek: auf einer frisch
+# aufgesetzten Box ist die leer.
+TEST_TONE_PATH = Path(
+    os.getenv("AUDIO_TEST_TONE_PATH", "/app/assets/test-tone.wav")
+)
+TEST_TONE_TIMEOUT = 15.0
 
 # Global reference to service (set by create_app for route handlers)
 _service: AudioService | None = None
@@ -139,3 +152,74 @@ async def switch_device(body: SwitchDeviceBody) -> StatusResponse:
     except Exception as e:
         logger.error("switch_device_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/test-tone", response_model=TestToneResponse)
+async def play_test_tone(body: TestToneBody) -> TestToneResponse:
+    """Play a short test tone on the given (or active) sink.
+
+    Deliberately routed through paplay instead of the VLC backend: the wizard
+    must be able to check the speaker while something is playing, and taking
+    over the player would stop the music and leave the session in a state the
+    user did not ask for.
+    """
+    if _service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    if not TEST_TONE_PATH.is_file():
+        logger.error("test_tone_missing", path=str(TEST_TONE_PATH))
+        raise HTTPException(status_code=503, detail="Test tone asset not found")
+
+    # Unbekannte Sinks muessen hier abgefangen werden. paplay meldet dafuer
+    # KEINEN Fehler, sondern faellt still auf den Standardausgang zurueck und
+    # beendet sich mit 0. Im Assistenten waere das die schlimmste Variante:
+    # der Nutzer waehlt Ausgang A, hoert Ton aus B und haelt A fuer geprueft.
+    if body.sink_name:
+        try:
+            known = await _service.get_audio_devices(force_refresh=True)
+        except Exception as e:  # noqa: BLE001 - Geraeteliste ist bestenfalls beratend
+            logger.warning("test_tone_device_lookup_failed", error=str(e))
+            known = []
+        if known and not any(d.get("id") == body.sink_name for d in known):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown sink '{body.sink_name}'",
+            )
+
+    cmd = ["paplay"]
+    if body.sink_name:
+        cmd.append(f"--device={body.sink_name}")
+    cmd.append(str(TEST_TONE_PATH))
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        logger.error("test_tone_paplay_missing")
+        raise HTTPException(status_code=503, detail="paplay not available") from None
+
+    try:
+        _, stderr = await asyncio.wait_for(proc.communicate(), TEST_TONE_TIMEOUT)
+    except TimeoutError:
+        proc.kill()
+        logger.warning("test_tone_timeout", sink=body.sink_name)
+        raise HTTPException(status_code=504, detail="Test tone timed out") from None
+
+    if proc.returncode != 0:
+        detail = (stderr or b"").decode(errors="replace").strip()
+        logger.warning(
+            "test_tone_failed", sink=body.sink_name, rc=proc.returncode, error=detail
+        )
+        raise HTTPException(
+            status_code=502, detail=detail or "Test tone playback failed"
+        )
+
+    logger.info("test_tone_played", sink=body.sink_name)
+    return TestToneResponse(
+        played=True,
+        sink_name=body.sink_name,
+        timestamp=datetime.now(UTC).isoformat(),
+    )
