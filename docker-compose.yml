@@ -63,6 +63,7 @@ services:
   # Backend Service
   # =================================
   backend:
+    image: ghcr.io/opnek90/minabox-backend:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services
       dockerfile: backend-service/Dockerfile
@@ -107,7 +108,7 @@ services:
       - /etc/os-release:/host/etc/os-release:ro
       - /etc/rpi-issue:/host/etc/rpi-issue:ro
       - /etc/timezone:/host/etc/timezone:ro
-      - /boot/firmware:/host/boot:ro
+      - ${BOOT_CONFIG_DIR:-/boot/firmware}:/host/boot:ro
       - /var/lib/dpkg/status:/host/var/lib/dpkg/status:ro
       - /var/log/apt:/host/var/log/apt:ro
       - ./.cursor:/cursor-debug
@@ -134,6 +135,7 @@ services:
   # Host-Helper (internal; .env write, optional move)
   # =================================
   host-helper:
+    image: ghcr.io/opnek90/minabox-host-helper:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services
       dockerfile: host-helper-service/Dockerfile
@@ -187,6 +189,7 @@ services:
   # Audio Service (VLC via PipeWire/Pulse)
   # =================================
   audio:
+    image: ghcr.io/opnek90/minabox-audio:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services
       dockerfile: audio-service/Dockerfile
@@ -203,15 +206,15 @@ services:
       - AUDIO_SERVICE_PORT=8003
       - AUDIO_CONFIG_PATH=config/audio.json
       - AUDIO_STATE_PATH=state/audio_state.json
-      - XDG_RUNTIME_DIR=/run/user/1000
-      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - XDG_RUNTIME_DIR=/run/user/${HOST_UID:-1000}
+      - PULSE_SERVER=unix:/run/user/${HOST_UID:-1000}/pulse/native
       - PULSE_PROP_module-suspend-on-idle.timeout=0
       - PULSE_PROP_media.role=music
     volumes:
       - ./services/audio-service/config:/app/config
       - ./services/audio-service/state:/app/state
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio:ro
-      - /run/user/1000/pulse:/run/user/1000/pulse:ro
+      - /run/user/${HOST_UID:-1000}/pulse:/run/user/${HOST_UID:-1000}/pulse:ro
       - ./.cursor:/cursor-debug
     networks:
       - minabox-network
@@ -229,6 +232,8 @@ services:
   # RFID Service (Hardware)
   # =================================
   rfid:
+    profiles: ["rfid"]
+    image: ghcr.io/opnek90/minabox-rfid:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services
       dockerfile: rfid-service/Dockerfile
@@ -251,7 +256,7 @@ services:
         condition: service_healthy
     devices:
       - /dev/i2c-1:/dev/i2c-1
-    user: "1000:988"
+    user: "${HOST_UID:-1000}:${I2C_GID:-988}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -263,6 +268,8 @@ services:
   # Button Service (Hardware)
   # =================================
   button:
+    profiles: ["button"]
+    image: ghcr.io/opnek90/minabox-button:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services
       dockerfile: button-service/Dockerfile
@@ -284,9 +291,9 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    user: "1000:986"
+    user: "${HOST_UID:-1000}:${GPIO_GID:-986}"
     group_add:
-      - "986"
+      - "${GPIO_GID:-986}"
     devices:
       - /dev/gpiochip0:/dev/gpiochip0
       - /dev/gpiomem:/dev/gpiomem
@@ -301,6 +308,8 @@ services:
   # LED Service (Hardware)
   # =================================
   led:
+    profiles: ["led"]
+    image: ghcr.io/opnek90/minabox-led:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services
       dockerfile: led-service/Dockerfile
@@ -325,9 +334,9 @@ services:
     devices:
       - /dev/gpiochip0:/dev/gpiochip0
       - /dev/gpiomem:/dev/gpiomem
-    user: "1000:986"
+    user: "${HOST_UID:-1000}:${GPIO_GID:-986}"
     group_add:
-      - "986"
+      - "${GPIO_GID:-986}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -339,6 +348,8 @@ services:
   # Display Service (I2C OLED)
   # =================================
   display:
+    profiles: ["display"]
+    image: ghcr.io/opnek90/minabox-display:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services
       dockerfile: display-service/Dockerfile
@@ -364,7 +375,7 @@ services:
         condition: service_healthy
     devices:
       - /dev/i2c-1:/dev/i2c-1
-    user: "1000:988"
+    user: "${HOST_UID:-1000}:${I2C_GID:-988}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -376,6 +387,7 @@ services:
   # WebUI Service
   # =================================
   webui:
+    image: ghcr.io/opnek90/minabox-webui:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services/webui-service
       dockerfile: Dockerfile
@@ -405,6 +417,8 @@ services:
   # Media-Downloader Service (yt-dlp)
   # =================================
   media-downloader:
+    profiles: ["media"]
+    image: ghcr.io/opnek90/minabox-media-downloader:${MINABOX_IMAGE_TAG:-latest}
     build:
       context: ./services
       dockerfile: media-downloader-service/Dockerfile

@@ -5,6 +5,8 @@
 # Environment & Secrets
 # =================================
 .env
+.env.*backup*
+.env.bak
 .env.local
 .env.*.local
 *.key

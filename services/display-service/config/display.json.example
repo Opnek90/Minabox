@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "i2c_bus": 1,
+  "i2c_address": 60,
+  "font_size": "large",
+  "font": "sans",
+  "elements": [
+    {"id": "vol", "type": "volume", "enabled": true, "order": 0, "area": 1},
+    {"id": "state", "type": "play_state", "enabled": true, "order": 0, "area": 1},
+    {"id": "time", "type": "clock", "enabled": true, "order": 0, "area": 0},
+    {"id": "sleep", "type": "sleep_timer", "enabled": true, "order": 1, "area": 1},
+    {"id": "mute", "type": "mute", "enabled": true, "order": 1, "area": 2},
+    {"id": "error", "type": "error_state", "enabled": true, "order": 1, "area": 0},
+    {"id": "repeat", "type": "repeat", "enabled": true, "order": 2, "area": 2},
+    {"id": "shuffle", "type": "shuffle", "enabled": true, "order": 3, "area": 2},
+    {"id": "bluetooth", "type": "bluetooth", "enabled": true, "order": 4, "area": 0}
+  ]
+}

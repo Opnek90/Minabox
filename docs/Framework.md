@@ -15,6 +15,39 @@ Dieses Dokument definiert die technischen Standards und Best Practices für das 
 - **Package Management:** Poetry oder pip-tools  
 - **Container:** Docker & Docker Compose  
 - **Orchestrierung:** Zentrales `docker-compose.yml` im Root-Repository  
+- **Images:** `ghcr.io/opnek90/minabox-<service>`, gebaut von
+  `.github/workflows/build-images.yml` (nativ arm64)  
+
+### Pflicht- und Wahlkomponenten
+
+Jeder Service hat sowohl einen `image:`- als auch einen `build:`-Block. Damit
+laedt `docker compose pull` fertige Images, waehrend `docker compose build`
+weiterhin lokal in denselben Namen baut.
+
+Die Pflichtservices `mqtt`, `backend`, `host-helper`, `audio` und `webui` haben
+kein Compose-Profil und laufen immer. Die optionalen Services haengen je an
+einem Profil und werden ueber `COMPOSE_PROFILES` in der `.env` zugeschaltet:
+
+| Service | Profil |
+|---|---|
+| `rfid` | `rfid` |
+| `led` | `led` |
+| `button` | `button` |
+| `display` | `display` |
+| `media-downloader` | `media` |
+
+Alle `depends_on`-Kanten zeigen ausschliesslich auf Pflichtservices - ein
+deaktiviertes Profil kann daher keine Abhaengigkeit brechen.
+
+Zwei Fallstricke:
+
+- Ein Profil aus `COMPOSE_PROFILES` zu entfernen stoppt einen **bereits
+  laufenden** Container nicht. Dafuer ist `docker compose down --remove-orphans`
+  noetig - `install.sh` macht das im Wartungsmenue automatisch.
+- Hostspezifische Werte (`HOST_UID`, `DOCKER_GID`, `I2C_GID`, `GPIO_GID`,
+  `BOOT_CONFIG_DIR`) stehen in der `.env`, nicht in der compose-Datei. Die
+  Defaults passen nur zufaellig auf ein Standard-Raspberry-Pi-OS; `install.sh`
+  ermittelt sie mit `getent group`.
 
 ### Development
 

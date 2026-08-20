@@ -1,0 +1,46 @@
+{
+  "buttons": [
+    {
+      "id": "btn_1",
+      "name": "Volume",
+      "mode": "advanced",
+      "type": "rotary",
+      "gpio": null,
+      "clk": 24,
+      "dt": 23,
+      "sw": 25,
+      "actions": {
+        "rotate_cw": "volume_up",
+        "rotate_ccw": "volume_down",
+        "press": "mute_toggle"
+      },
+      "enabled": false
+    },
+    {
+      "id": "btn_2",
+      "name": "Play",
+      "mode": "basic",
+      "type": "push",
+      "gpio": 13,
+      "clk": null,
+      "dt": null,
+      "sw": null,
+      "action": "play_pause",
+      "actions": null,
+      "enabled": false
+    },
+    {
+      "id": "btn_3",
+      "name": "Next",
+      "mode": "basic",
+      "type": "push",
+      "gpio": 26,
+      "clk": null,
+      "dt": null,
+      "sw": null,
+      "action": "next",
+      "actions": null,
+      "enabled": false
+    }
+  ]
+}

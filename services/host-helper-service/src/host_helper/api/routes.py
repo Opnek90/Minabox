@@ -1747,6 +1747,29 @@ def update_minabox(_: None = Depends(_check_api_key)) -> dict:
     compose_file = workspace / "docker-compose.yml"
     if not compose_file.exists():
         raise HTTPException(status_code=500, detail="docker-compose.yml not found")
+    # Zuerst den Arbeitsbaum aktualisieren: die Images kommen zwar aus der
+    # Registry, aber Aenderungen an docker-compose.yml (neue Services, neue
+    # Profile, geaenderte Mounts) stecken im Repo. Ohne git pull laeuft das
+    # Update mit einer veralteten compose-Datei gegen neue Images.
+    #
+    # Bewusst nicht fatal: ein Pi mit lokalen Aenderungen oder ohne Netz zum
+    # Git-Remote soll trotzdem seine Images aktualisieren koennen. Das
+    # Ergebnis landet in log_preview, damit ein Fehlschlag sichtbar bleibt.
+    git_out = ""
+    try:
+        rg = subprocess.run(
+            ["git", "-C", str(workspace), "pull", "--ff-only"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        git_out = (rg.stdout or "") + (rg.stderr or "")
+        if rg.returncode != 0:
+            logger.warning("update_minabox_git_pull_failed", output=git_out[-500:])
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        git_out = f"git pull skipped: {exc}"
+        logger.warning("update_minabox_git_pull_skipped", error=str(exc))
+
     try:
         r1 = subprocess.run(
             ["docker", "compose", "-f", str(compose_file), "pull"],
@@ -1762,7 +1785,9 @@ def update_minabox(_: None = Depends(_check_api_key)) -> dict:
             text=True,
             timeout=300,
         )
-        out = (r1.stdout or "") + (r1.stderr or "") + (r2.stdout or "") + (r2.stderr or "")
+        out = git_out + "".join(
+            x or "" for x in (r1.stdout, r1.stderr, r2.stdout, r2.stderr)
+        )
         if r2.returncode != 0:
             raise HTTPException(
                 status_code=500,

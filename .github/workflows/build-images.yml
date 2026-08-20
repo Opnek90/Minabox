@@ -1,0 +1,88 @@
+name: Build & Push Images
+
+# Baut alle Minabox-Service-Images und schiebt sie nach GHCR.
+# Der Installations-Wizard (install.sh) laedt ausschliesslich von dort -
+# ohne diesen Workflow gibt es nichts zu pullen.
+#
+# Einmalig nach dem ersten erfolgreichen Lauf noetig: die Packages unter
+# github.com/users/Opnek90/packages auf "public" stellen, sonst verlangt
+# "docker pull" auf dem Pi ein Login.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    # Nativer arm64-Runner. Das ist hier nicht Kosmetik: led- und
+    # button-service kompilieren lgpio aus dem Quelltext und webui baut mit
+    # npm - unter QEMU dauert das ein Vielfaches und laeuft ins Job-Timeout.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Acht Services bauen aus ./services, weil sie shared-lib brauchen.
+          - { name: backend,          image: minabox-backend,          context: ./services, dockerfile: ./services/backend-service/Dockerfile }
+          - { name: host-helper,      image: minabox-host-helper,      context: ./services, dockerfile: ./services/host-helper-service/Dockerfile }
+          - { name: audio,            image: minabox-audio,            context: ./services, dockerfile: ./services/audio-service/Dockerfile }
+          - { name: rfid,             image: minabox-rfid,             context: ./services, dockerfile: ./services/rfid-service/Dockerfile }
+          - { name: button,           image: minabox-button,           context: ./services, dockerfile: ./services/button-service/Dockerfile }
+          - { name: led,              image: minabox-led,              context: ./services, dockerfile: ./services/led-service/Dockerfile }
+          - { name: display,          image: minabox-display,          context: ./services, dockerfile: ./services/display-service/Dockerfile }
+          - { name: media-downloader, image: minabox-media-downloader, context: ./services, dockerfile: ./services/media-downloader-service/Dockerfile }
+          # webui hat einen eigenen, engeren Context (kein shared-lib).
+          - { name: webui,            image: minabox-webui,            context: ./services/webui-service, dockerfile: ./services/webui-service/Dockerfile }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # GHCR verlangt kleingeschriebene Pfade.
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
