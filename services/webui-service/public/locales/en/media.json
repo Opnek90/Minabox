@@ -179,11 +179,13 @@
     "search_placeholder": "Search tracks..."
   },
   "media_import": {
-    "title": "Import from URL",
-    "disclaimer_title": "Copyright notice",
-    "disclaimer_body": "Please make sure you have the legal rights to use this content. This feature is intended for copyright-free or self-owned content only. Downloading copyrighted content without permission is not permitted.",
-    "url_label": "Video URL",
-    "url_placeholder": "https://www.youtube.com/watch?v=…",
+    "title": "Import media from URL",
+    "disclaimer_title": "Notice on lawful use",
+    "disclaimer_body": "You may only import content for which you hold the necessary usage and reproduction rights, or for which a statutory exception applies — for example your own content, public domain content, or content you have explicit permission from the rights holder to use. This application must not be used to circumvent technical protection measures or access, account, payment or platform restrictions. Checking the rights and the terms of the respective source is your own responsibility.",
+    "confirm_label": "I confirm that I have the required rights and will not bypass technical protection or access restrictions.",
+    "confirm_hint": "Without this confirmation the URL can neither be checked nor imported.",
+    "url_label": "Media URL",
+    "url_placeholder": "https://example.org/media",
     "check": "Check",
     "preview_error": "Could not check URL. Please verify the link and try again.",
     "edit_hint": "Adjust details before importing:",

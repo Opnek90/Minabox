@@ -2,17 +2,17 @@
 
 ## 1. Zweck & Verantwortung
 
-Der Media-Downloader-Service ist ein eigenständiger Microservice, der Videos und Audioinhalte von
-uöffentlichen Plattformen (YouTube, SoundCloud, Bandcamp, Vimeo, …) herunterladet, als MP3-Datei
-konvertiert und im gemeinsamen Audio-Storage speichert. Er wird ausschließlich über das Backend
-aufgerufen – der WebUI-Client spricht nie direkt mit ihm.
+Der Media-Downloader-Service ist ein eigenständiger Microservice für den lokalen Medienimport: Er
+liest die Tonspur einer übergebenen Medien-URL, konvertiert sie in eine MP3-Datei und legt sie im
+gemeinsamen Audio-Storage ab. Er wird ausschließlich über das Backend aufgerufen – der WebUI-Client
+spricht nie direkt mit ihm.
 
 **Ziele:**
 
 - Bereitstellung einer einfachen REST-API für das Backend (`/validate-url`, `/download`)
-- Isolation von yt-dlp und ffmpeg in einem eigenen Container
+- Isolation der Lese-/Konvertierungs-Werkzeuge (yt-dlp, ffmpeg) in einem eigenen Container
 - Schutz vor missbräuchlicher Nutzung (Domain-Whitelist, Dateigrößen-Limit)
-- Asynchrone Downloads mit Timeout-Handling
+- Asynchrone Verarbeitung mit Timeout-Handling
 - Retry-Logik bei transienten Fehlern
 
 **Nicht-Ziele:**
@@ -20,6 +20,8 @@ aufgerufen – der WebUI-Client spricht nie direkt mit ihm.
 - Keine MQTT-Kommunikation
 - Keine Datenbank
 - Keine direkte Kommunikation mit dem WebUI
+- Keine Unterstützung für Zugangsdaten, Cookies, Sessions oder Schlüsselmaterial – und damit keine
+  Funktion zum Umgehen von Zugangs- oder Schutzmechanismen (siehe Abschnitt 8)
 
 ---
 
@@ -47,13 +49,13 @@ Healthcheck für Docker.
 
 ### `GET /validate-url?url=<url>`
 
-Prüft eine URL und gibt Metadaten zurück, ohne den Download zu starten.
+Prüft eine URL und gibt Metadaten zurück, ohne den Import zu starten.
 
 **Query-Parameter:**
 
 | Parameter | Pflicht | Beschreibung |
 |---|---|---|
-| `url` | ✓ | Die zu prüfende Video-URL |
+| `url` | ✓ | Die zu prüfende Medien-URL |
 
 **Response (200):**
 
@@ -63,28 +65,28 @@ Prüft eine URL und gibt Metadaten zurück, ohne den Download zu starten.
   "title": "Beethoven Symphony No. 5",
   "artist": "Berlin Philharmonic",
   "duration_ms": 1980000,
-  "thumbnail_url": "https://i.ytimg.com/vi/xxx/hqdefault.jpg",
-  "video_id": "dQw4w9WgXcQ"
+  "thumbnail_url": "https://example.org/media/cover.jpg",
+  "video_id": "abc123"
 }
 ```
 
 **Fehler:**
 
 - `400` – Domain nicht auf Whitelist
-- `422` – URL ungültig oder Video nicht verfügbar
+- `422` – URL ungültig oder Medium nicht lesbar
 
 ---
 
 ### `POST /download?url=<url>`
 
-Lädt das Video herunter, extrahiert den Audio-Track als MP3 und speichert ihn unter
-`DOWNLOAD_PATH/<sanitized_title>.mp3`.
+Liest das Medium, legt die Tonspur als MP3 unter
+`DOWNLOAD_PATH/<sanitized_title>.mp3` ab und gibt die Metadaten zurück.
 
 **Query-Parameter:**
 
 | Parameter | Pflicht | Beschreibung |
 |---|---|---|
-| `url` | ✓ | Die Download-URL |
+| `url` | ✓ | Die zu importierende Medien-URL |
 
 **Response (200):**
 
@@ -95,7 +97,7 @@ Lädt das Video herunter, extrahiert den Audio-Track als MP3 und speichert ihn u
   "title": "Beethoven Symphony No. 5",
   "artist": "Berlin Philharmonic",
   "duration_ms": 1980000,
-  "thumbnail_url": "https://i.ytimg.com/vi/xxx/hqdefault.jpg"
+  "thumbnail_url": "https://example.org/media/cover.jpg"
 }
 ```
 
@@ -103,7 +105,7 @@ Lädt das Video herunter, extrahiert den Audio-Track als MP3 und speichert ihn u
 
 - `400` – Domain nicht auf Whitelist
 - `413` – Datei überschreitet `MAX_FILESIZE_MB`
-- `422` – Download fehlgeschlagen
+- `422` – Import fehlgeschlagen
 - `504` – Timeout
 
 ---
@@ -188,12 +190,14 @@ WebUI: Polling GET /tracks/{id}/download-status → status "done"
 
 ---
 
-## 8. Sicherheit
+## 8. Sicherheit und Nutzungsgrenzen
 
-- **Domain-Whitelist:** Nur explizit erlaubte Domains können verwendet werden (`_ALLOWED_DOMAINS` im Backend)
-- **Dateigrößen-Limit:** Downloads über `MAX_FILESIZE_MB` werden abgebrochen
+- **Domain-Whitelist:** Nur explizit erlaubte Hosts können verwendet werden (`_ALLOWED_DOMAINS` im Backend). Das ist ein technischer Schutz vor beliebigen Abrufzielen und keine rechtliche Freigabe der dort liegenden Inhalte.
+- **Dateigrößen-Limit:** Importe über `MAX_FILESIZE_MB` werden abgebrochen
 - **Kein direkter Zugriff vom WebUI:** Der Service ist nur innerhalb des Docker-Netzwerks erreichbar
-- **Urheberrechts-Disclaimer:** Die WebUI zeigt vor jedem Import einen Hinweis auf die rechtliche Verantwortung des Nutzers
+- **Keine Zugangsparameter:** Weder API, UI noch Umgebungsvariablen bieten Felder für Cookie-Dateien, Browser-Cookies, Login-Daten, OAuth, Session-Tokens oder Entschlüsselungsschlüssel. An yt-dlp wird ausschließlich die URL (und optional das Zielverzeichnis) weitergereicht; die Option-Dicts werden pro Aufruf im Code aufgebaut und sind von außen nicht erweiterbar.
+- **Keine Umgehungsfunktionen:** Das Projekt implementiert und dokumentiert keine Unterstützung für das Umgehen von DRM, Paywalls, Geoblocking oder vergleichbaren Zugriffssperren. Die eingesetzte Bibliothek kann eigene Fähigkeiten mitbringen; welche Schutzmechanismen im Einzelfall greifen, bewertet das Projekt nicht.
+- **Bestätigung zur rechtmäßigen Nutzung:** Die WebUI zeigt vor jedem Import einen Hinweis zur rechtmäßigen Nutzung und verlangt eine ausdrückliche Bestätigung des Nutzers, bevor Prüfung oder Import möglich sind. Die Bestätigung wird nur im UI-Zustand gehalten und nicht gespeichert.
 
 ---
 

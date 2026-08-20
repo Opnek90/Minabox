@@ -32,10 +32,10 @@ class MediaDownloaderClient:
         self.base_url = base_url.rstrip("/")
 
     async def download_video(self, url: str, output_dir: str | None = None) -> dict[str, Any]:
-        """POST /download – download *url* as MP3.
+        """POST /download – import the audio of *url* as MP3.
 
         Args:
-            url: Video URL supported by yt-dlp.
+            url: Media URL the downloader service is able to read.
             output_dir: Optional absolute container path for the MP3.
                         When provided the media-downloader writes directly
                         into that directory (e.g. /mnt/audio/tracks/{id}/).

@@ -5,7 +5,7 @@ build-backend = "setuptools.backends.legacy:build"
 [project]
 name = "media-downloader-service"
 version = "0.1.0"
-description = "Minabox Media Downloader Service – yt-dlp based audio extraction"
+description = "Minabox Media Downloader Service – local media import from a URL"
 requires-python = ">=3.13"
 
 [tool.ruff]

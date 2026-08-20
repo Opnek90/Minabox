@@ -804,7 +804,7 @@ _download_status: dict[int, dict] = {}
 | Wert | Bedeutung |
 |---|---|
 | `pending` | Task eingereiht, noch nicht gestartet |
-| `downloading` | yt-dlp läuft |
+| `downloading` | Import läuft |
 | `done` | Download abgeschlossen; Track vollständig in DB |
 | `error` | Download fehlgeschlagen; `error`-Feld enthält den Grund |
 | `unknown` | Kein Status-Eintrag (Track nicht via `from-url` importiert oder Service-Neustart) |

@@ -179,11 +179,13 @@
     "search_placeholder": "Tracks suchen..."
   },
   "media_import": {
-    "title": "Von URL importieren",
-    "disclaimer_title": "Hinweis zum Urheberrecht",
-    "disclaimer_body": "Bitte stelle sicher, dass du die rechtlichen Nutzungsrechte an den Inhalten hast. Diese Funktion ist ausschließlich für urheberrechtsfreie oder eigene Inhalte bestimmt. Das Herunterladen urheberrechtlich geschützter Inhalte ohne Erlaubnis ist nicht gestattet.",
-    "url_label": "Video-URL",
-    "url_placeholder": "https://www.youtube.com/watch?v=…",
+    "title": "Medien von URL importieren",
+    "disclaimer_title": "Hinweis zur rechtmäßigen Nutzung",
+    "disclaimer_body": "Du darfst nur Inhalte importieren, für die du die erforderlichen Nutzungs- und Vervielfältigungsrechte besitzt oder für die eine gesetzliche Erlaubnis gilt, z. B. eigene Inhalte, gemeinfreie Inhalte oder Inhalte mit ausdrücklicher Erlaubnis des Rechteinhabers. Die Anwendung darf nicht genutzt werden, um technische Schutzmaßnahmen, Zugangs-, Konto-, Zahlungs- oder Plattformbeschränkungen zu umgehen. Du bist selbst dafür verantwortlich, die Rechte und die Bedingungen der jeweiligen Quelle zu prüfen.",
+    "confirm_label": "Ich bestätige, dass ich die erforderlichen Rechte besitze und keine Schutz- oder Zugangsbeschränkungen umgehe.",
+    "confirm_hint": "Ohne diese Bestätigung lässt sich die URL weder prüfen noch importieren.",
+    "url_label": "Medien-URL",
+    "url_placeholder": "https://example.org/media",
     "check": "Prüfen",
     "preview_error": "URL konnte nicht geprüft werden. Bitte prüfe den Link und versuche es erneut.",
     "edit_hint": "Angaben vor dem Import anpassen:",
