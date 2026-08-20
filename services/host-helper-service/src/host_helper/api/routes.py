@@ -19,6 +19,7 @@ from docker.errors import APIError as DockerAPIError, NotFound as DockerNotFound
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+from shared_lib.version import get_version as get_build_version
 
 from host_helper.config import load_config, validate_path_under_allowed
 
@@ -97,7 +98,7 @@ async def health() -> dict:
     """Deliberately async: this is what the Docker healthcheck polls, and it
     does no blocking work. Keeping it off the threadpool means it stays
     answerable even while a long update occupies the worker threads."""
-    return {"status": "ok", "service": "host-helper"}
+    return {"status": "ok", "service": "host-helper", "version": get_build_version()}
 
 
 @router.get("/audio-path")

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, FastAPI, HTTPException, Query
+from shared_lib.version import get_version
 
 from ..config_schema import AppConfig
 from ..core import AudioService
@@ -70,6 +71,7 @@ def create_app(service: AudioService, config: AppConfig) -> FastAPI:
             return HealthResponse(
                 status=status,
                 service="audio",
+                version=get_version(),
                 uptime_seconds=uptime,
                 mqtt_connected=mqtt_connected,
                 vlc_initialized=vlc_initialized,

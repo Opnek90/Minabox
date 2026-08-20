@@ -279,16 +279,43 @@ export interface ServiceStatus {
   service: string;
   state: ServiceState;
   timestamp: string;
+  /** Container name, e.g. "minabox-audio". Absent on the probe fallback. */
+  container?: string | null;
+  /** Version from the image's OCI label; "0.0.0-dev" for a local build. */
   version?: string | null;
+  /** Commit the image was built from. */
+  git_sha?: string | null;
+  build_date?: string | null;
+  image?: string | null;
+  /** Raw Docker status: running, exited, restarting, ... */
+  docker_status?: string | null;
+  /** Docker health check result: healthy, unhealthy, starting. */
+  health?: string | null;
+  restart_count?: number | null;
+  started_at?: string | null;
+  exit_code?: number | null;
+  oom_killed?: boolean | null;
+  /** Only on the mqtt entry: whether the backend is attached to the broker. */
+  mqtt_connected?: boolean | null;
   cpu_percent?: number | null;
   memory_mb?: number | null;
   memory_percent?: number | null;
 }
 
 export interface SystemStatus {
+  /**
+   * One entry per container that actually exists on this box. Which ones those
+   * are depends on COMPOSE_PROFILES, so the list is not a fixed set.
+   */
   services: ServiceStatus[];
   device_id: string;
   uptime_seconds?: number | null;
+  /** False when the backend cannot reach the Docker socket - then CPU, RAM
+   *  and versions of non-Minabox containers are unavailable, not zero. */
+  docker_available?: boolean;
+  /** False when the kernel's memory cgroup controller is off (the default on
+   *  Raspberry Pi OS). No per-container RAM figure exists at all then. */
+  memory_stats_available?: boolean;
 }
 
 // ============================================================================

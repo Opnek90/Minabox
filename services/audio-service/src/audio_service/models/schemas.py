@@ -12,6 +12,7 @@ class HealthResponse(BaseModel):
 
     status: str
     service: str
+    version: str | None = None
     uptime_seconds: float
     mqtt_connected: bool
     vlc_initialized: bool

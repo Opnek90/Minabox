@@ -34,11 +34,26 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service, onOpe
   const config = stateConfig[service.state] ?? stateConfig.offline;
 
   // ── Metrics from service (if API provides them) ────────────────────────────
-  const metrics = (service as ServiceStatusType & {
-    cpu_percent?: number;
-    memory_mb?: number;
-    memory_percent?: number;
-  });
+  const metrics = service;
+
+  // ── Version ────────────────────────────────────────────────────────────────
+  // Kommt aus dem OCI-Label des Images. "0.0.0-dev" ist kein Fehler, sondern
+  // ein lokal gebautes Image - das wird benannt statt als Nummer angezeigt.
+  const isDevBuild = service.version === '0.0.0-dev';
+  const versionLabel = service.version
+    ? (isDevBuild ? t('system.version_dev') : `v${service.version}`)
+    : null;
+  // Details, die nur im Fehlerfall interessieren, hinter dem Tooltip.
+  const versionTitle = [
+    service.image,
+    service.git_sha ? `commit ${service.git_sha.slice(0, 12)}` : null,
+    service.build_date,
+  ].filter(Boolean).join(' · ') || undefined;
+  const stateTitle = [
+    service.docker_status,
+    service.health,
+    service.restart_count ? `${service.restart_count}× neu gestartet` : null,
+  ].filter(Boolean).join(' · ') || undefined;
 
   return (
     <Box
@@ -58,21 +73,37 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service, onOpe
         justifyContent="space-between"
         sx={{ px: 1.5, py: 1, gap: 1 }}
       >
-        {/* Service name + state chip */}
+        {/* Service name + version + state chip */}
         <Box display="flex" alignItems="center" gap={1} minWidth={0} flex={1}>
-          <Typography
-            variant="body2"
-            fontWeight={600}
-            sx={{ textTransform: 'capitalize', flexShrink: 0 }}
-          >
-            {service.service}
-          </Typography>
+          <Box minWidth={0}>
+            <Typography
+              variant="body2"
+              fontWeight={600}
+              sx={{ textTransform: 'capitalize' }}
+              noWrap
+            >
+              {service.service}
+            </Typography>
+            {versionLabel && (
+              <Typography
+                variant="caption"
+                color={isDevBuild ? 'warning.main' : 'text.secondary'}
+                title={versionTitle}
+                noWrap
+                display="block"
+                sx={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                {versionLabel}
+              </Typography>
+            )}
+          </Box>
           <Chip
             icon={config.icon}
             label={config.label}
             color={config.color}
             size="small"
             variant="outlined"
+            title={stateTitle}
             sx={{ flexShrink: 0 }}
           />
         </Box>

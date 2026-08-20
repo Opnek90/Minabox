@@ -39,4 +39,17 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:80/health || exit 1
 
+# -- Version (Build-Args; docs/Versionierung.md) ------------------------------
+# Die Defaults sind absichtlich "dev": ein lokal gebautes Image soll sich nicht
+# als Release ausgeben. Der Block steht am Ende der Datei, damit ein
+# Versionswechsel nur die letzten Metadaten-Layer ungueltig macht.
+ARG APP_VERSION=0.0.0-dev
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.title="minabox-webui" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.source="https://github.com/Opnek90/minabox"
+
 CMD ["nginx", "-g", "daemon off;"]

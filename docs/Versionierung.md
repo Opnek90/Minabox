@@ -1,0 +1,219 @@
+# Versionierung der Dienste
+
+Jeder Minabox-Dienst traegt seine **eigene** Versionsnummer. Eine Korrektur,
+die nur Backend und WebUI beruehrt, hebt auch nur deren Nummern - die uebrigen
+sieben Images behalten ihre. Das ist der Grund fuer den Zuschnitt: eine
+gemeinsame Stack-Nummer wuerde bei jeder Kleinigkeit alle neun Zahlen
+weiterdrehen und damit nichts mehr aussagen.
+
+Dieses Dokument beschreibt Phase 1 aus
+[Release-Update-Workflow.md](Release-Update-Workflow.md): woher eine Version
+kommt, wie sie ins Image gelangt und wie die Oberflaeche sie liest.
+
+---
+
+## 1. Die Quelle: `services/<dienst>-service/VERSION`
+
+Eine Datei, eine Zeile, SemVer:
+
+```
+0.1.0
+```
+
+Sie ist die einzige Stelle, an der die Nummer steht. Wer einen Dienst
+veroeffentlicht, aendert diese Datei - sonst nichts.
+
+**Bump-Regeln** (SemVer, aus Nutzersicht gedacht):
+
+| Aenderung | Beispiel | Sprung |
+|---|---|---|
+| Fehler behoben, Verhalten sonst gleich | Wiedergabe haengt nicht mehr | Patch (`0.1.0` → `0.1.1`) |
+| Neue Faehigkeit, alles Alte laeuft weiter | Sleep-Timer kommt dazu | Minor (`0.1.1` → `0.2.0`) |
+| Bruch: Konfiguration, API oder Daten muessen mit | Config-Feld entfaellt | Major (`0.2.0` → `1.0.0`) |
+
+**Abhaengigkeiten.** `shared-lib` ist kein Image, aber alle Python-Dienste
+haengen daran. Eine Aenderung dort wirkt in jedem Dienst, der sie benutzt -
+also auch dessen VERSION anheben. Gleiches gilt fuer eine Aenderung am
+MQTT-Vertrag: sie betrifft beide Seiten, Sender und Empfaenger.
+
+---
+
+## 2. Der Weg ins Image
+
+Am Ende jedes Dockerfiles steht derselbe Block:
+
+```dockerfile
+ARG APP_VERSION=0.0.0-dev
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.title="minabox-audio" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.source="https://github.com/Opnek90/minabox"
+ENV APP_VERSION=${APP_VERSION} ...
+```
+
+Drei Entscheidungen stecken darin:
+
+1. **Der Default ist `0.0.0-dev`.** Ein lokal gebautes Image soll sich nicht
+   als Release ausgeben. Die Oberflaeche zeigt dafuer "Entwicklungsbuild"
+   statt einer Nummer.
+2. **Der Block steht am Dateiende.** Ein Versionswechsel macht so nur die
+   letzten Metadaten-Layer ungueltig, nicht den ganzen Build.
+3. **Label *und* Umgebungsvariable.** Das Label liest das Backend von aussen
+   ueber den Docker-Socket - das funktioniert auch fuer Container ohne Python
+   und fuer solche, deren Prozess haengt. Die Variable liest der Dienst selbst
+   und meldet sie in `/health`. Zwei Wege, dieselbe Zahl; weichen sie
+   voneinander ab, laeuft im Container etwas anderes als das Image behauptet.
+
+Die WebUI bekommt nur das Label - nginx liest keine dieser Variablen.
+
+---
+
+## 3. Die CI
+
+[build-images.yml](../.github/workflows/build-images.yml) liest pro
+Matrix-Eintrag die zugehoerige `VERSION`, prueft sie gegen SemVer und benutzt
+sie zweifach:
+
+- als **Build-Arg** → landet in Label und ENV,
+- als **Image-Tag** → `ghcr.io/opnek90/minabox-audio:0.1.0` und `:0.1`,
+  zusaetzlich zu `latest` und `sha-<commit>`.
+
+Eine kaputte `VERSION`-Datei laesst den Job scheitern, bevor etwas in die
+Registry geht.
+
+Die Labels stammen bewusst **nicht** von `docker/metadata-action`: deren
+`org.opencontainers.image.version` leitet sich vom Git-Ref ab (bei einem
+main-Push also "main") und wuerde das Label aus dem Dockerfile ueberschreiben.
+
+> **Noch offen:** Die CI baut weiterhin alle neun Images bei jedem Push. Das
+> kostet Laufzeit (der Cache faengt das groesstenteils ab), aendert aber keine
+> Versionsnummern - ein unveraendertes Image wird nur unter demselben Tag neu
+> geschoben. Ein Pfadfilter, der ungeaenderte Dienste ueberspringt, waere die
+> naechste Verbesserung.
+
+---
+
+## 4. Wie die Oberflaeche es liest
+
+`GET /api/v1/system/status` liefert einen Eintrag **pro real vorhandenem
+Container**:
+
+```json
+{
+  "device_id": "box1",
+  "docker_available": true,
+  "memory_stats_available": false,
+  "services": [
+    {
+      "service": "backend",
+      "container": "minabox-backend",
+      "state": "online",
+      "docker_status": "running",
+      "health": "healthy",
+      "version": "0.1.0",
+      "git_sha": "49427d3",
+      "image": "ghcr.io/opnek90/minabox-backend:0.1.0",
+      "restart_count": 0,
+      "cpu_percent": 4.2,
+      "memory_mb": null,
+      "memory_percent": null
+    }
+  ]
+}
+```
+
+### Die Liste ist dynamisch
+
+Frueher stand im Backend eine feste Liste aus acht Namen. Sie war unvollstaendig
+(**host-helper** und **media-downloader** fehlten) und blind fuer die Profile:
+eine Box ohne LED-Profil zeigte dauerhaft "led: offline", obwohl dort nie ein
+LED-Container existiert hat.
+
+Jetzt fragt das Backend Docker nach allen Containern mit dem Label
+`com.docker.compose.project` des eigenen Projekts. Was da ist, wird angezeigt;
+was ein Profil nie gestartet hat, taucht nicht auf.
+
+> **Fallstrick:** Compose schreibt `project` und `service` nicht nur auf den
+> Container, sondern auch in das **Image**, das es baut. Jeder von Hand
+> gestartete Container aus einem Minabox-Image bringt diese Labels also mit und
+> erschiene als zweiter Eintrag desselben Dienstes - beobachtet mit einem
+> `docker run` des Backend-Images, das prompt als zweites "backend" in der
+> Liste stand. Deshalb zaehlt zusaetzlich das Label
+> `com.docker.compose.container-number`: das schreibt Compose erst, wenn es
+> einen Container wirklich anlegt. `docker compose run`-Wegwerfcontainer
+> (`oneoff=True`) fallen ebenfalls heraus. Der alte Katalog in
+`routes_system.py` bleibt als **Anzeigereihenfolge** und als **Rueckfallebene**
+erhalten, wenn der Docker-Socket nicht nutzbar ist. Auf dieser Rueckfallebene
+gibt es keine CPU- und RAM-Werte; die Oberflaeche sagt das dann auch
+(`docker_available: false`).
+
+### Zustaende
+
+| Docker-Status | Health | Anzeige |
+|---|---|---|
+| running | healthy / keiner | online |
+| running | starting | online |
+| running | unhealthy | Fehler |
+| restarting / exited / dead | - | Fehler |
+| created / paused | - | offline |
+
+`starting` gilt bewusst als online: waehrend der `start_period` laeuft der
+Container und tut das Richtige. Ihn offline zu nennen liesse jeden Neustart
+wie einen Ausfall aussehen.
+
+### CPU, RAM und Logs fuer alle
+
+Alle drei Werte kommen jetzt fuer **jeden** Container, auch fuer `mqtt` (frueher
+ausdruecklich ausgenommen) und die beiden neu aufgenommenen Dienste. Die Logs
+werden ueber den Container-Namen aufgeloest, den Docker meldet, nicht mehr ueber
+eine feste Tabelle.
+
+### RAM ist nicht ueberall messbar
+
+Raspberry Pi OS liefert den memory-cgroup-Controller standardmaessig
+abgeschaltet aus. Dann gibt es **gar keinen** Speicherwert pro Container -
+auch `docker stats` zeigt auf so einem Host `0B / 0B`. Vorher wurde daraus in
+der Oberflaeche "0.0 MB", eine Luecke im Kostuem einer Messung.
+
+Jetzt meldet die API in diesem Fall `null` statt `0`, setzt
+`memory_stats_available: false`, und die Oberflaeche schreibt hin, woran es
+liegt. Abhilfe auf dem Pi:
+
+```bash
+sudo sed -i '1s/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt
+```
+
+Danach neu starten. (Der Hinweis in `docker-compose.yml` zu den
+Ressourcen-Limits beschreibt denselben Schalter.)
+
+---
+
+## 5. Einen Dienst veroeffentlichen
+
+```bash
+# 1. Version anheben
+echo "0.2.0" > services/audio-service/VERSION
+
+# 2. Changelog-Eintrag (kommt in Phase 2 dazu)
+
+# 3. Commit und Push auf main - die CI baut und schiebt :0.2.0, :0.2, :latest
+git commit -am "feat(audio): Sleep-Timer, Version 0.2.0"
+```
+
+Auf der Box wird die neue Nummer sichtbar, sobald der Container mit dem neuen
+Image laeuft. Zeigt ein Dienst nach einem Update noch die alte Version, ist
+sein Container nicht neu gestartet worden - genau diese Abweichung soll die
+Anzeige sichtbar machen.
+
+## 6. Lokal entwickeln
+
+`docker compose build` setzt keine Build-Args. Alle so gebauten Images melden
+`0.0.0-dev`, und die Oberflaeche zeigt "Entwicklungsbuild". Wer eine Nummer
+sehen will, reicht sie durch:
+
+```bash
+docker compose build --build-arg APP_VERSION=0.2.0-test audio
+```

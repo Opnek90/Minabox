@@ -10,6 +10,7 @@ class HealthResponse(BaseModel):
 
     status: str
     service: str
+    version: str | None = None
     device_id: str
     display_enabled: bool
     display_available: bool

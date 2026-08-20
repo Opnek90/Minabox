@@ -300,6 +300,21 @@ export const SystemStatusPanel: React.FC = () => {
 
       <SettingsBlock title={t('system.container_status')}>
 
+      {/* Ohne Docker-Socket faellt das Backend auf die statische Liste zurueck.
+          Das muss sichtbar sein: fehlende Werte heissen dann "nicht messbar",
+          nicht "Auslastung null". */}
+      {status && status.docker_available === false && (
+        <Alert severity="info" sx={{ mt: 1 }}>
+          {t('system.docker_unavailable')}
+        </Alert>
+      )}
+
+      {status?.docker_available !== false && status?.memory_stats_available === false && (
+        <Alert severity="info" sx={{ mt: 1 }}>
+          {t('system.memory_unavailable')}
+        </Alert>
+      )}
+
       {loading ? (
         <Stack spacing={1} sx={{ mt: 1 }}>
           {[1, 2, 3, 4, 5].map((i) => (

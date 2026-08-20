@@ -60,6 +60,8 @@ Laden: `docker compose build`.
 - **Entwicklung & Struktur:** [docs/Framework.md](docs/Framework.md), [docs/DEVELOPMENT_INSTRUCTIONS.md](docs/DEVELOPMENT_INSTRUCTIONS.md)
 - **Service-Review (Backend, Audio, Host-Helper, …):** [docs/ServiceReview.md](docs/ServiceReview.md)
 - **Diagnose-Paket (Support):** [docs/DebugExport.md](docs/DebugExport.md)
+- **Versionierung der Dienste:** [docs/Versionierung.md](docs/Versionierung.md)
+- **Release- und Update-Workflow (Plan):** [docs/Release-Update-Workflow.md](docs/Release-Update-Workflow.md)
 - **Dev-Tools:** `./scripts/dev-tools.sh` (format, check, install, test, venv)
 - **Tests:** `./scripts/run-tests.sh`
 

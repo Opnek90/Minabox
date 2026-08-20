@@ -63,6 +63,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Jeder Dienst traegt seine eigene Version in services/<name>-service/VERSION.
+      # Sie wird zum Image-Tag *und* zum Build-Arg - dieselbe Zahl steht damit
+      # in der Registry und im OCI-Label des Images (docs/Versionierung.md).
+      - name: Read service version
+        id: ver
+        run: |
+          set -euo pipefail
+          file="services/${{ matrix.name }}-service/VERSION"
+          version="$(tr -d '[:space:]' < "$file")"
+          # Fruehes, lautes Scheitern: eine kaputte VERSION-Datei wuerde sonst
+          # ein Image mit sinnlosem Tag in die Registry schieben.
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error file=$file::'$version' ist keine gueltige SemVer-Version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "major_minor=${version%.*}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Derive tags
         id: meta
         uses: docker/metadata-action@v5
@@ -72,8 +91,8 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.ver.outputs.version }}
+            type=raw,value=${{ steps.ver.outputs.major_minor }}
 
       - name: Build & push
         uses: docker/build-push-action@v6
@@ -83,6 +102,14 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          # Kein "labels:" aus metadata-action: dessen
+          # org.opencontainers.image.version leitet sich vom Git-Ref ab (bei
+          # einem main-Push also "main") und wuerde das Label ueberschreiben,
+          # das der Dockerfile aus APP_VERSION setzt. Die Labels gehoeren hier
+          # dem Dockerfile, damit ein lokaler Build dieselbe Struktur erzeugt.
+          build-args: |
+            APP_VERSION=${{ steps.ver.outputs.version }}
+            GIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ steps.ver.outputs.build_date }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}

@@ -1,5 +1,6 @@
 """FastAPI application entry point for the Media Downloader Service."""
 
+import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -45,7 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Media Downloader Service",
     description="Minabox microservice for yt-dlp based audio extraction",
-    version="0.1.0",
+    version=os.environ.get("APP_VERSION", "0.0.0-dev"),
     lifespan=lifespan,
 )
 
@@ -56,7 +57,9 @@ async def health_check() -> JSONResponse:
         {
             "status": "healthy",
             "service": "media-downloader-service",
-            "version": "0.1.0",
+            # Dieser Dienst bindet shared-lib nicht ein; die Variable setzt der
+            # Dockerfile aus dem Build-Arg (docs/Versionierung.md).
+            "version": os.environ.get("APP_VERSION", "0.0.0-dev"),
             "uptime_seconds": round(time.monotonic() - _start_time, 1),
         }
     )

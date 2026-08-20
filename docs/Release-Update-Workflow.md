@@ -1,6 +1,6 @@
 # Release- und Update-Workflow
 
-**Status:** Entwurf, Stand 2026-08-20. Noch nichts davon ist implementiert.
+**Status:** Stand 2026-08-20. Phase 1 ist umgesetzt, Phasen 2-5 sind Entwurf.
 Dieses Dokument legt die Leitentscheidungen fest und schneidet die Arbeit in
 Phasen. Die Detailausarbeitung (Datenmodelle, genaue Endpunkte, UI-Screens)
 folgt pro Phase.
@@ -55,23 +55,33 @@ und der jederzeit sichtbar macht, was gerade laeuft.
 
 ## 2. Leitentscheidungen
 
-### E1 - Eine Version fuer den ganzen Stack, angezeigt pro Container
+### E1 - Jeder Dienst hat seine eigene Version
 
-Alle neun Images entstehen aus **einem** Repository, in **einem** CI-Lauf, aus
-**einem** Commit. Sie sind keine unabhaengig veroeffentlichten Artefakte. Sie
-einzeln zu versionieren wuerde eine Freiheit vortaeuschen, die es nicht gibt,
-und den Kompatibilitaetstest ("passt Backend 1.4 zu WebUI 1.2?") zu einem
-echten Problem machen, das wir uns heute schenken koennen.
+*Entschieden am 2026-08-20. Der erste Entwurf empfahl eine gemeinsame
+Stack-Nummer; dagegen sprach das staerkere Argument: eine Korrektur, die nur
+Backend und WebUI beruehrt, soll nicht die Nummern von sieben unbeteiligten
+Images weiterdrehen. Eine Zahl, die sich bei jeder Kleinigkeit ueberall aendert,
+sagt nichts mehr aus.*
 
-Deshalb: **eine SemVer-Nummer pro Release**, `v1.4.0`, die jedes Image traegt.
+Jeder Dienst traegt eine SemVer-Nummer in
+`services/<dienst>-service/VERSION`. Sie wird zum Image-Tag und zum OCI-Label.
+Details und Bump-Regeln: [Versionierung.md](Versionierung.md).
 
-Trotzdem wird die Version **pro Container erfasst und angezeigt** - denn sie
-ist eine *Beobachtung*, keine Deklaration. Genau dort wird Drift sichtbar:
-wenn `led` nach dem Update nicht neu gestartet ist, steht dort weiter `1.3.2`,
-und die UI kann das als Warnung zeigen statt es zu verschlucken.
+Was daraus folgt und in den spaeteren Phasen zu loesen ist:
 
-*Spaeter erweiterbar:* Wenn ein Dienst je einen eigenen Zyklus bekommt, kann
-er ein eigenes Tag bekommen, ohne dass das Anzeigemodell sich aendert.
+* **Abhaengigkeiten sind Handarbeit.** `shared-lib` und der MQTT-Vertrag
+  spannen ueber mehrere Dienste. Wer sie aendert, hebt die Versionen aller
+  betroffenen Dienste. Das steht in der Doku; erzwingen laesst es sich nicht.
+* **Der Update-Check braucht eine Liste, keine Zahl.** Phase 3 vergleicht
+  neun Versionen gegen neun aktuelle Staende, nicht eine gegen eine.
+* **Ein Kompatibilitaetsbegriff wird noetig**, sobald Dienste wirklich
+  auseinanderlaufen: "Backend ab 0.4 verlangt WebUI ab 0.3". Solange alle
+  Dienste zusammen aus main gebaut werden, reicht die Konvention; sobald
+  einzeln nachgezogen wird, gehoert das in die Release-Metadaten.
+
+Die Version wird **pro Container erfasst und angezeigt** - sie ist eine
+*Beobachtung*, keine Deklaration. Genau dort wird Drift sichtbar: wenn `led`
+nach einem Update nicht neu gestartet ist, steht dort weiter die alte Nummer.
 
 ### E2 - Docker-Labels sind die Wahrheit, MQTT die Ergaenzung
 
@@ -168,68 +178,41 @@ main  --------------------->  build-images.yml                   docker inspect 
 
 ## 4. Phasen
 
-### Phase 1 - Versionen entstehen und werden sichtbar
+### Phase 1 - Versionen entstehen und werden sichtbar - **umgesetzt**
 
 *Ergebnis: jeder Container weiss und meldet, welche Version er ist. Noch kein
-Update-Check.*
+Update-Check.* Umgesetzt am 2026-08-20, dokumentiert in
+[Versionierung.md](Versionierung.md).
 
-1. **`VERSION`-Datei** im Repo-Wurzelverzeichnis als einzige Quelle
-   (`1.4.0`). Alternativ Ableitung aus `git describe` - zu entscheiden.
-2. **Alle neun Dockerfiles** bekommen einheitlich:
-   ```dockerfile
-   ARG APP_VERSION=0.0.0-dev
-   ARG GIT_SHA=unknown
-   ARG BUILD_DATE
-   LABEL org.opencontainers.image.version=$APP_VERSION \
-         org.opencontainers.image.revision=$GIT_SHA \
-         org.opencontainers.image.created=$BUILD_DATE \
-         org.opencontainers.image.source=https://github.com/Opnek90/minabox
-   ENV APP_VERSION=$APP_VERSION GIT_SHA=$GIT_SHA
-   ```
-   Der Default `0.0.0-dev` sorgt dafuer, dass lokal gebaute Images sich
-   selbst als Entwicklungsstand ausweisen - ohne Extraschritt.
-   Mosquitto laeuft aus einem Fremd-Image; dort setzen wir die Labels ueber
-   `docker-compose.yml` (`labels:` am Service), damit die Abfrage einheitlich
-   bleibt.
-3. **CI** reicht die Build-Args durch (`build-push-action` -> `build-args`)
-   und leitet `APP_VERSION` aus dem Git-Tag ab, sonst `0.0.0-dev+<sha>`.
-4. **`/health` jedes Dienstes** gibt `version` und `git_sha` aus `os.environ`
-   mit zurueck (Schema-Erweiterung in `shared_lib.schemas`, damit alle
-   Dienste dieselbe Form liefern).
-5. **Retained MQTT-Info** (E2, sekundaer): Basis-Client publiziert beim
-   Verbinden `minabox/<device>/<service>/info` mit
-   `{service, version, git_sha, started_at}`, `retain=true`.
-6. **Backend: `GET /api/v1/system/versions`** - liest per Docker-Socket
-   `inspect` fuer alle Container des Compose-Projekts (Label-Filter
-   `com.docker.compose.project`), ergaenzt die MQTT-Selbstauskunft, liefert:
-   ```json
-   {
-     "stack_version": "1.3.2",
-     "consistent": false,
-     "containers": [
-       {"service":"backend","image":"ghcr.io/...:1.3.2","version":"1.3.2",
-        "digest":"sha256:...","reported_version":"1.3.2","state":"running",
-        "started_at":"2026-08-19T20:11:03Z"},
-       {"service":"led","version":"1.3.0","state":"running","drift":true}
-     ]
-   }
-   ```
-   `stack_version` = haeufigste Version; `consistent=false`, wenn ein
-   Container abweicht.
-7. **WebUI, Technische Details**: Versions-Chip pro Dienst, Warnhinweis bei
-   Drift ("led laeuft noch auf 1.3.0 - Neustart erforderlich").
+Umgesetzt wurde:
 
-**Gleichzeitig die gefundenen Luecken schliessen** (klein, aber sie gehoeren
-in genau diese Phase, weil das Versionsraster ohnehin alle Container braucht):
+1. `VERSION`-Datei je Dienst (neun Images plus shared-lib).
+2. Einheitlicher `ARG`/`LABEL`/`ENV`-Block am Ende aller neun Dockerfiles.
+3. CI liest die Datei, prueft sie gegen SemVer, reicht sie als Build-Arg
+   durch und taggt das Image damit.
+4. `/health` jedes Dienstes meldet seine Version (`shared_lib.version`).
+5. `container_registry.py` im Backend: Ermittlung aller Container des
+   Compose-Projekts ueber den Docker-Socket, mit CPU, RAM und Version.
+6. `/system/status` liefert die dynamische Liste; `/system/logs` loest den
+   Container-Namen ueber dieselbe Quelle auf.
+7. WebUI zeigt die Version je Dienst; "Entwicklungsbuild" statt einer Nummer
+   bei lokal gebauten Images.
 
-- `SERVICE_IDS` um **host-helper** und **media-downloader** erweitern, inkl.
-  `SERVICE_HEALTH_URLS` und `CONTAINER_NAMES`.
-- Die Liste **profilabhaengig** machen: entweder aus `COMPOSE_PROFILES` lesen
-  oder - sauberer - aus `docker inspect` der real existierenden Container des
-  Projekts ableiten. Dritter Zustand `not_installed` neben `online`/`offline`,
-  damit ein bewusst weggelassener Dienst nicht wie ein Ausfall aussieht.
-- **CPU/RAM fuer mqtt** freischalten (den `mqtt`-Ausschluss bei `stats_checks`
-  entfernen; `minabox-mqtt` steht bereits in `CONTAINER_NAMES`).
+Nicht umgesetzt und bewusst verschoben:
+
+* **Das retained MQTT-Info-Topic** (Punkt 5 des urspruenglichen Entwurfs).
+  Die Docker-Labels decken alle Container ab, die Selbstauskunft ueber
+  `/health` deckt den Vergleich "meldet der Prozess dasselbe wie sein Image".
+  Das Topic bliebe eine dritte Quelle fuer dieselbe Zahl.
+* **Ein eigener `/system/versions`-Endpunkt.** `/system/status` traegt die
+  Versionen bereits; ein zweiter Endpunkt waere eine zweite Wahrheit.
+
+Dabei aufgefallen und mitbehoben:
+
+* **host-helper und media-downloader** fehlten in der Dienste-Liste.
+* **mqtt** war von der CPU/RAM-Messung ausdruecklich ausgenommen.
+* **RAM war nie messbar** auf einem Pi ohne `cgroup_memory=1` - angezeigt
+  wurde trotzdem "0.0 MB". Jetzt `null` plus Hinweis, wie man es einschaltet.
 
 ### Phase 2 - Releases mit Changelog
 
@@ -253,7 +236,11 @@ Aenderungsnotizen.*
 *Ergebnis: "Alles aktuell" oder "Version 1.4.0 verfuegbar - Changelog - Jetzt
 aktualisieren?"*
 
-1. **Backend `GET /api/v1/system/update-check`** (`?force=true` umgeht Cache):
+1. **Backend `GET /api/v1/system/update-check`** (`?force=true` umgeht Cache).
+   Mit E1 vergleicht der Check **je Dienst**: neun laufende Versionen gegen
+   neun aktuelle Staende. Die Antwort ist entsprechend eine Liste, und die
+   Oberflaeche sagt nicht "Update verfuegbar", sondern welche Dienste betroffen
+   sind:
    ```json
    {
      "current_version": "1.3.2",

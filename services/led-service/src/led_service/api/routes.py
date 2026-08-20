@@ -10,6 +10,7 @@ from typing import Dict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import structlog
+from shared_lib.version import get_version
 
 
 class TestLEDRequest(BaseModel):
@@ -74,6 +75,7 @@ def create_app(
         return {
             "status": "healthy" if mqtt_connected else "degraded",
             "service": "led",
+            "version": get_version(),
             "device_id": config.env.minabox_device_id,
             "leds_configured": leds_count,
             "mqtt_connected": mqtt_connected,

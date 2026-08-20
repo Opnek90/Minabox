@@ -9,6 +9,7 @@ from typing import Dict
 
 from fastapi import FastAPI
 import structlog
+from shared_lib.version import get_version
 
 from ..config_schema import AppConfig
 from ..infrastructure import MQTTClient
@@ -46,6 +47,7 @@ def create_app(
         return {
             "status": "healthy" if mqtt_client.is_connected else "degraded",
             "service": "rfid",
+            "version": get_version(),
             "device_id": config.env.minabox_device_id,
             "mqtt_connected": mqtt_client.is_connected,
             "mqtt_broker": config.env.mqtt_broker,

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 from fastapi import FastAPI, HTTPException
+from shared_lib.version import get_version
 
 from ..config_manager import ConfigManager
 from ..config_schema import AppConfig
@@ -39,6 +40,7 @@ def create_app(
         return HealthResponse(
             status="healthy" if mqtt_client.is_connected else "degraded",
             service="display",
+            version=get_version(),
             device_id=config.env.minabox_device_id,
             display_enabled=display_config.enabled if display_config else False,
             display_available=is_available(),
