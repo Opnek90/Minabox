@@ -18,7 +18,7 @@ class DownloadRequest(BaseModel):
 
 
 class VideoInfoResponse(BaseModel):
-    """Response for GET /info – metadata without download."""
+    """Response for GET /info – metadata without import."""
 
     title: str
     artist: str
@@ -28,7 +28,7 @@ class VideoInfoResponse(BaseModel):
 
 
 class DownloadResponse(BaseModel):
-    """Response for POST /download – completed download metadata."""
+    """Response for POST /download – metadata of the completed import."""
 
     file_path: str
     title: str

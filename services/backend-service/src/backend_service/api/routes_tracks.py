@@ -186,10 +186,10 @@ async def _run_download_task(
     artist_override: str | None = None,
     album_override: str | None = None,
 ) -> None:
-    """Background task: download audio, update track in DB, resolve cover art.
+    """Background task: import audio, update track in DB, resolve cover art.
 
     title_override/artist_override/album_override let the caller (WebUI's
-    "edit before import" dialog) pin metadata the user typed in; yt-dlp's
+    "edit before import" dialog) pin metadata the user typed in; the
     extracted values are only used as a fallback for fields left blank.
     """
     from sqlalchemy import create_engine
@@ -277,9 +277,14 @@ def list_tracks(
 
 @router.get("/validate-url", response_model=dict)
 async def validate_media_url(
-    url: str = Query(..., description="Video URL to preview (no download)"),
+    url: str = Query(..., description="Media URL to inspect (metadata only, no import)"),
 ) -> dict:
-    """Proxy to media-downloader GET /info – used for frontend preview."""
+    """Proxy to media-downloader GET /info – used for the frontend preview.
+
+    Reads publicly available metadata for *url* only; nothing is imported here.
+    Whether the caller is entitled to import the source is a legal question the
+    service cannot answer – see the lawful-use notice in the WebUI.
+    """
     clean_url = _strip_playlist_params(url)
     _check_allowed_domain(clean_url)
     if clean_url != url:
@@ -355,18 +360,22 @@ def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -> Trac
 
 @router.post("/from-url", status_code=202)
 async def create_track_from_url(
-    url: str = Query(..., description="Video URL to download as audio track"),
-    title: str | None = Query(None, description="User-supplied title override (takes precedence over yt-dlp metadata)"),
+    url: str = Query(..., description="Media URL to import as an audio track"),
+    title: str | None = Query(None, description="User-supplied title override (takes precedence over extracted metadata)"),
     artist: str | None = Query(None, description="User-supplied artist override"),
     album: str | None = Query(None, description="User-supplied album override"),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
-    """Start an async background download for *url*.
+    """Start an async background import for *url*.
 
     Returns HTTP 202 immediately with the created track ID so the client can
     poll ``GET /tracks/{id}/download-status`` for progress. title/artist/album
     let the caller pin metadata edited in the "check" preview before import;
-    yt-dlp's extracted values only fill in fields left blank.
+    the extracted values only fill in fields left blank.
+
+    Only hosts on the allow-list are accepted. The allow-list is a technical
+    guard against arbitrary fetch targets – it says nothing about whether the
+    caller holds the rights to the individual piece of content.
     """
     title = title.strip() if title and title.strip() else None
     artist = artist.strip() if artist and artist.strip() else None

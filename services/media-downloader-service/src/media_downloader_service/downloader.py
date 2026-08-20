@@ -1,4 +1,9 @@
-"""yt-dlp wrapper for audio extraction with metadata embedding."""
+"""Media import back end: reads a media URL and writes an MP3 with metadata.
+
+Only the URL is passed through to yt-dlp. The wrapper deliberately builds its
+option dict from scratch for every call, so no credential, cookie, session or
+key material can reach the extractor through this service.
+"""
 
 from pathlib import Path
 from typing import Any
@@ -9,6 +14,10 @@ from mutagen.id3 import APIC, ID3, ID3NoHeaderError
 
 logger = structlog.get_logger("media_downloader_service.downloader")
 
+# Extractor defaults for a single site whose default client selection tends to
+# break metadata reads. This picks between clients the extractor already offers
+# for openly readable media; it supplies no credentials and unlocks nothing that
+# is otherwise restricted.
 _YT_EXTRACTOR_ARGS: dict[str, Any] = {
     "youtube": {
         "player_client": ["web_creator", "android"],
@@ -21,7 +30,7 @@ class DownloadError(Exception):
 
 
 class MediaDownloader:
-    """Handles yt-dlp downloads and MP3 metadata embedding."""
+    """Reads a media URL via yt-dlp and embeds the metadata into the MP3."""
 
     def __init__(self, audio_quality: str = "192") -> None:
         self.audio_quality = audio_quality
@@ -93,7 +102,7 @@ class MediaDownloader:
         return result
 
     def get_video_info(self, url: str) -> dict[str, Any]:
-        """Fetch video metadata *without* downloading."""
+        """Fetch the media metadata *without* importing anything."""
         ydl_opts: dict[str, Any] = {
             "skip_download": True,
             "quiet": True,

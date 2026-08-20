@@ -8,7 +8,7 @@
 # - Audio-Service (VLC via PipeWire/Pulse)
 # - Button-Service (Hardware)
 # - LED-Service (Hardware)
-# - Media-Downloader-Service (yt-dlp Video-Download)
+# - Media-Downloader-Service (Medienimport von URL)
 #
 # REQUIRED environment variables (.env file):
 # - MQTT_BROKER: MQTT broker hostname (e.g., 'mqtt')
@@ -413,9 +413,14 @@ services:
       retries: 3
       start_period: 10s
 
-  # =================================
-  # Media-Downloader Service (yt-dlp)
-  # =================================
+  # ============================================================
+  # Media-Downloader Service
+  # ------------------------------------------------------------
+  # Importiert die Tonspur einer URL in die lokale Bibliothek.
+  # ALLOWED_DOMAINS ist ein technischer Schutz vor beliebigen
+  # Abrufzielen, keine rechtliche Freigabe der dort liegenden
+  # Inhalte - zur zulaessigen Nutzung siehe README.md.
+  # ============================================================
   media-downloader:
     profiles: ["media"]
     image: ghcr.io/opnek90/minabox-media-downloader:${MINABOX_IMAGE_TAG:-latest}

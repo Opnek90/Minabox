@@ -45,7 +45,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title="Media Downloader Service",
-    description="Minabox microservice for yt-dlp based audio extraction",
+    description=(
+        "Minabox microservice for local media import. Reads a media URL supplied by "
+        "the backend and stores its audio track in the local library as MP3. It "
+        "offers no options for credentials, cookies, sessions or decryption keys and "
+        "is not intended to access restricted content – see README.md."
+    ),
     version=os.environ.get("APP_VERSION", "0.0.0-dev"),
     lifespan=lifespan,
 )
@@ -67,10 +72,14 @@ async def health_check() -> JSONResponse:
 
 @app.post("/download", response_model=DownloadResponse, status_code=201)
 async def download_video(request: DownloadRequest) -> DownloadResponse:
-    """Download a video URL as MP3.
+    """Import the audio of a media URL into the local library as MP3.
 
     If *output_dir* is provided the MP3 is placed there; otherwise the
     service default (AUDIO_TRACKS_DIR) is used.
+
+    The request carries a URL and nothing else – no credentials, cookies or
+    keys are accepted, so only sources that are readable without them can be
+    imported.
     """
     output_dir = Path(request.output_dir) if request.output_dir else config.audio_tracks_dir
     downloader = MediaDownloader(audio_quality=config.audio_quality)
@@ -93,8 +102,8 @@ async def download_video(request: DownloadRequest) -> DownloadResponse:
 
 
 @app.get("/info", response_model=VideoInfoResponse)
-async def get_video_info(url: str = Query(..., description="Video URL")) -> VideoInfoResponse:
-    """Return video metadata without downloading."""
+async def get_video_info(url: str = Query(..., description="Media URL")) -> VideoInfoResponse:
+    """Return the media metadata without importing anything."""
     downloader = MediaDownloader()
     try:
         info = downloader.get_video_info(url)

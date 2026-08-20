@@ -65,7 +65,7 @@ Vorgabe fuer die Bedienoberflaeche gespeichert.
 | LEDs | Statusanzeige | GPIO |
 | Taster / Drehregler | Bedienung am Geraet | GPIO |
 | OLED-Display | Titel, Uhrzeit, Lautstaerke | SSD1306 am I2C |
-| Medien-Download | Musik von YouTube etc. laden | keine |
+| Medienimport | Medien von einer URL in die Bibliothek holen | keine |
 
 MQTT, Backend, Host-Helper, Audio und WebUI laufen immer und stehen nicht zur
 Wahl. Waehle nur an, was du wirklich angeschlossen hast — eine ausgewaehlte

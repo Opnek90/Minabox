@@ -3,11 +3,13 @@ import {
   Alert,
   Avatar,
   Box,
+  Checkbox,
   CircularProgress,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   LinearProgress,
   Stack,
   TextField,
@@ -23,6 +25,9 @@ import type { Track } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { formatTime } from '@/utils/formatTime';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
+
+const CONFIRM_CHECKBOX_ID = 'media-import-confirm';
+const CONFIRM_HINT_ID = 'media-import-confirm-hint';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 300_000; // 5 minutes
@@ -56,6 +61,10 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
   const [importing, setImporting] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  // Mandatory lawful-use confirmation. Gates both "check" and "import"; kept in
+  // component state only – it is never persisted or reported anywhere, so it is
+  // a deliberate user action, not a stored legal record.
+  const [confirmed, setConfirmed] = useState(false);
 
   // Editable metadata, pre-filled from the preview once the URL is checked —
   // lets the user fix a wrong/missing title before the track is actually created.
@@ -76,11 +85,21 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
   // Cleanup on unmount
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  // Re-opening the dialog always starts from an unconfirmed state – the parent
+  // keeps this component mounted, so without this the previous confirmation
+  // would still be ticked.
+  useEffect(() => {
+    if (open) {
+      setConfirmed(false);
+    }
+  }, [open]);
+
   const handleReset = useCallback(() => {
     stopPolling();
     setUrl('');
     setPreview(null);
     setPreviewError(null);
+    setConfirmed(false);
     setValidating(false);
     setImporting(false);
     setDownloadStatus(null);
@@ -141,7 +160,7 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
   );
 
   const handleValidate = async () => {
-    if (!url.trim()) return;
+    if (!url.trim() || !confirmed) return;
     setValidating(true);
     setPreview(null);
     setPreviewError(null);
@@ -159,7 +178,7 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
   };
 
   const handleImport = async () => {
-    if (!url.trim()) return;
+    if (!url.trim() || !confirmed) return;
     setImporting(true);
     setDownloadStatus('pending');
     try {
@@ -196,7 +215,7 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
       </DialogTitle>
 
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-        {/* Disclaimer */}
+        {/* Lawful-use notice with its mandatory confirmation */}
         <Alert severity="warning" icon={<WarningAmberIcon />} sx={{ borderRadius: 2 }}>
           <Typography variant="body2" fontWeight={600}>
             {t('media_import.disclaimer_title')}
@@ -204,6 +223,37 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
           <Typography variant="caption" display="block" mt={0.5}>
             {t('media_import.disclaimer_body')}
           </Typography>
+          <FormControlLabel
+            sx={{ mt: 1, ml: 0, alignItems: 'flex-start' }}
+            control={
+              <Checkbox
+                id={CONFIRM_CHECKBOX_ID}
+                size="small"
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
+                disabled={isDownloading}
+                inputProps={{
+                  'aria-describedby': confirmed ? undefined : CONFIRM_HINT_ID,
+                }}
+                sx={{ pt: 0, pl: 0, mr: 1 }}
+              />
+            }
+            label={
+              <Typography variant="caption" component="span">
+                {t('media_import.confirm_label')}
+              </Typography>
+            }
+          />
+          {!confirmed && (
+            <Typography
+              id={CONFIRM_HINT_ID}
+              variant="caption"
+              display="block"
+              sx={{ mt: 0.25, fontStyle: 'italic' }}
+            >
+              {t('media_import.confirm_hint')}
+            </Typography>
+          )}
         </Alert>
 
         {/* URL Input */}
@@ -227,7 +277,7 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
           <ActionButton
             actionType="secondary"
             onClick={handleValidate}
-            disabled={!url.trim() || validating || isDownloading}
+            disabled={!url.trim() || !confirmed || validating || isDownloading}
             sx={{ whiteSpace: 'nowrap', flexShrink: 0, mt: 0.25 }}
           >
             {validating ? (
@@ -332,7 +382,9 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
         <ActionButton
           actionType="primary"
           onClick={handleImport}
-          disabled={!url.trim() || isDownloading || (preview !== null && !editTitle.trim())}
+          disabled={
+            !url.trim() || !confirmed || isDownloading || (preview !== null && !editTitle.trim())
+          }
           startIcon={isDownloading ? <CircularProgress size={16} /> : <DownloadIcon />}
         >
           {isDownloading ? t('media_import.downloading_short') : t('media_import.import')}

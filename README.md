@@ -65,6 +65,33 @@ Laden: `docker compose build`.
 - **Dev-Tools:** `./scripts/dev-tools.sh` (format, check, install, test, venv)
 - **Tests:** `./scripts/run-tests.sh`
 
+## Rechtmaessiger Medienimport
+
+Die optionale Komponente `media` kann Medien von einer URL in die lokale
+Bibliothek importieren. Sie ist fuer Inhalte gedacht, an denen du die noetigen
+Rechte hast:
+
+- eigene Aufnahmen und eigene Uploads,
+- gemeinfreie Werke,
+- Inhalte mit ausdruecklicher Erlaubnis oder passender Lizenz des
+  Rechteinhabers,
+- Faelle, in denen eine gesetzliche Erlaubnis greift.
+
+Ob diese Voraussetzungen im Einzelfall vorliegen, kann die Anwendung nicht
+pruefen — die Verantwortung dafuer liegt bei dir. Die Domain-Whitelist
+(`MEDIA_DOWNLOADER_ALLOWED_DOMAINS`) begrenzt technisch, welche Hosts
+ueberhaupt abgerufen werden, und ist keine rechtliche Freigabe.
+
+Das Projekt ist nicht dafuer bestimmt, technische Schutzmassnahmen,
+Zugangs-, Konto-, Zahlungs- oder Plattformbeschraenkungen zu umgehen. Die
+Schnittstellen nehmen dafuer weder Zugangsdaten noch Cookies oder Schluessel
+entgegen; Details in
+[services/media-downloader-service/README.md](services/media-downloader-service/README.md).
+
+Fragen oder Hinweise zu Rechten an importierbaren Inhalten bitte ueber
+[GitHub Issues](https://github.com/Opnek90/Minabox/issues) — eine gesonderte
+Kontaktadresse fuehrt das Projekt derzeit nicht.
+
 ## Wichtige Pfade
 
 | Pfad | Beschreibung |
