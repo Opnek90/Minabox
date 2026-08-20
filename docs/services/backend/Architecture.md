@@ -54,11 +54,12 @@ backend_service/
 │   └── websocket.py         # WebSocket-Manager: Verbindungen, letzter Audio-Status, Broadcast (audio_status, rfid_scanned, button_action, …)
 ├── core/
 │   ├── __init__.py          # Re-Export: DatabaseManager, get_db, init_db, MQTTClient, PlaybackSession, SessionManager, session_manager
-│   ├── mqtt_handlers.py     # MQTT-Handler: RFID (Scan/Learning/Removed), Audio-Status, Button-Actions, Playback-Events, Sleep-Timer, Bedtime-Fade, Stream-Reconnect
+│   ├── mqtt_handlers.py     # MQTT-Handler: RFID (Scan/Learning/Removed/Presence), Audio-Status, Button-Actions, Playback-Events, Sleep-Timer, Bedtime-Fade, Loop-Guard, Stream-Reconnect
 │   ├── mqtt_client.py       # MQTT-Client: Reconnect/Retry, Subscriptions (RFID/Audio/Button), Dispatch an MQTTHandlers, Publish Audio/RFID-Commands
 │   ├── db_manager.py        # SQLite: Engine, Sessions, WAL, Foreign Keys; DatabaseManager, get_db, init_db
-│   ├── session_manager.py   # In-Memory Playback-Session: PlaybackSession/SessionTrack, current_track_index, Shuffle, Repeat; SessionManager, session_manager
+│   ├── session_manager.py   # In-Memory Playback-Session: PlaybackSession/SessionTrack, current_track_index, Shuffle, Repeat, Schleifen-Zustand (loop_requires_tag, loop_started_at); SessionManager, session_manager
 │   ├── sleep_settings.py    # Liest sleep_timer_minutes und Bedtime-Fade (Dauer, Intervall, Step) aus general_settings.json
+│   ├── playback_settings.py # Liest playback_end_behavior (stop|repeat|repeat_while_tag) und playback_loop_guard_minutes aus general_settings.json
 │   ├── usage_limits.py      # Eltern/Nutzung: erlaubte Zeiten und Daily-Limit aus general_settings; Prüfung ob aktuell erlaubt; Stop-on-Tag-Remove
 │   ├── playback_stats.py    # Playback-Statistik: minutes_for_event, get_today_listened_minutes, get_total_listened_minutes, get_live_listened_minutes aus PlaybackEvent
 │   ├── podcast_fetcher.py   # Hintergrund-Loop: Podcast-RSS fetchen, Episoden parsen, in DB upserten (Podcast/PodcastEpisode)
@@ -416,6 +417,7 @@ Der Backend subscribed auf folgende MQTT-Topics:
 - `minabox/<device-id>/rfid/tag-scanned`
 - `minabox/<device-id>/rfid/tag-scanned-learning`
 - `minabox/<device-id>/rfid/tag-removed`
+- `minabox/<device-id>/rfid/presence` (retained; liegt gerade eine Karte auf dem Leser?)
 - `minabox/<device-id>/rfid/status`
 
 **Audio:**
@@ -706,6 +708,36 @@ Ablauf wie bisher (play/pause/next/prev via MQTT).
 ### 5.4 Next/Prev – Playlist-Navigation
 
 Ablauf wie bisher (Playback-Session im Memory).
+
+**Ende des Inhalts.** Läuft der letzte Titel aus, meldet der Audio-Service `stopped`;
+`AudioHandler` ruft `ButtonHandler._handle_next()` – sofern der Stopp nicht bewusst ausgelöst
+wurde. Das `deliberate_stop`-Flag wird bei *jedem* Stopp-Übergang einmal verbraucht: Jeder
+bewusste Stopp löscht gleichzeitig `playback_intent_active`, und solange nur der
+`deliberate_stop`-Zweig zurücksetzte, blieb das Flag stehen und verschluckte das nächste
+natürliche Titelende. Ist kein nächster Titel da, entscheidet
+`_loop_decision()` anhand von `playback_end_behavior` aus `general_settings.json`:
+
+| Wert | Verhalten |
+|---|---|
+| `stop` (Default) | `stop` an den Audio-Service, wie bisher |
+| `repeat` | Session zurück auf Titel 1 und erneut abspielen |
+| `repeat_while_tag` | wie `repeat`, aber nur solange `rfid/presence` eine aufliegende Karte meldet |
+
+Mit der ersten Wiederholung startet `TimerHandler.start_loop_guard()` einen Timer über
+`playback_loop_guard_minutes` (0 = aus). Läuft er ab, blendet `fade_out_and_stop()` die
+Lautstärke aus und stoppt – damit eine liegengebliebene Karte die Box nicht stundenlang
+spielen lässt. Der Timer wird von `mark_deliberate_stop()` abgeräumt und prüft beim Auslösen,
+ob noch dieselbe Session läuft und ob überhaupt noch wiederholt wird. `_loop_decision()` prüft
+dieselbe Grenze zusätzlich am Titelübergang, als Rückfallebene.
+
+`fade_out_and_stop()` ist der gemeinsame Weg für alle Fälle, in denen die Box von sich aus
+aufhört (Sleep-Timer, Tageslimit, Schleifen-Sperre). Zwei Eigenheiten dabei:
+
+- Der Ausblend-Lauf bricht ab, sobald `playback_intent_active` weg ist – der Inhalt kann
+  mitten im Ausblenden auslaufen, und ohne diesen Abbruch würde weiter an der Lautstärke
+  gedreht, obwohl längst nichts mehr läuft.
+- Nach dem Stopp wird die Ausgangslautstärke wiederhergestellt (`volume_before_fade`).
+  Sonst bliebe die Box nach jedem Ausblenden stumm und wirkt beim nächsten Einschalten defekt.
 
 ### 5.5 Config-Management
 

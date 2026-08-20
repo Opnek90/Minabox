@@ -33,6 +33,8 @@ Maßgeblich ist stattdessen die **Rolle und Häufigkeit**:
 
 Diagnose (Host-Status, Container, Protokolle) ist damit *keine* Elternsache: sie steht ganz unten in den Einstellungen unter „Technische Details" – auffindbar wenn etwas klemmt, sonst nicht im Weg.
 
+**Nachtrag 2026-08-19 – warum Abspielverhalten nicht ins Dashboard wandert.** Der Menüpunkt „Abspielen & Einschlafen" lag unter der Gruppe *Ton* und war dort schlecht auffindbar: „Ton" heißt Klang (Lautsprecher, Bluetooth), nicht Verhalten. Naheliegend wäre gewesen, ihn ins Eltern-Dashboard zu verschieben, weil er die Hauptfunktion der Box betrifft. Das wäre aber ein Rückfall hinter genau diese Achse: Was am Ende einer Karte passiert, stellt man *einmal* ein, nicht im Alltag – anders als Zeiten, Limits und Auswertung. Statt der Verschiebung wurde das falsche Dach ersetzt: „Abspielen" ist jetzt eine eigene, erste Gruppe gleichrangig neben „Ton". Der Zuschnitt liegt weiterhin allein in `settingsIndex.ts`, die Änderung war entsprechend klein.
+
 Zweite Leitlinie: **Bezeichnungen in Alltagssprache.** Fachbegriffe nur, wo es keine Alternative gibt (WLAN, Bluetooth, RFID, MQTT). Aus „LEDs" wird „Lichter", aus „Buttons" „Knöpfe & Drehregler", aus „Audio-Einstellungen" „Lautsprecher & Kopfhörer".
 
 ---
@@ -52,11 +54,12 @@ Zweite Leitlinie: **Bezeichnungen in Alltagssprache.** Fachbegriffe nur, wo es k
 
 ## 4. Einstellungen (`/admin`)
 
-Sieben Gruppen, absteigend nach Alltagsrelevanz. Auf dem Mobilgerät ist jede Gruppe eine Accordion-Zeile – eine Liste aus sieben verständlichen Wörtern statt einer Formularwand.
+Acht Gruppen, absteigend nach Alltagsrelevanz. Auf dem Mobilgerät ist jede Gruppe eine Accordion-Zeile – eine Liste aus acht verständlichen Wörtern statt einer Formularwand.
 
 | Gruppe | Sections | Inhalt |
 |---|---|---|
-| **Ton** | Lautsprecher & Kopfhörer · Abspielen & Einschlafen | Ausgabegerät, Bluetooth, Ein-/Ausblenden · Verhalten beim Auflegen einer Karte, Einschlaf-Timer |
+| **Abspielen** | Beim Auflegen einer Karte · Einschlafen | Verhalten beim Abnehmen/erneuten Auflegen, Verhalten am Ende des Inhalts samt Schleifen-Sperre · Einschlaf-Timer |
+| **Ton** | Lautsprecher & Kopfhörer | Ausgabegerät, Bluetooth, Ein-/Ausblenden |
 | **Aussehen** | Sprache & Farben | Sprache, Hell/Dunkel, Akzentfarbe, eigenes Logo |
 | **Angeschlossene Geräte** | Kartenleser · Knöpfe & Drehregler · Lichter · Display am Gerät | RFID-Leser, GPIO-Knöpfe, LEDs inkl. Status-Lichter des Pi, OLED |
 | **Netzwerk** | WLAN & Adresse | WLAN, Hotspot, Gerätename, DHCP/feste IP |
@@ -72,7 +75,7 @@ Damit die Gruppen nicht nur Überschriften sind, wurden drei Sammel-Komponenten 
 |---|---|
 | `SystemPanel` (WLAN + IP + Hostname + USB + Stealth + Wartung in einem Block) | `NetworkPanel` (Netzwerk) · `UsbImportPanel` (Wartung) · `BoardLedsToggle` (Lichter) · `SystemMaintenanceSection` (Wartung, unverändert) |
 | `GeneralSettingsForm` (Musik-Ordner + Geräte-ID + Log-Level + MQTT) | `MediaPathForm` (Wartung) · `AdvancedSettingsForm` (Technische Details) |
-| `ControlSettingsForm` (RFID-Verhalten + Sleep-Timer + Einschlaf-Fade) | `PlaybackSettingsForm` (Ton) · Einschlaf-Fade in `ChildSettingsForm` (Eltern-Dashboard) |
+| `ControlSettingsForm` (RFID-Verhalten + Sleep-Timer + Einschlaf-Fade) | `PlaybackSettingsForm` (Abspielen) · `SleepTimerSettingsForm` (Abspielen) · Einschlaf-Fade in `ChildSettingsForm` (Eltern-Dashboard) |
 
 `ChildSettingsForm` ist nach `components/dashboard/` gewandert, `SystemStatus`/`ServiceStatus`/`ServiceLogsModal`/`SyslogModal` zurück nach `components/admin/` – jede Datei liegt jetzt in dem Ordner, in dem sie auch gerendert wird.
 

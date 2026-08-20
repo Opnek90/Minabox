@@ -134,11 +134,18 @@ class AudioHandler:
                     db_session.close()
             self._reset_accumulator()
 
+            # Consume the flag on every stop, not just in the branch below.
+            # Every deliberate stop clears playback_intent_active at the same
+            # time, so the first branch used to win and leave the flag set --
+            # and then the *next* track that ended by itself was mistaken for a
+            # deliberate stop and never advanced.
+            deliberate = self.dispatcher.deliberate_stop
+            self.dispatcher.deliberate_stop = False
+
             if not self.dispatcher.playback_intent_active:
                 logger.info("auto_advance_skipped_no_playback_intent")
 
-            elif self.dispatcher.deliberate_stop:
-                self.dispatcher.deliberate_stop = False
+            elif deliberate:
                 logger.info("auto_advance_skipped_deliberate_stop")
 
             else:

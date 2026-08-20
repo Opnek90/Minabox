@@ -120,9 +120,9 @@
   },
   "control": {
     "resume_on_tag_rescan": "Ab letzter Position fortsetzen (Tag erneut auflegen)",
-    "section_rfid": "Karte auflegen",
+    "section_rfid": "Abnehmen und erneut auflegen",
     "stop_playback_on_tag_remove": "Wiedergabe stoppen, wenn Tag entfernt wird",
-    "section_rfid_hint": "Was passieren soll, wenn eine Karte auf die Box gelegt oder wieder heruntergenommen wird."
+    "section_rfid_hint": "Was passieren soll, wenn die Karte wieder heruntergenommen oder noch einmal aufgelegt wird."
   },
   "design": {
     "title": "Sprache & Farben"
@@ -248,6 +248,7 @@
     "devices": "Angeschlossene Geräte",
     "maintenance": "Wartung",
     "network": "Netzwerk",
+    "playback": "Abspielen",
     "security": "Sicherheit",
     "sound": "Ton"
   },
@@ -304,7 +305,19 @@
   },
   "load_error": "Laden fehlgeschlagen",
   "playback": {
-    "title": "Abspielen & Einschlafen"
+    "end_hint": "Was die Box tun soll, sobald der letzte Titel der Karte durchgelaufen ist.",
+    "end_repeat": "Wiederholen",
+    "end_repeat_hint": "Fängt wieder von vorne an.",
+    "end_repeat_while_tag": "Wiederholen, solange die Karte aufliegt",
+    "end_repeat_while_tag_hint": "Karte abnehmen beendet die Wiedergabe am Ende des Titels.",
+    "end_stop": "Ende",
+    "end_stop_hint": "Die Box wird still.",
+    "end_title": "Wenn alles gespielt ist",
+    "guard_enabled": "Nach einer Weile von selbst beenden",
+    "guard_minutes": "Höchstdauer am Stück (Minuten)",
+    "guard_minutes_hint": "Danach wird die Lautstärke langsam heruntergeregelt und die Box hört auf – damit sie nicht stundenlang weiterspielt, wenn die Karte liegen bleibt.",
+    "sleep_title": "Einschlafen",
+    "title": "Beim Auflegen einer Karte"
   },
   "rfid": {
     "fields": {

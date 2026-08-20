@@ -12,7 +12,12 @@ from backend_service.core.handlers.utils import (
     close_open_playback_event,
     create_playback_event_for_current_track,
 )
-from backend_service.core.session_manager import session_manager
+from backend_service.core.playback_settings import read_loop_guard_minutes
+from backend_service.core.session_manager import (
+    PlaybackSession,
+    SessionTrack,
+    session_manager,
+)
 
 if TYPE_CHECKING:
     from backend_service.core.mqtt_handlers import MQTTHandlers
@@ -114,6 +119,62 @@ class ButtonHandler:
                     },
                 )
 
+    def _loop_decision(self, sess: PlaybackSession) -> tuple[bool, str]:
+        """May the session start over? Returns (allowed, reason when refused).
+
+        Called at the end of the last track. The minutes guard is a backstop
+        here -- normally `TimerHandler`'s loop guard has already faded the box
+        out mid-track; this catches the case where a single pass outlasts the
+        limit on its own.
+        """
+        if sess.repeat_mode != "all":
+            return False, "no_repeat"
+        if sess.loop_requires_tag and not self.dispatcher.rfid_handler.tag_present:
+            return False, "tag_removed"
+        guard_minutes = read_loop_guard_minutes()
+        if guard_minutes and sess.loop_elapsed_seconds() >= guard_minutes * 60:
+            return False, "loop_guard"
+        return True, ""
+
+    async def _advance(self, sess: PlaybackSession, db_session: Any | None) -> str:
+        """Move to the next track. Returns "played", "stop" or "loop_guard".
+
+        Stopping is left to the caller so the DB session is not held open
+        across a fade that can run for minutes.
+        """
+        if not sess.has_next:
+            may_loop, reason = self._loop_decision(sess)
+            if may_loop:
+                first_loop = sess.loop_started_at is None
+                sess.mark_loop_started()
+                sess.reset()
+                first = sess.current_track
+                if first:
+                    if first_loop:
+                        self.dispatcher.timer_handler.start_loop_guard(
+                            read_loop_guard_minutes(), sess
+                        )
+                    logger.info(
+                        "session_looping",
+                        playlist_id=sess.playlist_id,
+                        requires_tag=sess.loop_requires_tag,
+                    )
+                    await self._play(first, db_session)
+                    return "played"
+            logger.info("session_end", reason=reason)
+            return "loop_guard" if reason == "loop_guard" else "stop"
+
+        next_track = session_manager.next_track()
+        if not next_track:
+            return "stop"
+        await self._play(next_track, db_session)
+        return "played"
+
+    async def _play(self, track: SessionTrack, db_session: Any | None) -> None:
+        if db_session is not None:
+            create_playback_event_for_current_track(db_session)
+        await self.dispatcher.publish_play_track(track)
+
     async def _handle_next(self) -> None:
         sess = session_manager.session
         if not sess or not sess.tracks:
@@ -125,37 +186,32 @@ class ButtonHandler:
             db_session = _db_module.db_manager.get_session()
             try:
                 close_open_playback_event(db_session, self.dispatcher.audio_status_cache)
-                repeat = sess.repeat_mode
-                if repeat == "all" and not sess.has_next:
-                    sess.reset()
-                    first = sess.current_track
-                    if first:
-                        create_playback_event_for_current_track(db_session)
-                        await self.dispatcher.publish_play_track(first)
-                    return
-                next_track = session_manager.next_track()
-                if next_track:
-                    create_playback_event_for_current_track(db_session)
-                    await self.dispatcher.publish_play_track(next_track)
-                else:
-                    self.dispatcher.playback_intent_active = False
-                    await self.dispatcher.mqtt_client.publish_audio_command("stop", {})
+                outcome = await self._advance(sess, db_session)
             finally:
                 db_session.close()
         else:
-            repeat = sess.repeat_mode
-            if repeat == "all" and not sess.has_next:
-                sess.reset()
-                first = sess.current_track
-                if first:
-                    await self.dispatcher.publish_play_track(first)
-                return
-            next_track = session_manager.next_track()
-            if next_track:
-                await self.dispatcher.publish_play_track(next_track)
-            else:
-                self.dispatcher.playback_intent_active = False
-                await self.dispatcher.mqtt_client.publish_audio_command("stop", {})
+            outcome = await self._advance(sess, None)
+
+        if outcome == "loop_guard":
+            # Playback already ran out on its own, so there is nothing left to
+            # fade -- just make sure the box stays quiet and the player toggle
+            # reflects it.
+            await self._stop_repeat("loop_guard")
+        elif outcome == "stop":
+            self.dispatcher.playback_intent_active = False
+            await self.dispatcher.mqtt_client.publish_audio_command("stop", {})
+
+    async def _stop_repeat(self, reason: str) -> None:
+        session_manager.set_repeat_mode("none")
+        self.dispatcher.mark_deliberate_stop()
+        self.dispatcher.playback_intent_active = False
+        await self.dispatcher.mqtt_client.publish_audio_command("stop", {})
+        if self.dispatcher.websocket_manager:
+            await self.dispatcher.websocket_manager.broadcast({
+                "type": "repeat_mode",
+                "data": {"repeat_mode": "none"},
+            })
+        logger.info("repeat_stopped", reason=reason)
 
     async def _handle_prev(self) -> None:
         if _db_module.db_manager:

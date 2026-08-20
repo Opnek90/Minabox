@@ -3,6 +3,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import CableIcon from '@mui/icons-material/Cable';
 import LockIcon from '@mui/icons-material/Lock';
 import PaletteIcon from '@mui/icons-material/Palette';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import TerminalIcon from '@mui/icons-material/Terminal';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import WifiIcon from '@mui/icons-material/Wifi';
@@ -16,6 +17,7 @@ import WifiIcon from '@mui/icons-material/Wifi';
  * ohne Komponenten zu laden. Die Schluessel entsprechen `SettingsGroupMeta.key`.
  */
 export const SETTINGS_GROUP_ICONS: Record<string, React.ReactNode> = {
+  playback: <PlayCircleOutlineIcon />,
   sound: <VolumeUpIcon />,
   appearance: <PaletteIcon />,
   devices: <CableIcon />,

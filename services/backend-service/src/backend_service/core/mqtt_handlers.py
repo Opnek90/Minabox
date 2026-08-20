@@ -63,6 +63,9 @@ class MQTTHandlers:
     def mark_deliberate_stop(self) -> None:
         """Signal that the next 'stopped' status is from an explicit stop command."""
         self.deliberate_stop = True
+        # Every deliberate stop (user, tag removed, sleep timer, daily limit)
+        # ends the current listening session, so a pending loop guard is moot.
+        self.timer_handler.cancel_loop_guard()
 
     async def handle_rfid_tag_scanned(self, topic: str, data: dict[str, Any]) -> None:
         await self.rfid_handler.handle_rfid_tag_scanned(topic, data)
@@ -72,6 +75,9 @@ class MQTTHandlers:
 
     async def handle_rfid_tag_removed(self, topic: str, data: dict[str, Any]) -> None:
         await self.rfid_handler.handle_rfid_tag_removed(topic, data)
+
+    async def handle_rfid_presence(self, topic: str, data: dict[str, Any]) -> None:
+        await self.rfid_handler.handle_rfid_presence(topic, data)
 
     async def handle_audio_status(self, topic: str, data: dict[str, Any]) -> None:
         await self.audio_handler.handle_audio_status(topic, data)

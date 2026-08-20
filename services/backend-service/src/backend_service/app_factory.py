@@ -107,6 +107,13 @@ class BackendService:
             self.config.get_mqtt_topic("rfid", "tag-removed"),
             self._mqtt_handlers.handle_rfid_tag_removed,
         )
+        # Retained topic: the RFID service publishes it on every change and at
+        # startup, so a reconnecting backend learns the current card state
+        # immediately. Needed for the "repeat while the card lies there" mode.
+        await self._mqtt_client.subscribe(
+            self.config.get_mqtt_topic("rfid", "presence"),
+            self._mqtt_handlers.handle_rfid_presence,
+        )
         await self._mqtt_client.subscribe(
             self.config.get_mqtt_topic("audio", "status"),
             self._mqtt_handlers.handle_audio_status,

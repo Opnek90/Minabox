@@ -74,6 +74,16 @@ class RFIDHandler:
         self.tag_scan_cooldown_until: dict[str, float] = {}
         self.last_played_tag_id: str | None = None
         self.last_played_tag_time: float = 0.0
+        # Current card presence, fed by the retained rfid/presence topic.
+        # None means "no message seen yet" -- treated as "no card" by
+        # `tag_present`, the safe direction: a box whose RFID service is not
+        # running must not loop forever.
+        self.tag_presence: bool | None = None
+
+    @property
+    def tag_present(self) -> bool:
+        """True only when the reader reported a card. Unknown counts as False."""
+        return self.tag_presence is True
 
     async def handle_rfid_tag_scanned(self, topic: str, data: dict[str, Any]) -> None:
         tag_id = data.get("tag_id")
@@ -213,7 +223,15 @@ class RFIDHandler:
             elif tag.content_type == "podcast":
                 await self._handle_podcast_playback(session, tag.content_id, tag_id=tag_db_id)
 
+            # The new session may already be on repeat (end behaviour setting);
+            # tell the player so its toggle matches what the box will do.
             if self.dispatcher.websocket_manager:
+                await self.dispatcher.websocket_manager.broadcast(
+                    {
+                        "type": "repeat_mode",
+                        "data": {"repeat_mode": session_manager.get_repeat_mode()},
+                    }
+                )
                 await self.dispatcher.websocket_manager.broadcast(
                     {
                         "type": "rfid_scanned",
@@ -372,6 +390,15 @@ class RFIDHandler:
                     "data": {"tag_id": tag_id, "already_assigned": already_assigned, "timestamp": datetime.now(UTC).isoformat()},
                 }
             )
+
+    async def handle_rfid_presence(self, topic: str, data: dict[str, Any]) -> None:
+        """Track whether a card currently lies on the reader (retained topic)."""
+        present = data.get("tag_present")
+        if not isinstance(present, bool):
+            return
+        if present != self.tag_presence:
+            logger.debug("rfid_presence_changed", tag_present=present, tag_id=data.get("tag_id"))
+        self.tag_presence = present
 
     async def handle_rfid_tag_removed(self, topic: str, data: dict[str, Any]) -> None:
         tag_id = data.get("tag_id", "")

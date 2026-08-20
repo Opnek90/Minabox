@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import random
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
 import structlog
 
+from backend_service.core.playback_settings import read_playback_end_behavior
 from backend_service.models.database import Track
 
 logger = structlog.get_logger(__name__)
@@ -37,6 +39,12 @@ class PlaybackSession:
     current_track_index: int = 0
     shuffle: bool = False
     repeat_mode: RepeatMode = "none"
+    #: Repeat only while the card that started this session is still on the
+    #: reader (end behaviour ``repeat_while_tag``).
+    loop_requires_tag: bool = False
+    #: ``time.monotonic()`` of the first repetition, ``None`` while the session
+    #: is still on its first pass. Basis for the loop guard.
+    loop_started_at: float | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -98,6 +106,17 @@ class PlaybackSession:
         self.current_track_index = 0
         self.updated_at = datetime.now(UTC)
 
+    def mark_loop_started(self) -> None:
+        """Start the loop guard window on the first repetition."""
+        if self.loop_started_at is None:
+            self.loop_started_at = time.monotonic()
+
+    def loop_elapsed_seconds(self) -> float:
+        """Seconds since the first repetition (0 while still on the first pass)."""
+        if self.loop_started_at is None:
+            return 0.0
+        return time.monotonic() - self.loop_started_at
+
 
 class SessionManager:
     """Manages playback sessions in memory."""
@@ -148,12 +167,16 @@ class SessionManager:
         ]
         if shuffle and len(snapshots) > 1:
             random.shuffle(snapshots)
+        # The end behaviour is a user setting and must survive a tag scan, so it
+        # is re-read here rather than carried over from the previous session.
+        end_behavior = read_playback_end_behavior()
         self._session = PlaybackSession(
             playlist_id=playlist_id,
             tracks=snapshots,
             current_track_index=0,
             shuffle=shuffle,
-            repeat_mode="none",
+            repeat_mode="all" if end_behavior != "stop" else "none",
+            loop_requires_tag=end_behavior == "repeat_while_tag",
         )
         logger.info(
             "session_created",
@@ -161,13 +184,22 @@ class SessionManager:
             track_count=len(snapshots),
             first_track_id=snapshots[0].id if snapshots else None,
             shuffle=shuffle,
+            end_behavior=end_behavior,
         )
         return self._session
 
     def set_repeat_mode(self, mode: RepeatMode) -> None:
-        """Set repeat mode for current session."""
+        """Set repeat mode for current session.
+
+        A deliberate toggle at the player overrides the "only while the card
+        lies there" rule and restarts the loop guard window. The guard itself
+        stays in force -- it is a safety net, not a property of the mode.
+        """
         if self._session:
             self._session.repeat_mode = mode
+            self._session.loop_requires_tag = False
+            self._session.loop_started_at = None
+            self._session.updated_at = datetime.now(UTC)
 
     def set_shuffle(self, value: bool) -> None:
         """Set shuffle on/off for current session."""

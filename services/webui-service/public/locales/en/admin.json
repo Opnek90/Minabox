@@ -120,9 +120,9 @@
   },
   "control": {
     "resume_on_tag_rescan": "Resume from last position (place tag again)",
-    "section_rfid": "Tapping a card",
+    "section_rfid": "Taking it off and putting it back",
     "stop_playback_on_tag_remove": "Stop playback when tag is removed",
-    "section_rfid_hint": "What should happen when a card is placed on the box or taken off again."
+    "section_rfid_hint": "What should happen when the card is taken off the box or placed on it again."
   },
   "design": {
     "title": "Language & Colours"
@@ -248,6 +248,7 @@
     "devices": "Connected Devices",
     "maintenance": "Maintenance",
     "network": "Network",
+    "playback": "Playback",
     "security": "Security",
     "sound": "Sound"
   },
@@ -304,7 +305,19 @@
   },
   "load_error": "Loading failed",
   "playback": {
-    "title": "Playing & Falling Asleep"
+    "end_hint": "What the box should do once the last track on the card has finished.",
+    "end_repeat": "Repeat",
+    "end_repeat_hint": "Starts over from the beginning.",
+    "end_repeat_while_tag": "Repeat while the card stays on the box",
+    "end_repeat_while_tag_hint": "Taking the card off ends playback at the end of the track.",
+    "end_stop": "Stop",
+    "end_stop_hint": "The box goes quiet.",
+    "end_title": "When everything has played",
+    "guard_enabled": "Stop on its own after a while",
+    "guard_minutes": "Longest stretch in one go (minutes)",
+    "guard_minutes_hint": "After that the volume fades down and the box stops – so it will not keep playing for hours when a card is left on it.",
+    "sleep_title": "Falling asleep",
+    "title": "When a card is tapped"
   },
   "rfid": {
     "fields": {
