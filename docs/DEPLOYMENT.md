@@ -1,6 +1,13 @@
 # Minabox - Deployment Guide
 
-Diese Anleitung beschreibt, wie du die Minabox auf einem Raspberry Pi aufsetzt und startest.
+Diese Anleitung beschreibt den **manuellen** Weg, die Minabox auf einem
+Raspberry Pi aufzusetzen. Sie richtet sich an Entwickler und an alle, die genau
+wissen wollen, was passiert.
+
+> **Fuer die normale Installation gibt es den Assistenten:**
+> [INSTALLATION.md](INSTALLATION.md). Er erledigt alles auf dieser Seite
+> automatisch, ermittelt die hostspezifischen Werte selbst und laedt fertige
+> Images statt lokal zu bauen.
 
 ---
 
@@ -74,7 +81,9 @@ sudo raspi-config
 Oder direkt:
 
 ```bash
-sudo sed -i 's/#dtparam=i2c_arm=on/dtparam=i2c_arm=on/' /boot/config.txt
+# Bookworm: /boot/firmware/config.txt - Bullseye und aelter: /boot/config.txt
+BOOT_CFG=/boot/firmware/config.txt; [ -f "$BOOT_CFG" ] || BOOT_CFG=/boot/config.txt
+sudo sed -i 's/#dtparam=i2c_arm=on/dtparam=i2c_arm=on/' "$BOOT_CFG"
 sudo reboot
 ```
 
@@ -119,8 +128,8 @@ sudo nano /etc/asound.conf
 
 ```bash
 cd ~
-git clone https://github.com/Opnek90/Minabox.git
-cd Minabox
+git clone https://github.com/Opnek90/Minabox.git minabox
+cd minabox
 ```
 
 ### 4. Konfiguration
@@ -129,29 +138,66 @@ cd Minabox
 
 ```bash
 cp .env.example .env
-nano .env
 ```
 
-Passe die Werte an:
+**Pflicht:** Ohne `HOST_HELPER_API_KEY` bricht `docker compose up` sofort ab.
+
+```bash
+echo "HOST_HELPER_API_KEY=$(openssl rand -hex 32)" >> .env
+```
+
+**Ebenfalls Pflicht, weil hostabhaengig.** Diese GIDs unterscheiden sich von Pi
+zu Pi. Stimmen sie nicht, starten die Hardware-Container zwar, haben aber
+keinen Zugriff auf I2C, GPIO bzw. den Docker-Socket:
+
+```bash
+{
+  echo "HOST_UID=$(id -u)"
+  echo "DOCKER_GID=$(getent group docker | cut -d: -f3)"
+  echo "I2C_GID=$(getent group i2c   | cut -d: -f3)"
+  echo "GPIO_GID=$(getent group gpio | cut -d: -f3)"
+} >> .env
+```
+
+Die uebrigen Werte sind in `.env.example` vorbelegt:
 
 ```env
 MINABOX_DEVICE_ID=box1          # Eindeutige ID deiner Box
-MQTT_PORT=1883                   # Standard MQTT-Port
-BACKEND_PORT=8080                # Backend-API-Port
-WEBUI_PORT=80                    # WebUI-Port (evtl. 8081, falls 80 belegt)
-LOG_LEVEL=INFO                   # DEBUG für Entwicklung
+MQTT_PORT=1883                  # Standard MQTT-Port
+BACKEND_PORT=8080               # Backend-API-Port
+WEBUI_PORT=80                   # WebUI-Port (evtl. 8081, falls 80 belegt)
+LOG_LEVEL=INFO                  # DEBUG fuer Entwicklung
+BOOT_CONFIG_DIR=/boot/firmware  # Bullseye und aelter: /boot
+COMPOSE_PROFILES=rfid           # optionale Komponenten, siehe unten
+```
+
+#### Komponenten waehlen
+
+Die Pflichtservices (`mqtt`, `backend`, `host-helper`, `audio`, `webui`) laufen
+immer. Optionale Services haengen an einem Compose-Profil und werden ueber
+`COMPOSE_PROFILES` in der `.env` zugeschaltet:
+
+```env
+COMPOSE_PROFILES=rfid,led,button,display,media
+```
+
+Ein Profil hier zu entfernen stoppt einen bereits laufenden Container **nicht**
+von allein. Danach einmal:
+
+```bash
+docker compose down --remove-orphans && docker compose up -d
 ```
 
 #### Ordnerstruktur erstellen
 
 ```bash
-# Daten-Ordner
-mkdir -p data
-mkdir -p audio/tracks
-
-# Mosquitto-Config
-mkdir -p infrastructure/mosquitto/config
+./scripts/setup-folders.sh
 ```
+
+Das Skript legt `data/`, `audio/tracks/`, `services/audio-service/state/` und
+die Mosquitto-Config-Ordner an und erzeugt ausserdem die gitignorierten
+Service-Configs (`audio.json`, `leds.json`, `buttons.json`, `display.json`) aus
+ihren `.example`-Vorlagen. Bestehende Dateien bleiben unangetastet.
 
 #### Mosquitto-Konfiguration
 
@@ -177,10 +223,21 @@ EOF
 ### Alle Services starten
 
 ```bash
-docker compose up -d
+docker compose pull && docker compose up -d
 ```
 
 - `-d` startet die Container im Hintergrund (detached mode)
+- `pull` holt die fertigen Images aus `ghcr.io/opnek90/minabox-*`
+
+Zum lokalen Bauen statt Laden — etwa fuer eigene Aenderungen am Quelltext:
+
+```bash
+docker compose build && docker compose up -d
+```
+
+Auf einem Pi dauert ein vollstaendiger Build 30-60 Minuten: `led` und `button`
+uebersetzen lgpio aus dem Quelltext, `audio` zieht das komplette VLC-Paket und
+`webui` baut mit npm.
 
 ### Status prüfen
 
@@ -314,13 +371,13 @@ docker compose logs backend
 
 ```bash
 # Mosquitto-Status prüfen
-docker compose logs mosquitto
+docker compose logs mqtt
 
 # MQTT-Test mit mosquitto_pub/sub (aus einem anderen Terminal)
-docker exec -it minabox-mosquitto mosquitto_sub -t "#" -v
+docker exec -it minabox-mqtt mosquitto_sub -t "#" -v
 
 # In einem anderen Terminal
-docker exec -it minabox-mosquitto mosquitto_pub -t "test" -m "Hello"
+docker exec -it minabox-mqtt mosquitto_pub -t "test" -m "Hello"
 ```
 
 Falls `mosquitto_sub` oder `mosquitto_pub` nicht gefunden:
@@ -417,20 +474,26 @@ tar -czf minabox-backup-$(date +%Y%m%d).tar.gz \
 ### Minabox-Code aktualisieren
 
 ```bash
-cd ~/Minabox
+cd ~/minabox
 git pull
 
-# Services neu bauen
-docker compose build
+# Fertige Images laden und neu starten
+docker compose pull
 docker compose up -d
 ```
+
+`git pull` ist auch bei fertigen Images noetig: Aenderungen an
+`docker-compose.yml` (neue Services, neue Profile, geaenderte Mounts) stecken im
+Repo, nicht im Image.
+
+Zum Bauen aus dem Quelltext statt Laden: `docker compose build` statt `pull`.
 
 ### Docker-Images aktualisieren
 
 ```bash
-# Mosquitto-Image aktualisieren
-docker compose pull mosquitto
-docker compose up -d mosquitto
+# Alle Images aktualisieren (Compose-Service heisst "mqtt", nicht "mosquitto")
+docker compose pull
+docker compose up -d
 ```
 
 ---
@@ -449,21 +512,30 @@ Inhalt:
 
 ```ini
 [Unit]
-Description=Minabox Services
+Description=Minabox
 Requires=docker.service
-After=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/home/pi/Minabox
+WorkingDirectory=/home/pi/minabox
 ExecStart=/usr/bin/docker compose up -d
 ExecStop=/usr/bin/docker compose down
+User=pi
+Group=pi
 TimeoutStartSec=0
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+`WorkingDirectory`, `User` und `Group` an die eigene Installation anpassen. Der
+Assistent (`install.sh`) schreibt dieselbe Unit mit den ermittelten Werten.
+
+`network-online.target` ist wichtig: ohne das startet der Stack gelegentlich,
+bevor eine IP vorhanden ist.
 
 Aktivieren:
 

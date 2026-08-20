@@ -2,19 +2,61 @@
 
 Phoniebox-/Jukebox-System mit RFID, Audio, WebUI und optionaler Hardware (LED, Buttons, Display).
 
-## Schnellstart
+## Installation auf dem Raspberry Pi
+
+Auf einem frisch aufgesetzten Raspberry Pi OS (64-bit):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Opnek90/Minabox/main/install.sh -o minabox-install.sh
+```
+
+```bash
+bash minabox-install.sh
+```
+
+Der Assistent fragt Sprache und Komponenten ab, installiert Docker, richtet den
+Hardware-Zugriff ein, laedt die Container und nennt am Ende die Adresse, unter
+der die Bedienoberflaeche erreichbar ist.
+
+Bewusst zwei Schritte statt `curl | bash`: die Dialoge brauchen ein echtes
+Terminal, das eine Pipe nicht liefert.
+
+Ein erneuter Aufruf auf einer bestehenden Installation oeffnet das
+Wartungsmenue (Komponenten aendern, Update, Audio, Diagnose, Deinstallieren).
+
+Ausfuehrlich: [docs/INSTALLATION.md](docs/INSTALLATION.md)
+
+## Schnellstart fuer Entwickler
+
+Aus einem Klon des Repos heraus:
 
 ```bash
 cp .env.example .env
 echo "HOST_HELPER_API_KEY=$(openssl rand -hex 32)" >> .env
+./scripts/setup-folders.sh
 docker compose up -d
 ```
 
 `HOST_HELPER_API_KEY` ist Pflicht – ohne den Wert bricht `docker compose up` ab.
 Die uebrigen Werte (`MQTT_BROKER`, `MINABOX_DEVICE_ID`, `LOG_LEVEL`) sind in
-`.env.example` vorbelegt und koennen so bleiben.
+`.env.example` vorbelegt und koennen so bleiben. `setup-folders.sh` legt die
+Laufzeitverzeichnisse an und erzeugt die Service-Configs aus ihren
+`.example`-Vorlagen.
 
-- **Deployment & Installation:** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+Standardmaessig laufen nur die Pflichtservices (MQTT, Backend, Host-Helper,
+Audio, WebUI). Optionale Komponenten werden ueber `COMPOSE_PROFILES` in der
+`.env` zugeschaltet:
+
+```bash
+COMPOSE_PROFILES=rfid,led,button,display,media
+```
+
+Die Images kommen aus `ghcr.io/opnek90/minabox-*`. Zum lokalen Bauen statt
+Laden: `docker compose build`.
+
+- **Installation (Endnutzer):** [docs/INSTALLATION.md](docs/INSTALLATION.md)
+- **Offene Pruefpunkte zum Installer:** [docs/Installer-Verification.md](docs/Installer-Verification.md)
+- **Deployment (manuell, Entwickler):** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - **Entwicklung & Struktur:** [docs/Framework.md](docs/Framework.md), [docs/DEVELOPMENT_INSTRUCTIONS.md](docs/DEVELOPMENT_INSTRUCTIONS.md)
 - **Service-Review (Backend, Audio, Host-Helper, …):** [docs/ServiceReview.md](docs/ServiceReview.md)
 - **Diagnose-Paket (Support):** [docs/DebugExport.md](docs/DebugExport.md)
@@ -31,6 +73,8 @@ Die uebrigen Werte (`MQTT_BROKER`, `MINABOX_DEVICE_ID`, `LOG_LEVEL`) sind in
 | `infrastructure/` | z. B. Mosquitto-Config |
 | `services/` | Alle Services (Backend, WebUI, Audio, RFID, LED, Button, Display, …) |
 | `scripts/` | Hilfsskripte (dev-tools, setup-folders, test_display) |
+| `install.sh` | Installations- und Wartungsassistent fuer den Pi |
+| `.github/workflows/` | Baut die Container-Images und schiebt sie nach GHCR |
 
 
 ## Diagnose-Paket bei Problemen
