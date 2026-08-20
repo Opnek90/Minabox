@@ -19,7 +19,7 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 function getDeviceKey(device: AudioDeviceItem): string {
-  return device.sink_name ?? device.alsa_device ?? device.id;
+  return device.alsa_device ?? device.id;
 }
 
 function isDeviceEnabled(device: AudioDeviceItem, enabledList: string[] | undefined): boolean {

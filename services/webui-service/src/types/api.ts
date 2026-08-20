@@ -295,11 +295,12 @@ export interface SystemStatus {
 // Config: Audio
 // ============================================================================
 
+// Hinweis: `id` ist der PulseAudio-Sink-Name (identisch mit `alsa_device`).
+// Der audio-service liefert kein separates `sink_name`-Feld.
 export interface AudioDeviceItem {
   id: string;
   name: string;
   card_name: string;
-  sink_name: string;
   alsa_device?: string;
   priority: number;
 }
