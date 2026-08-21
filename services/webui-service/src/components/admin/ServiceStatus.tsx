@@ -4,7 +4,6 @@ import {
   Chip,
   IconButton,
   LinearProgress,
-  Stack,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -75,11 +74,12 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service, onOpe
       >
         {/* Service name + version + state chip */}
         <Box display="flex" alignItems="center" gap={1} minWidth={0} flex={1}>
-          <Box minWidth={0}>
+          <Box minWidth={0} flex={1}>
             <Typography
               variant="body2"
               fontWeight={600}
               sx={{ textTransform: 'capitalize' }}
+              title={service.container ?? service.service}
               noWrap
             >
               {service.service}
@@ -107,27 +107,6 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service, onOpe
             sx={{ flexShrink: 0 }}
           />
         </Box>
-
-        {/* Metrics inline */}
-        {(metrics.cpu_percent != null || metrics.memory_mb != null) && (
-          <Stack direction="row" spacing={1.5} sx={{ flexShrink: 0 }}>
-            {metrics.cpu_percent != null && (
-              <Tooltip title="CPU">
-                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-                  CPU {metrics.cpu_percent.toFixed(1)}%
-                </Typography>
-              </Tooltip>
-            )}
-            {metrics.memory_mb != null && (
-              <Tooltip title="RAM">
-                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-                  {metrics.memory_mb.toFixed(0)} MB
-                  {metrics.memory_percent != null && ` (${metrics.memory_percent.toFixed(1)}%)`}
-                </Typography>
-              </Tooltip>
-            )}
-          </Stack>
-        )}
 
         {/* Log button: opens modal (handled by parent) */}
         <Tooltip title={t('system.view_logs')}>
