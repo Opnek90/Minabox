@@ -16,6 +16,7 @@ import BlockIcon from '@mui/icons-material/Block';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useTranslation } from 'react-i18next';
 import type { Tag } from '@/types/api';
+import { formatRelativeTime } from '@/utils/formatTime';
 
 interface TagCardProps {
   tag: Tag;
@@ -23,27 +24,6 @@ interface TagCardProps {
   onEdit: (tag: Tag) => void;
   onDelete: (tag: Tag) => void;
   onToggleDisabled: (tag: Tag) => void;
-}
-
-function formatRelativeTime(isoString: string | null, locale: string): string | null {
-  if (!isoString) return null;
-  try {
-    const diff = Date.now() - new Date(isoString).getTime();
-    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-    const units: [Intl.RelativeTimeFormatUnit, number][] = [
-      ['minute', 60_000],
-      ['hour', 3_600_000],
-      ['day', 86_400_000],
-      ['week', 604_800_000],
-    ];
-    for (let i = units.length - 1; i >= 0; i--) {
-      const [unit, ms] = units[i];
-      if (diff >= ms) return rtf.format(-Math.round(diff / ms), unit);
-    }
-    return rtf.format(-Math.round(diff / 60_000), 'minute');
-  } catch {
-    return null;
-  }
 }
 
 export const TagCard: React.FC<TagCardProps> = ({ tag, contentName, onEdit, onDelete, onToggleDisabled }) => {
