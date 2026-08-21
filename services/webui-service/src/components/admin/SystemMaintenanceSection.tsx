@@ -13,6 +13,7 @@ import {
   DialogContentText,
   DialogTitle,
   FormControlLabel,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -28,6 +29,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
+import { configApi } from '@/api/config';
 import {
   systemApi,
   type ServiceUpdateInfo,
@@ -145,6 +147,7 @@ export const SystemMaintenanceSection: React.FC = () => {
   const [factoryResetPending, setFactoryResetPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoUpdateCheck, setAutoUpdateCheck] = useState(false);
 
   // force=false liest den zwischengespeicherten Stand - der Aufruf beim
   // Oeffnen der Seite soll niemanden auf eine Netzabfrage warten lassen.
@@ -162,6 +165,22 @@ export const SystemMaintenanceSection: React.FC = () => {
   }, [t]);
 
   useEffect(() => { loadCheck(false); }, [loadCheck]);
+
+  useEffect(() => {
+    configApi.getGeneral()
+      .then((g) => setAutoUpdateCheck(g.auto_update_check_enabled ?? false))
+      .catch(() => {});
+  }, []);
+
+  const handleAutoUpdateCheckChange = async (checked: boolean) => {
+    setAutoUpdateCheck(checked);
+    try {
+      await configApi.updateGeneral({ auto_update_check_enabled: checked });
+    } catch {
+      setAutoUpdateCheck(!checked);
+      showError(t('system.logs_unavailable'));
+    }
+  };
 
   const fetchUpdateOsLog = useCallback(async () => {
     try {
@@ -397,6 +416,21 @@ export const SystemMaintenanceSection: React.FC = () => {
             </Alert>
           )
         )}
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={autoUpdateCheck}
+              onChange={(_, checked) => handleAutoUpdateCheckChange(checked)}
+              color="primary"
+            />
+          }
+          label={t('system.auto_update_check')}
+          sx={{ display: 'block', mb: 0.5 }}
+        />
+        <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1.5 }}>
+          {t('system.auto_update_check_hint')}
+        </Typography>
 
         <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
           <ActionButton

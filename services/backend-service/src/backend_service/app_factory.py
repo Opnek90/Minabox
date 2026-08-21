@@ -37,6 +37,7 @@ from backend_service.core.mqtt_handlers import MQTTHandlers
 from backend_service.core.podcast_fetcher import run_podcast_fetch_loop
 from backend_service.api.routes_host import close_host_helper_client
 from backend_service.core.temperature_logger import run_temperature_log_loop
+from backend_service.core.update_check import run_update_check_loop
 from backend_service.middleware.auth import web_auth_middleware
 
 logger = structlog.get_logger(__name__)
@@ -56,6 +57,7 @@ class BackendService:
         self._db = None
         self._podcast_fetch_task: asyncio.Task | None = None
         self._temperature_log_task: asyncio.Task | None = None
+        self._update_check_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the backend service."""
@@ -176,6 +178,11 @@ class BackendService:
             )
         )
 
+        # Start update-check loop (only scans while the user has it switched on)
+        self._update_check_task = asyncio.create_task(
+            run_update_check_loop(ws_manager.broadcast)
+        )
+
         # Start FastAPI server
         await self._start_api_server()
 
@@ -283,6 +290,14 @@ class BackendService:
             self._temperature_log_task.cancel()
             try:
                 await self._temperature_log_task
+            except asyncio.CancelledError:
+                pass
+
+        # Stop update-check loop
+        if self._update_check_task:
+            self._update_check_task.cancel()
+            try:
+                await self._update_check_task
             except asyncio.CancelledError:
                 pass
 

@@ -139,6 +139,7 @@ def _general_settings_read() -> dict:
     resume_on_tag_rescan = True
     playback_end_behavior = DEFAULT_END_BEHAVIOR
     playback_loop_guard_minutes = DEFAULT_LOOP_GUARD_MINUTES
+    auto_update_check_enabled = False
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -157,6 +158,7 @@ def _general_settings_read() -> dict:
                 playback_loop_guard_minutes = clamp_loop_guard_minutes(
                     data["playback_loop_guard_minutes"]
                 )
+            auto_update_check_enabled = bool(data.get("auto_update_check_enabled", False))
             raw_times = data.get("allowed_usage_times")
             if isinstance(raw_times, list):
                 allowed_usage_times = [
@@ -185,6 +187,7 @@ def _general_settings_read() -> dict:
         "playback_end_behavior": playback_end_behavior,
         "playback_loop_guard_minutes": playback_loop_guard_minutes,
         "allowed_usage_times": allowed_usage_times,
+        "auto_update_check_enabled": auto_update_check_enabled,
     }
 
 
@@ -223,6 +226,7 @@ async def update_general_config(body: dict) -> dict:
         "playback_end_behavior",
         "playback_loop_guard_minutes",
         "allowed_usage_times",
+        "auto_update_check_enabled",
         # Ersteinrichtungs-Assistent (docs/services/webui/Setup-Wizard.md).
         # Fehlen die Schluessel hier, verwirft der Filter unten sie
         # stillschweigend und der Assistent kaeme bei jedem Aufruf wieder.
@@ -267,6 +271,8 @@ async def update_general_config(body: dict) -> dict:
     if "allowed_usage_times" in data:
         raw = data["allowed_usage_times"]
         data["allowed_usage_times"] = _validate_allowed_usage_times(raw if isinstance(raw, list) else [])
+    if "auto_update_check_enabled" in data:
+        data["auto_update_check_enabled"] = bool(data["auto_update_check_enabled"])
     try:
         GENERAL_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
         # Merge with existing file so partial updates (e.g. from Child or Control tab) do not drop other keys

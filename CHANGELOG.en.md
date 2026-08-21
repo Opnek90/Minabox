@@ -22,6 +22,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.7 - 2026-08-21
+
+#### Added
+- A periodic background scan can check for updates and reports one becoming
+  ready through a hint, instead of only being noticed when opening the
+  maintenance page.
+
 ### 0.1.6 - 2026-08-21
 
 #### Added
@@ -82,6 +89,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.7 - 2026-08-21
+
+#### Added
+- Under Options -> Maintenance, the periodic background scan for updates can
+  now be switched on or off; once one is ready, a hint appears in the header.
 
 ### 0.1.6 - 2026-08-21
 

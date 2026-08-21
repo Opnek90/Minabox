@@ -28,6 +28,9 @@ from typing import Any
 import httpx
 import structlog
 
+from backend_service.core import container_registry
+from backend_service.core.system_alerts import clear_alert, set_alert
+
 logger = structlog.get_logger(__name__)
 
 DEFAULT_MANIFEST_URL = (
@@ -39,6 +42,29 @@ DEFAULT_REGISTRY = "ghcr.io/opnek90"
 # bleibt, selten genug, dass niemand die GitHub-Grenzen streift.
 CACHE_TTL_SECONDS = 6 * 60 * 60
 FETCH_TIMEOUT = 10.0
+
+# Wie oft der Hintergrund-Scan nachsieht. Der eigentliche Abruf bleibt durch
+# CACHE_TTL_SECONDS gebremst - dieses Intervall bestimmt nur, wie schnell ein
+# frisch eingeschalteter Scan reagiert und die Kopfzeile aktuell haelt.
+POLL_INTERVAL_SECONDS = 30 * 60
+
+ALERT_UPDATE_AVAILABLE = "update_available"
+
+
+def _general_settings_path() -> Path:
+    return Path(os.environ.get("DATA_PATH", "/data")) / "general_settings.json"
+
+
+def _read_auto_update_check_enabled() -> bool:
+    """Ob der Hintergrund-Scan laufen soll (general_settings.json, Default aus)."""
+    path = _general_settings_path()
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return bool(data.get("auto_update_check_enabled", False))
+    except (OSError, ValueError, TypeError):
+        return False
 
 
 def _manifest_url() -> str:
@@ -246,3 +272,71 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
     }
     _write_cache({"cached_at": time.time(), "result": result})
     return result
+
+
+async def _apply_alert(result: dict[str, Any], ws_broadcast: Any) -> None:
+    """Kopfzeilen-Hinweis mit dem Befund abgleichen: setzen, oder zuruecknehmen.
+
+    Ein Fehlschlag beim Abruf (`result["error"]`) darf den Hinweis nicht
+    loeschen - das waere genau das Verschweigen, das update_check.py oben
+    ausschliesst. Er bleibt dann einfach stehen, bis ein Abruf gelingt.
+    """
+    if result.get("error"):
+        return
+
+    if result.get("update_available"):
+        set_alert(ALERT_UPDATE_AVAILABLE, "info", "alerts.update_available")
+        if ws_broadcast:
+            try:
+                await ws_broadcast({
+                    "type": "system_alert",
+                    "level": "info",
+                    "code": ALERT_UPDATE_AVAILABLE,
+                    "message": "alerts.update_available",
+                })
+            except Exception as e:
+                logger.debug("update_check_ws_broadcast_failed", error=str(e))
+    elif clear_alert(ALERT_UPDATE_AVAILABLE) and ws_broadcast:
+        try:
+            await ws_broadcast({
+                "type": "system_alert_cleared",
+                "code": ALERT_UPDATE_AVAILABLE,
+            })
+        except Exception as e:
+            logger.debug("update_check_ws_broadcast_failed", error=str(e))
+
+
+async def run_update_check_loop(ws_broadcast: Any) -> None:
+    """Hintergrund-Task: regelmaessig auf Updates pruefen, wenn eingeschaltet.
+
+    Der eigentliche Netzabruf bleibt durch den Zwischenspeicher in `check()`
+    gebremst (CACHE_TTL_SECONDS) - dieser Task fragt nur oefter nach, ob
+    inzwischen ein neuer Stand faellig ist, und haelt den Hinweis in der
+    Kopfzeile aktuell.
+    """
+    await asyncio.sleep(60)  # initial delay before first check
+
+    while True:
+        try:
+            if _read_auto_update_check_enabled():
+                entries = await container_registry.discover()
+                installed = {
+                    e["service"]: e["version"]
+                    for e in (entries or [])
+                    if e.get("service") and e.get("version")
+                }
+                if installed:
+                    result = await check(installed, force=False)
+                    await _apply_alert(result, ws_broadcast)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            # Ein fehlgeschlagener Durchlauf darf den Hintergrund-Task nicht beenden.
+            logger.warning("update_check_loop_failed", error=str(e))
+
+        try:
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        except asyncio.CancelledError:
+            break
+
+    logger.info("update_check_loop_stopped")

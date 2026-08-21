@@ -23,6 +23,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.7 - 2026-08-21
+
+#### Neu
+- Ein regelmaessiger Hintergrund-Scan kann auf Updates pruefen und meldet ein
+  bereitstehendes Update ueber einen Hinweis, statt dass man ihn nur beim
+  Aufruf der Wartungsseite bemerkt.
+
 ### 0.1.6 - 2026-08-21
 
 #### Neu
@@ -84,6 +91,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.7 - 2026-08-21
+
+#### Neu
+- Unter Optionen -> Wartung laesst sich der regelmaessige Hintergrund-Scan auf
+  Updates ein- und ausschalten; steht eines bereit, erscheint ein Hinweis in
+  der Kopfzeile.
 
 ### 0.1.6 - 2026-08-21
 
