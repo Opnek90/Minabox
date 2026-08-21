@@ -26,44 +26,61 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import LibraryMusicIcon from '@mui/icons-material/LibraryMusic';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useTranslation } from 'react-i18next';
-import type { Track, TrackFolder } from '@/types/api';
 
 const ROW_HEIGHT = 34;
 const FONT_SIZE = '0.875rem';
 const ICON_SIZE = 18;
 
+/** Shared shape of Track-/Stream-/PodcastFolder - structurally identical on the backend. */
+export interface MediaFolder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+}
+
+/** Minimal shape needed to count items per folder (Track/Stream/Podcast all have this). */
+export interface MediaFolderItem {
+  id: number;
+  folder_id?: number | null;
+}
+
 interface FolderTreeProps {
-  folders: TrackFolder[];
-  allTracks: Track[];
+  folders: MediaFolder[];
+  items: MediaFolderItem[];
   currentFolderId: number | null;
   onNavigate: (folderId: number | null) => void;
-  onRename: (folder: TrackFolder) => void;
-  onDelete: (folder: TrackFolder) => void;
-  /** Called when a track is dropped onto a folder (or root). */
-  onDropTrack?: (trackId: number, targetFolderId: number | null) => void;
+  onRename: (folder: MediaFolder) => void;
+  onDelete: (folder: MediaFolder) => void;
+  /** Called when an item is dropped onto a folder (or root). */
+  onDropItem?: (itemId: number, targetFolderId: number | null) => void;
+  /** MIME type used for the drag payload, e.g. 'application/minabox-track-id'. */
+  dragType: string;
+  /** Header label above the tree, e.g. the tab name ("Tracks"/"Streams"/"Podcasts"). */
+  treeLabel: string;
 }
 
 interface TreeNodeProps {
-  folder: TrackFolder;
-  folders: TrackFolder[];
-  allTracks: Track[];
+  folder: MediaFolder;
+  folders: MediaFolder[];
+  items: MediaFolderItem[];
   currentFolderId: number | null;
   depth: number;
   onNavigate: (folderId: number | null) => void;
-  onRename: (folder: TrackFolder) => void;
-  onDelete: (folder: TrackFolder) => void;
-  onDropTrack?: (trackId: number, targetFolderId: number | null) => void;
+  onRename: (folder: MediaFolder) => void;
+  onDelete: (folder: MediaFolder) => void;
+  onDropItem?: (itemId: number, targetFolderId: number | null) => void;
+  dragType: string;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
-  folder, folders, allTracks, currentFolderId, depth,
-  onNavigate, onRename, onDelete, onDropTrack,
+  folder, folders, items, currentFolderId, depth,
+  onNavigate, onRename, onDelete, onDropItem, dragType,
 }) => {
   const { t } = useTranslation('media');
   const children = folders.filter((f) => f.parent_id === folder.id);
   const hasChildren = children.length > 0;
   const isSelected = currentFolderId === folder.id;
-  const trackCount = allTracks.filter((tr) => tr.folder_id === folder.id).length;
+  const itemCount = items.filter((it) => it.folder_id === folder.id).length;
 
   const [expanded, setExpanded] = useState(true);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -86,7 +103,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
   // --- Drag & Drop handlers ---
   const handleDragOver = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes('application/minabox-track-id')) return;
+    if (!e.dataTransfer.types.includes(dragType)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOver(true);
@@ -97,10 +114,10 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const rawId = e.dataTransfer.getData('application/minabox-track-id');
-    const trackId = parseInt(rawId, 10);
-    if (!isNaN(trackId) && onDropTrack) {
-      onDropTrack(trackId, folder.id);
+    const rawId = e.dataTransfer.getData(dragType);
+    const itemId = parseInt(rawId, 10);
+    if (!isNaN(itemId) && onDropItem) {
+      onDropItem(itemId, folder.id);
     }
   };
 
@@ -151,9 +168,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               <Typography component="span" sx={{ fontSize: FONT_SIZE, lineHeight: 1, fontWeight: isSelected ? 600 : 400 }} noWrap>
                 {folder.name}
               </Typography>
-              {trackCount > 0 && (
+              {itemCount > 0 && (
                 <Typography component="span" sx={{ fontSize: '0.72rem', lineHeight: 1, color: isSelected ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 }}>
-                  {trackCount}
+                  {itemCount}
                 </Typography>
               )}
             </Box>
@@ -226,13 +243,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               key={child.id}
               folder={child}
               folders={folders}
-              allTracks={allTracks}
+              items={items}
               currentFolderId={currentFolderId}
               depth={depth + 1}
               onNavigate={onNavigate}
               onRename={onRename}
               onDelete={onDelete}
-              onDropTrack={onDropTrack}
+              onDropItem={onDropItem}
+              dragType={dragType}
             />
           ))}
         </Collapse>
@@ -242,16 +260,16 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 };
 
 export const FolderTree: React.FC<FolderTreeProps> = ({
-  folders, allTracks, currentFolderId, onNavigate, onRename, onDelete, onDropTrack,
+  folders, items, currentFolderId, onNavigate, onRename, onDelete, onDropItem, dragType, treeLabel,
 }) => {
   const { t } = useTranslation('media');
   const rootFolders = folders.filter((f) => f.parent_id == null);
-  const rootTrackCount = allTracks.filter((tr) => tr.folder_id == null).length;
+  const rootItemCount = items.filter((it) => it.folder_id == null).length;
 
   const [rootDragOver, setRootDragOver] = useState(false);
 
   const handleRootDragOver = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes('application/minabox-track-id')) return;
+    if (!e.dataTransfer.types.includes(dragType)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setRootDragOver(true);
@@ -262,10 +280,10 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   const handleRootDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setRootDragOver(false);
-    const rawId = e.dataTransfer.getData('application/minabox-track-id');
-    const trackId = parseInt(rawId, 10);
-    if (!isNaN(trackId) && onDropTrack) {
-      onDropTrack(trackId, null);
+    const rawId = e.dataTransfer.getData(dragType);
+    const itemId = parseInt(rawId, 10);
+    if (!isNaN(itemId) && onDropItem) {
+      onDropItem(itemId, null);
     }
   };
 
@@ -287,7 +305,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
         variant="overline"
         sx={{ px: 1.5, pt: 0.5, pb: 0.25, color: 'text.disabled', letterSpacing: 0.8, fontSize: '0.65rem', lineHeight: 1.5, display: 'block' }}
       >
-        {t('tabs.tracks')}
+        {treeLabel}
       </Typography>
 
       {/* Root Drop Target */}
@@ -325,9 +343,9 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
               <Typography component="span" sx={{ fontSize: FONT_SIZE, lineHeight: 1, fontWeight: currentFolderId === null ? 600 : 400 }} noWrap>
                 {t('folders.root')}
               </Typography>
-              {rootTrackCount > 0 && (
+              {rootItemCount > 0 && (
                 <Typography component="span" sx={{ fontSize: '0.72rem', lineHeight: 1, color: currentFolderId === null ? 'primary.contrastText' : 'text.disabled', opacity: 0.8 }}>
-                  {rootTrackCount}
+                  {rootItemCount}
                 </Typography>
               )}
             </Box>
@@ -341,13 +359,14 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           key={folder.id}
           folder={folder}
           folders={folders}
-          allTracks={allTracks}
+          items={items}
           currentFolderId={currentFolderId}
           depth={0}
           onNavigate={onNavigate}
           onRename={onRename}
           onDelete={onDelete}
-          onDropTrack={onDropTrack}
+          onDropItem={onDropItem}
+          dragType={dragType}
         />
       ))}
 

@@ -31,7 +31,9 @@ interface MediaFabProps {
   onRemoteTrack: () => void;
   onImport: () => void;
   onCreateStream: () => void;
+  onCreateStreamFolder: () => void;
   onCreatePodcast: () => void;
+  onCreatePodcastFolder: () => void;
 }
 
 // FAB size (MUI default) + gap above it
@@ -48,7 +50,9 @@ export const MediaFab: React.FC<MediaFabProps> = ({
   onRemoteTrack,
   onImport,
   onCreateStream,
+  onCreateStreamFolder,
   onCreatePodcast,
+  onCreatePodcastFolder,
 }) => {
   const { t } = useTranslation('media');
   const [open, setOpen] = useState(false);
@@ -85,9 +89,11 @@ export const MediaFab: React.FC<MediaFabProps> = ({
       { icon: <CloudUploadIcon fontSize="small" />, name: t('tracks.upload'), onClick: onUpload },
     ],
     2: [
+      { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new'), onClick: onCreateStreamFolder },
       { icon: <StreamIcon fontSize="small" />, name: t('tracks.add_stream'), onClick: onCreateStream },
     ],
     3: [
+      { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new'), onClick: onCreatePodcastFolder },
       { icon: <PodcastsIcon fontSize="small" />, name: t('podcasts.add'), onClick: onCreatePodcast },
     ],
   };

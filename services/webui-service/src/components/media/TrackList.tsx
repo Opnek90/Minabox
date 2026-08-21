@@ -786,12 +786,14 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </Box>
                 <FolderTree
                   folders={folders}
-                  allTracks={allTracks}
+                  items={allTracks}
                   currentFolderId={currentFolderId}
                   onNavigate={handleNavigateFolder}
-                  onRename={(folder) => setRenameFolder(folder)}
-                  onDelete={(folder) => void onFolderDelete(folder)}
-                  onDropTrack={handleDropTrackOnFolder}
+                  onRename={(folder) => setRenameFolder(folder as TrackFolder)}
+                  onDelete={(folder) => void onFolderDelete(folder as TrackFolder)}
+                  onDropItem={handleDropTrackOnFolder}
+                  dragType={TRACK_DRAG_TYPE}
+                  treeLabel={t('tabs.tracks')}
                 />
               </Box>
             )}
@@ -805,12 +807,14 @@ export const TrackList: React.FC<TrackListProps> = ({
           {mobileView === 'tree' ? (
             <FolderTree
               folders={folders}
-              allTracks={allTracks}
+              items={allTracks}
               currentFolderId={currentFolderId}
               onNavigate={handleNavigateFolder}
-              onRename={(folder) => setRenameFolder(folder)}
-              onDelete={(folder) => void onFolderDelete(folder)}
-              onDropTrack={handleDropTrackOnFolder}
+              onRename={(folder) => setRenameFolder(folder as TrackFolder)}
+              onDelete={(folder) => void onFolderDelete(folder as TrackFolder)}
+              onDropItem={handleDropTrackOnFolder}
+              dragType={TRACK_DRAG_TYPE}
+              treeLabel={t('tabs.tracks')}
             />
           ) : (
             trackPanel

@@ -9,11 +9,13 @@ from backend_service.api import (
     routes_debug,
     routes_host,
     routes_playlists,
+    routes_podcast_folders,
     routes_podcasts,
     routes_rfid,
     routes_scan_history,
-    routes_streams,
     routes_stats,
+    routes_stream_folders,
+    routes_streams,
     routes_system,
     routes_tags,
     routes_track_folders,
@@ -35,7 +37,15 @@ api_router.include_router(
     routes_track_folders.router, prefix="/tracks/folders", tags=["Track Folders"]
 )
 api_router.include_router(routes_tracks.router, prefix="/tracks", tags=["Tracks"])
+# NOTE: same ordering pitfall as track_folders above - folders must be
+# registered before the plain /streams and /podcasts routers.
+api_router.include_router(
+    routes_stream_folders.router, prefix="/streams/folders", tags=["Stream Folders"]
+)
 api_router.include_router(routes_streams.router, prefix="/streams", tags=["Streams"])
+api_router.include_router(
+    routes_podcast_folders.router, prefix="/podcasts/folders", tags=["Podcast Folders"]
+)
 api_router.include_router(routes_podcasts.router, prefix="/podcasts", tags=["Podcasts"])
 api_router.include_router(routes_audio.router, prefix="/audio", tags=["Audio"])
 api_router.include_router(routes_rfid.router, prefix="/rfid", tags=["RFID"])

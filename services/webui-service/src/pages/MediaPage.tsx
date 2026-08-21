@@ -35,11 +35,19 @@ import { SectionTabs } from '@/components/common/SectionTabs';
 import { useToast } from '@/contexts/ToastContext';
 import { useUserPrefs } from '@/contexts/UserPrefsContext';
 import { playlistsApi } from '@/api/playlists';
-import { podcastsApi } from '@/api/podcasts';
-import { streamsApi } from '@/api/streams';
+import { podcastFoldersApi, podcastsApi } from '@/api/podcasts';
+import { streamFoldersApi, streamsApi } from '@/api/streams';
 import { trackFoldersApi, tracksApi } from '@/api/tracks';
 import { tagsApi } from '@/api/tags';
-import type { Playlist, Podcast, Stream, Track, TrackFolder } from '@/types/api';
+import type {
+  Playlist,
+  Podcast,
+  PodcastFolder,
+  Stream,
+  StreamFolder,
+  Track,
+  TrackFolder,
+} from '@/types/api';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 interface TabPanelProps {
@@ -69,7 +77,11 @@ export const MediaPage: React.FC = () => {
   const [folders, setFolders] = useState<TrackFolder[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [streams, setStreams] = useState<Stream[]>([]);
+  const [streamFolders, setStreamFolders] = useState<StreamFolder[]>([]);
+  const [currentStreamFolderId, setCurrentStreamFolderId] = useState<number | null>(null);
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
+  const [podcastFolders, setPodcastFolders] = useState<PodcastFolder[]>([]);
+  const [currentPodcastFolderId, setCurrentPodcastFolderId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -79,7 +91,9 @@ export const MediaPage: React.FC = () => {
   const [podcastOpen, setPodcastOpen] = useState(false);
   const [playlistCreateOpen, setPlaylistCreateOpen] = useState(false);
 
-  const createFolderRef = useRef<(() => void) | null>(null);
+  const createTrackFolderRef = useRef<(() => void) | null>(null);
+  const createStreamFolderRef = useRef<(() => void) | null>(null);
+  const createPodcastFolderRef = useRef<(() => void) | null>(null);
 
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
@@ -94,18 +108,30 @@ export const MediaPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [playlistsData, tracksData, streamsData, podcastsData, foldersData] = await Promise.all([
+      const [
+        playlistsData,
+        tracksData,
+        streamsData,
+        podcastsData,
+        foldersData,
+        streamFoldersData,
+        podcastFoldersData,
+      ] = await Promise.all([
         playlistsApi.getAll(),
         tracksApi.getAll(),
         streamsApi.getAll(),
         podcastsApi.list(),
         trackFoldersApi.getAll(),
+        streamFoldersApi.getAll(),
+        podcastFoldersApi.getAll(),
       ]);
       setPlaylists(playlistsData);
       setTracks(tracksData);
       setStreams(streamsData);
       setPodcasts(podcastsData);
       setFolders(foldersData);
+      setStreamFolders(streamFoldersData);
+      setPodcastFolders(podcastFoldersData);
     } catch {
       setError(t('tracks.load_error'));
     } finally {
@@ -158,6 +184,90 @@ export const MediaPage: React.FC = () => {
       showSuccess(t('folders.track_moved', { defaultValue: 'Track moved' }));
     } catch {
       showError(t('folders.move_error', { defaultValue: 'Failed to move track' }));
+    }
+  };
+
+  const handleStreamFolderCreate = async (name: string, parentId: number | null) => {
+    try {
+      const folder = await streamFoldersApi.create({ name, parent_id: parentId });
+      setStreamFolders((prev) => [...prev, folder]);
+      showSuccess(t('folders.created', { defaultValue: 'Folder created' }));
+    } catch {
+      showError(t('folders.create_error', { defaultValue: 'Failed to create folder' }));
+    }
+  };
+
+  const handleStreamFolderRename = async (folder: StreamFolder, name: string) => {
+    try {
+      const updated = await streamFoldersApi.update(folder.id, { name });
+      setStreamFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      showSuccess(t('folders.renamed', { defaultValue: 'Folder renamed' }));
+    } catch {
+      showError(t('folders.rename_error', { defaultValue: 'Failed to rename folder' }));
+    }
+  };
+
+  const handleStreamFolderDelete = async (folder: StreamFolder) => {
+    try {
+      await streamFoldersApi.delete(folder.id);
+      setStreamFolders((prev) => prev.filter((f) => f.id !== folder.id));
+      const updatedStreams = await streamsApi.getAll();
+      setStreams(updatedStreams);
+      showSuccess(t('folders.deleted', { defaultValue: 'Folder deleted' }));
+    } catch {
+      showError(t('folders.delete_error', { defaultValue: 'Failed to delete folder' }));
+    }
+  };
+
+  const handleMoveStreamToFolder = async (stream: Stream, folderId: number | null) => {
+    try {
+      const updated = await streamsApi.update(stream.id, { folder_id: folderId });
+      setStreams((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      showSuccess(t('folders.stream_moved', { defaultValue: 'Stream moved' }));
+    } catch {
+      showError(t('folders.stream_move_error', { defaultValue: 'Failed to move stream' }));
+    }
+  };
+
+  const handlePodcastFolderCreate = async (name: string, parentId: number | null) => {
+    try {
+      const folder = await podcastFoldersApi.create({ name, parent_id: parentId });
+      setPodcastFolders((prev) => [...prev, folder]);
+      showSuccess(t('folders.created', { defaultValue: 'Folder created' }));
+    } catch {
+      showError(t('folders.create_error', { defaultValue: 'Failed to create folder' }));
+    }
+  };
+
+  const handlePodcastFolderRename = async (folder: PodcastFolder, name: string) => {
+    try {
+      const updated = await podcastFoldersApi.update(folder.id, { name });
+      setPodcastFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      showSuccess(t('folders.renamed', { defaultValue: 'Folder renamed' }));
+    } catch {
+      showError(t('folders.rename_error', { defaultValue: 'Failed to rename folder' }));
+    }
+  };
+
+  const handlePodcastFolderDelete = async (folder: PodcastFolder) => {
+    try {
+      await podcastFoldersApi.delete(folder.id);
+      setPodcastFolders((prev) => prev.filter((f) => f.id !== folder.id));
+      const updatedPodcasts = await podcastsApi.list();
+      setPodcasts(updatedPodcasts);
+      showSuccess(t('folders.deleted', { defaultValue: 'Folder deleted' }));
+    } catch {
+      showError(t('folders.delete_error', { defaultValue: 'Failed to delete folder' }));
+    }
+  };
+
+  const handleMovePodcastToFolder = async (podcast: Podcast, folderId: number | null) => {
+    try {
+      const updated = await podcastsApi.update(podcast.id, { folder_id: folderId });
+      setPodcasts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      showSuccess(t('folders.podcast_moved', { defaultValue: 'Podcast moved' }));
+    } catch {
+      showError(t('folders.podcast_move_error', { defaultValue: 'Failed to move podcast' }));
     }
   };
 
@@ -345,7 +455,7 @@ export const MediaPage: React.FC = () => {
           onTreeCollapsedChange={(collapsed) => setTreeCollapsed('tracks', collapsed)}
           pageSize={prefs.pageSize.tracks ?? 25}
           onPageSizeChange={(size) => setPageSize('tracks', size)}
-          onRegisterCreateFolder={(fn) => { createFolderRef.current = fn; }}
+          onRegisterCreateFolder={(fn) => { createTrackFolderRef.current = fn; }}
           onPlaylistUpdated={handlePlaylistUpdated}
         />
       </TabPanel>
@@ -353,6 +463,14 @@ export const MediaPage: React.FC = () => {
       <TabPanel value={tab} index={3}>
         <StreamList
           streams={streams}
+          allStreams={streams}
+          folders={streamFolders}
+          currentFolderId={currentStreamFolderId}
+          onNavigateFolder={setCurrentStreamFolderId}
+          onFolderCreate={handleStreamFolderCreate}
+          onFolderRename={handleStreamFolderRename}
+          onFolderDelete={handleStreamFolderDelete}
+          onMoveStreamToFolder={handleMoveStreamToFolder}
           onDelete={(stream) => void checkAndConfirmDelete({ type: 'stream', item: stream })}
           onUpdate={(s) => setStreams((prev) => prev.map((x) => (x.id === s.id ? s : x)))}
           sortKey={getSort('streams').key}
@@ -360,12 +478,25 @@ export const MediaPage: React.FC = () => {
           onSortChange={(key, dir) => setSort('streams', key, dir)}
           viewMode={getViewMode('streams') as 'card' | 'list'}
           onViewModeChange={(mode) => setViewMode('streams', mode)}
+          treeCollapsed={prefs.treeCollapsed.streams ?? false}
+          onTreeCollapsedChange={(collapsed) => setTreeCollapsed('streams', collapsed)}
+          pageSize={prefs.pageSize.streams ?? 25}
+          onPageSizeChange={(size) => setPageSize('streams', size)}
+          onRegisterCreateFolder={(fn) => { createStreamFolderRef.current = fn; }}
         />
       </TabPanel>
 
       <TabPanel value={tab} index={4}>
         <PodcastList
           podcasts={podcasts}
+          allPodcasts={podcasts}
+          folders={podcastFolders}
+          currentFolderId={currentPodcastFolderId}
+          onNavigateFolder={setCurrentPodcastFolderId}
+          onFolderCreate={handlePodcastFolderCreate}
+          onFolderRename={handlePodcastFolderRename}
+          onFolderDelete={handlePodcastFolderDelete}
+          onMovePodcastToFolder={handleMovePodcastToFolder}
           onDelete={(podcast) => void checkAndConfirmDelete({ type: 'podcast', item: podcast })}
           onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? x : p)))}
           sortKey={getSort('podcasts').key}
@@ -373,6 +504,11 @@ export const MediaPage: React.FC = () => {
           onSortChange={(key, dir) => setSort('podcasts', key, dir)}
           viewMode={getViewMode('podcasts') as 'card' | 'list'}
           onViewModeChange={(mode) => setViewMode('podcasts', mode)}
+          treeCollapsed={prefs.treeCollapsed.podcasts ?? false}
+          onTreeCollapsedChange={(collapsed) => setTreeCollapsed('podcasts', collapsed)}
+          pageSize={prefs.pageSize.podcasts ?? 25}
+          onPageSizeChange={(size) => setPageSize('podcasts', size)}
+          onRegisterCreateFolder={(fn) => { createPodcastFolderRef.current = fn; }}
         />
       </TabPanel>
 
@@ -380,12 +516,14 @@ export const MediaPage: React.FC = () => {
         <MediaFab
           activeTab={fabTabIndex}
           onCreatePlaylist={() => setPlaylistCreateOpen(true)}
-          onCreateFolder={() => createFolderRef.current?.()}
+          onCreateFolder={() => createTrackFolderRef.current?.()}
           onUpload={() => setUploadOpen(true)}
           onRemoteTrack={() => setRemoteTrackOpen(true)}
           onImport={() => setImportOpen(true)}
           onCreateStream={() => setStreamOpen(true)}
+          onCreateStreamFolder={() => createStreamFolderRef.current?.()}
           onCreatePodcast={() => setPodcastOpen(true)}
+          onCreatePodcastFolder={() => createPodcastFolderRef.current?.()}
         />
       )}
 

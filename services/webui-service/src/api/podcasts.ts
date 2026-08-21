@@ -3,12 +3,44 @@ import type {
   Podcast,
   PodcastCreate,
   PodcastEpisode,
+  PodcastFolder,
+  PodcastFolderCreate,
+  PodcastFolderUpdate,
   PodcastUpdate,
 } from '@/types/api';
 
+export const podcastFoldersApi = {
+  getAll: async (): Promise<PodcastFolder[]> => {
+    const response = await apiClient.get<PodcastFolder[]>('/podcasts/folders');
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<PodcastFolder> => {
+    const response = await apiClient.get<PodcastFolder>(`/podcasts/folders/${id}`);
+    return response.data;
+  },
+
+  create: async (data: PodcastFolderCreate): Promise<PodcastFolder> => {
+    const response = await apiClient.post<PodcastFolder>('/podcasts/folders', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: PodcastFolderUpdate): Promise<PodcastFolder> => {
+    const response = await apiClient.put<PodcastFolder>(`/podcasts/folders/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await apiClient.delete(`/podcasts/folders/${id}`);
+  },
+};
+
 export const podcastsApi = {
-  list: async (): Promise<Podcast[]> => {
-    const response = await apiClient.get<Podcast[]>('/podcasts');
+  list: async (folderId?: number | 'root'): Promise<Podcast[]> => {
+    const params: Record<string, string | number> = {};
+    if (folderId === 'root') params.folder_id = 0;
+    else if (folderId !== undefined) params.folder_id = folderId;
+    const response = await apiClient.get<Podcast[]>('/podcasts', { params });
     return response.data;
   },
 

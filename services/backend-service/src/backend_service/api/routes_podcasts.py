@@ -6,11 +6,11 @@ import os
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
-from backend_service.models.database import Podcast, PodcastEpisode
+from backend_service.models.database import Podcast, PodcastEpisode, PodcastFolder
 from backend_service.models.schemas import (
     PodcastCreate,
     PodcastEpisodeResponse,
@@ -45,10 +45,24 @@ def _podcast_response_with_latest(
 
 
 @router.get("", response_model=list[PodcastResponse])
-def list_podcasts(db: Session = Depends(get_db)) -> list[PodcastResponse]:
-    """List all podcasts with latest episode info."""
-    logger.info("api_list_podcasts")
-    podcasts = db.query(Podcast).all()
+def list_podcasts(
+    folder_id: int | None = Query(None, description="Filter by folder ID. Use 0 for root-level podcasts (no folder)."),
+    db: Session = Depends(get_db),
+) -> list[PodcastResponse]:
+    """List all podcasts with latest episode info, optionally filtered by folder."""
+    logger.info("api_list_podcasts", folder_id=folder_id)
+    query = db.query(Podcast)
+    if folder_id == 0:
+        query = query.filter(Podcast.folder_id.is_(None))
+    elif folder_id is not None:
+        folder = db.query(PodcastFolder).filter(PodcastFolder.id == folder_id).first()
+        if not folder:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
+            )
+        query = query.filter(Podcast.folder_id == folder_id)
+    podcasts = query.all()
     if not podcasts:
         return []
     podcast_ids = [p.id for p in podcasts]
@@ -132,11 +146,19 @@ def create_podcast(
 ) -> PodcastResponse:
     """Create a new podcast."""
     logger.info("api_create_podcast", title=podcast_data.title)
+    if podcast_data.folder_id is not None:
+        folder = db.query(PodcastFolder).filter(PodcastFolder.id == podcast_data.folder_id).first()
+        if not folder:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {podcast_data.folder_id} not found", "details": {"folder_id": podcast_data.folder_id}}},
+            )
     podcast = Podcast(
         title=podcast_data.title,
         rss_url=podcast_data.rss_url,
         description=podcast_data.description,
         cover_art_url=podcast_data.cover_art_url,
+        folder_id=podcast_data.folder_id,
     )
     db.add(podcast)
     db.commit()
@@ -173,6 +195,15 @@ def update_podcast(
         podcast.description = podcast_data.description
     if podcast_data.cover_art_url is not None:
         podcast.cover_art_url = podcast_data.cover_art_url
+    if "folder_id" in podcast_data.model_fields_set:
+        if podcast_data.folder_id is not None:
+            folder = db.query(PodcastFolder).filter(PodcastFolder.id == podcast_data.folder_id).first()
+            if not folder:
+                raise HTTPException(
+                    status_code=404,
+                    detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {podcast_data.folder_id} not found", "details": {"folder_id": podcast_data.folder_id}}},
+                )
+        podcast.folder_id = podcast_data.folder_id
     db.commit()
     db.refresh(podcast)
     return _podcast_response_with_latest(podcast, db)

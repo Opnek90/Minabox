@@ -98,6 +98,29 @@ class Playlist(Base):
         return f"<Playlist(id={self.id}, name={self.name})>"
 
 
+class StreamFolder(Base):
+    """Logical folder to group streams in the media library."""
+
+    __tablename__ = "stream_folders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    parent_id = Column(
+        Integer, ForeignKey("stream_folders.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
+
+    children = relationship(
+        "StreamFolder",
+        backref=__import__("sqlalchemy.orm", fromlist=["backref"]).backref("parent", remote_side="StreamFolder.id"),
+        foreign_keys="StreamFolder.parent_id",
+    )
+
+    def __repr__(self) -> str:
+        return f"<StreamFolder(id={self.id}, name={self.name}, parent_id={self.parent_id})>"
+
+
 class Stream(Base):
     """Audio stream (e.g. web radio). Not part of playlists."""
 
@@ -108,8 +131,13 @@ class Stream(Base):
     artist = Column(String(255), nullable=True)
     source_uri = Column(String(1024), nullable=False)
     cover_art_url = Column(String(512), nullable=True)
+    folder_id = Column(
+        Integer, ForeignKey("stream_folders.id", ondelete="SET NULL"), nullable=True
+    )
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     last_played_at = Column(DateTime, nullable=True)
+
+    folder = relationship("StreamFolder", foreign_keys=[folder_id])
 
     def __repr__(self) -> str:
         return f"<Stream(id={self.id}, title={self.title})>"
@@ -190,6 +218,29 @@ class PlaylistTrack(Base):
         return f"<PlaylistTrack(playlist_id={self.playlist_id}, track_id={self.track_id}, position={self.position})>"
 
 
+class PodcastFolder(Base):
+    """Logical folder to group podcasts in the media library."""
+
+    __tablename__ = "podcast_folders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    parent_id = Column(
+        Integer, ForeignKey("podcast_folders.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    updated_at = Column(DateTime, onupdate=lambda: datetime.now(UTC), nullable=True)
+
+    children = relationship(
+        "PodcastFolder",
+        backref=__import__("sqlalchemy.orm", fromlist=["backref"]).backref("parent", remote_side="PodcastFolder.id"),
+        foreign_keys="PodcastFolder.parent_id",
+    )
+
+    def __repr__(self) -> str:
+        return f"<PodcastFolder(id={self.id}, name={self.name}, parent_id={self.parent_id})>"
+
+
 class Podcast(Base):
     """Podcast feed (RSS)."""
 
@@ -200,9 +251,14 @@ class Podcast(Base):
     rss_url = Column(String(1024), nullable=False)
     description = Column(String(2000), nullable=True)
     cover_art_url = Column(String(512), nullable=True)
+    folder_id = Column(
+        Integer, ForeignKey("podcast_folders.id", ondelete="SET NULL"), nullable=True
+    )
     last_fetched_at = Column(DateTime, nullable=True)
     last_played_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    folder = relationship("PodcastFolder", foreign_keys=[folder_id])
 
     def __repr__(self) -> str:
         return f"<Podcast(id={self.id}, title={self.title})>"
