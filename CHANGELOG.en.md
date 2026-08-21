@@ -113,6 +113,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## host-helper
 
+### 0.1.2 - 2026-08-21
+
+#### Fixed
+- During an update "git pull" ran as root and left root-owned files in the
+  project folder. It now runs as that folder's owner.
+
 ### 0.1.1 - 2026-08-21
 
 #### Fixed

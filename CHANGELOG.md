@@ -117,6 +117,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## host-helper
 
+### 0.1.2 - 2026-08-21
+
+#### Behoben
+- Beim Update lief "git pull" als root und hinterliess root-eigene Dateien im
+  Projektordner. Es laeuft jetzt als dessen Eigentuemer.
+
 ### 0.1.1 - 2026-08-21
 
 #### Behoben

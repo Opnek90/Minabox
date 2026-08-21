@@ -135,8 +135,22 @@
       ]
     },
     "host-helper": {
-      "latest": "0.1.1",
+      "latest": "0.1.2",
       "releases": [
+        {
+          "version": "0.1.2",
+          "date": "2026-08-21",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Beim Update lief \"git pull\" als root und hinterliess root-eigene Dateien im Projektordner. Es laeuft jetzt als dessen Eigentuemer."
+              ],
+              "en": [
+                "During an update \"git pull\" ran as root and left root-owned files in the project folder. It now runs as that folder's owner."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.1",
           "date": "2026-08-21",

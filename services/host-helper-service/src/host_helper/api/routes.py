@@ -1768,9 +1768,19 @@ cd "{workspace}" || {{
 rc=0
 
 echo "=== MINABOX-STEP 1/4 repo"
+# git laeuft als Eigentuemer des Projektordners, nicht als root. Sonst blieben
+# root-eigene Dateien in .git zurueck, und der Benutzer koennte hinterher in
+# seinem eigenen Arbeitsbaum nicht mehr arbeiten.
+#
 # Bewusst nicht fatal: eine Box mit lokalen Aenderungen oder ohne Zugang zum
 # Git-Remote soll trotzdem ihre Images aktualisieren koennen.
-git pull --ff-only || echo "(git pull nicht moeglich - Images werden trotzdem aktualisiert)"
+OWNER="$(stat -c %U .)"
+if [ -n "$OWNER" ] && [ "$OWNER" != "UNKNOWN" ]; then
+  runuser -u "$OWNER" -- git pull --ff-only \
+    || echo "(git pull nicht moeglich - Images werden trotzdem aktualisiert)"
+else
+  echo "(Eigentuemer des Projektordners nicht bestimmbar - git pull uebersprungen)"
+fi
 
 echo "=== MINABOX-STEP 2/4 pull"
 docker compose pull || rc=$?
