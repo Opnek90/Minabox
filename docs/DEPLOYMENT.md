@@ -473,6 +473,17 @@ tar -czf minabox-backup-$(date +%Y%m%d).tar.gz \
 
 ### Minabox-Code aktualisieren
 
+> **Achtung, wenn die Box schon einmal ueber die Oberflaeche aktualisiert
+> wurde:** Das Update legt fuer jeden Dienst eine feste Version in der `.env`
+> ab (`MINABOX_<DIENST>_TAG`, siehe [Versionierung.md](Versionierung.md)).
+> `docker compose pull` holt dann genau diese Versionen - der Befehl laeuft
+> durch und aendert nichts. Das ist gewollt, faellt aber leicht als "hat nicht
+> funktioniert" auf.
+>
+> Der vorgesehene Weg ist der Knopf unter *Wartung → Version & Update*. Er
+> legt vorher eine Sicherung an und prueft hinterher, ob wirklich die
+> gewuenschte Version laeuft.
+
 ```bash
 cd ~/minabox
 git pull
@@ -488,12 +499,18 @@ Repo, nicht im Image.
 
 Zum Bauen aus dem Quelltext statt Laden: `docker compose build` statt `pull`.
 
-### Docker-Images aktualisieren
+### Einen festgenagelten Dienst von Hand bewegen
+
+Wenn in der `.env` feste Versionen stehen, ist der Tag die Stellschraube:
 
 ```bash
-# Alle Images aktualisieren (Compose-Service heisst "mqtt", nicht "mosquitto")
-docker compose pull
-docker compose up -d
+# Zielversion setzen und nur diesen Dienst neu starten
+sed -i 's/^MINABOX_BACKEND_TAG=.*/MINABOX_BACKEND_TAG=0.2.0/' .env
+docker compose pull backend && docker compose up -d backend
+
+# Oder: allen Diensten wieder folgen lassen, was auf main gebaut wird
+sed -i '/^MINABOX_[A-Z_]*_TAG=/d' .env
+docker compose pull && docker compose up -d
 ```
 
 ---
