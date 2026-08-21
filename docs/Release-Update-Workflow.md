@@ -1,6 +1,10 @@
 # Release- und Update-Workflow
 
-**Status:** Stand 2026-08-20. Phase 1 ist umgesetzt, Phasen 2-5 sind Entwurf.
+**Status:** Stand 2026-08-21. Die Phasen 1 bis 4 sind umgesetzt.
+
+> Dieses Dokument ist der **Entwurf und die Begruendung**. Wie im Alltag
+> gearbeitet und ausgeliefert wird, steht in
+> [Entwicklungs-Workflow.md](Entwicklungs-Workflow.md).
 Dieses Dokument legt die Leitentscheidungen fest und schneidet die Arbeit in
 Phasen. Die Detailausarbeitung (Datenmodelle, genaue Endpunkte, UI-Screens)
 folgt pro Phase.
