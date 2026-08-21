@@ -12,6 +12,8 @@ export interface UserPrefs {
   viewMode: Record<string, ViewMode>;
   sort: Record<string, SortState>;
   filter: Record<string, string>;
+  treeCollapsed: Record<string, boolean>;
+  pageSize: Record<string, number>;
 }
 
 const STORAGE_KEY = 'minabox.prefs';
@@ -34,6 +36,8 @@ const DEFAULTS: UserPrefs = {
     rfid: 'all',
     tracks: 'all',
   },
+  treeCollapsed: {},
+  pageSize: {},
 };
 
 function loadPrefs(): UserPrefs {
@@ -45,6 +49,8 @@ function loadPrefs(): UserPrefs {
       viewMode: { ...DEFAULTS.viewMode, ...(parsed.viewMode ?? {}) },
       sort: { ...DEFAULTS.sort, ...(parsed.sort ?? {}) },
       filter: { ...DEFAULTS.filter, ...(parsed.filter ?? {}) },
+      treeCollapsed: { ...DEFAULTS.treeCollapsed, ...(parsed.treeCollapsed ?? {}) },
+      pageSize: { ...DEFAULTS.pageSize, ...(parsed.pageSize ?? {}) },
     };
   } catch {
     return DEFAULTS;
@@ -56,6 +62,8 @@ interface UserPrefsContextType {
   setViewMode: (scope: string, mode: ViewMode) => void;
   setSort: (scope: string, key: string, dir: SortDir) => void;
   setFilter: (scope: string, value: string) => void;
+  setTreeCollapsed: (scope: string, collapsed: boolean) => void;
+  setPageSize: (scope: string, size: number) => void;
   resetPrefs: () => void;
 }
 
@@ -64,6 +72,8 @@ const UserPrefsCtx = createContext<UserPrefsContextType>({
   setViewMode: () => undefined,
   setSort: () => undefined,
   setFilter: () => undefined,
+  setTreeCollapsed: () => undefined,
+  setPageSize: () => undefined,
   resetPrefs: () => undefined,
 });
 
@@ -95,13 +105,27 @@ export const UserPrefsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }));
   }, []);
 
+  const setTreeCollapsed = useCallback((scope: string, collapsed: boolean) => {
+    setPrefs((prev) => ({
+      ...prev,
+      treeCollapsed: { ...prev.treeCollapsed, [scope]: collapsed },
+    }));
+  }, []);
+
+  const setPageSize = useCallback((scope: string, size: number) => {
+    setPrefs((prev) => ({
+      ...prev,
+      pageSize: { ...prev.pageSize, [scope]: size },
+    }));
+  }, []);
+
   const resetPrefs = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setPrefs(DEFAULTS);
   }, []);
 
   return (
-    <UserPrefsCtx.Provider value={{ prefs, setViewMode, setSort, setFilter, resetPrefs }}>
+    <UserPrefsCtx.Provider value={{ prefs, setViewMode, setSort, setFilter, setTreeCollapsed, setPageSize, resetPrefs }}>
       {children}
     </UserPrefsCtx.Provider>
   );

@@ -62,7 +62,7 @@ type DeleteTarget =
 export const MediaPage: React.FC = () => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
-  const { prefs, setViewMode, setSort, setFilter } = useUserPrefs();
+  const { prefs, setViewMode, setSort, setFilter, setTreeCollapsed, setPageSize } = useUserPrefs();
   const [tab, setTab] = useState(0);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -341,6 +341,10 @@ export const MediaPage: React.FC = () => {
           onViewModeChange={(mode) => setViewMode('tracks', mode)}
           filter={getFilter('tracks')}
           onFilterChange={(val) => setFilter('tracks', val)}
+          treeCollapsed={prefs.treeCollapsed.tracks ?? false}
+          onTreeCollapsedChange={(collapsed) => setTreeCollapsed('tracks', collapsed)}
+          pageSize={prefs.pageSize.tracks ?? 25}
+          onPageSizeChange={(size) => setPageSize('tracks', size)}
           onRegisterCreateFolder={(fn) => { createFolderRef.current = fn; }}
           onPlaylistUpdated={handlePlaylistUpdated}
         />
