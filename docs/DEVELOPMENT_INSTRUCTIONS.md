@@ -528,26 +528,11 @@ Bevor du Code committed:
 
 ### Veröffentlichen
 
-Jeder Dienst trägt seine eigene Versionsnummer
-([Versionierung.md](Versionierung.md)). Deshalb gehört zu jedem Commit, der
-einen Dienst verändert:
-
-- [ ] `services/<dienst>-service/VERSION` um eine Patch-Stelle angehoben
-      (`0.1.0` → `0.1.1`) — für **jeden** betroffenen Dienst. Änderungen an
-      `shared-lib` oder am MQTT-Vertrag betreffen alle abhängigen Dienste.
-- [ ] Eintrag in `CHANGELOG.md` **und** `CHANGELOG.en.md`, ein Satz aus
-      Nutzersicht.
-- [ ] `python3 scripts/build_manifest.py` ausgeführt und
-      `release-manifest.json` mitcommittet.
-- [ ] Bei Änderungen am Datenmodell: `SCHEMA_VERSION` in `db_manager.py`
-      angehoben, **wenn** die Änderung nicht rückwärtskompatibel ist — Daten
-      ziehen um, Spalten oder Tabellen verschwinden, Bedeutung wechselt. Eine
-      neue Spalte allein braucht keine Anhebung
-      ([Versionierung.md](Versionierung.md)).
-
-Die CI prüft das: sie baut nur geänderte Dienste, weigert sich, einen bereits
-vergebenen Versions-Tag zu überschreiben, und lässt gar nicht erst bauen, wenn
-die aktuelle Version eines Dienstes nicht im Changelog steht.
+Jede Änderung läuft über einen eigenen Branch, jeder Dienst trägt seine eigene
+Versionsnummer, und das Update auf der Box löst der Nutzer selbst aus. Der
+vollständige Ablauf samt Freigabe-Checkliste steht in
+**[Entwicklungs-Workflow.md](Entwicklungs-Workflow.md)** — bewusst nur dort, damit
+zwei Listen nicht auseinanderdriften.
 
 ---
 

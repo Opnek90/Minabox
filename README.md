@@ -60,6 +60,7 @@ Laden: `docker compose build`.
 - **Entwicklung & Struktur:** [docs/Framework.md](docs/Framework.md), [docs/DEVELOPMENT_INSTRUCTIONS.md](docs/DEVELOPMENT_INSTRUCTIONS.md)
 - **Service-Review (Backend, Audio, Host-Helper, …):** [docs/ServiceReview.md](docs/ServiceReview.md)
 - **Diagnose-Paket (Support):** [docs/DebugExport.md](docs/DebugExport.md)
+- **Entwicklungs- und Ausliefer-Workflow:** [docs/Entwicklungs-Workflow.md](docs/Entwicklungs-Workflow.md)
 - **Versionierung der Dienste:** [docs/Versionierung.md](docs/Versionierung.md)
 - **Aenderungen je Dienst:** [CHANGELOG.md](CHANGELOG.md) · [englisch](CHANGELOG.en.md)
 - **Release- und Update-Workflow (Plan):** [docs/Release-Update-Workflow.md](docs/Release-Update-Workflow.md)
