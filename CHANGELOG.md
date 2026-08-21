@@ -23,6 +23,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.8 - 2026-08-21
+
+#### Neu
+- Streams und Podcasts lassen sich jetzt genau wie Tracks in Ordnern
+  organisieren (eigene Ordnerverwaltung je Medientyp).
+
 ### 0.1.7 - 2026-08-21
 
 #### Neu
@@ -91,6 +97,18 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.8 - 2026-08-21
+
+#### Neu
+- Streams und Podcasts lassen sich jetzt genau wie Tracks per Ordnerbaum,
+  Drag & Drop und "Verschieben"-Menü organisieren.
+- Die Track-Liste zeigt jetzt Seiten mit 25 oder 50 Eintraegen statt einer
+  langen Liste, der Ordnerbaum daneben laesst sich einklappen.
+
+#### Verbessert
+- Karten- und Listenansicht der Tracks sind kompakter, der Seitenabstand
+  neben der Navigation ist schmaler.
 
 ### 0.1.7 - 2026-08-21
 

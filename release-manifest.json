@@ -22,8 +22,22 @@
       ]
     },
     "backend": {
-      "latest": "0.1.7",
+      "latest": "0.1.8",
       "releases": [
+        {
+          "version": "0.1.8",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Streams und Podcasts lassen sich jetzt genau wie Tracks in Ordnern organisieren (eigene Ordnerverwaltung je Medientyp)."
+              ],
+              "en": [
+                "Streams and podcasts can now be organized into folders just like tracks (each media type gets its own folder management)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.7",
           "date": "2026-08-21",
@@ -357,8 +371,32 @@
       ]
     },
     "webui": {
-      "latest": "0.1.7",
+      "latest": "0.1.8",
       "releases": [
+        {
+          "version": "0.1.8",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Streams und Podcasts lassen sich jetzt genau wie Tracks per Ordnerbaum, Drag & Drop und \"Verschieben\"-Menü organisieren.",
+                "Die Track-Liste zeigt jetzt Seiten mit 25 oder 50 Eintraegen statt einer langen Liste, der Ordnerbaum daneben laesst sich einklappen."
+              ],
+              "en": [
+                "Streams and podcasts can now be organized with a folder tree, drag & drop, and a \"move to\" menu, just like tracks.",
+                "The track list now shows pages of 25 or 50 entries instead of one long list, and the folder tree next to it can be collapsed."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Karten- und Listenansicht der Tracks sind kompakter, der Seitenabstand neben der Navigation ist schmaler."
+              ],
+              "en": [
+                "Track card and list views are more compact, and the page padding next to the navigation is narrower."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.7",
           "date": "2026-08-21",

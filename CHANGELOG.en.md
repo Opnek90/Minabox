@@ -22,6 +22,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.8 - 2026-08-21
+
+#### Added
+- Streams and podcasts can now be organized into folders just like tracks
+  (each media type gets its own folder management).
+
 ### 0.1.7 - 2026-08-21
 
 #### Added
@@ -89,6 +95,18 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.8 - 2026-08-21
+
+#### Added
+- Streams and podcasts can now be organized with a folder tree, drag & drop,
+  and a "move to" menu, just like tracks.
+- The track list now shows pages of 25 or 50 entries instead of one long
+  list, and the folder tree next to it can be collapsed.
+
+#### Improved
+- Track card and list views are more compact, and the page padding next to
+  the navigation is narrower.
 
 ### 0.1.7 - 2026-08-21
 
