@@ -33,6 +33,11 @@ COMPONENTS_SET=0
 REBOOT_REQUIRED=0
 USE_WHIPTAIL=1
 
+# Von pin_service_versions() gefuellt: feste Versionen je Dienst aus
+# release-manifest.json, geordnet nach PIN_ORDER (Arrays sind unsortiert).
+declare -A PINNED_TAGS=()
+PIN_ORDER=()
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -561,6 +566,101 @@ setup_hardware_access() {
     run sudo loginctl enable-linger "$USER" || log "enable-linger failed (non-fatal)"
 }
 
+# manifest_service_version <manifest-datei> <dienst>
+# Gibt die "latest"-Version dieses Dienstes aus release-manifest.json aus,
+# leer wenn der Dienst dort fehlt oder die Datei kein gueltiges JSON ist.
+manifest_service_version() {
+    python3 - "$1" "$2" <<'PY' 2>/dev/null
+import json, sys
+
+path, service = sys.argv[1], sys.argv[2]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    version = data["services"][service]["latest"]
+    if isinstance(version, str) and version:
+        print(version)
+except Exception:
+    pass
+PY
+}
+
+# image_tag_published <repository> <tag>
+# Prueft anonym gegen ghcr.io, ob dieser Tag wirklich schon da ist. Das
+# Manifest kennt eine Version, sobald der Commit gelandet ist - die Registry
+# erst, wenn die CI fertig gebaut hat. Bei jedem Zweifel (Netz, Timeout,
+# unerwartete Antwort) gilt "nicht bestaetigt": image_tag_published liefert
+# dann false, siehe pin_service_versions().
+image_tag_published() {
+    local repo="$1" tag="$2" token
+    token=$(curl -fsS --max-time 5 \
+        "https://ghcr.io/token?scope=repository:${repo}:pull&service=ghcr.io" 2>/dev/null \
+        | python3 -c 'import json, sys
+try:
+    print(json.load(sys.stdin).get("token", ""))
+except Exception:
+    pass' 2>/dev/null)
+    [ -n "$token" ] || return 1
+    curl -fsS --max-time 5 -o /dev/null \
+        -H "Authorization: Bearer $token" \
+        -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json" \
+        "https://ghcr.io/v2/${repo}/manifests/${tag}"
+}
+
+# pin_service_versions
+# Ermittelt fuer jeden tatsaechlich aktiven Dienst eine feste Version aus dem
+# gerade geklonten release-manifest.json - aber nur, wenn das zugehoerige
+# Image auch wirklich in der Registry liegt. Jeder Fehlschlag (Manifest
+# fehlt, Dienst fehlt darin, Tag noch nicht veroeffentlicht) laesst genau
+# diesen einen Dienst bei MINABOX_IMAGE_TAG=latest: ein fehlgeschlagener Pull
+# wuerde die ganze Installation abbrechen (siehe pull_images), ein
+# ungepinnter Dienst dagegen nur beim heutigen Verhalten bleiben.
+pin_service_versions() {
+    PIN_ORDER=()
+    PINNED_TAGS=()
+
+    if [ "$DRY_RUN" = "1" ]; then
+        log "dry-run: Versionspinning uebersprungen"
+        return 0
+    fi
+
+    local manifest="$TARGET_DIR/release-manifest.json"
+    if [ ! -r "$manifest" ]; then
+        log "kein release-manifest.json gefunden - bleibe bei latest"
+        return 0
+    fi
+
+    # Immer aktive Dienste aus REQUIRED_SERVICES (ohne mqtt - laeuft auf
+    # eclipse-mosquitto, kein Minabox-Image) plus die gewaehlten Profile.
+    local -a dienste=()
+    local s
+    for s in $REQUIRED_SERVICES; do
+        [ "$s" = "mqtt" ] || dienste+=("$s")
+    done
+    has_component rfid    && dienste+=(rfid)
+    has_component led     && dienste+=(led)
+    has_component button  && dienste+=(button)
+    has_component display && dienste+=(display)
+    has_component media   && dienste+=(media-downloader)
+
+    local dienst version repo
+    for dienst in "${dienste[@]}"; do
+        version=$(manifest_service_version "$manifest" "$dienst")
+        if [ -z "$version" ]; then
+            log "pin: $dienst nicht im Manifest - bleibt latest"
+            continue
+        fi
+        repo="opnek90/minabox-$dienst"
+        if image_tag_published "$repo" "$version"; then
+            PIN_ORDER+=("$dienst")
+            PINNED_TAGS[$dienst]="$version"
+            log "pin: $dienst -> $version"
+        else
+            log "pin: $dienst $version noch nicht in der Registry - bleibt latest"
+        fi
+    done
+}
+
 clone_repo() {
     ui_info "$(t step_clone)"
     if [ -d "$TARGET_DIR/.git" ]; then
@@ -629,7 +729,8 @@ ALLOWED_AUDIO_PATHS=/media,/mnt,$HOME
 # Container nicht von allein - dafuer 'docker compose down --remove-orphans'.
 COMPOSE_PROFILES=$COMPONENTS
 
-# Tag der Images aus ghcr.io. 'latest' folgt dem main-Branch.
+# Rueckfallebene: gilt fuer jeden Dienst ohne eigenen MINABOX_<DIENST>_TAG
+# weiter unten. 'latest' folgt dem main-Branch - siehe docs/Versionierung.md.
 MINABOX_IMAGE_TAG=latest
 
 # Hostspezifisch - hier vom Wizard ermittelt, nicht von Hand raten.
@@ -639,6 +740,19 @@ I2C_GID=$(gid_of i2c 988)
 GPIO_GID=$(gid_of gpio 986)
 BOOT_CONFIG_DIR=$boot_dir
 ENV
+
+    if [ "${#PIN_ORDER[@]}" -gt 0 ]; then
+        {
+            printf '\n# Feste Versionen je Dienst, aus release-manifest.json ermittelt bei der\n'
+            printf '# Installation. Ueberschreibt MINABOX_IMAGE_TAG fuer den jeweiligen Dienst;\n'
+            printf '# von Hand aendern, um genau diesen Dienst zurueckzudrehen (Versionierung.md).\n'
+            local dienst upper
+            for dienst in "${PIN_ORDER[@]}"; do
+                upper=$(printf '%s' "$dienst" | tr '[:lower:]-' '[:upper:]_')
+                printf 'MINABOX_%s_TAG=%s\n' "$upper" "${PINNED_TAGS[$dienst]}"
+            done
+        } >>"$env_file"
+    fi
 
     chmod 600 "$env_file"
     log ".env written (boot_dir=$boot_dir docker_gid=$(gid_of docker 984) i2c=$(gid_of i2c 988) gpio=$(gid_of gpio 986))"
@@ -1156,6 +1270,7 @@ main() {
     clone_repo
     install_docker_daemon_config
     seed_configs
+    pin_service_versions
     write_env
     setup_audio_hardware
     setup_autostart
