@@ -4,6 +4,9 @@ import {
   Box,
   Checkbox,
   Chip,
+  CircularProgress,
+  Collapse,
+  LinearProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -19,16 +22,108 @@ import ComputerIcon from '@mui/icons-material/Computer';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import RestoreIcon from '@mui/icons-material/Restore';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
-import { systemApi, type VersionResponse } from '@/api/system';
+import {
+  systemApi,
+  type ServiceUpdateInfo,
+  type UpdateCheckResponse,
+  type UpdateStatusResponse,
+} from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+
+/** Eine Zeile der Versionsliste: Dienst, laufende Version, Hinweis auf Neues. */
+const ServiceVersionRow: React.FC<{ service: ServiceUpdateInfo }> = ({ service }) => {
+  const { t } = useTranslation('admin');
+  return (
+    <Box display="flex" alignItems="baseline" gap={1} sx={{ minWidth: 0 }}>
+      <Typography
+        variant="body2"
+        sx={{ textTransform: 'capitalize', flex: 1, minWidth: 0 }}
+        noWrap
+      >
+        {service.service}
+      </Typography>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ fontVariantNumeric: 'tabular-nums' }}
+      >
+        {service.installed}
+      </Typography>
+      {service.update_available && service.latest && (
+        <Chip size="small" color="primary" label={`→ ${service.latest}`} />
+      )}
+      {service.pending_publish && (
+        // Das Manifest ist der Registry voraus - anbieten waere ein Versprechen,
+        // das der Pull nicht halten koennte.
+        <Chip size="small" variant="outlined" label={t('system.pending_publish')} />
+      )}
+    </Box>
+  );
+};
+
+/** Aenderungsnotizen einer Ausgabe in der eingestellten Sprache. */
+const ReleaseNotesList: React.FC<{ service: ServiceUpdateInfo }> = ({ service }) => {
+  const { t, i18n } = useTranslation('admin');
+  // Deutsch als Rueckfall: die Notizen entstehen zuerst auf Deutsch, eine
+  // fehlende Uebersetzung soll keine leere Liste ergeben.
+  const lang = i18n.language.startsWith('en') ? 'en' : 'de';
+  const categories: Array<['added' | 'improved' | 'fixed', string]> = [
+    ['added', t('system.notes_added')],
+    ['improved', t('system.notes_improved')],
+    ['fixed', t('system.notes_fixed')],
+  ];
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>
+        {service.service} {service.installed} → {service.latest}
+      </Typography>
+      {service.releases.length === 0 && (
+        <Typography variant="body2" color="text.secondary">
+          {t('system.no_notes')}
+        </Typography>
+      )}
+      {service.releases.map((release) => (
+        <Box key={release.version} sx={{ mt: 1 }}>
+          <Typography variant="caption" color="text.secondary">
+            {release.version}
+            {release.date ? ` · ${new Date(release.date).toLocaleDateString()}` : ''}
+          </Typography>
+          {categories.map(([key, label]) => {
+            const items = release.notes?.[key]?.[lang] ?? release.notes?.[key]?.de ?? [];
+            if (items.length === 0) return null;
+            return (
+              <Box key={key} sx={{ mt: 0.5 }}>
+                <Typography variant="caption" fontWeight={600}>{label}</Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                  {items.map((item, index) => (
+                    <Typography component="li" variant="body2" key={index}>{item}</Typography>
+                  ))}
+                </Box>
+              </Box>
+            );
+          })}
+        </Box>
+      ))}
+    </Box>
+  );
+};
 
 export const SystemMaintenanceSection: React.FC = () => {
   const { t } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
-  const [version, setVersion] = useState<VersionResponse | null>(null);
+  const [check, setCheck] = useState<UpdateCheckResponse | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatusResponse | null>(null);
+  const [updateLogOpen, setUpdateLogOpen] = useState(false);
+  const [updateProgressOpen, setUpdateProgressOpen] = useState(false);
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
   const [shutdownDialogOpen, setShutdownDialogOpen] = useState(false);
@@ -51,19 +146,22 @@ export const SystemMaintenanceSection: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadVersion = useCallback(async () => {
+  // force=false liest den zwischengespeicherten Stand - der Aufruf beim
+  // Oeffnen der Seite soll niemanden auf eine Netzabfrage warten lassen.
+  const loadCheck = useCallback(async (force: boolean) => {
     setError(null);
+    if (force) setChecking(true);
     try {
-      const ver = await systemApi.getVersion().catch(() => null);
-      setVersion(ver ?? null);
+      setCheck(await systemApi.getUpdateCheck(force));
     } catch {
-      setError('Version konnte nicht geladen werden');
+      setError(t('system.check_failed'));
     } finally {
+      setChecking(false);
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
-  useEffect(() => { loadVersion(); }, [loadVersion]);
+  useEffect(() => { loadCheck(false); }, [loadCheck]);
 
   const fetchUpdateOsLog = useCallback(async () => {
     try {
@@ -130,19 +228,48 @@ export const SystemMaintenanceSection: React.FC = () => {
   const handleUpdateMinabox = async () => {
     setUpdateDialogOpen(false);
     setUpdating(true);
+    setUpdateStatus(null);
     try {
       await systemApi.updateMinabox();
-      showSuccess(t('system.update_success'));
-      const ver = await systemApi.getVersion();
-      setVersion(ver ?? null);
+      // Der Aufruf kehrt sofort zurueck; ab hier zeigt das Fortschrittsfenster,
+      // was passiert.
+      setUpdateProgressOpen(true);
     } catch (err: unknown) {
       const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
       const detail = ax?.data?.detail;
       showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
-    } finally {
       setUpdating(false);
     }
   };
+
+  // Waehrend des Updates startet die Box Backend und WebUI neu - die Abfrage
+  // schlaegt dann kurz fehl. Das ist kein Fehler, sondern der Neustart selbst,
+  // also wird einfach weiter gefragt.
+  useEffect(() => {
+    if (!updateProgressOpen) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const status = await systemApi.getUpdateStatus();
+        if (!active) return;
+        setUpdateStatus(status);
+        if (!status.running && status.exit_code !== null) {
+          setUpdating(false);
+          if (status.exit_code === 0) {
+            showSuccess(t('system.update_success'));
+            loadCheck(true);
+          } else {
+            showError(t('system.update_failed'));
+          }
+        }
+      } catch {
+        if (active) setUpdateStatus((prev) => (prev ? { ...prev, unreachable: true } : prev));
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => { active = false; clearInterval(interval); };
+  }, [updateProgressOpen, showSuccess, showError, t, loadCheck]);
 
   const handleUpdateOs = async () => {
     setUpdateOsDialogOpen(false);
@@ -191,9 +318,11 @@ export const SystemMaintenanceSection: React.FC = () => {
     }
   };
 
+  const pendingUpdates = (check?.services ?? []).filter((s) => s.update_available);
+
   const factoryResetConfirmValid = factoryResetConfirmText.trim() === t('system.factory_reset_confirm_word');
 
-  if (loading && !version) return null;
+  if (loading && !check) return null;
 
   return (
     <Box>
@@ -218,30 +347,63 @@ export const SystemMaintenanceSection: React.FC = () => {
           >
             {t('system.backup_restore')}
           </ActionButton>
-          <Typography component="span" variant="caption" color="text.secondary">
-            {restoreFile ? restoreFile.name : t('system.backup_restore_select')}
-          </Typography>
         </Box>
       </SettingsBlock>
 
-      {/* ── Wartung ──────────────────────────────────────────────────────────── */}
+      {/* ── Version & Update ─────────────────────────────────────────────────── */}
       <SettingsBlock title={t('system.maintenance_title')}>
+        {/* Frueher stand hier ein einzelner Commit-Hash des Arbeitsbaums. Der
+            sagte nichts darueber, welche Images tatsaechlich laufen - jeder
+            Dienst hat seine eigene Version (docs/Versionierung.md). */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            columnGap: 2,
+            rowGap: 0.5,
+            mb: 1.5,
+          }}
+        >
+          {(check?.services ?? []).map((svc) => (
+            <ServiceVersionRow key={svc.service} service={svc} />
+          ))}
+        </Box>
+
+        {check?.error ? (
+          <Alert severity="warning" sx={{ mb: 1.5 }}>
+            {t('system.check_unavailable')}
+          </Alert>
+        ) : pendingUpdates.length > 0 ? (
+          <Alert severity="info" sx={{ mb: 1.5 }}>
+            {t('system.updates_available', { count: pendingUpdates.length })}
+          </Alert>
+        ) : (
+          check && (
+            <Alert severity="success" sx={{ mb: 1.5 }}>
+              {t('system.up_to_date')}
+            </Alert>
+          )
+        )}
+
         <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
-          <Typography variant="body2">
-            {t('system.version')}: {version?.current_version ?? version?.current_commit ?? '–'}
-          </Typography>
-          {version?.update_available && (
-            <>
-              <Chip label={t('system.update_available')} color="primary" size="small" />
-              <ActionButton
-                actionType="primary"
-                onClick={() => setUpdateDialogOpen(true)}
-                disabled={updating}
-                loading={updating}
-              >
-                {t('system.update_minabox')}
-              </ActionButton>
-            </>
+          <ActionButton
+            actionType="secondary"
+            startIcon={<RefreshIcon />}
+            onClick={() => loadCheck(true)}
+            disabled={checking}
+            loading={checking}
+          >
+            {t('system.check_updates')}
+          </ActionButton>
+          {pendingUpdates.length > 0 && (
+            <ActionButton
+              actionType="primary"
+              onClick={() => setUpdateDialogOpen(true)}
+              disabled={updating}
+              loading={updating}
+            >
+              {t('system.update_minabox')}
+            </ActionButton>
           )}
           <ActionButton
             actionType="secondary"
@@ -259,10 +421,20 @@ export const SystemMaintenanceSection: React.FC = () => {
             {t('system.cleanup')}
           </ActionButton>
         </Box>
+
+        {check && (
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+            {t('system.checked_at', { time: new Date(check.checked_at).toLocaleString() })}
+          </Typography>
+        )}
       </SettingsBlock>
 
       {/* ── Neustart ─────────────────────────────────────────────────────────── */}
       <SettingsBlock title={t('system.restart_group')}>
+        {/* Zwei feste Reihen statt eines umbrechenden Blocks: oben, was den
+            Betrieb nur unterbricht, unten, was ihn beendet oder Daten loescht.
+            Beim Umbruch nach Breite landete "Herunterfahren" sonst neben den
+            harmlosen Neustarts. */}
         <Box display="flex" flexWrap="wrap" gap={1}>
           <ActionButton actionType="secondary" startIcon={<RestartAltIcon />} onClick={() => setRestartDialogOpen(true)}>
             {t('system.restart')}
@@ -270,6 +442,8 @@ export const SystemMaintenanceSection: React.FC = () => {
           <ActionButton actionType="secondary" startIcon={<ComputerIcon />} onClick={() => setRebootDialogOpen(true)}>
             {t('system.reboot')}
           </ActionButton>
+        </Box>
+        <Box display="flex" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
           <ActionButton actionType="destructive" startIcon={<PowerSettingsNewIcon />} onClick={() => setShutdownDialogOpen(true)}>
             {t('system.shutdown')}
           </ActionButton>
@@ -401,15 +575,130 @@ export const SystemMaintenanceSection: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)}>
+      <Dialog
+        open={updateDialogOpen}
+        onClose={() => setUpdateDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>{t('system.update_minabox')}</DialogTitle>
-        <DialogContent><DialogContentText>{t('system.update_minabox_confirm')}</DialogContentText></DialogContent>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>{t('system.update_minabox_confirm')}</DialogContentText>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('system.changelog_title')}</Typography>
+          {pendingUpdates.map((svc) => (
+            <ReleaseNotesList key={svc.service} service={svc} />
+          ))}
+        </DialogContent>
         <DialogActions>
           <ActionButton actionType="secondary" onClick={() => setUpdateDialogOpen(false)}>
             {t('actions.cancel', { ns: 'common' })}
           </ActionButton>
           <ActionButton actionType="primary" onClick={handleUpdateMinabox}>
             {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Fortschritt des Updates ───────────────────────────────────────── */}
+      <Dialog
+        open={updateProgressOpen}
+        // Kein Schliessen per Klick daneben, solange es laeuft: das Fenster ist
+        // die einzige Stelle, an der man sieht, was gerade mit der Box passiert.
+        onClose={() => { if (!updating) setUpdateProgressOpen(false); }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>{t('system.update_progress_title')}</DialogTitle>
+        <DialogContent>
+          <Box display="flex" alignItems="center" gap={1.5} sx={{ mb: 1 }}>
+            {updating ? (
+              <CircularProgress size={22} />
+            ) : updateStatus?.exit_code === 0 ? (
+              <CheckCircleIcon color="success" />
+            ) : (
+              <ErrorOutlineIcon color="error" />
+            )}
+            <Box minWidth={0}>
+              <Typography variant="body2">
+                {updateStatus?.step != null && updateStatus?.step_count != null
+                  ? t('system.update_step', {
+                      step: updateStatus.step,
+                      count: updateStatus.step_count,
+                    })
+                  : t('system.update_starting')}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {!updating && updateStatus?.exit_code === 0
+                  ? t('system.update_success')
+                  : !updating && updateStatus?.exit_code != null
+                    ? t('system.update_failed')
+                    : updateStatus?.step_key
+                      ? t(`system.update_step_${updateStatus.step_key}`)
+                      : ''}
+              </Typography>
+            </Box>
+          </Box>
+
+          {updating && (
+            <LinearProgress
+              variant={
+                updateStatus?.step != null && updateStatus?.step_count
+                  ? 'determinate'
+                  : 'indeterminate'
+              }
+              value={
+                updateStatus?.step != null && updateStatus?.step_count
+                  ? (updateStatus.step / updateStatus.step_count) * 100
+                  : undefined
+              }
+              sx={{ mb: 1.5, height: 6, borderRadius: 3 }}
+            />
+          )}
+
+          {updateStatus?.unreachable && updating && (
+            // Genau das ist der Neustart der Dienste - kein Fehler, sondern der
+            // erwartete Teil des Updates.
+            <Alert severity="info" sx={{ mb: 1.5 }}>
+              {t('system.update_reconnecting')}
+            </Alert>
+          )}
+
+          <ActionButton
+            actionType="secondary"
+            startIcon={<ExpandMoreIcon
+              sx={{ transform: updateLogOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }}
+            />}
+            onClick={() => setUpdateLogOpen((open) => !open)}
+          >
+            {updateLogOpen ? t('system.update_details_hide') : t('system.update_details_show')}
+          </ActionButton>
+
+          <Collapse in={updateLogOpen}>
+            <Box
+              component="pre"
+              sx={{
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'monospace',
+                fontSize: '0.75rem',
+                maxHeight: 360,
+                overflow: 'auto',
+                p: 1,
+                mt: 1,
+                bgcolor: 'action.hover',
+                borderRadius: 1,
+              }}
+            >
+              {updateStatus?.log || t('system.update_os_log_empty')}
+            </Box>
+          </Collapse>
+        </DialogContent>
+        <DialogActions>
+          <ActionButton
+            actionType="secondary"
+            onClick={() => setUpdateProgressOpen(false)}
+            disabled={updating}
+          >
+            {t('actions.close', { ns: 'common' })}
           </ActionButton>
         </DialogActions>
       </Dialog>

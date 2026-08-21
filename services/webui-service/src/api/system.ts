@@ -335,15 +335,29 @@ export const systemApi = {
     return response.data;
   },
 
-  /** Run Minabox update (docker compose pull + up -d). Requires Host-Helper. */
-  updateMinabox: async (): Promise<{ ok: boolean; message?: string }> => {
-    const response = await apiClient.post<{ ok: boolean; message?: string }>('/system/update-minabox');
+  /** Start the Minabox update in the background. Poll getUpdateStatus() for progress. */
+  updateMinabox: async (): Promise<{ ok: boolean; message?: string; steps?: string[] }> => {
+    const response = await apiClient.post<{ ok: boolean; message?: string; steps?: string[] }>(
+      '/system/update-minabox',
+    );
     return response.data;
   },
 
-  /** Get current version and whether update is available. Requires Host-Helper. */
-  getVersion: async (): Promise<VersionResponse> => {
-    const response = await apiClient.get<VersionResponse>('/system/version');
+  /** Progress and output of the running or last update. */
+  getUpdateStatus: async (): Promise<UpdateStatusResponse> => {
+    const response = await apiClient.get<UpdateStatusResponse>('/system/update-minabox/status');
+    return response.data;
+  },
+
+  /**
+   * Compare the running versions against the published ones.
+   * `force` bypasses the cache - that is what the button does.
+   */
+  getUpdateCheck: async (force = false): Promise<UpdateCheckResponse> => {
+    const response = await apiClient.get<UpdateCheckResponse>('/system/update-check', {
+      params: force ? { force: true } : undefined,
+      timeout: 30000,
+    });
     return response.data;
   },
 
@@ -515,10 +529,54 @@ export interface TimeStatusResponse {
   local_time: string | null;
 }
 
-export interface VersionResponse {
-  current_version: string;
-  current_commit: string | null;
+/** Release notes of one version, per category and language. */
+export interface ReleaseNotes {
+  added?: { de: string[]; en: string[] };
+  improved?: { de: string[]; en: string[] };
+  fixed?: { de: string[]; en: string[] };
+}
+
+export interface ServiceRelease {
+  version: string;
+  date: string | null;
+  notes: ReleaseNotes;
+}
+
+export interface ServiceUpdateInfo {
+  service: string;
+  /** Version currently running, from the container's image label. */
+  installed: string;
+  /** Newest published version, or null for an image we do not publish. */
+  latest: string | null;
   update_available: boolean;
+  /** False for images from other projects, e.g. the MQTT broker. */
+  managed: boolean;
+  /** Every skipped release between installed and latest, newest first. */
+  releases: ServiceRelease[];
+  /** The manifest knows this version but the registry does not have it yet. */
+  pending_publish?: boolean;
+}
+
+export interface UpdateCheckResponse {
+  checked_at: string;
+  from_cache: boolean;
+  update_available: boolean;
+  /** Set when the check could not reach the manifest; never implies an update. */
+  error: string | null;
+  services: ServiceUpdateInfo[];
+}
+
+export interface UpdateStatusResponse {
+  running: boolean;
+  step: number | null;
+  step_count: number | null;
+  /** repo | pull | restart | verify */
+  step_key: string | null;
+  steps: string[];
+  exit_code: number | null;
+  log: string;
+  /** True while the Host-Helper itself is being restarted by the update. */
+  unreachable?: boolean;
 }
 
 export interface BoardLedsResponse {

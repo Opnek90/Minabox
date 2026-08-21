@@ -1740,66 +1740,202 @@ def factory_reset(
 
 # ── Minabox Update & Version ──────────────────────────────────────────────
 
-@router.post("/system/update-minabox")
-def update_minabox(_: None = Depends(_check_api_key)) -> dict:
-    """Pull latest images and restart containers (docker compose pull && up -d)."""
+# Das Update laeuft als transiente systemd-Unit auf dem HOST, nicht als
+# Kindprozess dieses Containers. Zwei Gruende:
+#
+#   1. "docker compose up -d" erzeugt den Host-Helper mit neu, sobald dessen
+#      Image sich geaendert hat. Ein Kindprozess dieses Containers wuerde dabei
+#      mitsterben - mitten im Update.
+#   2. Im Container gibt es gar keine docker-CLI. Der Weg ueber den Socket war
+#      der Grund, warum dieser Endpunkt bisher nur "Docker not available"
+#      geantwortet hat.
+#
+# Der Fortschritt steht als Marker im Log; das ueberlebt jeden Neustart des
+# Host-Helpers, weil die Datei im Projektverzeichnis liegt.
+UPDATE_UNIT = "minabox-update"
+UPDATE_STEPS = ("repo", "pull", "restart", "verify")
+
+UPDATE_SCRIPT = """#!/bin/sh
+# Erzeugt vom Host-Helper (siehe host_helper/api/routes.py). Nicht von Hand
+# aendern - die Datei wird bei jedem Update ueberschrieben.
+exec >"{log}" 2>&1
+cd "{workspace}" || {{
+  echo "Arbeitsverzeichnis {workspace} nicht gefunden"
+  echo "=== MINABOX-DONE 1"
+  exit 1
+}}
+
+rc=0
+
+echo "=== MINABOX-STEP 1/4 repo"
+# Bewusst nicht fatal: eine Box mit lokalen Aenderungen oder ohne Zugang zum
+# Git-Remote soll trotzdem ihre Images aktualisieren koennen.
+git pull --ff-only || echo "(git pull nicht moeglich - Images werden trotzdem aktualisiert)"
+
+echo "=== MINABOX-STEP 2/4 pull"
+docker compose pull || rc=$?
+
+if [ "$rc" = "0" ]; then
+  echo "=== MINABOX-STEP 3/4 restart"
+  docker compose up -d || rc=$?
+fi
+
+if [ "$rc" = "0" ]; then
+  echo "=== MINABOX-STEP 4/4 verify"
+  docker compose ps || rc=$?
+fi
+
+echo "=== MINABOX-DONE $rc"
+"""
+
+
+def _host_workspace() -> str:
+    """Projektpfad auf dem Host - nicht der Container-Pfad /workspace.
+
+    Compose schreibt ihn als Label auf jeden Container, den es anlegt. Ihn dort
+    abzulesen ist verlaesslicher als ihn zu konfigurieren: er stimmt per
+    Definition mit dem ueberein, womit die Box gestartet wurde.
+    """
+    configured = os.environ.get("HOST_WORKSPACE_PATH")
+    if configured:
+        return configured
+    try:
+        client = docker.from_env()
+        own = client.containers.get(os.uname().nodename)
+        path = (own.labels or {}).get("com.docker.compose.project.working_dir")
+        if path:
+            return str(path)
+    except Exception as e:
+        logger.debug("host_workspace_lookup_failed", error=str(e))
+    return "/home/pi/minabox"
+
+
+def _update_paths() -> tuple[Path, Path, str]:
+    """(Log im Container, Skript im Container, Log-Pfad auf dem Host)."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    compose_file = workspace / "docker-compose.yml"
-    if not compose_file.exists():
-        raise HTTPException(status_code=500, detail="docker-compose.yml not found")
-    # Zuerst den Arbeitsbaum aktualisieren: die Images kommen zwar aus der
-    # Registry, aber Aenderungen an docker-compose.yml (neue Services, neue
-    # Profile, geaenderte Mounts) stecken im Repo. Ohne git pull laeuft das
-    # Update mit einer veralteten compose-Datei gegen neue Images.
-    #
-    # Bewusst nicht fatal: ein Pi mit lokalen Aenderungen oder ohne Netz zum
-    # Git-Remote soll trotzdem seine Images aktualisieren koennen. Das
-    # Ergebnis landet in log_preview, damit ein Fehlschlag sichtbar bleibt.
-    git_out = ""
+    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    host_workspace = _host_workspace()
+    return (
+        data_path / "minabox-update.log",
+        data_path / "minabox-update.sh",
+        f"{host_workspace}/data/minabox-update.log",
+    )
+
+
+def _update_unit_active() -> bool:
     try:
-        rg = subprocess.run(
-            ["git", "-C", str(workspace), "pull", "--ff-only"],
-            capture_output=True,
-            text=True,
-            timeout=120,
+        result = _run_on_host_via_nsenter(
+            ["systemctl", "is-active", f"{UPDATE_UNIT}.service"], timeout=10
         )
-        git_out = (rg.stdout or "") + (rg.stderr or "")
-        if rg.returncode != 0:
-            logger.warning("update_minabox_git_pull_failed", output=git_out[-500:])
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        git_out = f"git pull skipped: {exc}"
-        logger.warning("update_minabox_git_pull_skipped", error=str(exc))
+        return result.stdout.strip() == "active"
+    except Exception as e:
+        logger.debug("update_unit_state_failed", error=str(e))
+        return False
+
+
+def _parse_update_log(text: str) -> dict:
+    """Schritt und Ergebnis aus den Markern im Log lesen."""
+    step: int | None = None
+    step_count = len(UPDATE_STEPS)
+    step_key: str | None = None
+    exit_code: int | None = None
+    for line in text.splitlines():
+        if line.startswith("=== MINABOX-STEP "):
+            parts = line.removeprefix("=== MINABOX-STEP ").split()
+            if len(parts) >= 2 and "/" in parts[0]:
+                current, _, total = parts[0].partition("/")
+                if current.isdigit() and total.isdigit():
+                    step, step_count = int(current), int(total)
+                    step_key = parts[1]
+        elif line.startswith("=== MINABOX-DONE "):
+            value = line.removeprefix("=== MINABOX-DONE ").strip()
+            exit_code = int(value) if value.lstrip("-").isdigit() else -1
+    return {
+        "step": step,
+        "step_count": step_count,
+        "step_key": step_key,
+        "exit_code": exit_code,
+    }
+
+
+@router.post("/system/update-minabox")
+def update_minabox(_: None = Depends(_check_api_key)) -> dict:
+    """Update im Hintergrund starten (git pull, compose pull, compose up -d)."""
+    log_path, script_path, host_log = _update_paths()
+    host_workspace = _host_workspace()
+
+    if _update_unit_active():
+        raise HTTPException(status_code=409, detail="Es laeuft bereits ein Update")
 
     try:
-        r1 = subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "pull"],
-            cwd=str(workspace),
-            capture_output=True,
-            text=True,
-            timeout=600,
+        script_path.parent.mkdir(parents=True, exist_ok=True)
+        script_path.write_text(
+            UPDATE_SCRIPT.format(log=host_log, workspace=host_workspace),
+            encoding="utf-8",
         )
-        r2 = subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "up", "-d"],
-            cwd=str(workspace),
-            capture_output=True,
-            text=True,
-            timeout=300,
+        script_path.chmod(0o755)
+        # Das alte Log leeren, damit die Statusabfrage nicht den vorigen Lauf
+        # zeigt, bevor der neue seinen ersten Marker schreibt.
+        log_path.write_text("", encoding="utf-8")
+    except OSError as e:
+        raise HTTPException(
+            status_code=503, detail=f"Update konnte nicht vorbereitet werden: {e}"
+        ) from e
+
+    host_script = f"{host_workspace}/data/minabox-update.sh"
+    try:
+        result = _run_on_host_via_nsenter(
+            [
+                "systemd-run",
+                f"--unit={UPDATE_UNIT}",
+                "--collect",
+                "--description=Minabox update",
+                "/bin/sh",
+                host_script,
+            ],
+            timeout=30,
         )
-        out = git_out + "".join(
-            x or "" for x in (r1.stdout, r1.stderr, r2.stdout, r2.stderr)
-        )
-        if r2.returncode != 0:
-            raise HTTPException(
-                status_code=500,
-                detail=(out or "Compose up failed")[-2000:],
-            )
-        logger.info("update_minabox_done")
-        return {"ok": True, "message": "Pull and restart completed", "log_preview": out[-500:] if out else ""}
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Update timed out")
-    except FileNotFoundError:
-        raise HTTPException(status_code=503, detail="Docker not available")
+    except Exception as e:
+        raise HTTPException(
+            status_code=503, detail=f"Update konnte nicht gestartet werden: {e}"
+        ) from e
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "systemd-run fehlgeschlagen")[-500:]
+        raise HTTPException(status_code=503, detail=detail)
+
+    logger.info("update_minabox_started", workspace=host_workspace)
+    return {"ok": True, "message": "Update gestartet", "steps": list(UPDATE_STEPS)}
+
+
+@router.get("/system/update-minabox/status")
+def update_minabox_status(_: None = Depends(_check_api_key)) -> dict:
+    """Fortschritt und Ausgabe des laufenden oder letzten Updates."""
+    log_path, _script, _host_log = _update_paths()
+
+    log_text = ""
+    if log_path.exists():
+        try:
+            lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            if len(lines) > 2000:
+                lines = lines[-2000:]
+            log_text = "\n".join(lines)
+        except OSError:
+            pass
+
+    parsed = _parse_update_log(log_text)
+    # Die Unit ist die Wahrheit ueber "laeuft noch": ohne sie wuerde ein
+    # abgebrochener Lauf, der seinen Schluss-Marker nie geschrieben hat, fuer
+    # immer als laufend gelten.
+    running = parsed["exit_code"] is None and _update_unit_active()
+
+    return {
+        "running": running,
+        "steps": list(UPDATE_STEPS),
+        "log": log_text,
+        **parsed,
+    }
 
 
 @router.get("/system/version")

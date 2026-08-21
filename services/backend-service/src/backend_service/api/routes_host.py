@@ -611,13 +611,42 @@ async def factory_reset(body: FactoryResetBody | None = None) -> dict:
 
 @router.post("/update-minabox")
 async def update_minabox() -> dict:
-    """Pull images and restart containers. Proxied to Host-Helper."""
+    """Update im Hintergrund starten. Weitergereicht an den Host-Helper.
+
+    Kehrt sofort zurueck; der Fortschritt kommt aus /update-minabox/status.
+    Das Update laeuft als eigene Unit auf dem Host und ueberlebt deshalb, dass
+    der Host-Helper waehrenddessen selbst neu erzeugt wird.
+    """
     return await _proxy(
         "POST",
         "/system/update-minabox",
-        timeout=620.0,
+        timeout=60.0,
         error_message="Update failed",
         log_event="host_helper_update_minabox_failed",
+    )
+
+
+@router.get("/update-minabox/status")
+async def update_minabox_status() -> dict:
+    """Fortschritt und Ausgabe des laufenden oder letzten Updates.
+
+    Faellt weich aus: waehrend des Neustarts ist der Host-Helper kurz nicht
+    erreichbar, und die Oberflaeche soll dann weiter fragen duerfen, statt
+    einen Fehler zu zeigen.
+    """
+    return await _proxy_optional(
+        "/system/update-minabox/status",
+        fallback={
+            "running": True,
+            "step": None,
+            "step_count": None,
+            "step_key": None,
+            "exit_code": None,
+            "steps": [],
+            "log": "",
+            "unreachable": True,
+        },
+        log_event="host_helper_update_minabox_status_failed",
     )
 
 

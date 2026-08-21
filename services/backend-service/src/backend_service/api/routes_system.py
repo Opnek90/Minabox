@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from backend_service.api.routes_host import _host_helper_api_key, _host_helper_url
 from backend_service.config import get_config
 from backend_service.core import container_registry
+from backend_service.core import update_check as update_check_service
 from backend_service.core.db_manager import get_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.models.schemas import HealthCheckResponse
@@ -308,6 +309,27 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
     except Exception as e:
         logger.warning("logs_read_failed", service=service, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to read logs") from e
+
+
+@router.get("/update-check")
+async def update_check(force: bool = False) -> dict:
+    """Vergleicht die laufenden Versionen mit dem veroeffentlichten Stand.
+
+    `force=true` umgeht den Zwischenspeicher - das ist der Knopf in der
+    Oberflaeche; ohne den Parameter antwortet der zwischengespeicherte Stand.
+    """
+    entries = await container_registry.discover()
+    if entries is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Ohne Docker-Zugriff sind die laufenden Versionen nicht bekannt.",
+        )
+    installed = {
+        e["service"]: e["version"]
+        for e in entries
+        if e.get("service") and e.get("version")
+    }
+    return await update_check_service.check(installed, force=force)
 
 
 @router.get("/health", response_model=HealthCheckResponse)

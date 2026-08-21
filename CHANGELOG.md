@@ -23,6 +23,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.3 - 2026-08-21
+
+#### Neu
+- Die Box vergleicht ihre laufenden Versionen mit dem veroeffentlichten Stand
+  und kann sagen, fuer welchen Dienst es etwas Neues gibt.
+
 ### 0.1.2 - 2026-08-21
 
 #### Behoben
@@ -55,6 +61,22 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.3 - 2026-08-21
+
+#### Neu
+- Unter "Version & Update" steht jetzt jeder aktive Dienst mit seiner Version,
+  statt einer einzelnen Kennnummer ohne Aussagekraft.
+- Ein Knopf prueft auf Updates und zeigt vor dem Aktualisieren, was sich
+  aendert.
+- Waehrend des Updates zeigt ein Fenster den Fortschritt Schritt fuer Schritt;
+  die vollstaendige Ausgabe laesst sich aufklappen.
+
+#### Verbessert
+- Unter "Neustart" liegen die beiden folgenschweren Aktionen jetzt in einer
+  eigenen Reihe unter den harmlosen Neustarts.
+- Der ueberfluessige Hinweis "ZIP-Datei waehlen" neben den Sicherungsknoepfen
+  ist entfallen; die Auswahl passiert im Dialog.
 
 ### 0.1.2 - 2026-08-21
 
@@ -94,6 +116,17 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.1.1 - 2026-08-21
+
+#### Behoben
+- Das Minabox-Update lief ins Leere: es rief die docker-Befehle im Container
+  auf, wo es sie gar nicht gibt. Es laeuft jetzt auf dem Host und ueberlebt,
+  dass der Dienst sich dabei selbst neu startet.
+
+#### Neu
+- Der Fortschritt eines Updates ist abrufbar: Schritt, Gesamtzahl und die
+  vollstaendige Ausgabe.
 
 ### 0.1.0 - 2026-08-20
 

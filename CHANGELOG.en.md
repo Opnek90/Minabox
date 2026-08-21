@@ -22,6 +22,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.3 - 2026-08-21
+
+#### Added
+- The box compares its running versions against the published state and can
+  say which service has something new.
+
 ### 0.1.2 - 2026-08-21
 
 #### Fixed
@@ -53,6 +59,21 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.3 - 2026-08-21
+
+#### Added
+- "Version & update" now lists every active service with its version instead
+  of a single meaningless identifier.
+- A button checks for updates and shows what changes before updating.
+- During an update a window shows the progress step by step; the full output
+  can be expanded.
+
+#### Improved
+- Under "Restart" the two consequential actions now sit in their own row below
+  the harmless restarts.
+- The redundant "Select ZIP file" hint next to the backup buttons is gone; the
+  selection happens in the dialog.
 
 ### 0.1.2 - 2026-08-21
 
@@ -91,6 +112,16 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.1.1 - 2026-08-21
+
+#### Fixed
+- The Minabox update did nothing: it called the docker commands inside the
+  container, where they do not exist. It now runs on the host and survives the
+  service restarting itself along the way.
+
+#### Added
+- The progress of an update can be read: step, total and the full output.
 
 ### 0.1.0 - 2026-08-20
 

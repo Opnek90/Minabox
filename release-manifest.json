@@ -22,8 +22,22 @@
       ]
     },
     "backend": {
-      "latest": "0.1.2",
+      "latest": "0.1.3",
       "releases": [
+        {
+          "version": "0.1.3",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Box vergleicht ihre laufenden Versionen mit dem veroeffentlichten Stand und kann sagen, fuer welchen Dienst es etwas Neues gibt."
+              ],
+              "en": [
+                "The box compares its running versions against the published state and can say which service has something new."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.2",
           "date": "2026-08-21",
@@ -121,8 +135,30 @@
       ]
     },
     "host-helper": {
-      "latest": "0.1.0",
+      "latest": "0.1.1",
       "releases": [
+        {
+          "version": "0.1.1",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Fortschritt eines Updates ist abrufbar: Schritt, Gesamtzahl und die vollstaendige Ausgabe."
+              ],
+              "en": [
+                "The progress of an update can be read: step, total and the full output."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Das Minabox-Update lief ins Leere: es rief die docker-Befehle im Container auf, wo es sie gar nicht gibt. Es laeuft jetzt auf dem Host und ueberlebt, dass der Dienst sich dabei selbst neu startet."
+              ],
+              "en": [
+                "The Minabox update did nothing: it called the docker commands inside the container, where they do not exist. It now runs on the host and survives the service restarting itself along the way."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.0",
           "date": "2026-08-20",
@@ -211,8 +247,36 @@
       ]
     },
     "webui": {
-      "latest": "0.1.2",
+      "latest": "0.1.3",
       "releases": [
+        {
+          "version": "0.1.3",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Unter \"Version & Update\" steht jetzt jeder aktive Dienst mit seiner Version, statt einer einzelnen Kennnummer ohne Aussagekraft.",
+                "Ein Knopf prueft auf Updates und zeigt vor dem Aktualisieren, was sich aendert.",
+                "Waehrend des Updates zeigt ein Fenster den Fortschritt Schritt fuer Schritt; die vollstaendige Ausgabe laesst sich aufklappen."
+              ],
+              "en": [
+                "\"Version & update\" now lists every active service with its version instead of a single meaningless identifier.",
+                "A button checks for updates and shows what changes before updating.",
+                "During an update a window shows the progress step by step; the full output can be expanded."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Unter \"Neustart\" liegen die beiden folgenschweren Aktionen jetzt in einer eigenen Reihe unter den harmlosen Neustarts.",
+                "Der ueberfluessige Hinweis \"ZIP-Datei waehlen\" neben den Sicherungsknoepfen ist entfallen; die Auswahl passiert im Dialog."
+              ],
+              "en": [
+                "Under \"Restart\" the two consequential actions now sit in their own row below the harmless restarts.",
+                "The redundant \"Select ZIP file\" hint next to the backup buttons is gone; the selection happens in the dialog."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.2",
           "date": "2026-08-21",
