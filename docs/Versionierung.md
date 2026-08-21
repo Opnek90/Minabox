@@ -272,17 +272,68 @@ Vor jedem Update legt der Host-Helper eine Sicherung unter `data/backups/`
 ab (Datenbank, Einstellungen, Dienst-Zustaende); die letzten fuenf bleiben
 erhalten. Schlaegt sie fehl, wird nicht aktualisiert.
 
+### Die Datenbank hat eine eigene Nummer
+
+Beim Update werden die Container ausgetauscht, die Datenbank nicht:
+`data/minabox.db` liegt auf der Karte und ueberlebt jedes Update. Neuer Code
+trifft also auf alte Daten - und beim Zurueckdrehen alter Code auf neue.
+
+Vorwaerts ist das loesbar. `db_manager` ergaenzt beim Start, was fehlt:
+
+```sql
+ALTER TABLE tracks ADD COLUMN cover_art_url VARCHAR(512)
+```
+
+Eine aeltere Fassung, die diese Spalte spaeter vorfindet, ignoriert sie
+einfach. Harmlos in beide Richtungen.
+
+Nicht harmlos ist der zweite Fall. `_migrate_stream_tracks_to_streams`
+verschiebt Radiostreams aus der Tabelle `tracks` in die Tabelle `streams` -
+**und loescht sie in `tracks`**. Eine Fassung von davor sucht Streams weiter in
+`tracks`, findet nichts und meldet sie als verschwunden. Die Daten sind nicht
+zerstoert, aber sie liegen an einer Stelle, an der diese Fassung nie
+nachschaut. Legt der Nutzer sie daraufhin neu an, stehen sie danach doppelt da.
+
+`SCHEMA_VERSION` in [db_manager.py](../services/backend-service/src/backend_service/core/db_manager.py)
+macht diesen Unterschied sichtbar. Der Stand steht in `PRAGMA user_version` -
+ein Feld im Dateikopf, das SQLite selbst mitbringt; es braucht also keine
+eigene Tabelle, und eine Datenbank aus der Zeit davor liefert schlicht 0.
+
+| Datenbank | Code erwartet | Was passiert |
+|---|---|---|
+| 0 oder aelter | 1 | Migrationen laufen, danach wird gestempelt |
+| 1 | 1 | nichts zu tun |
+| 2 | 1 | **erkannt**: Hinweisbalken, `/health` meldet `unhealthy` |
+
+Im dritten Fall wird **nicht** abgebrochen. Eine Box, die gar nicht mehr
+startet, laesst sich auch nicht mehr diagnostizieren - und der Hinweis waere
+dann nirgends zu lesen. Stattdessen laeuft sie an und sagt unuebersehbar, was
+los ist. Der Stempel wird dabei nicht zurueckgesetzt: sonst waere aus einer
+erkannten Lage beim naechsten Start wieder eine unbemerkte geworden.
+
+**Wann die Zahl steigt:** sobald eine Aenderung nicht mehr
+rueckwaertskompatibel ist - Daten ziehen um, Spalten oder Tabellen
+verschwinden, oder ihre Bedeutung wechselt. Eine neue Spalte, die aeltere
+Fassungen einfach ignorieren, braucht keine Anhebung.
+
+Der Nutzen liegt nicht nur beim Zurueckdrehen. Dieselbe Pruefung greift, wenn
+eine Sicherung eingespielt wird, die neuer ist als der laufende Code, oder
+wenn ein Container beim Update nicht durchgestartet ist und weiter die alte
+Fassung faehrt.
+
 ### Warum es keinen Knopf "zurueck auf die vorige Version" gibt
 
 Technisch waere er einfach - derselbe Vorgang mit aelteren Nummern. Er wurde
 bewusst wieder entfernt.
 
 Ein Rueckschritt ist nur dann harmlos, wenn die aeltere Fassung alles lesen
-kann, was die neuere geschrieben hat. Das laesst sich heute nicht zusagen: die
-Migrationen in `db_manager` sind idempotente `ALTER TABLE`s ohne
-Schemastempel - vorwaerts robust, rueckwaerts blind. Ein Knopf, der das
-verspricht, waere ein Versprechen ohne Deckung, und er wuerde ausgerechnet in
-dem Moment gedrueckt, in dem ohnehin etwas schiefgegangen ist.
+kann, was die neuere geschrieben hat. Seit es `SCHEMA_VERSION` gibt, laesst
+sich das immerhin *erkennen* - aber erkennen heisst nicht reparieren: bei
+einem Sprung ueber eine unvertraegliche Aenderung hinweg bliebe nur die
+Meldung, dass es nicht geht. Ein Knopf, der einen Rueckweg verspricht und ihn
+dann in genau den Faellen verweigert, in denen man ihn braucht, hilft
+niemandem - und er wuerde ausgerechnet in dem Moment gedrueckt, in dem ohnehin
+etwas schiefgegangen ist.
 
 Wer wirklich zurueck muss, hat den ehrlichen Weg: die Sicherung von vor dem
 Update ueber *Wiederherstellen* einspielen und den Tag in der `.env` von Hand

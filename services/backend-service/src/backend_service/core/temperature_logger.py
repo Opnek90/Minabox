@@ -26,13 +26,16 @@ LOG_INTERVAL_SECONDS = 5 * 60  # 5 minutes
 HOST_HELPER_TIMEOUT = 10.0
 RETENTION_DAYS = 30
 
-# Current system alert (e.g. temperature_high) for WebUI bar and GET /current-alert
-_current_alert: dict[str, Any] | None = None
+# Der Warnungsspeicher liegt in system_alerts - dort koennen mehrere Meldungen
+# nebeneinander stehen, ohne sich zu verdraengen. Hier nur noch re-exportiert,
+# damit bestehende Aufrufer unveraendert bleiben.
+from backend_service.core.system_alerts import (  # noqa: E402
+    clear_alert,
+    get_current_alert,
+    set_alert,
+)
 
-
-def get_current_alert() -> dict[str, Any] | None:
-    """Return the currently active system alert, if any."""
-    return _current_alert
+ALERT_TEMPERATURE_HIGH = "temperature_high"
 
 
 def _read_temperature_warning_celsius() -> float:
@@ -107,8 +110,6 @@ async def _publish_overheating_start(
     threshold: float,
 ) -> None:
     """Announce that the box entered the overheating state (MQTT + WebSocket)."""
-    global _current_alert
-
     if mqtt_client and mqtt_client.is_connected:
         try:
             topic = get_mqtt_topic("system", "service-error")
@@ -120,11 +121,7 @@ async def _publish_overheating_start(
         except Exception as e:
             logger.warning("temperature_mqtt_publish_failed", error=str(e))
 
-    _current_alert = {
-        "code": "temperature_high",
-        "level": "warning",
-        "message": "alerts.temperature_high",
-    }
+    set_alert(ALERT_TEMPERATURE_HIGH, "warning", "alerts.temperature_high")
     if ws_broadcast:
         try:
             await ws_broadcast({
@@ -144,8 +141,6 @@ async def _publish_overheating_end(
     temp: float,
 ) -> None:
     """Announce that the box left the overheating state (MQTT + WebSocket)."""
-    global _current_alert
-
     if mqtt_client and mqtt_client.is_connected:
         try:
             topic = get_mqtt_topic("system", "service-started")
@@ -154,8 +149,7 @@ async def _publish_overheating_end(
         except Exception as e:
             logger.warning("temperature_mqtt_publish_failed", error=str(e))
 
-    if _current_alert and _current_alert.get("code") == "temperature_high":
-        _current_alert = None
+    clear_alert(ALERT_TEMPERATURE_HIGH)
     if ws_broadcast:
         try:
             await ws_broadcast({

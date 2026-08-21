@@ -1,5 +1,6 @@
 {
   "alerts": {
+    "db_schema_newer": "Die Datenbank dieser Box stammt aus einer neueren Minabox-Version, als gerade läuft. Bitte aktualisieren – bis dahin können Inhalte fehlen, die tatsächlich vorhanden sind.",
     "temperature_high": "Hohe Systemtemperatur – Gerät kühlen!"
   },
   "app_name": "Minabox",

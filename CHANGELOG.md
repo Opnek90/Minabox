@@ -23,6 +23,18 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.6 - 2026-08-21
+
+#### Neu
+- Die Datenbank fuehrt jetzt einen Stand mit. Trifft eine aeltere Fassung auf
+  eine neuere Datenbank - etwa nach einer eingespielten Sicherung oder wenn
+  ein Dienst beim Update nicht durchgestartet ist -, wird das erkannt und
+  gemeldet, statt dass Inhalte stillschweigend als verschwunden gelten.
+
+#### Verbessert
+- Mehrere Systemwarnungen koennen nebeneinander bestehen. Bisher verdraengte
+  eine voruebergehende Temperaturwarnung eine dauerhafte Meldung.
+
 ### 0.1.5 - 2026-08-21
 
 #### Verbessert
@@ -72,6 +84,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.6 - 2026-08-21
+
+#### Neu
+- Der Hinweisbalken meldet, wenn die Datenbank aus einer neueren Version
+  stammt als die laufende, und sagt, was zu tun ist.
 
 ### 0.1.5 - 2026-08-21
 

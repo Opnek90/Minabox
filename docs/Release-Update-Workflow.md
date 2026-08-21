@@ -349,10 +349,11 @@ aktualisieren?"*
 
 Offen geblieben:
 
-* **Schemaversion in der Datenbank.** Die Migrationen in `db_manager` sind
-  idempotente `ALTER TABLE`s ohne Stempel - vorwaerts robust, rueckwaerts
-  blind. Erst damit waere ein Rueckschritt eine gepruefte Aussage statt einer
-  Vermutung.
+* ~~**Schemaversion in der Datenbank.**~~ **Umgesetzt am 2026-08-21**:
+  `SCHEMA_VERSION` in `db_manager`, gespeichert in `PRAGMA user_version`. Eine
+  Datenbank, die neuer ist als der laufende Code, wird erkannt und ueber den
+  Hinweisbalken gemeldet, statt stillschweigend Daten als verschwunden
+  erscheinen zu lassen. Siehe [Versionierung.md](Versionierung.md).
 * **Digest-Zusatzpruefung** fuer den Fall gleicher Nummer bei neuem Bau.
 
 Urspruengliche Planung:

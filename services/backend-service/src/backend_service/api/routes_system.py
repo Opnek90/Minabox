@@ -106,6 +106,18 @@ async def _check_service_http(sid: str) -> dict | None:
         return None
 
 
+def _schema_state() -> dict:
+    """Ergebnis der Schemapruefung aus dem Datenbank-Manager."""
+    try:
+        from backend_service.core import db_manager
+
+        manager = db_manager.db_manager
+        return dict(manager.schema_state) if manager else {}
+    except Exception as e:
+        logger.debug("schema_state_unavailable", error=str(e))
+        return {}
+
+
 def _order_key(entry: dict) -> tuple[int, str]:
     """Sort key: catalogue order first, unknown services alphabetically last."""
     sid = entry.get("service", "")
@@ -209,6 +221,8 @@ async def system_status() -> dict:
         "memory_stats_available": any(
             s.get("memory_mb") is not None for s in services
         ),
+        # Stand der Datenbank gegenueber dem, was dieser Code erwartet.
+        "database": _schema_state(),
         "services": services,
     }
 
@@ -342,7 +356,13 @@ def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
         logger.error("health_check_db_failed", error=str(e))
         database_connected = False
     mqtt_connected = _mqtt_client.is_connected if _mqtt_client else False
-    status = "healthy" if (database_connected and mqtt_connected) else "unhealthy"
+    # Eine Datenbank, die neuer ist als dieser Code, ist kein "gesund": die
+    # Verbindung steht, aber die Daten liegen moeglicherweise woanders, als
+    # diese Fassung sie sucht.
+    schema_ok = _schema_state().get("status") != "too_new"
+    status = (
+        "healthy" if (database_connected and mqtt_connected and schema_ok) else "unhealthy"
+    )
     return HealthCheckResponse(
         status=status,
         service="backend",

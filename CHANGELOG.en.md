@@ -22,6 +22,18 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.6 - 2026-08-21
+
+#### Added
+- The database now carries a state number. When an older version meets a newer
+  database - after restoring a backup, or when a service did not restart
+  during an update - this is detected and reported instead of letting content
+  silently appear to be missing.
+
+#### Improved
+- Several system alerts can now coexist. A temporary temperature warning used
+  to push a permanent message aside.
+
 ### 0.1.5 - 2026-08-21
 
 #### Improved
@@ -70,6 +82,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.6 - 2026-08-21
+
+#### Added
+- The alert bar reports when the database comes from a newer version than the
+  one running, and says what to do about it.
 
 ### 0.1.5 - 2026-08-21
 

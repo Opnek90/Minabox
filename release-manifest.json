@@ -22,8 +22,30 @@
       ]
     },
     "backend": {
-      "latest": "0.1.5",
+      "latest": "0.1.6",
       "releases": [
+        {
+          "version": "0.1.6",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Datenbank fuehrt jetzt einen Stand mit. Trifft eine aeltere Fassung auf eine neuere Datenbank - etwa nach einer eingespielten Sicherung oder wenn ein Dienst beim Update nicht durchgestartet ist -, wird das erkannt und gemeldet, statt dass Inhalte stillschweigend als verschwunden gelten."
+              ],
+              "en": [
+                "The database now carries a state number. When an older version meets a newer database - after restoring a backup, or when a service did not restart during an update - this is detected and reported instead of letting content silently appear to be missing."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Mehrere Systemwarnungen koennen nebeneinander bestehen. Bisher verdraengte eine voruebergehende Temperaturwarnung eine dauerhafte Meldung."
+              ],
+              "en": [
+                "Several system alerts can now coexist. A temporary temperature warning used to push a permanent message aside."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.5",
           "date": "2026-08-21",
@@ -321,8 +343,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.5",
+      "latest": "0.1.6",
       "releases": [
+        {
+          "version": "0.1.6",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Hinweisbalken meldet, wenn die Datenbank aus einer neueren Version stammt als die laufende, und sagt, was zu tun ist."
+              ],
+              "en": [
+                "The alert bar reports when the database comes from a newer version than the one running, and says what to do about it."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.5",
           "date": "2026-08-21",

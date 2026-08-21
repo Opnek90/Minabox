@@ -539,6 +539,11 @@ einen Dienst verändert:
       Nutzersicht.
 - [ ] `python3 scripts/build_manifest.py` ausgeführt und
       `release-manifest.json` mitcommittet.
+- [ ] Bei Änderungen am Datenmodell: `SCHEMA_VERSION` in `db_manager.py`
+      angehoben, **wenn** die Änderung nicht rückwärtskompatibel ist — Daten
+      ziehen um, Spalten oder Tabellen verschwinden, Bedeutung wechselt. Eine
+      neue Spalte allein braucht keine Anhebung
+      ([Versionierung.md](Versionierung.md)).
 
 Die CI prüft das: sie baut nur geänderte Dienste, weigert sich, einen bereits
 vergebenen Versions-Tag zu überschreiben, und lässt gar nicht erst bauen, wenn

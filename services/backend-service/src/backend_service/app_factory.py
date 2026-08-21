@@ -31,6 +31,7 @@ from backend_service.api.routes_system import set_mqtt_client as set_system_mqtt
 from backend_service.api.websocket import websocket_endpoint, ws_manager
 from backend_service.config_schema import AppConfig
 from backend_service.core.db_manager import init_db
+from backend_service.core.system_alerts import set_alert
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
 from backend_service.core.podcast_fetcher import run_podcast_fetch_loop
@@ -68,6 +69,13 @@ class BackendService:
             self._db.run_migrations()
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning("migration_failed", error=str(exc))
+
+        # Aeltere Fassung auf neuerer Datenbank: es wird trotzdem gestartet,
+        # damit die Box diagnostizierbar bleibt - aber der Hinweisbalken sagt
+        # es unuebersehbar, statt dass Daten stillschweigend als verschwunden
+        # gelten (docs/Versionierung.md).
+        if self._db.schema_state.get("status") == "too_new":
+            set_alert("db_schema_newer", "error", "alerts.db_schema_newer")
 
         # Ensure audio storage path exists (fail fast if volume is not writable)
         try:

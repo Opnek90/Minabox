@@ -15,6 +15,25 @@ from backend_service.models.database import Base, PlaybackEvent, PlaylistTrack, 
 
 logger = structlog.get_logger(__name__)
 
+# Stand, den dieser Code von der Datenbank erwartet.
+#
+# Die Datenbank ueberlebt jedes Update - ausgetauscht werden nur die Container.
+# Damit trifft neuer Code auf alte Daten, und beim Zurueckdrehen alter Code auf
+# neue. Vorwaerts ist das loesbar: die Migrationen unten ergaenzen, was fehlt.
+# Rueckwaerts nicht immer - _migrate_stream_tracks_to_streams etwa verschiebt
+# Zeilen aus "tracks" nach "streams" und loescht sie dort. Eine Fassung von
+# davor sucht Streams weiter in "tracks" und haelt sie fuer verschwunden.
+#
+# Diese Zahl macht den Unterschied sichtbar. Sie wird angehoben, sobald eine
+# Aenderung nicht mehr rueckwaertskompatibel ist - also wenn Daten umziehen,
+# Spalten oder Tabellen verschwinden oder ihre Bedeutung wechselt. Eine neue
+# Spalte, die aeltere Fassungen einfach ignorieren, braucht keine Anhebung.
+#
+#   1 - Ausgangsstand: die Spalten aus _apply_column_migrations und der Umzug
+#       der Streams. Faellt mit dem Stand zusammen, den bestehende Boxen
+#       ohnehin schon haben.
+SCHEMA_VERSION = 1
+
 
 class DatabaseManager:
     """Manages database connection and sessions."""
@@ -23,6 +42,13 @@ class DatabaseManager:
         self.database_path = Path(database_path)
         self.engine: Engine | None = None
         self.SessionLocal: sessionmaker | None = None
+        # Ergebnis der Schemapruefung aus connect(); von /health und
+        # /system/status ausgelesen.
+        self.schema_state: dict[str, Any] = {
+            "expected": SCHEMA_VERSION,
+            "found": None,
+            "status": "unknown",
+        }
         logger.debug("db_manager_initialized", database_path=str(self.database_path))
 
     def connect(self) -> None:
@@ -54,8 +80,38 @@ class DatabaseManager:
         )
 
         Base.metadata.create_all(bind=self.engine)
-        self._apply_column_migrations()
-        self._migrate_stream_tracks_to_streams()
+
+        found = self._read_schema_version()
+        if found > SCHEMA_VERSION:
+            # Hier laeuft aelterer Code auf einer neueren Datenbank. Genau das
+            # ist der Fall, der frueher unbemerkt blieb: die Anwendung startet,
+            # sucht Daten an Stellen, an die eine neuere Fassung sie nicht mehr
+            # legt, und meldet sie als verschwunden.
+            #
+            # Es wird trotzdem nicht abgebrochen: eine Box, die gar nicht mehr
+            # startet, laesst sich auch nicht mehr diagnostizieren. Stattdessen
+            # wird der Zustand festgehalten und weiter oben deutlich gemeldet.
+            self.schema_state = {
+                "expected": SCHEMA_VERSION,
+                "found": found,
+                "status": "too_new",
+            }
+            logger.error(
+                "db_schema_newer_than_code",
+                found=found,
+                expected=SCHEMA_VERSION,
+            )
+        else:
+            self._apply_column_migrations()
+            self._migrate_stream_tracks_to_streams()
+            self._write_schema_version(SCHEMA_VERSION)
+            self.schema_state = {
+                "expected": SCHEMA_VERSION,
+                "found": found,
+                "status": "migrated" if found < SCHEMA_VERSION else "ok",
+            }
+            if found < SCHEMA_VERSION:
+                logger.info("db_schema_migrated", was=found, now=SCHEMA_VERSION)
 
         # fix #58: close any orphaned open PlaybackEvents from a previous unclean shutdown
         self._close_orphaned_playback_events()
@@ -101,6 +157,31 @@ class DatabaseManager:
             logger.warning("startup_cleanup_failed", error=str(exc))
         finally:
             session.close()
+
+    def _read_schema_version(self) -> int:
+        """Stand der Datenbank aus PRAGMA user_version.
+
+        SQLite haelt dafuer ein Feld im Dateikopf bereit - es braucht also
+        keine eigene Tabelle, und eine Datenbank aus der Zeit vor dieser
+        Zaehlung liefert 0.
+        """
+        try:
+            with self.engine.connect() as conn:
+                return int(conn.execute(text("PRAGMA user_version")).scalar() or 0)
+        except Exception as exc:
+            logger.warning("db_schema_version_read_failed", error=str(exc))
+            return 0
+
+    def _write_schema_version(self, version: int) -> None:
+        """Stand festschreiben. Erst nach erfolgreicher Migration aufrufen."""
+        try:
+            with self.engine.connect() as conn:
+                # PRAGMA nimmt keine gebundenen Parameter; version ist eine
+                # Konstante aus diesem Modul, keine Eingabe von aussen.
+                conn.execute(text(f"PRAGMA user_version = {int(version)}"))
+                conn.commit()
+        except Exception as exc:
+            logger.warning("db_schema_version_write_failed", error=str(exc))
 
     def _apply_column_migrations(self) -> None:
         """Add new nullable columns to existing tables (idempotent ALTER TABLE)."""
