@@ -11,11 +11,13 @@ import {
   Grid,
   IconButton,
   InputAdornment,
+  List,
   ListItem,
   ListItemAvatar,
   ListItemText,
   Menu,
   MenuItem,
+  Pagination,
   Paper,
   Popover,
   TextField,
@@ -30,6 +32,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import EditIcon from '@mui/icons-material/Edit';
@@ -42,7 +46,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
-import { Virtuoso, VirtuosoGrid } from 'react-virtuoso';
 import { audioApi } from '@/api/audio';
 import type { Playlist, Track, TrackFolder } from '@/types/api';
 import { formatTime } from '@/utils/formatTime';
@@ -60,6 +63,7 @@ const DEFAULT_SORT_KEY: SortKey = 'title';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
 const TREE_WIDTH = 220;
+const TREE_COLLAPSED_WIDTH = 36;
 
 /** MIME type used for DnD transfer of a track ID */
 const TRACK_DRAG_TYPE = 'application/minabox-track-id';
@@ -84,21 +88,18 @@ interface TrackListProps {
   onViewModeChange: (mode: 'card' | 'list') => void;
   filter: string;
   onFilterChange: (filter: string) => void;
+  treeCollapsed?: boolean;
+  onTreeCollapsedChange?: (collapsed: boolean) => void;
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
   selectionMode?: boolean;
   onSelect?: (track: Track) => void;
   onRegisterCreateFolder?: (fn: () => void) => void;
   onPlaylistUpdated?: (playlist: Playlist) => void;
 }
 
-const gridComponents = {
-  List: React.forwardRef<HTMLDivElement>((props, ref) => (
-    <Grid container spacing={2} {...props} ref={ref} />
-  )),
-  Item: ({ children, ...props }: any) => (
-    <Grid item xs={12} sm={6} lg={4} {...props}>{children}</Grid>
-  ),
-};
-gridComponents.List.displayName = 'GridList';
+const PAGE_SIZE_OPTIONS = [25, 50] as const;
+const DEFAULT_PAGE_SIZE = 25;
 
 export const TrackList: React.FC<TrackListProps> = ({
   tracks,
@@ -120,6 +121,10 @@ export const TrackList: React.FC<TrackListProps> = ({
   onViewModeChange,
   filter,
   onFilterChange,
+  treeCollapsed = false,
+  onTreeCollapsedChange,
+  pageSize = DEFAULT_PAGE_SIZE,
+  onPageSizeChange,
   selectionMode = false,
   onSelect,
   onRegisterCreateFolder,
@@ -152,6 +157,8 @@ export const TrackList: React.FC<TrackListProps> = ({
   const [mobileView, setMobileView] = useState<'tree' | 'tracks'>(
     currentFolderId === null ? 'tree' : 'tracks'
   );
+
+  const [page, setPage] = useState(1);
 
   /** Track that is currently being dragged (set on dragstart, cleared on dragend) */
   const [draggingTrackId, setDraggingTrackId] = useState<number | null>(null);
@@ -211,6 +218,18 @@ export const TrackList: React.FC<TrackListProps> = ({
     if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
     return 0;
   });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, typedFilter, typedSortKey, sortDir, currentFolderId, pageSize]);
+
+  const handlePageSizeChange = (size: number) => {
+    onPageSizeChange?.(size);
+  };
 
   const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
     if (!key) return;
@@ -322,7 +341,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       draggable={!selectionMode}
       onDragStart={!selectionMode ? (e) => handleDragStart(e, track) : undefined}
       onDragEnd={!selectionMode ? handleDragEnd : undefined}
-      divider={index < sorted.length - 1}
+      divider={index < paginated.length - 1}
       secondaryAction={
         !selectionMode && (
           <Box display="flex" alignItems="center">
@@ -370,6 +389,7 @@ export const TrackList: React.FC<TrackListProps> = ({
         )
       }
       sx={{
+        py: 0.5,
         pr: selectionMode ? undefined : hasInlineControls ? '180px' : '40px',
         opacity: draggingTrackId === track.id ? 0.4 : 1,
         cursor: selectionMode ? 'default' : 'grab',
@@ -378,13 +398,13 @@ export const TrackList: React.FC<TrackListProps> = ({
       }}
       onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
     >
-      <ListItemAvatar sx={{ minWidth: 44 }}>
+      <ListItemAvatar sx={{ minWidth: 40 }}>
         {track.cover_art_url ? (
-          <Avatar src={track.cover_art_url} variant="rounded" sx={{ width: 40, height: 40 }}>
-            <AudiotrackIcon />
+          <Avatar src={track.cover_art_url} variant="rounded" sx={{ width: 32, height: 32 }}>
+            <AudiotrackIcon fontSize="small" />
           </Avatar>
         ) : (
-          <Avatar variant="rounded" sx={{ width: 40, height: 40, bgcolor: 'action.selected' }}>
+          <Avatar variant="rounded" sx={{ width: 32, height: 32, bgcolor: 'action.selected' }}>
             {track.source_type === 'remote' ? <LinkIcon fontSize="small" /> : <AudiotrackIcon fontSize="small" />}
           </Avatar>
         )}
@@ -394,19 +414,18 @@ export const TrackList: React.FC<TrackListProps> = ({
         primaryTypographyProps={{ noWrap: true }}
         secondaryTypographyProps={{ component: 'span' }}
         secondary={
-          <Box component="span" display="flex" flexDirection="column" gap={0.25}>
-            <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
-              {track.artist && <Typography component="span" variant="caption" noWrap>{track.artist}</Typography>}
-              {track.album && <Typography component="span" variant="caption" color="text.secondary" noWrap>· {track.album}</Typography>}
-              {track.duration_ms != null && (
-                <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined"
-                  sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
-              )}
-            </Box>
+          <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
+            {track.artist && <Typography component="span" variant="caption" noWrap>{track.artist}</Typography>}
+            {track.album && <Typography component="span" variant="caption" color="text.secondary" noWrap>· {track.album}</Typography>}
+            {track.duration_ms != null && (
+              <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined"
+                sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
+            )}
             <LastPlayedCaption
               value={track.last_played_at}
               label={t('tracks.fields.last_played')}
               emptyLabel={t('never_played')}
+              separator
             />
           </Box>
         }
@@ -448,14 +467,15 @@ export const TrackList: React.FC<TrackListProps> = ({
               {[track.artist, track.album].filter(Boolean).join(' · ')}
             </Typography>
           )}
-          {track.duration_ms != null && (
-            <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined" sx={{ mt: 1 }} />
-          )}
-          <Box sx={{ mt: 0.5 }}>
+          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" sx={{ mt: 1 }}>
+            {track.duration_ms != null && (
+              <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined" />
+            )}
             <LastPlayedCaption
               value={track.last_played_at}
               label={t('tracks.fields.last_played')}
               emptyLabel={t('never_played')}
+              separator={track.duration_ms != null}
             />
           </Box>
         </CardContent>
@@ -542,7 +562,7 @@ export const TrackList: React.FC<TrackListProps> = ({
   );
 
   const trackPanel = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
       {!hasSplitView && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <IconButton size="small" onClick={() => setMobileView('tree')}>
@@ -674,60 +694,127 @@ export const TrackList: React.FC<TrackListProps> = ({
         </Paper>
       </Popover>
 
-      <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-        {sorted.length === 0 ? (
-          <Box display="flex" justifyContent="center" py={6}>
-            <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+        <Box>
+          {sorted.length === 0 ? (
+            <Box display="flex" justifyContent="center" py={6}>
+              <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
+            </Box>
+          ) : viewMode === 'card' ? (
+            <Grid container spacing={2} sx={{ p: 1 }}>
+              {paginated.map((track, index) => (
+                <Grid item xs={12} sm={6} lg={4} key={track.id}>
+                  {renderGridItem(index, track)}
+                </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <List disablePadding>
+              {paginated.map((track, index) => renderListItem(index, track))}
+            </List>
+          )}
+        </Box>
+
+        {sorted.length > 0 && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1,
+              pt: 1,
+              mt: 1,
+              flexShrink: 0,
+              borderTop: 1,
+              borderColor: 'divider',
+            }}
+          >
+            <ToggleButtonGroup
+              size="small"
+              value={pageSize}
+              exclusive
+              onChange={(_, v) => v && handlePageSizeChange(v)}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <ToggleButton key={size} value={size}>{size}</ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+            <Pagination
+              size="small"
+              count={totalPages}
+              page={currentPage}
+              onChange={(_, p) => setPage(p)}
+              siblingCount={0}
+            />
           </Box>
-        ) : viewMode === 'card' ? (
-          <VirtuosoGrid style={{ height: '100%' }} data={sorted} components={gridComponents as any} itemContent={renderGridItem} />
-        ) : (
-          <Virtuoso style={{ height: '100%' }} data={sorted} itemContent={renderListItem} />
         )}
       </Box>
     </Box>
   );
 
   return (
-    <Box
-      sx={{
-        // dvh: gegen die *kleinste* Viewport-Hoehe rechnen, sonst ragt der
-        // Panel auf Mobil unter die eingeblendete URL-Leiste und die innere
-        // Virtuoso-Liste bekommt einen zweiten, konkurrierenden Scroll.
-        height: 'calc(100vh - 220px)',
-        '@supports (height: 100dvh)': { height: 'calc(100dvh - 220px)' },
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
       {hasSplitView ? (
-        <Box sx={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
-          <Box sx={{ width: TREE_WIDTH, flexShrink: 0, height: '100%' }}>
-            <FolderTree
-              folders={folders}
-              allTracks={allTracks}
-              currentFolderId={currentFolderId}
-              onNavigate={handleNavigateFolder}
-              onRename={(folder) => setRenameFolder(folder)}
-              onDelete={(folder) => void onFolderDelete(folder)}
-              onDropTrack={handleDropTrackOnFolder}
-            />
+        <Box sx={{ display: 'flex', gap: 0 }}>
+          <Box
+            sx={{
+              width: treeCollapsed ? TREE_COLLAPSED_WIDTH : TREE_WIDTH,
+              flexShrink: 0,
+              borderRight: treeCollapsed ? 1 : 0,
+              borderColor: 'divider',
+            }}
+          >
+            {treeCollapsed ? (
+              <Tooltip title={t('folders.expand_tree')} placement="right">
+                <IconButton
+                  size="small"
+                  onClick={() => onTreeCollapsedChange?.(false)}
+                  sx={{ display: 'flex', mx: 'auto', mt: 1 }}
+                >
+                  <ChevronRightIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, pt: 0.5 }}>
+                  <Tooltip title={t('folders.collapse_tree')}>
+                    <IconButton size="small" onClick={() => onTreeCollapsedChange?.(true)}>
+                      <ChevronLeftIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+                <FolderTree
+                  folders={folders}
+                  items={allTracks}
+                  currentFolderId={currentFolderId}
+                  onNavigate={handleNavigateFolder}
+                  onRename={(folder) => setRenameFolder(folder as TrackFolder)}
+                  onDelete={(folder) => void onFolderDelete(folder as TrackFolder)}
+                  onDropItem={handleDropTrackOnFolder}
+                  dragType={TRACK_DRAG_TYPE}
+                  treeLabel={t('tabs.tracks')}
+                />
+              </Box>
+            )}
           </Box>
-          <Box sx={{ flex: 1, minWidth: 0, pl: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ flex: 1, minWidth: 0, pl: 2, display: 'flex', flexDirection: 'column' }}>
             {trackPanel}
           </Box>
         </Box>
       ) : (
-        <Box sx={{ flex: 1, minHeight: 0 }}>
+        <Box>
           {mobileView === 'tree' ? (
             <FolderTree
               folders={folders}
-              allTracks={allTracks}
+              items={allTracks}
               currentFolderId={currentFolderId}
               onNavigate={handleNavigateFolder}
-              onRename={(folder) => setRenameFolder(folder)}
-              onDelete={(folder) => void onFolderDelete(folder)}
-              onDropTrack={handleDropTrackOnFolder}
+              onRename={(folder) => setRenameFolder(folder as TrackFolder)}
+              onDelete={(folder) => void onFolderDelete(folder as TrackFolder)}
+              onDropItem={handleDropTrackOnFolder}
+              dragType={TRACK_DRAG_TYPE}
+              treeLabel={t('tabs.tracks')}
             />
           ) : (
             trackPanel

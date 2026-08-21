@@ -23,7 +23,13 @@ export const PageShell: React.FC<PageShellProps> = ({
   return (
     <Box
       sx={{
-        p: pagePadding,
+        pt: pagePadding,
+        pr: pagePadding,
+        pb: pagePadding,
+        // Ab Tablet steht die Navigation als Rail/Drawer permanent links -
+        // dort braucht es keinen vollen Seitenrand mehr, auf Mobil (keine
+        // Sidebar) bleibt es beim vollen Wert.
+        pl: isMobile ? pagePadding : pagePadding / 2,
         maxWidth: maxWidth ?? 'none',
         mx: maxWidth ? 'auto' : undefined,
         // Kein overflowX:hidden hier – das wuerde Badges und Buttons abschneiden.

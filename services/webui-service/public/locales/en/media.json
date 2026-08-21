@@ -58,8 +58,14 @@
     "delete_error": "Failed to delete folder",
     "track_moved": "Track moved",
     "move_error": "Failed to move track",
+    "stream_moved": "Stream moved",
+    "stream_move_error": "Failed to move stream",
+    "podcast_moved": "Podcast moved",
+    "podcast_move_error": "Failed to move podcast",
     "delete_confirm_title": "Delete folder?",
-    "delete_confirm_text": "Really delete folder \"{{name}}\"? All contained tracks will be moved back to the library."
+    "delete_confirm_text": "Really delete folder \"{{name}}\"? All contained tracks will be moved back to the library.",
+    "collapse_tree": "Collapse folder tree",
+    "expand_tree": "Expand folder tree"
   },
   "playlists": {
     "title": "Playlists",

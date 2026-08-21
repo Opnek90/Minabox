@@ -6,11 +6,11 @@ import os
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from backend_service.core.db_manager import get_db
-from backend_service.models.database import Stream
+from backend_service.models.database import Stream, StreamFolder
 from backend_service.models.schemas import (
     StreamCreate,
     StreamResponse,
@@ -25,11 +25,24 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[StreamResponse])
-def list_streams(db: Session = Depends(get_db)) -> list[StreamResponse]:
-    """List all streams."""
-    logger.info("api_list_streams")
-    streams = db.query(Stream).all()
-    return [StreamResponse.model_validate(s) for s in streams]
+def list_streams(
+    folder_id: int | None = Query(None, description="Filter by folder ID. Use 0 for root-level streams (no folder)."),
+    db: Session = Depends(get_db),
+) -> list[StreamResponse]:
+    """List all streams, optionally filtered by folder."""
+    logger.info("api_list_streams", folder_id=folder_id)
+    query = db.query(Stream)
+    if folder_id == 0:
+        query = query.filter(Stream.folder_id.is_(None))
+    elif folder_id is not None:
+        folder = db.query(StreamFolder).filter(StreamFolder.id == folder_id).first()
+        if not folder:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
+            )
+        query = query.filter(Stream.folder_id == folder_id)
+    return [StreamResponse.model_validate(s) for s in query.all()]
 
 
 @router.get("/{stream_id}", response_model=StreamResponse)
@@ -60,10 +73,18 @@ def create_stream(
 ) -> StreamResponse:
     """Create a new stream."""
     logger.info("api_create_stream", title=stream_data.title)
+    if stream_data.folder_id is not None:
+        folder = db.query(StreamFolder).filter(StreamFolder.id == stream_data.folder_id).first()
+        if not folder:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {stream_data.folder_id} not found", "details": {"folder_id": stream_data.folder_id}}},
+            )
     stream = Stream(
         title=stream_data.title,
         artist=stream_data.artist,
         source_uri=stream_data.source_uri,
+        folder_id=stream_data.folder_id,
     )
     db.add(stream)
     db.commit()
@@ -98,6 +119,15 @@ def update_stream(
         stream.artist = stream_data.artist
     if stream_data.source_uri is not None:
         stream.source_uri = stream_data.source_uri
+    if "folder_id" in stream_data.model_fields_set:
+        if stream_data.folder_id is not None:
+            folder = db.query(StreamFolder).filter(StreamFolder.id == stream_data.folder_id).first()
+            if not folder:
+                raise HTTPException(
+                    status_code=404,
+                    detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {stream_data.folder_id} not found", "details": {"folder_id": stream_data.folder_id}}},
+                )
+        stream.folder_id = stream_data.folder_id
     db.commit()
     db.refresh(stream)
     return StreamResponse.model_validate(stream)

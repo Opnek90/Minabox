@@ -128,7 +128,7 @@ class StreamBase(BaseModel):
 class StreamCreate(StreamBase):
     """Schema for creating a new stream."""
 
-    pass
+    folder_id: int | None = Field(None, description="Folder ID to assign the stream to")
 
 
 class StreamUpdate(BaseModel):
@@ -137,6 +137,7 @@ class StreamUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=255)
     artist: str | None = None
     source_uri: str | None = None
+    folder_id: int | None = Field(None, description="Folder ID; set to null to move stream to root")
 
 
 class StreamResponse(StreamBase):
@@ -144,6 +145,7 @@ class StreamResponse(StreamBase):
 
     id: int
     cover_art_url: str | None = None
+    folder_id: int | None = None
     created_at: datetime
     last_played_at: datetime | None = None
 
@@ -163,7 +165,7 @@ class PodcastBase(BaseModel):
 class PodcastCreate(PodcastBase):
     """Schema for creating a new podcast."""
 
-    pass
+    folder_id: int | None = Field(None, description="Folder ID to assign the podcast to")
 
 
 class PodcastUpdate(BaseModel):
@@ -173,12 +175,14 @@ class PodcastUpdate(BaseModel):
     rss_url: str | None = None
     description: str | None = None
     cover_art_url: str | None = None
+    folder_id: int | None = Field(None, description="Folder ID; set to null to move podcast to root")
 
 
 class PodcastResponse(PodcastBase):
     """Schema for podcast API response."""
 
     id: int
+    folder_id: int | None = None
     last_fetched_at: datetime | None = None
     last_played_at: datetime | None = None
     created_at: datetime
@@ -220,6 +224,60 @@ class TrackFolderUpdate(BaseModel):
 
 class TrackFolderResponse(BaseModel):
     """Schema for track folder API response."""
+
+    id: int
+    name: str
+    parent_id: int | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class StreamFolderCreate(BaseModel):
+    """Schema for creating a new stream folder."""
+
+    name: str = Field(..., min_length=1, max_length=255, description="Folder name")
+    parent_id: int | None = Field(None, description="Parent folder ID; null for root-level folder")
+
+
+class StreamFolderUpdate(BaseModel):
+    """Schema for updating a stream folder."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    parent_id: int | None = None
+
+
+class StreamFolderResponse(BaseModel):
+    """Schema for stream folder API response."""
+
+    id: int
+    name: str
+    parent_id: int | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class PodcastFolderCreate(BaseModel):
+    """Schema for creating a new podcast folder."""
+
+    name: str = Field(..., min_length=1, max_length=255, description="Folder name")
+    parent_id: int | None = Field(None, description="Parent folder ID; null for root-level folder")
+
+
+class PodcastFolderUpdate(BaseModel):
+    """Schema for updating a podcast folder."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    parent_id: int | None = None
+
+
+class PodcastFolderResponse(BaseModel):
+    """Schema for podcast folder API response."""
 
     id: int
     name: str

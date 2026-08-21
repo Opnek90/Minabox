@@ -162,6 +162,7 @@ export interface Stream {
   artist: string | null;
   source_uri: string;
   cover_art_url: string | null;
+  folder_id?: number | null;
   created_at: string;
   last_played_at: string | null;
 }
@@ -170,12 +171,32 @@ export interface StreamCreate {
   title: string;
   artist?: string | null;
   source_uri: string;
+  folder_id?: number | null;
 }
 
 export interface StreamUpdate {
   title?: string;
   artist?: string | null;
   source_uri?: string;
+  folder_id?: number | null;
+}
+
+export interface StreamFolder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface StreamFolderCreate {
+  name: string;
+  parent_id?: number | null;
+}
+
+export interface StreamFolderUpdate {
+  name?: string;
+  parent_id?: number | null;
 }
 
 // ============================================================================
@@ -189,6 +210,7 @@ export interface Podcast {
   rss_url: string;
   description: string | null;
   cover_art_url: string | null;
+  folder_id?: number | null;
   last_fetched_at: string | null;
   last_played_at: string | null;
   created_at: string;
@@ -211,6 +233,7 @@ export interface PodcastCreate {
   rss_url: string;
   description?: string | null;
   cover_art_url?: string | null;
+  folder_id?: number | null;
 }
 
 export interface PodcastUpdate {
@@ -218,6 +241,25 @@ export interface PodcastUpdate {
   rss_url?: string;
   description?: string | null;
   cover_art_url?: string | null;
+  folder_id?: number | null;
+}
+
+export interface PodcastFolder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface PodcastFolderCreate {
+  name: string;
+  parent_id?: number | null;
+}
+
+export interface PodcastFolderUpdate {
+  name?: string;
+  parent_id?: number | null;
 }
 
 // ============================================================================
