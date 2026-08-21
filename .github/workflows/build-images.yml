@@ -29,6 +29,20 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # ── Passen Changelog und Manifest zusammen? ───────────────────────────────
+  # Laeuft immer, auch wenn kein Dienst gebaut wird: eine Aenderung am
+  # Changelog allein soll ebenso geprueft werden. Schlaegt sie fehl, wird
+  # nichts gebaut - ein Release ohne Aenderungsnotizen ist genau das, was
+  # verhindert werden soll.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check changelog and manifest
+        run: python3 scripts/build_manifest.py --check
+
   # ── Welche Dienste muessen gebaut werden? ─────────────────────────────────
   changes:
     runs-on: ubuntu-latest
@@ -52,7 +66,7 @@ jobs:
 
   # ── Bauen und pushen ──────────────────────────────────────────────────────
   build:
-    needs: changes
+    needs: [validate, changes]
     if: needs.changes.outputs.any == 'true'
     # Nativer arm64-Runner. Das ist hier nicht Kosmetik: led- und
     # button-service kompilieren lgpio aus dem Quelltext und webui baut mit

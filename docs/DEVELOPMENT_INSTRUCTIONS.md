@@ -526,6 +526,24 @@ Bevor du Code committed:
 - [ ] Exception-Handling korrekt?
 - [ ] Retry-Strategien wo nötig?
 
+### Veröffentlichen
+
+Jeder Dienst trägt seine eigene Versionsnummer
+([Versionierung.md](Versionierung.md)). Deshalb gehört zu jedem Commit, der
+einen Dienst verändert:
+
+- [ ] `services/<dienst>-service/VERSION` um eine Patch-Stelle angehoben
+      (`0.1.0` → `0.1.1`) — für **jeden** betroffenen Dienst. Änderungen an
+      `shared-lib` oder am MQTT-Vertrag betreffen alle abhängigen Dienste.
+- [ ] Eintrag in `CHANGELOG.md` **und** `CHANGELOG.en.md`, ein Satz aus
+      Nutzersicht.
+- [ ] `python3 scripts/build_manifest.py` ausgeführt und
+      `release-manifest.json` mitcommittet.
+
+Die CI prüft das: sie baut nur geänderte Dienste, weigert sich, einen bereits
+vergebenen Versions-Tag zu überschreiben, und lässt gar nicht erst bauen, wenn
+die aktuelle Version eines Dienstes nicht im Changelog steht.
+
 ---
 
 ## Hilfreiche GitHub-MCP-Befehle

@@ -259,11 +259,25 @@ docker compose up -d backend
 # 1. Version anheben
 echo "0.2.0" > services/audio-service/VERSION
 
-# 2. Changelog-Eintrag (kommt in Phase 2 dazu)
+# 2. Changelog-Eintrag in BEIDEN Sprachen
+#    CHANGELOG.md und CHANGELOG.en.md, Abschnitt "## audio"
 
-# 3. Commit und Push auf main - die CI baut und schiebt :0.2.0, :0.2, :latest
+# 3. Manifest neu erzeugen
+python3 scripts/build_manifest.py
+
+# 4. Commit und Push auf main - die CI baut und schiebt :0.2.0, :0.2, :latest
 git commit -am "feat(audio): Sleep-Timer, Version 0.2.0"
 ```
+
+Schritt 2 und 3 sind nicht optional: die CI prueft mit
+`build_manifest.py --check`, ob `release-manifest.json` zu den Changelogs
+passt und ob die aktuelle Version jedes Dienstes dort beschrieben ist.
+Fehlt etwas, wird gar nicht erst gebaut.
+
+Die Changelogs sind die einzige Quelle; das Manifest wird daraus erzeugt und
+mitcommittet. Es liegt bewusst im Repo und wird nicht von der CI
+zurueckgeschrieben - das spart Schreibrechte fuer den Workflow und einen
+Commit-Kreislauf, und die Datei ist im Diff sichtbar wie jede andere.
 
 Auf der Box wird die neue Nummer sichtbar, sobald der Container mit dem neuen
 Image laeuft. Zeigt ein Dienst nach einem Update noch die alte Version, ist

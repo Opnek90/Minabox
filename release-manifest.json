@@ -1,0 +1,263 @@
+{
+  "schema": 1,
+  "registry": "ghcr.io/opnek90",
+  "services": {
+    "audio": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dienst meldet seine Version."
+              ],
+              "en": [
+                "The service reports its version."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "backend": {
+      "latest": "0.1.2",
+      "releases": [
+        {
+          "version": "0.1.2",
+          "date": "2026-08-21",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Der Prozentwert beim Arbeitsspeicher wird nicht mehr missverstaendlich angezeigt: ohne gesetztes Container-Limit bezieht er sich auf den gesamten Systemspeicher."
+              ],
+              "en": [
+                "The memory percentage is no longer misleading: without a container limit it refers to total system memory."
+              ]
+            }
+          }
+        },
+        {
+          "version": "0.1.1",
+          "date": "2026-08-21",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Medienimport spricht nicht mehr von einzelnen Plattformen; die Texte sind neutral gefasst."
+              ],
+              "en": [
+                "Media import no longer refers to individual platforms; the wording is neutral."
+              ]
+            }
+          }
+        },
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Dienste-Uebersicht zeigt, was auf der Box wirklich laeuft, statt einer festen Liste. Dienste, die eine Komponentenauswahl nie gestartet hat, tauchen nicht mehr als \"offline\" auf.",
+                "Host-Helper und Medien-Import erscheinen erstmals in der Uebersicht.",
+                "CPU, Arbeitsspeicher und Protokolle gibt es fuer alle Container, auch fuer den MQTT-Broker.",
+                "Jeder Dienst meldet seine Version."
+              ],
+              "en": [
+                "The service overview shows what actually runs on the box instead of a fixed list. Services a component selection never started no longer appear as \"offline\".",
+                "Host helper and media import appear in the overview for the first time.",
+                "CPU, memory and logs are available for every container, including the MQTT broker.",
+                "Every service reports its version."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Der Arbeitsspeicher wurde als \"0 MB\" angezeigt, wo er gar nicht messbar ist. Jetzt bleibt das Feld leer und die Oberflaeche erklaert, wie sich die Messung einschalten laesst."
+              ],
+              "en": [
+                "Memory was shown as \"0 MB\" on systems where it cannot be measured at all. The field now stays empty and the interface explains how to enable the measurement."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "button": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dienst meldet seine Version."
+              ],
+              "en": [
+                "The service reports its version."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "display": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dienst meldet seine Version."
+              ],
+              "en": [
+                "The service reports its version."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "host-helper": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dienst meldet seine Version und erscheint in der Dienste-Uebersicht."
+              ],
+              "en": [
+                "The service reports its version and appears in the service overview."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "led": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dienst meldet seine Version."
+              ],
+              "en": [
+                "The service reports its version."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "media-downloader": {
+      "latest": "0.1.1",
+      "releases": [
+        {
+          "version": "0.1.1",
+          "date": "2026-08-21",
+          "notes": {
+            "improved": {
+              "de": [
+                "Texte und Beispieladressen sind neutral gefasst; die Domain-Liste bleibt als technische Einstellung bestehen."
+              ],
+              "en": [
+                "Wording and example addresses are neutral; the domain list remains as a technical setting."
+              ]
+            }
+          }
+        },
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dienst meldet seine Version."
+              ],
+              "en": [
+                "The service reports its version."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "rfid": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dienst meldet seine Version."
+              ],
+              "en": [
+                "The service reports its version."
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "webui": {
+      "latest": "0.1.2",
+      "releases": [
+        {
+          "version": "0.1.2",
+          "date": "2026-08-21",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Lange Dienstnamen wurden in der Uebersicht abgeschnitten (\"Back...\")."
+              ],
+              "en": [
+                "Long service names were cut off in the overview (\"Back...\")."
+              ]
+            }
+          }
+        },
+        {
+          "version": "0.1.1",
+          "date": "2026-08-21",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Import von einer URL verlangt jetzt eine ausdrueckliche Bestaetigung des Rechtshinweises; \"Pruefen\" und \"Importieren\" sind vorher nicht benutzbar.",
+                "Die Hinweistexte behaupten nicht mehr, die Anwendung koenne die Rechtmaessigkeit einer Adresse pruefen."
+              ],
+              "en": [
+                "Importing from a URL now requires an explicit confirmation of the legal notice; \"Check\" and \"Import\" stay disabled until then.",
+                "The notice no longer claims the application can verify whether an address is lawful."
+              ]
+            }
+          }
+        },
+        {
+          "version": "0.1.0",
+          "date": "2026-08-20",
+          "notes": {
+            "added": {
+              "de": [
+                "Jede Dienst-Karte zeigt ihre Version. Ein selbst gebautes Abbild wird als \"Entwicklungsbuild\" gekennzeichnet."
+              ],
+              "en": [
+                "Every service card shows its version. A self-built image is marked as a development build."
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

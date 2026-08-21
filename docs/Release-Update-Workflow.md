@@ -231,10 +231,23 @@ zwingend wurden, bevor ein Update-Mechanismus darauf bauen kann:
    nicht ausdruecken - ohne diese Ebene gibt es weder ein gezieltes Update
    noch einen Rueckweg.
 
-### Phase 2 - Release-Manifest mit Changelog
+### Phase 2 - Release-Manifest mit Changelog - **umgesetzt**
 
-*Ergebnis: eine Datei, aus der die Box ablesen kann, welche Version jedes
-Dienstes aktuell ist und was sich geaendert hat.*
+*Umgesetzt am 2026-08-21.* Ergebnis: eine Datei, aus der die Box ablesen kann,
+welche Version jedes Dienstes aktuell ist und was sich geaendert hat.
+
+* `CHANGELOG.md` und `CHANGELOG.en.md` - je Dienst, je Version, gleiche
+  Struktur. Quelle der Wahrheit.
+* `scripts/build_manifest.py` erzeugt daraus `release-manifest.json` und
+  prueft mit `--check`, ob beides zusammenpasst.
+* Die CI laesst nichts bauen, solange die aktuelle Version eines Dienstes
+  nicht beschrieben oder eine Uebersetzung nicht nachgezogen ist.
+
+Offen fuer Phase 3: das Manifest wird mit dem Commit veroeffentlicht, die
+Images erst wenn die CI durch ist. In diesem Fenster von wenigen Minuten
+kennt es eine Version, die noch nicht in der Registry liegt. Der Update-Check
+muss daher pruefen, ob der Image-Tag wirklich existiert, bevor er ein Update
+anbietet.
 
 Mit E1 passt "ein Release = eine Version" nicht mehr: neun Dienste haben neun
 Nummern, die sich unabhaengig bewegen. Deshalb steht am Ende kein
