@@ -45,14 +45,12 @@ Commit-Betreff ausgeschrieben (`ae`, `oe`, `ue`).
 Zuerst das, was Sekunden kostet:
 
 ```bash
-PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest -q \
-  --ignore=services/audio-service/tests
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest -q
 .venv/bin/ruff check <berührte .py-Dateien>
 cd services/webui-service && npx tsc --noEmit
 ```
 
-Zu den Ausnahmen: Die Tests des audio-service brauchen das `vlc`-Python-Binding,
-das lokal nicht installiert ist. `tsc` meldet acht Fehler, die aus der Zeit vor
+Zu den Ausnahmen: `tsc` meldet acht Fehler, die aus der Zeit vor
 diesen Regeln stammen; sie gehören zum Bestand. Der Bau der WebUI benutzt
 `build:fast` und überspringt `tsc`, deshalb blockieren sie nichts — neue Fehler
 dürfen trotzdem nicht dazukommen. `ruff` läuft nur über die berührten Dateien:
@@ -134,10 +132,13 @@ git push -u origin <branch>
 gh pr create --fill
 gh pr merge --merge --delete-branch
 git checkout main && git pull --ff-only
+git remote prune origin
 ```
 
 `--delete-branch` räumt den Branch remote und lokal weg. Der PR bleibt als
-Nachweis stehen, auch wenn er sofort gemergt wird.
+Nachweis stehen, auch wenn er sofort gemergt wird. `git remote prune origin`
+entfernt die dann verwaiste Remote-Tracking-Referenz (`origin/<branch>`), die
+sonst lokal stehen bleibt.
 
 ## Phase E — Bau und Übergabe
 

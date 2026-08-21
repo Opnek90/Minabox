@@ -22,8 +22,7 @@ git checkout -b feat/<kurz>          # feat|fix|docs|ci|refactor
 Arbeiten, Conventional-Commit-Betreffe. Prüfen — erst ohne Container:
 
 ```bash
-PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest -q \
-  --ignore=services/audio-service/tests
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest -q
 .venv/bin/ruff check <berührte .py-Dateien>
 cd services/webui-service && npx tsc --noEmit     # 8 Altfehler sind Bestand
 ```
@@ -58,6 +57,7 @@ git push -u origin <branch>
 gh pr create --fill
 gh pr merge --merge --delete-branch
 git checkout main && git pull --ff-only
+git remote prune origin
 ```
 
 Der Merge startet die CI von selbst; sie baut nur die geänderten Dienste
