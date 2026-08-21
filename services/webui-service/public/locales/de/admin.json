@@ -376,6 +376,8 @@
     "weekday_6": "So"
   },
   "system": {
+    "auto_update_check": "Automatisch auf Updates prüfen",
+    "auto_update_check_hint": "Prüft regelmäßig im Hintergrund auf neue Versionen und zeigt in der Kopfzeile einen Hinweis, sobald ein Update bereitsteht.",
     "backup_download": "Backup herunterladen",
     "backup_restore": "Wiederherstellen",
     "backup_restore_confirm": "Backup wiederherstellen? Alle Container werden neu gestartet. Die aktuelle Verbindung kann abbrechen.",

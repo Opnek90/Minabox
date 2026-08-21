@@ -503,6 +503,8 @@ export interface GeneralConfig {
   setup_completed?: boolean;
   /** Version of the wizard that was completed; lets a later release offer it again. */
   setup_version?: number;
+  /** Periodic background scan for updates; shows a header hint when one is ready. */
+  auto_update_check_enabled?: boolean;
 }
 
 export interface SleepTimerStatus {

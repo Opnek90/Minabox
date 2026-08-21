@@ -22,8 +22,22 @@
       ]
     },
     "backend": {
-      "latest": "0.1.6",
+      "latest": "0.1.7",
       "releases": [
+        {
+          "version": "0.1.7",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Ein regelmaessiger Hintergrund-Scan kann auf Updates pruefen und meldet ein bereitstehendes Update ueber einen Hinweis, statt dass man ihn nur beim Aufruf der Wartungsseite bemerkt."
+              ],
+              "en": [
+                "A periodic background scan can check for updates and reports one becoming ready through a hint, instead of only being noticed when opening the maintenance page."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.6",
           "date": "2026-08-21",
@@ -343,8 +357,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.6",
+      "latest": "0.1.7",
       "releases": [
+        {
+          "version": "0.1.7",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Unter Optionen -> Wartung laesst sich der regelmaessige Hintergrund-Scan auf Updates ein- und ausschalten; steht eines bereit, erscheint ein Hinweis in der Kopfzeile."
+              ],
+              "en": [
+                "Under Options -> Maintenance, the periodic background scan for updates can now be switched on or off; once one is ready, a hint appears in the header."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.6",
           "date": "2026-08-21",

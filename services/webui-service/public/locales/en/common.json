@@ -1,7 +1,8 @@
 {
   "alerts": {
     "db_schema_newer": "This box's database comes from a newer Minabox version than the one running. Please update – until then, content may appear missing that is actually there.",
-    "temperature_high": "High system temperature – cool the device!"
+    "temperature_high": "High system temperature – cool the device!",
+    "update_available": "An update is ready – see Maintenance → Version & update."
   },
   "app_name": "Minabox",
   "dashboard": {

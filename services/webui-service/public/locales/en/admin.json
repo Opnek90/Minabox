@@ -376,6 +376,8 @@
     "weekday_6": "Sun"
   },
   "system": {
+    "auto_update_check": "Automatically check for updates",
+    "auto_update_check_hint": "Periodically scans for new versions in the background and shows a hint in the header once an update is ready.",
     "backup_download": "Download backup",
     "backup_restore": "Restore",
     "backup_restore_confirm": "Restore from backup? All containers will restart. The connection may drop.",

@@ -165,6 +165,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         searchKeys: [
           'system.backup_title',
           'system.backup_download',
+          'system.auto_update_check',
           'system.update_minabox',
           'system.update_os',
           'system.cleanup',
