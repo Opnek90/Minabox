@@ -609,18 +609,31 @@ async def factory_reset(body: FactoryResetBody | None = None) -> dict:
     )
 
 
+class UpdateTargetsBody(BaseModel):
+    """Zielversionen je Dienst. Leer bedeutet: alles auf den neuesten Stand."""
+
+    targets: dict[str, str] | None = None
+    backup: bool = True
+
+
 @router.post("/update-minabox")
-async def update_minabox() -> dict:
+async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
     """Update im Hintergrund starten. Weitergereicht an den Host-Helper.
 
     Kehrt sofort zurueck; der Fortschritt kommt aus /update-minabox/status.
     Das Update laeuft als eigene Unit auf dem Host und ueberlebt deshalb, dass
     der Host-Helper waehrenddessen selbst neu erzeugt wird.
+
+    Mit `targets` werden genau die genannten Dienste auf genau die genannten
+    Versionen gebracht - derselbe Weg dient dem Rueckschritt, nur mit
+    aelteren Nummern.
     """
+    payload = body.model_dump() if body else {"targets": None, "backup": True}
     return await _proxy(
         "POST",
         "/system/update-minabox",
         timeout=60.0,
+        json=payload,
         error_message="Update failed",
         log_event="host_helper_update_minabox_failed",
     )
@@ -644,6 +657,8 @@ async def update_minabox_status() -> dict:
             "exit_code": None,
             "steps": [],
             "log": "",
+            "targets": {},
+            "rollback": {},
             "unreachable": True,
         },
         log_event="host_helper_update_minabox_status_failed",

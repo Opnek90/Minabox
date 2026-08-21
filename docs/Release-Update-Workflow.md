@@ -328,7 +328,31 @@ aktualisieren?"*
    Wartungs-Menuepunkt, wenn ein Update wartet.
 5. **Kanalwahl** in den erweiterten Einstellungen (`stable`/`beta`/`dev`).
 
-### Phase 4 - Das Update selbst wird verlaesslich
+### Phase 4 - Das Update selbst wird verlaesslich - **weitgehend umgesetzt**
+
+*Umgesetzt am 2026-08-21.*
+
+* **Gezieltes Update**: nur die Dienste mit neuer Version werden bewegt, alle
+  uebrigen dabei auf ihrem laufenden Stand festgenagelt.
+* **Sicherung vor jedem Update** unter `data/backups/`, die letzten fuenf
+  bleiben. Schlaegt sie fehl, laeuft kein Update.
+* **Fortschritt** in fuenf Schritten, mit aufklappbarer Ausgabe; das Update
+  laeuft als systemd-Unit auf dem Host und ueberdauert den Neustart der
+  Container.
+* **Verifikation**: nach dem Neustart wird geprueft, ob jeder betroffene
+  Dienst wirklich die Zielversion faehrt - nicht nur, ob er laeuft.
+* **Rueckweg**: derselbe Vorgang mit aelteren Nummern, mit Warnung vor
+  Datenformaten, die eine aeltere Fassung nicht kennt.
+
+Offen geblieben:
+
+* **Schemaversion in der Datenbank.** Ohne sie ist ein Rueckschritt eine
+  begruendete Vermutung statt einer gepruefte Aussage. Die Migrationen in
+  `db_manager` sind idempotente `ALTER TABLE`s ohne Stempel - vorwaerts
+  robust, rueckwaerts blind. Solange gilt: Sicherung davor, Warnung dabei.
+* **Digest-Zusatzpruefung** fuer den Fall gleicher Nummer bei neuem Bau.
+
+Urspruengliche Planung:
 
 *Ergebnis: Update mit Sicherungsnetz, Fortschritt und Rueckweg.*
 

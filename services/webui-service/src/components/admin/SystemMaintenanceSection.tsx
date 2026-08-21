@@ -23,6 +23,7 @@ import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import RestoreIcon from '@mui/icons-material/Restore';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import HistoryIcon from '@mui/icons-material/History';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -124,6 +125,8 @@ export const SystemMaintenanceSection: React.FC = () => {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatusResponse | null>(null);
   const [updateLogOpen, setUpdateLogOpen] = useState(false);
   const [updateProgressOpen, setUpdateProgressOpen] = useState(false);
+  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
+  const [rollback, setRollback] = useState<Record<string, string>>({});
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
   const [rebootDialogOpen, setRebootDialogOpen] = useState(false);
   const [shutdownDialogOpen, setShutdownDialogOpen] = useState(false);
@@ -162,6 +165,14 @@ export const SystemMaintenanceSection: React.FC = () => {
   }, [t]);
 
   useEffect(() => { loadCheck(false); }, [loadCheck]);
+
+  // Nach einem Update soll der Rueckweg auch nach einem Neuladen der Seite
+  // noch angeboten werden - der Zustand liegt auf der Box, nicht im Browser.
+  useEffect(() => {
+    systemApi.getUpdateStatus()
+      .then((status) => setRollback(status.rollback ?? {}))
+      .catch(() => undefined);
+  }, []);
 
   const fetchUpdateOsLog = useCallback(async () => {
     try {
@@ -225,12 +236,18 @@ export const SystemMaintenanceSection: React.FC = () => {
     }
   };
 
-  const handleUpdateMinabox = async () => {
+  /**
+   * `targets` leer lassen heisst "alles auf den neuesten Stand". Mit Zielen
+   * werden genau diese Dienste bewegt - derselbe Weg dient dem Rueckschritt,
+   * nur mit aelteren Nummern.
+   */
+  const startUpdate = async (targets?: Record<string, string>) => {
     setUpdateDialogOpen(false);
+    setRollbackDialogOpen(false);
     setUpdating(true);
     setUpdateStatus(null);
     try {
-      await systemApi.updateMinabox();
+      await systemApi.updateMinabox(targets);
       // Der Aufruf kehrt sofort zurueck; ab hier zeigt das Fortschrittsfenster,
       // was passiert.
       setUpdateProgressOpen(true);
@@ -241,6 +258,15 @@ export const SystemMaintenanceSection: React.FC = () => {
       setUpdating(false);
     }
   };
+
+  const handleUpdateMinabox = () =>
+    startUpdate(
+      Object.fromEntries(
+        pendingUpdates
+          .filter((svc) => svc.latest)
+          .map((svc) => [svc.service, svc.latest as string]),
+      ),
+    );
 
   // Waehrend des Updates startet die Box Backend und WebUI neu - die Abfrage
   // schlaegt dann kurz fehl. Das ist kein Fehler, sondern der Neustart selbst,
@@ -253,6 +279,7 @@ export const SystemMaintenanceSection: React.FC = () => {
         const status = await systemApi.getUpdateStatus();
         if (!active) return;
         setUpdateStatus(status);
+        setRollback(status.rollback ?? {});
         if (!status.running && status.exit_code !== null) {
           setUpdating(false);
           if (status.exit_code === 0) {
@@ -403,6 +430,16 @@ export const SystemMaintenanceSection: React.FC = () => {
               loading={updating}
             >
               {t('system.update_minabox')}
+            </ActionButton>
+          )}
+          {Object.keys(rollback).length > 0 && (
+            <ActionButton
+              actionType="secondary"
+              startIcon={<HistoryIcon />}
+              onClick={() => setRollbackDialogOpen(true)}
+              disabled={updating}
+            >
+              {t('system.rollback')}
             </ActionButton>
           )}
           <ActionButton
@@ -584,6 +621,7 @@ export const SystemMaintenanceSection: React.FC = () => {
         <DialogTitle>{t('system.update_minabox')}</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>{t('system.update_minabox_confirm')}</DialogContentText>
+          <Alert severity="info" sx={{ mb: 2 }}>{t('system.update_backup_hint')}</Alert>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('system.changelog_title')}</Typography>
           {pendingUpdates.map((svc) => (
             <ReleaseNotesList key={svc.service} service={svc} />
@@ -594,6 +632,37 @@ export const SystemMaintenanceSection: React.FC = () => {
             {t('actions.cancel', { ns: 'common' })}
           </ActionButton>
           <ActionButton actionType="primary" onClick={handleUpdateMinabox}>
+            {t('actions.confirm', { ns: 'common' })}
+          </ActionButton>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={rollbackDialogOpen}
+        onClose={() => setRollbackDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>{t('system.rollback')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>{t('system.rollback_confirm')}</DialogContentText>
+          {Object.entries(rollback).map(([service, version]) => (
+            <Typography key={service} variant="body2" sx={{ textTransform: 'capitalize' }}>
+              {service} → {version}
+            </Typography>
+          ))}
+          {/* Ohne diesen Hinweis waere der Rueckweg ein stilles Versprechen:
+              Daten, die die neuere Fassung geschrieben hat, muss die aeltere
+              nicht lesen koennen. */}
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {t('system.rollback_warning')}
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <ActionButton actionType="secondary" onClick={() => setRollbackDialogOpen(false)}>
+            {t('actions.cancel', { ns: 'common' })}
+          </ActionButton>
+          <ActionButton actionType="destructive" onClick={() => startUpdate(rollback)}>
             {t('actions.confirm', { ns: 'common' })}
           </ActionButton>
         </DialogActions>

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -798,9 +800,13 @@ def _backup_allowed_path(rel_path: str, workspace: Path) -> bool:
     return False
 
 
-@router.get("/backup/download")
-def backup_download(_: None = Depends(_check_api_key)) -> Response:
-    """Create a ZIP of minabox.db, general_settings.json, static, and service state/config."""
+def _build_backup_zip() -> bytes:
+    """ZIP mit Datenbank, Einstellungen und Dienst-Zustaenden.
+
+    Herausgeloest, damit dieselbe Sicherung sowohl heruntergeladen als auch vor
+    einem Update auf die Platte gelegt werden kann - eine Sicherung, die nur
+    beim Herunterladen entsteht, hilft beim Update niemandem.
+    """
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
     data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
@@ -835,10 +841,16 @@ def backup_download(_: None = Depends(_check_api_key)) -> Response:
             if p.exists() and p.is_file():
                 zf.writestr(rel, p.read_bytes())
     buf.seek(0)
+    return buf.getvalue()
+
+
+@router.get("/backup/download")
+def backup_download(_: None = Depends(_check_api_key)) -> Response:
+    """Create a ZIP of minabox.db, general_settings.json, static, and service state/config."""
     date_str = datetime.now(UTC).strftime("%Y%m%d-%H%M")
     filename = f"minabox-backup-{date_str}.zip"
     return Response(
-        content=buf.getvalue(),
+        content=_build_backup_zip(),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
@@ -1753,12 +1765,16 @@ def factory_reset(
 # Der Fortschritt steht als Marker im Log; das ueberlebt jeden Neustart des
 # Host-Helpers, weil die Datei im Projektverzeichnis liegt.
 UPDATE_UNIT = "minabox-update"
-UPDATE_STEPS = ("repo", "pull", "restart", "verify")
+UPDATE_STEPS = ("backup", "repo", "pull", "restart", "verify")
+
+# Wie viele Sicherungen vor Updates aufbewahrt werden. Fuenf reichen, um ein
+# missratenes Update zu ueberstehen, ohne die SD-Karte vollzuschreiben.
+BACKUP_KEEP = 5
 
 UPDATE_SCRIPT = """#!/bin/sh
 # Erzeugt vom Host-Helper (siehe host_helper/api/routes.py). Nicht von Hand
 # aendern - die Datei wird bei jedem Update ueberschrieben.
-exec >"{log}" 2>&1
+exec >>"{log}" 2>&1
 cd "{workspace}" || {{
   echo "Arbeitsverzeichnis {workspace} nicht gefunden"
   echo "=== MINABOX-DONE 1"
@@ -1766,8 +1782,9 @@ cd "{workspace}" || {{
 }}
 
 rc=0
+SERVICES="{services}"
 
-echo "=== MINABOX-STEP 1/4 repo"
+echo "=== MINABOX-STEP 2/5 repo"
 # git laeuft als Eigentuemer des Projektordners, nicht als root. Sonst blieben
 # root-eigene Dateien in .git zurueck, und der Benutzer koennte hinterher in
 # seinem eigenen Arbeitsbaum nicht mehr arbeiten.
@@ -1782,21 +1799,42 @@ else
   echo "(Eigentuemer des Projektordners nicht bestimmbar - git pull uebersprungen)"
 fi
 
-echo "=== MINABOX-STEP 2/4 pull"
-docker compose pull || rc=$?
+echo "=== MINABOX-STEP 3/5 pull"
+# Ohne Dienstliste alle - das ist der Weg "alles auf den neuesten Stand".
+docker compose pull $SERVICES || rc=$?
 
 if [ "$rc" = "0" ]; then
-  echo "=== MINABOX-STEP 3/4 restart"
-  docker compose up -d || rc=$?
+  echo "=== MINABOX-STEP 4/5 restart"
+  docker compose up -d $SERVICES || rc=$?
 fi
 
 if [ "$rc" = "0" ]; then
-  echo "=== MINABOX-STEP 4/4 verify"
-  docker compose ps || rc=$?
+  echo "=== MINABOX-STEP 5/5 verify"
+  # Nicht nur "laeuft", sondern "laeuft in der gewuenschten Version": ein
+  # Container, den compose nicht neu erzeugt hat, sieht sonst gesund aus und
+  # fuehrt weiter den alten Stand aus.
+  for entry in {expected}; do
+    name="${{entry%%=*}}"
+    want="${{entry#*=}}"
+    got="$(docker inspect --format '{{{{ index .Config.Labels "org.opencontainers.image.version" }}}}' "minabox-$name" 2>/dev/null)"
+    if [ "$got" = "$want" ]; then
+      echo "  $name: $got"
+    else
+      echo "  $name: erwartet $want, laeuft $got"
+      rc=1
+    fi
+  done
 fi
 
 echo "=== MINABOX-DONE $rc"
 """
+
+
+class UpdateTargetsBody(BaseModel):
+    """Zielversionen je Dienst. Leer bedeutet: alles auf den neuesten Stand."""
+
+    targets: dict[str, str] | None = None
+    backup: bool = True
 
 
 def _host_workspace() -> str:
@@ -1820,8 +1858,8 @@ def _host_workspace() -> str:
     return "/home/pi/minabox"
 
 
-def _update_paths() -> tuple[Path, Path, str]:
-    """(Log im Container, Skript im Container, Log-Pfad auf dem Host)."""
+def _update_paths() -> tuple[Path, Path, Path, str]:
+    """(Log, Skript, Zustandsdatei) im Container plus Log-Pfad auf dem Host."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
     data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
@@ -1829,8 +1867,94 @@ def _update_paths() -> tuple[Path, Path, str]:
     return (
         data_path / "minabox-update.log",
         data_path / "minabox-update.sh",
+        data_path / "minabox-update-state.json",
         f"{host_workspace}/data/minabox-update.log",
     )
+
+
+def _service_names() -> list[str]:
+    """Dienste, die dieses Projekt kennt - abgeleitet aus den VERSION-Dateien."""
+    cfg = get_config()
+    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
+    return sorted(
+        p.parent.name.removesuffix("-service")
+        for p in (workspace / "services").glob("*-service/VERSION")
+    )
+
+
+def _tag_var(service: str) -> str:
+    return f"MINABOX_{service.upper().replace('-', '_')}_TAG"
+
+
+def _running_versions() -> dict[str, str]:
+    """Laufende Version je Dienst, aus dem Label des Containers."""
+    versions: dict[str, str] = {}
+    try:
+        client = docker.from_env()
+    except Exception as e:
+        logger.debug("running_versions_unavailable", error=str(e))
+        return versions
+    for service in _service_names():
+        try:
+            container = client.containers.get(f"minabox-{service}")
+            version = (container.labels or {}).get("org.opencontainers.image.version")
+            if version:
+                versions[service] = version
+        except Exception:
+            continue
+    return versions
+
+
+def _read_env_tags(env_path: Path) -> dict[str, str]:
+    """Aktuell in der .env festgenagelte Tags je Dienst."""
+    tags: dict[str, str] = {}
+    if not env_path.exists():
+        return tags
+    try:
+        content = env_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return tags
+    wanted = {_tag_var(service): service for service in _service_names()}
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        service = wanted.get(key.strip())
+        if service and value.strip():
+            tags[service] = value.strip()
+    return tags
+
+
+def _write_env_tags(env_path: Path, tags: dict[str, str]) -> None:
+    """Tag-Zeilen in der .env setzen oder anlegen; alles andere bleibt stehen."""
+    content = (
+        env_path.read_text(encoding="utf-8", errors="replace")
+        if env_path.exists()
+        else ""
+    )
+    lines = content.splitlines()
+    for service, version in sorted(tags.items()):
+        new_line = f"{_tag_var(service)}={version}"
+        prefix = f"{_tag_var(service)}="
+        for i, line in enumerate(lines):
+            if line.strip().startswith(prefix):
+                lines[i] = new_line
+                break
+        else:
+            lines.append(new_line)
+    env_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def _prune_backups(backup_dir: Path) -> None:
+    files = sorted(
+        backup_dir.glob("pre-update-*.zip"), key=lambda p: p.name, reverse=True
+    )
+    for old in files[BACKUP_KEEP:]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
 
 
 def _update_unit_active() -> bool:
@@ -1870,24 +1994,103 @@ def _parse_update_log(text: str) -> dict:
 
 
 @router.post("/system/update-minabox")
-def update_minabox(_: None = Depends(_check_api_key)) -> dict:
-    """Update im Hintergrund starten (git pull, compose pull, compose up -d)."""
-    log_path, script_path, host_log = _update_paths()
+def update_minabox(
+    body: UpdateTargetsBody | None = None,
+    _: None = Depends(_check_api_key),
+) -> dict:
+    """Update im Hintergrund starten.
+
+    Mit `targets` werden genau die genannten Dienste auf genau die genannten
+    Versionen gebracht; alle uebrigen werden dabei auf ihrer laufenden Version
+    festgenagelt, damit ein gezieltes Update nicht nebenbei etwas anderes
+    mitzieht. Ohne `targets` laeuft der alte Weg: alles auf den neuesten Stand.
+    """
+    log_path, script_path, state_path, host_log = _update_paths()
     host_workspace = _host_workspace()
+    cfg = get_config()
+    env_path: Path = cfg["env_file_path"]
 
     if _update_unit_active():
         raise HTTPException(status_code=409, detail="Es laeuft bereits ein Update")
 
+    targets = dict((body.targets or {}) if body else {})
+    known = set(_service_names())
+    unknown = sorted(set(targets) - known)
+    if unknown:
+        raise HTTPException(
+            status_code=400, detail=f"Unbekannte Dienste: {', '.join(unknown)}"
+        )
+    for service, version in targets.items():
+        if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._-]{0,63}", version or ""):
+            raise HTTPException(
+                status_code=400, detail=f"Ungueltige Version fuer {service}"
+            )
+
+    running = _running_versions()
+    previous = {**running, **_read_env_tags(env_path)}
+
+    log_lines = ["=== MINABOX-STEP 1/5 backup"]
+    if body is None or body.backup:
+        try:
+            backup_dir = Path(cfg.get("data_path", str(Path(host_workspace) / "data")))
+            backup_dir = backup_dir / "backups"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+            backup_file = backup_dir / f"pre-update-{stamp}.zip"
+            backup_file.write_bytes(_build_backup_zip())
+            _prune_backups(backup_dir)
+            log_lines.append(f"  Sicherung: data/backups/{backup_file.name}")
+        except Exception as e:
+            # Ohne Sicherung wird nicht aktualisiert - der Rueckweg waere sonst
+            # nur noch eine Hoffnung.
+            raise HTTPException(
+                status_code=503, detail=f"Sicherung fehlgeschlagen: {e}"
+            ) from e
+    else:
+        log_lines.append("  (uebersprungen)")
+
+    if targets:
+        # Die uebrigen Dienste auf ihrem laufenden Stand festnageln. Ohne das
+        # wuerde "compose up -d" sie beim naechsten Lauf mit auf latest ziehen,
+        # und ein gezieltes Update waere keins.
+        pinned = {**running, **targets}
+        services = " ".join(sorted(targets))
+        expected = {service: targets[service] for service in targets}
+    else:
+        pinned = {}
+        services = ""
+        expected = {}
+
     try:
+        if pinned:
+            _write_env_tags(env_path, pinned)
+            log_lines.append(
+                "  Festgelegt: "
+                + ", ".join(f"{k}={v}" for k, v in sorted(pinned.items()))
+            )
         script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text(
-            UPDATE_SCRIPT.format(log=host_log, workspace=host_workspace),
+            UPDATE_SCRIPT.format(
+                log=host_log,
+                workspace=host_workspace,
+                services=services,
+                expected=" ".join(f"{k}={v}" for k, v in sorted(expected.items())),
+            ),
             encoding="utf-8",
         )
         script_path.chmod(0o755)
-        # Das alte Log leeren, damit die Statusabfrage nicht den vorigen Lauf
-        # zeigt, bevor der neue seinen ersten Marker schreibt.
-        log_path.write_text("", encoding="utf-8")
+        log_path.write_text("\n".join(log_lines) + "\n", encoding="utf-8")
+        state_path.write_text(
+            json.dumps(
+                {
+                    "started_at": datetime.now(UTC).isoformat(),
+                    "previous": previous,
+                    "targets": targets,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
     except OSError as e:
         raise HTTPException(
             status_code=503, detail=f"Update konnte nicht vorbereitet werden: {e}"
@@ -1915,14 +2118,14 @@ def update_minabox(_: None = Depends(_check_api_key)) -> dict:
         detail = (result.stderr or result.stdout or "systemd-run fehlgeschlagen")[-500:]
         raise HTTPException(status_code=503, detail=detail)
 
-    logger.info("update_minabox_started", workspace=host_workspace)
+    logger.info("update_minabox_started", targets=targets or "alle")
     return {"ok": True, "message": "Update gestartet", "steps": list(UPDATE_STEPS)}
 
 
 @router.get("/system/update-minabox/status")
 def update_minabox_status(_: None = Depends(_check_api_key)) -> dict:
     """Fortschritt und Ausgabe des laufenden oder letzten Updates."""
-    log_path, _script, _host_log = _update_paths()
+    log_path, _script, state_path, _host_log = _update_paths()
 
     log_text = ""
     if log_path.exists():
@@ -1940,10 +2143,29 @@ def update_minabox_status(_: None = Depends(_check_api_key)) -> dict:
     # immer als laufend gelten.
     running = parsed["exit_code"] is None and _update_unit_active()
 
+    state: dict = {}
+    if state_path.exists():
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            state = {}
+
+    previous = state.get("previous") or {}
+    targets = state.get("targets") or {}
+    # Ein Rueckweg ergibt nur Sinn, wenn ein gezieltes Update lief und die
+    # Vorgaengerversionen bekannt sind.
+    rollback = {
+        service: previous[service]
+        for service in targets
+        if previous.get(service) and previous[service] != targets[service]
+    }
+
     return {
         "running": running,
         "steps": list(UPDATE_STEPS),
         "log": log_text,
+        "targets": targets,
+        "rollback": rollback,
         **parsed,
     }
 

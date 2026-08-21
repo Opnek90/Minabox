@@ -253,6 +253,31 @@ echo "MINABOX_BACKEND_TAG=0.1.1" >> .env
 docker compose up -d backend
 ```
 
+### Was das Update in der .env aendert
+
+Ein gezieltes Update (der Knopf unter *Wartung*) schreibt diese Zeilen selbst.
+Dabei setzt es **alle** Dienste auf eine feste Nummer, nicht nur die, die es
+anfasst: die betroffenen auf ihre neue Version, die uebrigen auf die, die sie
+gerade fahren.
+
+Das ist Absicht. Bliebe der Rest auf `latest`, wuerde der naechste
+`docker compose up -d` sie beilaeufig mitziehen - und ein gezieltes Update
+waere keins. Nach dem ersten Update laeuft eine Box also auf festen Nummern
+statt auf `latest`; was sie faehrt, steht in der `.env` und ist damit
+nachlesbar und umkehrbar.
+
+### Sicherung und Rueckweg
+
+Vor jedem Update legt der Host-Helper eine Sicherung unter `data/backups/`
+ab (Datenbank, Einstellungen, Dienst-Zustaende); die letzten fuenf bleiben
+erhalten. Schlaegt sie fehl, wird nicht aktualisiert - ein Rueckweg ohne
+Sicherung waere nur eine Hoffnung.
+
+Der Rueckweg selbst ist derselbe Vorgang mit aelteren Nummern. Die Oberflaeche
+bietet ihn an, solange die Vorgaengerversionen bekannt sind. Eine Warnung
+gehoert dazu und steht auch dort: eine aeltere Fassung muss Daten, die die
+neuere geschrieben hat, nicht lesen koennen.
+
 ## 6. Einen Dienst veroeffentlichen
 
 ```bash

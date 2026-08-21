@@ -335,10 +335,19 @@ export const systemApi = {
     return response.data;
   },
 
-  /** Start the Minabox update in the background. Poll getUpdateStatus() for progress. */
-  updateMinabox: async (): Promise<{ ok: boolean; message?: string; steps?: string[] }> => {
+  /**
+   * Start the Minabox update in the background. Poll getUpdateStatus().
+   * `targets` pins exactly those services to exactly those versions; every
+   * other service is pinned to what it currently runs, so a targeted update
+   * cannot drag anything else along. Omit it to move everything to latest.
+   * The same call performs a rollback - just with older version numbers.
+   */
+  updateMinabox: async (
+    targets?: Record<string, string>,
+  ): Promise<{ ok: boolean; message?: string; steps?: string[] }> => {
     const response = await apiClient.post<{ ok: boolean; message?: string; steps?: string[] }>(
       '/system/update-minabox',
+      { targets: targets ?? null, backup: true },
     );
     return response.data;
   },
@@ -568,6 +577,10 @@ export interface UpdateCheckResponse {
 
 export interface UpdateStatusResponse {
   running: boolean;
+  /** What the last run set, per service. */
+  targets?: Record<string, string>;
+  /** Versions to go back to, per service - empty when there is nothing to undo. */
+  rollback?: Record<string, string>;
   step: number | null;
   step_count: number | null;
   /** repo | pull | restart | verify */

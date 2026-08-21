@@ -22,6 +22,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.4 - 2026-08-21
+
+#### Added
+- An update can target individual services instead of always touching all of
+  them.
+
 ### 0.1.3 - 2026-08-21
 
 #### Added
@@ -59,6 +65,15 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.4 - 2026-08-21
+
+#### Added
+- An update now only touches the services that actually have something new.
+- After an update the step can be undone - the "Back to the previous version"
+  button appears as long as there is something to undo.
+- A backup is created automatically before every update; the dialog says so
+  beforehand.
 
 ### 0.1.3 - 2026-08-21
 
@@ -112,6 +127,17 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.1.3 - 2026-08-21
+
+#### Added
+- An update can bring individual services to specific versions. Every other
+  service is pinned to what it currently runs, so a targeted update does not
+  drag anything else along.
+- A backup is written to data/backups before every update; the last five are
+  kept. If it fails, no update happens.
+- After the restart each affected service is checked for actually running the
+  intended version - "running again" alone is not enough.
 
 ### 0.1.2 - 2026-08-21
 

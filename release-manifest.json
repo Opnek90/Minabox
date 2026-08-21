@@ -22,8 +22,22 @@
       ]
     },
     "backend": {
-      "latest": "0.1.3",
+      "latest": "0.1.4",
       "releases": [
+        {
+          "version": "0.1.4",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Ein Update kann gezielt einzelne Dienste betreffen, statt immer alle anzufassen."
+              ],
+              "en": [
+                "An update can target individual services instead of always touching all of them."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.3",
           "date": "2026-08-21",
@@ -135,8 +149,26 @@
       ]
     },
     "host-helper": {
-      "latest": "0.1.2",
+      "latest": "0.1.3",
       "releases": [
+        {
+          "version": "0.1.3",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Ein Update kann gezielt einzelne Dienste auf bestimmte Versionen bringen. Alle uebrigen werden dabei auf ihrem laufenden Stand festgenagelt, damit ein gezieltes Update nichts anderes mitzieht.",
+                "Vor jedem Update entsteht eine Sicherung unter data/backups; die letzten fuenf bleiben erhalten. Schlaegt sie fehl, wird nicht aktualisiert.",
+                "Nach dem Neustart wird geprueft, ob jeder betroffene Dienst wirklich in der gewuenschten Version laeuft - \"laeuft wieder\" allein genuegt nicht."
+              ],
+              "en": [
+                "An update can bring individual services to specific versions. Every other service is pinned to what it currently runs, so a targeted update does not drag anything else along.",
+                "A backup is written to data/backups before every update; the last five are kept. If it fails, no update happens.",
+                "After the restart each affected service is checked for actually running the intended version - \"running again\" alone is not enough."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.2",
           "date": "2026-08-21",
@@ -261,8 +293,26 @@
       ]
     },
     "webui": {
-      "latest": "0.1.3",
+      "latest": "0.1.4",
       "releases": [
+        {
+          "version": "0.1.4",
+          "date": "2026-08-21",
+          "notes": {
+            "added": {
+              "de": [
+                "Das Update betrifft nur noch die Dienste, fuer die es wirklich etwas Neues gibt.",
+                "Nach einem Update laesst sich der Schritt rueckgaengig machen - der Knopf \"Zurueck auf die vorige Version\" erscheint, solange es etwas zurueckzunehmen gibt.",
+                "Vor jedem Update entsteht automatisch eine Sicherung; der Dialog sagt das vorher."
+              ],
+              "en": [
+                "An update now only touches the services that actually have something new.",
+                "After an update the step can be undone - the \"Back to the previous version\" button appears as long as there is something to undo.",
+                "A backup is created automatically before every update; the dialog says so beforehand."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.3",
           "date": "2026-08-21",

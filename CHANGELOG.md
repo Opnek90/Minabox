@@ -23,6 +23,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.4 - 2026-08-21
+
+#### Neu
+- Ein Update kann gezielt einzelne Dienste betreffen, statt immer alle
+  anzufassen.
+
 ### 0.1.3 - 2026-08-21
 
 #### Neu
@@ -61,6 +67,17 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.4 - 2026-08-21
+
+#### Neu
+- Das Update betrifft nur noch die Dienste, fuer die es wirklich etwas Neues
+  gibt.
+- Nach einem Update laesst sich der Schritt rueckgaengig machen - der Knopf
+  "Zurueck auf die vorige Version" erscheint, solange es etwas zurueckzunehmen
+  gibt.
+- Vor jedem Update entsteht automatisch eine Sicherung; der Dialog sagt das
+  vorher.
 
 ### 0.1.3 - 2026-08-21
 
@@ -116,6 +133,17 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.1.3 - 2026-08-21
+
+#### Neu
+- Ein Update kann gezielt einzelne Dienste auf bestimmte Versionen bringen.
+  Alle uebrigen werden dabei auf ihrem laufenden Stand festgenagelt, damit ein
+  gezieltes Update nichts anderes mitzieht.
+- Vor jedem Update entsteht eine Sicherung unter data/backups; die letzten
+  fuenf bleiben erhalten. Schlaegt sie fehl, wird nicht aktualisiert.
+- Nach dem Neustart wird geprueft, ob jeder betroffene Dienst wirklich in der
+  gewuenschten Version laeuft - "laeuft wieder" allein genuegt nicht.
 
 ### 0.1.2 - 2026-08-21
 
