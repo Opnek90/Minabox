@@ -214,22 +214,65 @@ Dabei aufgefallen und mitbehoben:
 * **RAM war nie messbar** auf einem Pi ohne `cgroup_memory=1` - angezeigt
   wurde trotzdem "0.0 MB". Jetzt `null` plus Hinweis, wie man es einschaltet.
 
-### Phase 2 - Releases mit Changelog
+### Phase 1a - Nachzieharbeiten aus E1 - **umgesetzt**
 
-*Ergebnis: `git tag v1.4.0` erzeugt ein GitHub Release mit lesbaren
-Aenderungsnotizen.*
+*Umgesetzt am 2026-08-21.* Zwei Dinge, die mit einer Nummer je Dienst
+zwingend wurden, bevor ein Update-Mechanismus darauf bauen kann:
 
-1. **`CHANGELOG.md`** nach *Keep a Changelog*, auf Deutsch, weil die Notizen
-   im Endkundendialog landen. Abschnitte `Neu` / `Verbessert` / `Behoben`.
-2. **`release.yml`**: bei `push` auf `v*` den Abschnitt zur Version aus
-   `CHANGELOG.md` schneiden und als Release-Body setzen. Prerelease-Flag bei
-   `-rc`/`-beta` im Tag.
+1. **Die CI baut nur noch geaenderte Dienste** und weigert sich, einen bereits
+   vergebenen Versions-Tag zu ueberschreiben. Vorher waere ein unveraenderter
+   Dienst bei jedem Push erneut unter seiner alten Nummer gelandet - mit
+   anderem Digest, weil `BUILD_DATE` bei jedem Lauf anders war. Derselbe Tag
+   haette auf verschiedene Staende gezeigt. Details:
+   [Versionierung.md](Versionierung.md).
+2. **Ein Image-Tag je Dienst** in `docker-compose.yml`
+   (`MINABOX_<DIENST>_TAG`, mit `MINABOX_IMAGE_TAG` und `latest` als
+   Rueckfall). Eine einzige globale Variable kann "Backend 0.1.2, Audio 0.1.0"
+   nicht ausdruecken - ohne diese Ebene gibt es weder ein gezieltes Update
+   noch einen Rueckweg.
+
+### Phase 2 - Release-Manifest mit Changelog
+
+*Ergebnis: eine Datei, aus der die Box ablesen kann, welche Version jedes
+Dienstes aktuell ist und was sich geaendert hat.*
+
+Mit E1 passt "ein Release = eine Version" nicht mehr: neun Dienste haben neun
+Nummern, die sich unabhaengig bewegen. Deshalb steht am Ende kein
+Release-Body, sondern ein **Manifest**:
+
+```json
+{
+  "schema": 1,
+  "generated_at": "2026-09-01T10:00:00Z",
+  "services": {
+    "backend": {
+      "latest": "0.2.0",
+      "releases": [
+        {"version": "0.2.0", "date": "2026-09-01",
+         "notes": {"de": ["Sleep-Timer haelt jetzt..."],
+                   "en": ["The sleep timer now holds..."]}}
+      ]
+    }
+  }
+}
+```
+
+1. **`CHANGELOG.md`** nach *Keep a Changelog*, gegliedert **nach Dienst**,
+   Abschnitte `Neu` / `Verbessert` / `Behoben`. **Zweisprachig** (de/en), weil
+   die WebUI beides hat und die Notizen im Endkundendialog landen.
+2. **`release.yml`** erzeugt aus dem Changelog das Manifest und legt es als
+   Release-Asset ab - eine Datei, ein Abruf, kein Rate-Limit-Risiko.
 3. **Konvention festhalten** in [DEVELOPMENT_INSTRUCTIONS.md](DEVELOPMENT_INSTRUCTIONS.md):
-   Conventional Commits (wird bereits gelebt), Bump-Regel, wer taggt.
-4. Optional: `release-drafter` oder `git-cliff` erzeugt den Rohentwurf aus den
-   Commits, der von Hand redigiert wird. Automatisch generierte Changelogs
-   sind fuer Entwickler brauchbar und fuer Nutzer meist nicht - deshalb der
-   Redaktionsschritt.
+   Conventional Commits (wird bereits gelebt), Patch-Bump je geaendertem
+   Dienst, wer veroeffentlicht.
+4. Optional: ein Werkzeug erzeugt den Rohentwurf aus den Commits, der von Hand
+   redigiert wird. Automatisch erzeugte Changelogs sind fuer Entwickler
+   brauchbar und fuer Nutzer meist nicht - deshalb der Redaktionsschritt.
+
+*Alternative, die jetzt offensteht:* Seit die GHCR-Pakete oeffentlich sind,
+liesse sich "gibt es was Neueres" auch direkt aus der Tag-Liste jedes Images
+beantworten, ohne jede Release-Infrastruktur. Das liefert aber keinen
+Changelog - und genau der ist der Punkt des Knopfes.
 
 ### Phase 3 - Der Pruefknopf
 
@@ -342,5 +385,9 @@ Ausarbeitung, sobald 1-3 stehen.
    Installer.
 5. **Automatische Updates** - nie, nur auf Wunsch, oder Sicherheitsupdates
    automatisch? Vorschlag: vorerst nie, nur Hinweis.
-6. **Changelog-Sprache**: Deutsch fuer Nutzer, oder zweisprachig (die WebUI
-   hat de/en)?
+6. ~~**Changelog-Sprache**~~ - **entschieden am 2026-08-21: zweisprachig.**
+   Die WebUI hat de und en, also braucht auch der Changelog beide. Das faellt
+   auf das Release-Manifest zurueck: die Notizen je Dienst und Version stehen
+   dort pro Sprache (`notes: {de: ..., en: ...}`), und der Dialog zeigt die
+   Sprache, die der Nutzer eingestellt hat - mit Deutsch als Rueckfall, falls
+   eine Uebersetzung fehlt.

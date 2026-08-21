@@ -88,11 +88,44 @@ Die Labels stammen bewusst **nicht** von `docker/metadata-action`: deren
 `org.opencontainers.image.version` leitet sich vom Git-Ref ab (bei einem
 main-Push also "main") und wuerde das Label aus dem Dockerfile ueberschreiben.
 
-> **Noch offen:** Die CI baut weiterhin alle neun Images bei jedem Push. Das
-> kostet Laufzeit (der Cache faengt das groesstenteils ab), aendert aber keine
-> Versionsnummern - ein unveraendertes Image wird nur unter demselben Tag neu
-> geschoben. Ein Pfadfilter, der ungeaenderte Dienste ueberspringt, waere die
-> naechste Verbesserung.
+### Gebaut wird nur, was sich geaendert hat
+
+[select_services.py](../.github/scripts/select_services.py) bestimmt vor dem
+Bauen, welche Dienste dieser Lauf betrifft:
+
+| Geaendert | Gebaut wird |
+|---|---|
+| `services/<dienst>-service/**` | dieser Dienst |
+| `services/shared-lib/**` | alle Dienste ausser webui |
+| Workflow oder Skript | nichts |
+| Doku, `docker-compose.yml`, `.env.example` | nichts |
+| kein Vergleichspunkt (Force-Push, erster Push) | alle |
+
+Dass eine Aenderung am Workflow *keinen* Rebuild ausloest, ist Absicht: sie
+aendert keinen Image-Inhalt. Was ein Image wirklich veraendert - Dockerfile,
+Quelltext, Requirements - liegt unter `services/<dienst>-service/` und wird
+dadurch ohnehin erfasst. Wuerde eine Workflow-Aenderung alle neun Dienste neu
+bauen, landeten unveraenderte Dienste erneut unter ihrer bereits
+veroeffentlichten Nummer.
+
+### Ein Versions-Tag ist unveraenderlich
+
+Vor dem Push prueft der Lauf, ob der Versions-Tag in der Registry schon
+existiert. Wenn ja und er stammt aus einem **anderen** Commit, bricht der Job
+ab:
+
+```
+Version 0.1.1 von backend ist bereits vergeben (aus Commit a24b276...).
+Bitte services/backend-service/VERSION anheben.
+```
+
+Damit erzwingt die CI die Bump-Regel, statt sich auf Disziplin zu verlassen.
+Zwei Ausnahmen: derselbe Commit darf durchlaufen (ein Neulauf desselben
+Standes), und ein Lauf von Hand (`workflow_dispatch`) warnt nur, statt
+abzubrechen.
+
+`BUILD_DATE` kommt aus dem Commit-Zeitstempel, nicht aus der Uhr des Runners -
+ein Neulauf desselben Commits erzeugt sonst allein deshalb ein anderes Image.
 
 ---
 
@@ -189,9 +222,38 @@ sudo sed -i '1s/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline
 Danach neu starten. (Der Hinweis in `docker-compose.yml` zu den
 Ressourcen-Limits beschreibt denselben Schalter.)
 
+**Worauf sich der Prozentwert bezieht**, haengt vom Aufbau ab: Docker meldet
+das Speicherlimit des Containers, und wo keines gesetzt ist - der Normalfall
+hier - ist das der gesamte Arbeitsspeicher des Hosts. "129 MB · 3.4 %" heisst
+also heute "3,4 % des Systemspeichers". Werden spaeter Limits je Container
+gesetzt, wird daraus "3,4 % des Budgets dieses Containers".
+
 ---
 
-## 5. Einen Dienst veroeffentlichen
+## 5. Welches Image auf der Box laeuft
+
+`docker-compose.yml` loest den Tag jedes Dienstes von fein nach grob auf:
+
+```yaml
+image: ghcr.io/opnek90/minabox-backend:${MINABOX_BACKEND_TAG:-${MINABOX_IMAGE_TAG:-latest}}
+```
+
+1. `MINABOX_<DIENST>_TAG` - gilt nur fuer diesen Dienst,
+2. `MINABOX_IMAGE_TAG` - gilt fuer alle ohne eigenen Eintrag,
+3. `latest` - folgt dem main-Branch.
+
+Mit einer Nummer pro Dienst reicht eine einzige globale Variable nicht mehr
+aus: "Backend 0.1.2, Audio 0.1.0" laesst sich darin nicht ausdruecken. Erst
+die Ebene je Dienst macht ein gezieltes Update moeglich - und den Weg zurueck,
+wenn eine Version Aerger macht:
+
+```bash
+# Nur das Backend auf die vorige Version zurueckdrehen
+echo "MINABOX_BACKEND_TAG=0.1.1" >> .env
+docker compose up -d backend
+```
+
+## 6. Einen Dienst veroeffentlichen
 
 ```bash
 # 1. Version anheben
@@ -208,7 +270,7 @@ Image laeuft. Zeigt ein Dienst nach einem Update noch die alte Version, ist
 sein Container nicht neu gestartet worden - genau diese Abweichung soll die
 Anzeige sichtbar machen.
 
-## 6. Lokal entwickeln
+## 7. Lokal entwickeln
 
 `docker compose build` setzt keine Build-Args. Alle so gebauten Images melden
 `0.0.0-dev`, und die Oberflaeche zeigt "Entwicklungsbuild". Wer eine Nummer

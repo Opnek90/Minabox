@@ -266,7 +266,12 @@ def parse_stats(raw: dict[str, Any]) -> dict[str, Any]:
     return {
         "cpu_percent": cpu_percent,
         "memory_mb": round(mem_rss / 1024 / 1024, 1),
-        # Without a container memory limit there is no meaningful percentage.
+        # What the percentage refers to depends on the setup: Docker reports the
+        # container's memory limit, and where none is set - the default here,
+        # see the note on resource limits in docker-compose.yml - that is the
+        # host's total RAM. So today this reads as "share of system memory";
+        # once limits are configured it becomes "share of this container's
+        # budget". Zero only occurs when Docker reports no limit at all.
         "memory_percent": (
             round((mem_rss / mem_limit) * 100.0, 1) if mem_limit > 0 else None
         ),

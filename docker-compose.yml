@@ -63,7 +63,7 @@ services:
   # Backend Service
   # =================================
   backend:
-    image: ghcr.io/opnek90/minabox-backend:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-backend:${MINABOX_BACKEND_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services
       dockerfile: backend-service/Dockerfile
@@ -135,7 +135,7 @@ services:
   # Host-Helper (internal; .env write, optional move)
   # =================================
   host-helper:
-    image: ghcr.io/opnek90/minabox-host-helper:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-host-helper:${MINABOX_HOST_HELPER_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services
       dockerfile: host-helper-service/Dockerfile
@@ -189,7 +189,7 @@ services:
   # Audio Service (VLC via PipeWire/Pulse)
   # =================================
   audio:
-    image: ghcr.io/opnek90/minabox-audio:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-audio:${MINABOX_AUDIO_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services
       dockerfile: audio-service/Dockerfile
@@ -233,7 +233,7 @@ services:
   # =================================
   rfid:
     profiles: ["rfid"]
-    image: ghcr.io/opnek90/minabox-rfid:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-rfid:${MINABOX_RFID_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services
       dockerfile: rfid-service/Dockerfile
@@ -269,7 +269,7 @@ services:
   # =================================
   button:
     profiles: ["button"]
-    image: ghcr.io/opnek90/minabox-button:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-button:${MINABOX_BUTTON_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services
       dockerfile: button-service/Dockerfile
@@ -309,7 +309,7 @@ services:
   # =================================
   led:
     profiles: ["led"]
-    image: ghcr.io/opnek90/minabox-led:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-led:${MINABOX_LED_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services
       dockerfile: led-service/Dockerfile
@@ -349,7 +349,7 @@ services:
   # =================================
   display:
     profiles: ["display"]
-    image: ghcr.io/opnek90/minabox-display:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-display:${MINABOX_DISPLAY_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services
       dockerfile: display-service/Dockerfile
@@ -387,7 +387,7 @@ services:
   # WebUI Service
   # =================================
   webui:
-    image: ghcr.io/opnek90/minabox-webui:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-webui:${MINABOX_WEBUI_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services/webui-service
       dockerfile: Dockerfile
@@ -423,7 +423,7 @@ services:
   # ============================================================
   media-downloader:
     profiles: ["media"]
-    image: ghcr.io/opnek90/minabox-media-downloader:${MINABOX_IMAGE_TAG:-latest}
+    image: ghcr.io/opnek90/minabox-media-downloader:${MINABOX_MEDIA_DOWNLOADER_TAG:-${MINABOX_IMAGE_TAG:-latest}}
     build:
       context: ./services
       dockerfile: media-downloader-service/Dockerfile

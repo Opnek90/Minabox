@@ -1,18 +1,25 @@
 name: Build & Push Images
 
-# Baut alle Minabox-Service-Images und schiebt sie nach GHCR.
+# Baut die Minabox-Service-Images und schiebt sie nach GHCR.
 # Der Installations-Wizard (install.sh) laedt ausschliesslich von dort -
 # ohne diesen Workflow gibt es nichts zu pullen.
 #
-# Einmalig nach dem ersten erfolgreichen Lauf noetig: die Packages unter
-# github.com/users/Opnek90/packages auf "public" stellen, sonst verlangt
-# "docker pull" auf dem Pi ein Login.
+# Gebaut wird nur, was sich geaendert hat. Jeder Dienst traegt seine eigene
+# Version in services/<dienst>-service/VERSION (docs/Versionierung.md); ein
+# unveraenderter Dienst darf nicht neu unter seiner alten Nummer landen, sonst
+# zeigt derselbe Tag auf verschiedene Staende und die Versionsanzeige in der
+# WebUI wird wertlos.
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      build_all:
+        description: "Alle Dienste bauen, unabhaengig von den Aenderungen"
+        type: boolean
+        default: true
 
 concurrency:
   group: build-images-${{ github.ref }}
@@ -22,7 +29,31 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # ── Welche Dienste muessen gebaut werden? ─────────────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      any: ${{ steps.select.outputs.any }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Volle Historie: ohne sie gibt es keinen Vergleichspunkt fuer das
+          # Diff gegen den vorherigen Stand.
+          fetch-depth: 0
+
+      - name: Select services
+        id: select
+        env:
+          BEFORE: ${{ github.event.before }}
+          BUILD_ALL: ${{ github.event_name != 'push' || inputs.build_all }}
+        run: python3 .github/scripts/select_services.py
+
+  # ── Bauen und pushen ──────────────────────────────────────────────────────
   build:
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
     # Nativer arm64-Runner. Das ist hier nicht Kosmetik: led- und
     # button-service kompilieren lgpio aus dem Quelltext und webui baut mit
     # npm - unter QEMU dauert das ein Vielfaches und laeuft ins Job-Timeout.
@@ -35,19 +66,7 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Acht Services bauen aus ./services, weil sie shared-lib brauchen.
-          - { name: backend,          image: minabox-backend,          context: ./services, dockerfile: ./services/backend-service/Dockerfile }
-          - { name: host-helper,      image: minabox-host-helper,      context: ./services, dockerfile: ./services/host-helper-service/Dockerfile }
-          - { name: audio,            image: minabox-audio,            context: ./services, dockerfile: ./services/audio-service/Dockerfile }
-          - { name: rfid,             image: minabox-rfid,             context: ./services, dockerfile: ./services/rfid-service/Dockerfile }
-          - { name: button,           image: minabox-button,           context: ./services, dockerfile: ./services/button-service/Dockerfile }
-          - { name: led,              image: minabox-led,              context: ./services, dockerfile: ./services/led-service/Dockerfile }
-          - { name: display,          image: minabox-display,          context: ./services, dockerfile: ./services/display-service/Dockerfile }
-          - { name: media-downloader, image: minabox-media-downloader, context: ./services, dockerfile: ./services/media-downloader-service/Dockerfile }
-          # webui hat einen eigenen, engeren Context (kein shared-lib).
-          - { name: webui,            image: minabox-webui,            context: ./services/webui-service, dockerfile: ./services/webui-service/Dockerfile }
+      matrix: ${{ fromJson(needs.changes.outputs.matrix) }}
 
     steps:
       - name: Checkout
@@ -63,9 +82,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Jeder Dienst traegt seine eigene Version in services/<name>-service/VERSION.
-      # Sie wird zum Image-Tag *und* zum Build-Arg - dieselbe Zahl steht damit
-      # in der Registry und im OCI-Label des Images (docs/Versionierung.md).
+      # Die Version wird zum Image-Tag *und* zum Build-Arg - dieselbe Zahl
+      # steht damit in der Registry und im OCI-Label des Images.
       - name: Read service version
         id: ver
         run: |
@@ -80,7 +98,37 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "major_minor=${version%.*}" >> "$GITHUB_OUTPUT"
-          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(git show -s --format=%cI ${{ github.sha }})" >> "$GITHUB_OUTPUT"
+
+      # Ein Versions-Tag ist unveraenderlich. Existiert er schon und stammt aus
+      # einem anderen Commit, wurde die VERSION-Datei nicht angehoben - dann
+      # bricht der Lauf ab, statt die vorhandene Nummer zu ueberschreiben.
+      # Derselbe Commit darf durch: das ist ein Neulauf desselben Standes.
+      - name: Ensure version tag is free
+        env:
+          # Ein Lauf von Hand ist eine bewusste Entscheidung - dort warnt der
+          # Wachposten nur. Auf einem Push ist ein vergebener Tag dagegen ein
+          # vergessener Versions-Bump und bricht den Lauf ab.
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          ref="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ steps.ver.outputs.version }}"
+          if ! out="$(docker buildx imagetools inspect "$ref" \
+                --format '{{ index .Image.Config.Labels "org.opencontainers.image.revision" }}' 2>/dev/null)"; then
+            echo "Tag $ref ist frei."
+            exit 0
+          fi
+          if [ "$out" = "${{ github.sha }}" ]; then
+            echo "Tag $ref stammt aus diesem Commit - Neulauf, wird neu geschrieben."
+            exit 0
+          fi
+          msg="Version ${{ steps.ver.outputs.version }} von ${{ matrix.name }} ist bereits vergeben (aus Commit ${out:-unbekannt}). Bitte services/${{ matrix.name }}-service/VERSION anheben."
+          if [ "$MANUAL" = "true" ]; then
+            echo "::warning file=services/${{ matrix.name }}-service/VERSION::$msg Manueller Lauf - wird ueberschrieben."
+            exit 0
+          fi
+          echo "::error file=services/${{ matrix.name }}-service/VERSION::$msg"
+          exit 1
 
       - name: Derive tags
         id: meta
