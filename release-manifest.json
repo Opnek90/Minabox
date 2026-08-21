@@ -22,8 +22,22 @@
       ]
     },
     "backend": {
-      "latest": "0.1.4",
+      "latest": "0.1.5",
       "releases": [
+        {
+          "version": "0.1.5",
+          "date": "2026-08-21",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Rueckweg auf eine vorige Version wird nicht mehr angeboten."
+              ],
+              "en": [
+                "Going back to a previous version is no longer offered."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.4",
           "date": "2026-08-21",
@@ -149,8 +163,22 @@
       ]
     },
     "host-helper": {
-      "latest": "0.1.3",
+      "latest": "0.1.4",
       "releases": [
+        {
+          "version": "0.1.4",
+          "date": "2026-08-21",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Rueckweg auf eine vorige Version wird nicht mehr angeboten. Welche Versionen vor einem Update liefen, wird weiterhin festgehalten - fuer Supportanfragen, nicht als Knopf."
+              ],
+              "en": [
+                "Going back to a previous version is no longer offered. Which versions ran before an update is still recorded - for support questions, not as a button."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.3",
           "date": "2026-08-21",
@@ -293,8 +321,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.4",
+      "latest": "0.1.5",
       "releases": [
+        {
+          "version": "0.1.5",
+          "date": "2026-08-21",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Knopf \"Zurueck auf die vorige Version\" ist entfallen. Ein Rueckschritt ist nur harmlos, wenn die aeltere Fassung alle Daten der neueren lesen kann - das laesst sich derzeit nicht zusagen. Wer zurueck muss, spielt die Sicherung von vor dem Update ein."
+              ],
+              "en": [
+                "The \"Back to the previous version\" button is gone. A rollback is only safe when the older version can read everything the newer one wrote, and that cannot be promised today. To go back, restore the backup taken before the update."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.4",
           "date": "2026-08-21",

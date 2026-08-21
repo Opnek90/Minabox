@@ -2150,22 +2150,15 @@ def update_minabox_status(_: None = Depends(_check_api_key)) -> dict:
         except (OSError, ValueError):
             state = {}
 
-    previous = state.get("previous") or {}
-    targets = state.get("targets") or {}
-    # Ein Rueckweg ergibt nur Sinn, wenn ein gezieltes Update lief und die
-    # Vorgaengerversionen bekannt sind.
-    rollback = {
-        service: previous[service]
-        for service in targets
-        if previous.get(service) and previous[service] != targets[service]
-    }
-
+    # "previous" bleibt in der Zustandsdatei stehen: fuer eine Supportanfrage
+    # ist "was lief vorher" die erste Frage. Als Aktion wird es nicht
+    # angeboten - ein Rueckschritt auf eine aeltere Fassung kann Daten
+    # zuruecklassen, die sie nicht lesen kann.
     return {
         "running": running,
         "steps": list(UPDATE_STEPS),
         "log": log_text,
-        "targets": targets,
-        "rollback": rollback,
+        "targets": state.get("targets") or {},
         **parsed,
     }
 

@@ -625,8 +625,7 @@ async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
     der Host-Helper waehrenddessen selbst neu erzeugt wird.
 
     Mit `targets` werden genau die genannten Dienste auf genau die genannten
-    Versionen gebracht - derselbe Weg dient dem Rueckschritt, nur mit
-    aelteren Nummern.
+    Versionen gebracht.
     """
     payload = body.model_dump() if body else {"targets": None, "backup": True}
     return await _proxy(
@@ -658,7 +657,6 @@ async def update_minabox_status() -> dict:
             "steps": [],
             "log": "",
             "targets": {},
-            "rollback": {},
             "unreachable": True,
         },
         log_event="host_helper_update_minabox_status_failed",

@@ -22,6 +22,11 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.5 - 2026-08-21
+
+#### Improved
+- Going back to a previous version is no longer offered.
+
 ### 0.1.4 - 2026-08-21
 
 #### Added
@@ -65,6 +70,14 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.5 - 2026-08-21
+
+#### Improved
+- The "Back to the previous version" button is gone. A rollback is only safe
+  when the older version can read everything the newer one wrote, and that
+  cannot be promised today. To go back, restore the backup taken before the
+  update.
 
 ### 0.1.4 - 2026-08-21
 
@@ -127,6 +140,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.1.4 - 2026-08-21
+
+#### Improved
+- Going back to a previous version is no longer offered. Which versions ran
+  before an update is still recorded - for support questions, not as a button.
 
 ### 0.1.3 - 2026-08-21
 

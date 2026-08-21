@@ -266,17 +266,28 @@ waere keins. Nach dem ersten Update laeuft eine Box also auf festen Nummern
 statt auf `latest`; was sie faehrt, steht in der `.env` und ist damit
 nachlesbar und umkehrbar.
 
-### Sicherung und Rueckweg
+### Sicherung
 
 Vor jedem Update legt der Host-Helper eine Sicherung unter `data/backups/`
 ab (Datenbank, Einstellungen, Dienst-Zustaende); die letzten fuenf bleiben
-erhalten. Schlaegt sie fehl, wird nicht aktualisiert - ein Rueckweg ohne
-Sicherung waere nur eine Hoffnung.
+erhalten. Schlaegt sie fehl, wird nicht aktualisiert.
 
-Der Rueckweg selbst ist derselbe Vorgang mit aelteren Nummern. Die Oberflaeche
-bietet ihn an, solange die Vorgaengerversionen bekannt sind. Eine Warnung
-gehoert dazu und steht auch dort: eine aeltere Fassung muss Daten, die die
-neuere geschrieben hat, nicht lesen koennen.
+### Warum es keinen Knopf "zurueck auf die vorige Version" gibt
+
+Technisch waere er einfach - derselbe Vorgang mit aelteren Nummern. Er wurde
+bewusst wieder entfernt.
+
+Ein Rueckschritt ist nur dann harmlos, wenn die aeltere Fassung alles lesen
+kann, was die neuere geschrieben hat. Das laesst sich heute nicht zusagen: die
+Migrationen in `db_manager` sind idempotente `ALTER TABLE`s ohne
+Schemastempel - vorwaerts robust, rueckwaerts blind. Ein Knopf, der das
+verspricht, waere ein Versprechen ohne Deckung, und er wuerde ausgerechnet in
+dem Moment gedrueckt, in dem ohnehin etwas schiefgegangen ist.
+
+Wer wirklich zurueck muss, hat den ehrlichen Weg: die Sicherung von vor dem
+Update ueber *Wiederherstellen* einspielen und den Tag in der `.env` von Hand
+setzen. Das ist ein bewusster Eingriff mit einem passenden Datenstand - kein
+Knopf, der Einfachheit vortaeuscht.
 
 ## 6. Einen Dienst veroeffentlichen
 

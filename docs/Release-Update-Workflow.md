@@ -341,15 +341,18 @@ aktualisieren?"*
   Container.
 * **Verifikation**: nach dem Neustart wird geprueft, ob jeder betroffene
   Dienst wirklich die Zielversion faehrt - nicht nur, ob er laeuft.
-* **Rueckweg**: derselbe Vorgang mit aelteren Nummern, mit Warnung vor
-  Datenformaten, die eine aeltere Fassung nicht kennt.
+* **Kein Rueckweg-Knopf.** Er war gebaut und wurde am 2026-08-21 wieder
+  entfernt: ein Rueckschritt ist nur harmlos, wenn die aeltere Fassung alles
+  lesen kann, was die neuere geschrieben hat, und das laesst sich ohne
+  Schemastempel in der Datenbank nicht zusagen. Der ehrliche Weg bleibt die
+  Sicherung von vor dem Update plus ein von Hand gesetzter Tag.
 
 Offen geblieben:
 
-* **Schemaversion in der Datenbank.** Ohne sie ist ein Rueckschritt eine
-  begruendete Vermutung statt einer gepruefte Aussage. Die Migrationen in
-  `db_manager` sind idempotente `ALTER TABLE`s ohne Stempel - vorwaerts
-  robust, rueckwaerts blind. Solange gilt: Sicherung davor, Warnung dabei.
+* **Schemaversion in der Datenbank.** Die Migrationen in `db_manager` sind
+  idempotente `ALTER TABLE`s ohne Stempel - vorwaerts robust, rueckwaerts
+  blind. Erst damit waere ein Rueckschritt eine gepruefte Aussage statt einer
+  Vermutung.
 * **Digest-Zusatzpruefung** fuer den Fall gleicher Nummer bei neuem Bau.
 
 Urspruengliche Planung:

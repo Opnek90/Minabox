@@ -23,6 +23,11 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.5 - 2026-08-21
+
+#### Verbessert
+- Der Rueckweg auf eine vorige Version wird nicht mehr angeboten.
+
 ### 0.1.4 - 2026-08-21
 
 #### Neu
@@ -67,6 +72,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.5 - 2026-08-21
+
+#### Verbessert
+- Der Knopf "Zurueck auf die vorige Version" ist entfallen. Ein Rueckschritt
+  ist nur harmlos, wenn die aeltere Fassung alle Daten der neueren lesen kann -
+  das laesst sich derzeit nicht zusagen. Wer zurueck muss, spielt die
+  Sicherung von vor dem Update ein.
 
 ### 0.1.4 - 2026-08-21
 
@@ -133,6 +146,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.1.4 - 2026-08-21
+
+#### Verbessert
+- Der Rueckweg auf eine vorige Version wird nicht mehr angeboten. Welche
+  Versionen vor einem Update liefen, wird weiterhin festgehalten - fuer
+  Supportanfragen, nicht als Knopf.
 
 ### 0.1.3 - 2026-08-21
 
