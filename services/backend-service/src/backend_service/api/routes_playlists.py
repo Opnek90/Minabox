@@ -6,9 +6,10 @@ import os
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.models.database import Playlist, PlaylistTrack, Track
 from backend_service.models.schemas import (
@@ -57,16 +58,7 @@ def get_playlist(
 
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     if not playlist:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PLAYLIST_NOT_FOUND",
-                    "message": f"Playlist {playlist_id} not found",
-                    "details": {"playlist_id": playlist_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="playlist_not_found", detail=f"Playlist {playlist_id} not found")
 
     # Load tracks in order
     playlist_tracks = (
@@ -156,16 +148,7 @@ def update_playlist(
 
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     if not playlist:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PLAYLIST_NOT_FOUND",
-                    "message": f"Playlist {playlist_id} not found",
-                    "details": {"playlist_id": playlist_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="playlist_not_found", detail=f"Playlist {playlist_id} not found")
 
     # Update fields
     if playlist_data.name is not None:
@@ -217,16 +200,7 @@ def delete_playlist(playlist_id: int, db: Session = Depends(get_db)) -> None:
 
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     if not playlist:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PLAYLIST_NOT_FOUND",
-                    "message": f"Playlist {playlist_id} not found",
-                    "details": {"playlist_id": playlist_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="playlist_not_found", detail=f"Playlist {playlist_id} not found")
 
     # Remove cover art if present
     cover_path = COVERS_DIR / f"playlist_{playlist_id}.jpg"
@@ -248,7 +222,7 @@ async def upload_playlist_cover(
     """Upload cover art for a playlist."""
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     if not playlist:
-        raise HTTPException(status_code=404, detail={"error": {"code": "PLAYLIST_NOT_FOUND", "message": f"Playlist {playlist_id} not found"}})
+        raise ApiError(status_code=404, code="playlist_not_found", detail=f"Playlist {playlist_id} not found")
 
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"playlist_{playlist_id}.jpg"
@@ -270,7 +244,7 @@ def delete_playlist_cover(
     """Remove cover art from a playlist."""
     playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
     if not playlist:
-        raise HTTPException(status_code=404, detail={"error": {"code": "PLAYLIST_NOT_FOUND", "message": f"Playlist {playlist_id} not found"}})
+        raise ApiError(status_code=404, code="playlist_not_found", detail=f"Playlist {playlist_id} not found")
 
     cover_path = COVERS_DIR / f"playlist_{playlist_id}.jpg"
     if cover_path.exists():

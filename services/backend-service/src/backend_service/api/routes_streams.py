@@ -6,9 +6,10 @@ import os
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
 
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.models.database import Stream, StreamFolder
 from backend_service.models.schemas import (
@@ -37,10 +38,7 @@ def list_streams(
     elif folder_id is not None:
         folder = db.query(StreamFolder).filter(StreamFolder.id == folder_id).first()
         if not folder:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
-            )
+            raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {folder_id} not found")
         query = query.filter(Stream.folder_id == folder_id)
     return [StreamResponse.model_validate(s) for s in query.all()]
 
@@ -53,16 +51,7 @@ def get_stream(
     logger.info("api_get_stream", stream_id=stream_id)
     stream = db.query(Stream).filter(Stream.id == stream_id).first()
     if not stream:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "STREAM_NOT_FOUND",
-                    "message": f"Stream {stream_id} not found",
-                    "details": {"stream_id": stream_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="stream_not_found", detail=f"Stream {stream_id} not found")
     return StreamResponse.model_validate(stream)
 
 
@@ -76,10 +65,7 @@ def create_stream(
     if stream_data.folder_id is not None:
         folder = db.query(StreamFolder).filter(StreamFolder.id == stream_data.folder_id).first()
         if not folder:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {stream_data.folder_id} not found", "details": {"folder_id": stream_data.folder_id}}},
-            )
+            raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {stream_data.folder_id} not found")
     stream = Stream(
         title=stream_data.title,
         artist=stream_data.artist,
@@ -103,16 +89,7 @@ def update_stream(
     logger.info("api_update_stream", stream_id=stream_id)
     stream = db.query(Stream).filter(Stream.id == stream_id).first()
     if not stream:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "STREAM_NOT_FOUND",
-                    "message": f"Stream {stream_id} not found",
-                    "details": {"stream_id": stream_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="stream_not_found", detail=f"Stream {stream_id} not found")
     if stream_data.title is not None:
         stream.title = stream_data.title
     if stream_data.artist is not None:
@@ -123,10 +100,7 @@ def update_stream(
         if stream_data.folder_id is not None:
             folder = db.query(StreamFolder).filter(StreamFolder.id == stream_data.folder_id).first()
             if not folder:
-                raise HTTPException(
-                    status_code=404,
-                    detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {stream_data.folder_id} not found", "details": {"folder_id": stream_data.folder_id}}},
-                )
+                raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {stream_data.folder_id} not found")
         stream.folder_id = stream_data.folder_id
     db.commit()
     db.refresh(stream)
@@ -141,16 +115,7 @@ def delete_stream(
     logger.info("api_delete_stream", stream_id=stream_id)
     stream = db.query(Stream).filter(Stream.id == stream_id).first()
     if not stream:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "STREAM_NOT_FOUND",
-                    "message": f"Stream {stream_id} not found",
-                    "details": {"stream_id": stream_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="stream_not_found", detail=f"Stream {stream_id} not found")
     cover_path = COVERS_DIR / f"stream_{stream_id}.jpg"
     if cover_path.exists():
         cover_path.unlink()
@@ -168,16 +133,7 @@ async def upload_stream_cover(
     """Upload cover art for a stream."""
     stream = db.query(Stream).filter(Stream.id == stream_id).first()
     if not stream:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "STREAM_NOT_FOUND",
-                    "message": f"Stream {stream_id} not found",
-                    "details": {"stream_id": stream_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="stream_not_found", detail=f"Stream {stream_id} not found")
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"stream_{stream_id}.jpg"
     content = await file.read()
@@ -197,16 +153,7 @@ def delete_stream_cover(
     """Remove cover art from a stream."""
     stream = db.query(Stream).filter(Stream.id == stream_id).first()
     if not stream:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "STREAM_NOT_FOUND",
-                    "message": f"Stream {stream_id} not found",
-                    "details": {"stream_id": stream_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="stream_not_found", detail=f"Stream {stream_id} not found")
     cover_path = COVERS_DIR / f"stream_{stream_id}.jpg"
     if cover_path.exists():
         cover_path.unlink()

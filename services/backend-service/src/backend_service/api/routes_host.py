@@ -19,12 +19,13 @@ from typing import Any
 
 import httpx
 import structlog
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend_service.config import get_config
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.core.temperature_logger import get_current_alert
 from backend_service.models.database import TemperatureReading
@@ -54,12 +55,12 @@ def _allowed_audio_paths() -> list[str]:
 
 def _validate_path(path: str) -> None:
     if not path or not path.strip():
-        raise HTTPException(status_code=400, detail="path required")
+        raise ApiError(status_code=400, code="path_required", detail="path required")
     if ".." in path:
-        raise HTTPException(status_code=400, detail="Invalid path")
+        raise ApiError(status_code=400, code="path_invalid", detail="Invalid path")
     p = Path(path).resolve()
     if not p.is_absolute():
-        raise HTTPException(status_code=400, detail="Path must be absolute")
+        raise ApiError(status_code=400, code="path_not_absolute", detail="Path must be absolute")
     allowed = _allowed_audio_paths()
     for base in allowed:
         try:
@@ -67,7 +68,7 @@ def _validate_path(path: str) -> None:
             return
         except ValueError:
             continue
-    raise HTTPException(status_code=400, detail="Path not under allowed base paths")
+    raise ApiError(status_code=400, code="path_not_allowed", detail="Path not under allowed base paths")
 
 
 # ── Shared HTTP client ───────────────────────────────────────────────────────
@@ -138,6 +139,7 @@ async def _proxy(
     path: str,
     *,
     error_message: str,
+    error_code: str,
     log_event: str,
     timeout: float = HOST_HELPER_TIMEOUT,
     json: dict | None = None,
@@ -155,24 +157,25 @@ async def _proxy(
     """
     api_key = _host_helper_api_key()
     if not api_key:
-        raise HTTPException(status_code=503, detail=not_configured_detail)
+        raise ApiError(status_code=503, code="host_helper_not_configured", detail=not_configured_detail)
     try:
         r = await _request(
             method, path, api_key, timeout=timeout, json=json, params=params, files=files
         )
     except httpx.RequestError as e:
         logger.warning(log_event, error=str(e))
-        raise HTTPException(status_code=503, detail=unreachable_detail) from e
+        raise ApiError(status_code=503, code="host_helper_unreachable", detail=unreachable_detail) from e
 
     if r.status_code == 401:
-        raise HTTPException(status_code=503, detail="Host-Helper authentication failed")
+        raise ApiError(status_code=503, code="host_helper_auth_failed", detail="Host-Helper authentication failed")
     if r.status_code not in ok_statuses and r.status_code >= 400:
-        raise HTTPException(
+        raise ApiError(
             status_code=min(r.status_code, 502),
+            code=error_code,
             detail=_extract_detail(r, error_message),
         )
     if r.status_code not in ok_statuses:
-        raise HTTPException(status_code=503, detail="Host-Helper request failed")
+        raise ApiError(status_code=503, code="host_helper_request_failed", detail="Host-Helper request failed")
     return r.json()
 
 
@@ -358,6 +361,7 @@ async def put_audio_path(body: AudioPathBody) -> dict:
         "/apply-audio-path",
         json={"audio_files_path": path},
         error_message="Invalid path",
+        error_code="audio_path_invalid",
         log_event="host_helper_apply_audio_path_failed",
         unreachable_detail="Host-Helper unreachable. Restart stack after adding host-helper.",
     )
@@ -369,7 +373,7 @@ async def move_audio(body: MoveAudioBody):
     _validate_path(body.destination)
     api_key = _host_helper_api_key()
     if not api_key:
-        raise HTTPException(status_code=503, detail=_NOT_CONFIGURED)
+        raise ApiError(status_code=503, code="host_helper_not_configured", detail=_NOT_CONFIGURED)
     try:
         r = await _request(
             "POST",
@@ -380,18 +384,18 @@ async def move_audio(body: MoveAudioBody):
         )
     except httpx.RequestError as e:
         logger.warning("host_helper_move_failed", error=str(e))
-        raise HTTPException(status_code=503, detail="Host-Helper unreachable.") from e
+        raise ApiError(status_code=503, code="host_helper_unreachable", detail="Host-Helper unreachable.") from e
 
     if r.status_code == 401:
-        raise HTTPException(status_code=503, detail="Host-Helper authentication failed")
+        raise ApiError(status_code=503, code="host_helper_auth_failed", detail="Host-Helper authentication failed")
     if r.status_code == 409:
-        raise HTTPException(status_code=409, detail="Move already in progress")
+        raise ApiError(status_code=409, code="move_in_progress", detail="Move already in progress")
     if r.status_code in (400, 404):
-        raise HTTPException(
-            status_code=r.status_code, detail=_extract_detail(r, "Move failed")
+        raise ApiError(
+            status_code=r.status_code, code="move_failed", detail=_extract_detail(r, "Move failed")
         )
     if r.status_code not in (200, 202):
-        raise HTTPException(status_code=503, detail="Host-Helper request failed")
+        raise ApiError(status_code=503, code="host_helper_request_failed", detail="Host-Helper request failed")
     return JSONResponse(content=r.json(), status_code=r.status_code)
 
 
@@ -413,6 +417,7 @@ async def reboot_host() -> dict:
         "POST",
         "/reboot",
         error_message="Reboot failed",
+        error_code="host_reboot_failed",
         log_event="host_helper_reboot_failed",
     )
 
@@ -424,6 +429,7 @@ async def shutdown_host() -> dict:
         "POST",
         "/shutdown",
         error_message="Shutdown failed",
+        error_code="host_shutdown_failed",
         log_event="host_helper_shutdown_failed",
     )
 
@@ -436,6 +442,7 @@ async def restart_services() -> dict:
         "/restart",
         timeout=125.0,
         error_message="Restart failed",
+        error_code="services_restart_failed",
         log_event="host_helper_restart_failed",
     )
 
@@ -464,6 +471,7 @@ async def put_timezone(body: TimezoneBody) -> dict:
         timeout=15.0,
         json={"timezone": body.timezone},
         error_message="Failed to set timezone",
+        error_code="timezone_set_failed",
         log_event="host_helper_timezone_failed",
     )
 
@@ -487,6 +495,7 @@ async def put_hostname(body: HostnameBody) -> dict:
         timeout=15.0,
         json={"hostname": body.hostname},
         error_message="Failed to set hostname",
+        error_code="hostname_set_failed",
         log_event="host_helper_hostname_failed",
     )
 
@@ -509,6 +518,7 @@ async def put_board_leds(body: BoardLedsBody) -> dict:
         "/system/board-leds",
         json={"stealth": body.stealth},
         error_message="Failed to set board LEDs",
+        error_code="board_leds_set_failed",
         log_event="host_helper_board_leds_failed",
     )
 
@@ -544,6 +554,7 @@ async def put_network(body: NetworkBody) -> dict:
             "dns": body.dns,
         },
         error_message="Failed to set network",
+        error_code="network_set_failed",
         log_event="host_helper_network_failed",
     )
 
@@ -557,6 +568,7 @@ async def set_password(body: PasswordBody) -> dict:
         timeout=15.0,
         json={"username": body.username, "new_password": body.new_password},
         error_message="Failed to set password",
+        error_code="host_password_set_failed",
         log_event="host_helper_password_failed",
     )
 
@@ -569,6 +581,7 @@ async def docker_prune() -> dict:
         "/system/docker-prune",
         timeout=310.0,
         error_message="Docker prune failed",
+        error_code="docker_prune_failed",
         log_event="host_helper_docker_prune_failed",
     )
 
@@ -592,6 +605,7 @@ async def ssh_toggle(body: SshToggleBody) -> dict:
         timeout=20.0,
         json={"enable": body.enable},
         error_message="SSH toggle failed",
+        error_code="ssh_toggle_failed",
         log_event="host_helper_ssh_toggle_failed",
     )
 
@@ -605,6 +619,7 @@ async def factory_reset(body: FactoryResetBody | None = None) -> dict:
         timeout=180.0,
         json={"delete_audio": body.delete_audio if body else False},
         error_message="Factory reset failed",
+        error_code="factory_reset_failed",
         log_event="host_helper_factory_reset_failed",
     )
 
@@ -634,6 +649,7 @@ async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
         timeout=60.0,
         json=payload,
         error_message="Update failed",
+        error_code="update_failed",
         log_event="host_helper_update_minabox_failed",
     )
 
@@ -671,6 +687,7 @@ async def update_os() -> dict:
         "/system/update-os",
         timeout=1900.0,
         error_message="OS update failed",
+        error_code="os_update_failed",
         log_event="host_helper_update_os_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -734,6 +751,7 @@ async def wifi_connect(body: WifiConnectBody) -> dict:
         timeout=50.0,
         json={"ssid": body.ssid, "password": body.password},
         error_message="Connect failed",
+        error_code="wifi_connect_failed",
         log_event="host_helper_wifi_connect_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -748,6 +766,7 @@ async def wifi_hotspot_start(body: HotspotStartBody | None = Body(None)) -> dict
         timeout=25.0,
         json=(body.model_dump() if body else {}),
         error_message="Hotspot start failed",
+        error_code="hotspot_start_failed",
         log_event="host_helper_wifi_hotspot_start_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -761,6 +780,7 @@ async def wifi_hotspot_stop() -> dict:
         "/wifi/hotspot/stop",
         timeout=15.0,
         error_message="Hotspot stop failed",
+        error_code="hotspot_stop_failed",
         log_event="host_helper_wifi_hotspot_stop_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -798,6 +818,7 @@ async def usb_files(device_id: str) -> dict:
         f"/usb/{device_id}/files",
         timeout=25.0,
         error_message="Failed",
+        error_code="usb_files_failed",
         log_event="host_helper_usb_files_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -812,6 +833,7 @@ async def usb_import(body: UsbImportBody) -> dict:
         timeout=300.0,
         json={"device_id": body.device_id, "source_paths": body.source_paths},
         error_message="Import failed",
+        error_code="usb_import_failed",
         log_event="host_helper_usb_import_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -826,6 +848,7 @@ async def usb_eject(body: UsbEjectBody) -> dict:
         timeout=20.0,
         json={"device_id": body.device_id},
         error_message="Eject failed",
+        error_code="usb_eject_failed",
         log_event="host_helper_usb_eject_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -865,6 +888,7 @@ async def bluetooth_pair(body: BluetoothPairBody) -> dict:
         timeout=35.0,
         json={"address": body.address},
         error_message="Pairing failed",
+        error_code="bluetooth_pair_failed",
         log_event="host_helper_bluetooth_pair_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -879,6 +903,7 @@ async def bluetooth_connect(body: BluetoothPairBody) -> dict:
         timeout=20.0,
         json={"address": body.address},
         error_message="Connect failed",
+        error_code="bluetooth_connect_failed",
         log_event="host_helper_bluetooth_connect_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -893,6 +918,7 @@ async def bluetooth_disconnect(body: BluetoothPairBody) -> dict:
         timeout=15.0,
         json={"address": body.address},
         error_message="Disconnect failed",
+        error_code="bluetooth_disconnect_failed",
         log_event="host_helper_bluetooth_disconnect_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -907,6 +933,7 @@ async def bluetooth_remove(body: BluetoothPairBody) -> dict:
         timeout=15.0,
         json={"address": body.address},
         error_message="Remove failed",
+        error_code="bluetooth_remove_failed",
         log_event="host_helper_bluetooth_remove_failed",
         not_configured_detail=_NOT_CONFIGURED_SHORT,
     )
@@ -920,18 +947,18 @@ async def backup_download() -> Response:
     """Download backup ZIP (DB, configs, state). Proxied to Host-Helper."""
     api_key = _host_helper_api_key()
     if not api_key:
-        raise HTTPException(status_code=503, detail=_NOT_CONFIGURED)
+        raise ApiError(status_code=503, code="host_helper_not_configured", detail=_NOT_CONFIGURED)
     try:
         r = await _request("GET", "/backup/download", api_key, timeout=60.0)
     except httpx.RequestError as e:
         logger.warning("host_helper_backup_download_failed", error=str(e))
-        raise HTTPException(status_code=503, detail=_UNREACHABLE) from e
+        raise ApiError(status_code=503, code="host_helper_unreachable", detail=_UNREACHABLE) from e
 
     if r.status_code == 401:
-        raise HTTPException(status_code=503, detail="Host-Helper authentication failed")
+        raise ApiError(status_code=503, code="host_helper_auth_failed", detail="Host-Helper authentication failed")
     if r.status_code != 200:
-        raise HTTPException(
-            status_code=min(r.status_code, 502), detail="Backup download failed"
+        raise ApiError(
+            status_code=min(r.status_code, 502), code="backup_download_failed", detail="Backup download failed"
         )
     disposition = r.headers.get(
         "content-disposition", "attachment; filename=minabox-backup.zip"
@@ -947,16 +974,17 @@ async def backup_download() -> Response:
 async def backup_restore(file: UploadFile = File(...)) -> dict:
     """Upload backup ZIP and restore. Proxied to Host-Helper."""
     if not file.filename or not file.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Upload must be a .zip file")
+        raise ApiError(status_code=400, code="upload_must_be_zip", detail="Upload must be a .zip file")
     try:
         content = await file.read()
     except Exception as e:
-        raise HTTPException(status_code=400, detail="Failed to read upload") from e
+        raise ApiError(status_code=400, code="upload_read_failed", detail="Failed to read upload") from e
     return await _proxy(
         "POST",
         "/backup/restore",
         timeout=300.0,
         files={"file": (file.filename or "backup.zip", content, "application/zip")},
         error_message="Restore failed",
+        error_code="backup_restore_failed",
         log_event="host_helper_backup_restore_failed",
     )

@@ -6,9 +6,10 @@ import os
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
 
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.models.database import Podcast, PodcastEpisode, PodcastFolder
 from backend_service.models.schemas import (
@@ -57,10 +58,7 @@ def list_podcasts(
     elif folder_id is not None:
         folder = db.query(PodcastFolder).filter(PodcastFolder.id == folder_id).first()
         if not folder:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
-            )
+            raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {folder_id} not found")
         query = query.filter(Podcast.folder_id == folder_id)
     podcasts = query.all()
     if not podcasts:
@@ -99,16 +97,7 @@ def get_podcast(
     logger.info("api_get_podcast", podcast_id=podcast_id)
     podcast = db.query(Podcast).filter(Podcast.id == podcast_id).first()
     if not podcast:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PODCAST_NOT_FOUND",
-                    "message": f"Podcast {podcast_id} not found",
-                    "details": {"podcast_id": podcast_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="podcast_not_found", detail=f"Podcast {podcast_id} not found")
     return _podcast_response_with_latest(podcast, db)
 
 
@@ -120,16 +109,7 @@ def list_podcast_episodes(
     logger.info("api_list_podcast_episodes", podcast_id=podcast_id)
     podcast = db.query(Podcast).filter(Podcast.id == podcast_id).first()
     if not podcast:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PODCAST_NOT_FOUND",
-                    "message": f"Podcast {podcast_id} not found",
-                    "details": {"podcast_id": podcast_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="podcast_not_found", detail=f"Podcast {podcast_id} not found")
     episodes = (
         db.query(PodcastEpisode)
         .filter(PodcastEpisode.podcast_id == podcast_id)
@@ -149,10 +129,7 @@ def create_podcast(
     if podcast_data.folder_id is not None:
         folder = db.query(PodcastFolder).filter(PodcastFolder.id == podcast_data.folder_id).first()
         if not folder:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {podcast_data.folder_id} not found", "details": {"folder_id": podcast_data.folder_id}}},
-            )
+            raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {podcast_data.folder_id} not found")
     podcast = Podcast(
         title=podcast_data.title,
         rss_url=podcast_data.rss_url,
@@ -177,16 +154,7 @@ def update_podcast(
     logger.info("api_update_podcast", podcast_id=podcast_id)
     podcast = db.query(Podcast).filter(Podcast.id == podcast_id).first()
     if not podcast:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PODCAST_NOT_FOUND",
-                    "message": f"Podcast {podcast_id} not found",
-                    "details": {"podcast_id": podcast_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="podcast_not_found", detail=f"Podcast {podcast_id} not found")
     if podcast_data.title is not None:
         podcast.title = podcast_data.title
     if podcast_data.rss_url is not None:
@@ -199,10 +167,7 @@ def update_podcast(
         if podcast_data.folder_id is not None:
             folder = db.query(PodcastFolder).filter(PodcastFolder.id == podcast_data.folder_id).first()
             if not folder:
-                raise HTTPException(
-                    status_code=404,
-                    detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {podcast_data.folder_id} not found", "details": {"folder_id": podcast_data.folder_id}}},
-                )
+                raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {podcast_data.folder_id} not found")
         podcast.folder_id = podcast_data.folder_id
     db.commit()
     db.refresh(podcast)
@@ -217,16 +182,7 @@ def delete_podcast(
     logger.info("api_delete_podcast", podcast_id=podcast_id)
     podcast = db.query(Podcast).filter(Podcast.id == podcast_id).first()
     if not podcast:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PODCAST_NOT_FOUND",
-                    "message": f"Podcast {podcast_id} not found",
-                    "details": {"podcast_id": podcast_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="podcast_not_found", detail=f"Podcast {podcast_id} not found")
     cover_path = COVERS_DIR / f"podcast_{podcast_id}.jpg"
     if cover_path.exists():
         cover_path.unlink()
@@ -244,16 +200,7 @@ async def upload_podcast_cover(
     """Upload cover art for a podcast."""
     podcast = db.query(Podcast).filter(Podcast.id == podcast_id).first()
     if not podcast:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PODCAST_NOT_FOUND",
-                    "message": f"Podcast {podcast_id} not found",
-                    "details": {"podcast_id": podcast_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="podcast_not_found", detail=f"Podcast {podcast_id} not found")
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"podcast_{podcast_id}.jpg"
     content = await file.read()
@@ -273,16 +220,7 @@ def delete_podcast_cover(
     """Remove cover art from a podcast."""
     podcast = db.query(Podcast).filter(Podcast.id == podcast_id).first()
     if not podcast:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "PODCAST_NOT_FOUND",
-                    "message": f"Podcast {podcast_id} not found",
-                    "details": {"podcast_id": podcast_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="podcast_not_found", detail=f"Podcast {podcast_id} not found")
     cover_path = COVERS_DIR / f"podcast_{podcast_id}.jpg"
     if cover_path.exists():
         cover_path.unlink()

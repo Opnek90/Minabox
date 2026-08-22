@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
+from backend_service.core.api_errors import ApiError
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.models.schemas import RFIDLearningModeCommand
 
@@ -41,7 +42,7 @@ async def set_learning_mode(command: RFIDLearningModeCommand) -> dict:
     logger.info("api_rfid_set_learning_mode", enabled=command.enabled, mode=mode)
 
     if not _mqtt_client:
-        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+        raise ApiError(status_code=500, code="mqtt_not_initialized", detail="MQTT client not initialized")
 
     await _mqtt_client.publish_rfid_command("cmd/set-mode", {"mode": mode})
 

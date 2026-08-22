@@ -11,31 +11,34 @@ import os
 from pathlib import Path
 
 import structlog
-from shared_lib.logging import setup_structlog
-from shared_lib.mqtt import get_mqtt_topic
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from shared_lib.logging import setup_structlog
+from shared_lib.mqtt import get_mqtt_topic
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend_service import __version__
 from backend_service.api import api_router
 from backend_service.api.routes_audio import (
     set_mqtt_client as set_audio_mqtt_client,
+)
+from backend_service.api.routes_audio import (
     set_mqtt_handlers as set_audio_mqtt_handlers,
 )
 from backend_service.api.routes_config import set_mqtt_client as set_config_mqtt_client
+from backend_service.api.routes_host import close_host_helper_client
 from backend_service.api.routes_rfid import set_mqtt_client as set_rfid_mqtt_client
 from backend_service.api.routes_system import set_mqtt_client as set_system_mqtt_client
 from backend_service.api.websocket import websocket_endpoint, ws_manager
 from backend_service.config_schema import AppConfig
+from backend_service.core.api_errors import ApiError, api_error_handler
 from backend_service.core.db_manager import init_db
-from backend_service.core.system_alerts import set_alert
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
 from backend_service.core.podcast_fetcher import run_podcast_fetch_loop
-from backend_service.api.routes_host import close_host_helper_client
+from backend_service.core.system_alerts import set_alert
 from backend_service.core.temperature_logger import run_temperature_log_loop
 from backend_service.core.update_check import run_update_check_loop
 from backend_service.middleware.auth import web_auth_middleware
@@ -208,6 +211,7 @@ class BackendService:
             description="Central orchestration and data management for Minabox",
             version=__version__,
         )
+        app.add_exception_handler(ApiError, api_error_handler)
 
         # CORS middleware: origins are loaded from config to allow per-environment
         # restriction. Use CORS_ALLOWED_ORIGINS=['*'] in .env for local dev;
@@ -273,7 +277,7 @@ class BackendService:
         if self._uvicorn_task and not self._uvicorn_task.done():
             try:
                 await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
+            except (TimeoutError, asyncio.CancelledError):
                 pass
         logger.info("api_server_stopped")
 

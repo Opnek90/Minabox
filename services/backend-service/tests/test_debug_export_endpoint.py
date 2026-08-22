@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend_service.api import routes_debug
+from backend_service.core.api_errors import ApiError, api_error_handler
 from backend_service.middleware.auth import web_auth_middleware
 
 
@@ -24,6 +25,7 @@ from backend_service.middleware.auth import web_auth_middleware
 def app(monkeypatch):
     """Minimal app with the real middleware and the real route."""
     application = FastAPI()
+    application.add_exception_handler(ApiError, api_error_handler)
     application.add_middleware(BaseHTTPMiddleware, dispatch=web_auth_middleware)
     application.include_router(routes_debug.router, prefix="/api/v1/system")
 
@@ -140,9 +142,9 @@ async def test_rate_limited_429_is_machine_readable(app, tiny_export):
         await client.post("/api/v1/system/debug-export", json={})
         second = await client.post("/api/v1/system/debug-export", json={})
     assert second.status_code == 429
-    detail = second.json()["detail"]
-    assert detail["code"] == "export_rate_limited"
-    assert detail["retry_after"] >= 0
+    body = second.json()
+    assert body["code"] == "export_rate_limited"
+    assert body["retry_after"] >= 0
     assert second.headers["Retry-After"]
 
 
@@ -158,7 +160,7 @@ async def test_concurrent_export_reports_in_progress(app, tiny_export, monkeypat
     async with _client(app, "192.168.1.42") as client:
         response = await client.post("/api/v1/system/debug-export", json={})
     assert response.status_code == 429
-    assert response.json()["detail"]["code"] == "export_in_progress"
+    assert response.json()["code"] == "export_in_progress"
 
 
 @pytest.mark.asyncio

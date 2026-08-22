@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import structlog
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 import backend_service.core.db_manager as _db_module
+from backend_service.core.api_errors import ApiError
 from backend_service.models.database import TagScanEvent
 from backend_service.models.schemas_rfid import TagScanEventResponse
 
@@ -20,11 +19,11 @@ router = APIRouter()
 async def list_scan_history(
     limit: int = Query(default=200, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
-    tag_id: Optional[str] = Query(default=None, description="Filter by raw tag UID"),
+    tag_id: str | None = Query(default=None, description="Filter by raw tag UID"),
 ) -> list[TagScanEventResponse]:
     """Return scan-history events, newest first."""
     if not _db_module.db_manager:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise ApiError(status_code=503, code="database_unavailable", detail="Database not available")
 
     session = _db_module.db_manager.get_session()
     try:
@@ -46,7 +45,7 @@ async def list_scan_history(
 async def clear_scan_history() -> None:
     """Delete all scan-history events."""
     if not _db_module.db_manager:
-        raise HTTPException(status_code=503, detail="Database not available")
+        raise ApiError(status_code=503, code="database_unavailable", detail="Database not available")
 
     session = _db_module.db_manager.get_session()
     try:
@@ -56,6 +55,6 @@ async def clear_scan_history() -> None:
     except Exception as exc:
         session.rollback()
         logger.error("scan_history_clear_failed", error=str(exc))
-        raise HTTPException(status_code=500, detail="Failed to clear scan history") from exc
+        raise ApiError(status_code=500, code="scan_history_clear_failed", detail="Failed to clear scan history") from exc
     finally:
         session.close()

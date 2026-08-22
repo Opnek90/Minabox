@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.models.database import Stream, StreamFolder
 from backend_service.models.schemas import (
@@ -31,10 +32,7 @@ def get_folder(folder_id: int, db: Session = Depends(get_db)) -> StreamFolderRes
     """Return a single folder by ID."""
     folder = db.query(StreamFolder).filter(StreamFolder.id == folder_id).first()
     if not folder:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
-        )
+        raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {folder_id} not found")
     return StreamFolderResponse.model_validate(folder)
 
 
@@ -46,10 +44,7 @@ def create_folder(
     if folder_data.parent_id is not None:
         parent = db.query(StreamFolder).filter(StreamFolder.id == folder_data.parent_id).first()
         if not parent:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Parent folder {folder_data.parent_id} not found", "details": {"folder_id": folder_data.parent_id}}},
-            )
+            raise ApiError(status_code=404, code="folder_not_found", detail=f"Parent folder {folder_data.parent_id} not found")
     folder = StreamFolder(name=folder_data.name, parent_id=folder_data.parent_id)
     db.add(folder)
     db.commit()
@@ -65,25 +60,16 @@ def update_folder(
     """Rename a folder or move it under a different parent."""
     folder = db.query(StreamFolder).filter(StreamFolder.id == folder_id).first()
     if not folder:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
-        )
+        raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {folder_id} not found")
     if folder_data.name is not None:
         folder.name = folder_data.name
     if "parent_id" in folder_data.model_fields_set:
         if folder_data.parent_id == folder_id:
-            raise HTTPException(
-                status_code=400,
-                detail={"error": {"code": "INVALID_PARENT", "message": "A folder cannot be its own parent."}},
-            )
+            raise ApiError(status_code=400, code="invalid_parent", detail="A folder cannot be its own parent.")
         if folder_data.parent_id is not None:
             parent = db.query(StreamFolder).filter(StreamFolder.id == folder_data.parent_id).first()
             if not parent:
-                raise HTTPException(
-                    status_code=404,
-                    detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Parent folder {folder_data.parent_id} not found", "details": {"folder_id": folder_data.parent_id}}},
-                )
+                raise ApiError(status_code=404, code="folder_not_found", detail=f"Parent folder {folder_data.parent_id} not found")
         folder.parent_id = folder_data.parent_id
     db.commit()
     db.refresh(folder)
@@ -98,10 +84,7 @@ def delete_folder(folder_id: int, db: Session = Depends(get_db)) -> None:
     """
     folder = db.query(StreamFolder).filter(StreamFolder.id == folder_id).first()
     if not folder:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
-        )
+        raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {folder_id} not found")
     # Move all streams in this folder to root
     db.query(Stream).filter(Stream.folder_id == folder_id).update({"folder_id": None})
     # Move all child folders to root

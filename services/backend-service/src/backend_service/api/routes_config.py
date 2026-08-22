@@ -10,12 +10,12 @@ import httpx
 import structlog
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from shared_lib.logging import setup_structlog
-
-from backend_service.api.websocket import ws_manager
-from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 from shared_lib.mqtt import get_mqtt_topic
 
+from backend_service.api.websocket import ws_manager
 from backend_service.config import get_config
+from backend_service.core.api_errors import ApiError
+from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 from backend_service.core.playback_settings import (
     DEFAULT_END_BEHAVIOR,
     DEFAULT_LOOP_GUARD_MINUTES,
@@ -288,7 +288,7 @@ async def update_general_config(body: dict) -> dict:
         )
     except OSError as e:
         logger.error("general_config_write_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to write general settings") from e
+        raise ApiError(status_code=500, code="general_settings_write_failed", detail="Failed to write general settings") from e
     # Return current display values (saved values overlay)
     out = _general_settings_read()
     out.update(data)
@@ -334,8 +334,9 @@ async def get_audio_config() -> dict:
     path = _config_path("audio")
     if not path or not path.exists():
         logger.warning("config_not_available", service="audio", path=str(path) if path else "none")
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
+            code="audio_config_unavailable",
             detail="Audio config not available (CONFIG_SERVICES_PATH not mounted?)",
         )
     try:
@@ -343,7 +344,7 @@ async def get_audio_config() -> dict:
         return data
     except (json.JSONDecodeError, OSError) as e:
         logger.error("config_read_failed", service="audio", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to read audio config") from e
+        raise ApiError(status_code=500, code="audio_config_read_failed", detail="Failed to read audio config") from e
 
 
 @router.put("/audio")
@@ -351,7 +352,7 @@ async def update_audio_config(body: dict) -> dict:
     """Update audio service config. Merges body with existing config so partial updates (e.g. only max_volume from parent dashboard) do not wipe other keys like enabled_output_devices or device_display_names."""
     path = _config_path("audio")
     if not path or not path.exists():
-        raise HTTPException(status_code=503, detail="Audio config not available")
+        raise ApiError(status_code=503, code="audio_config_unavailable", detail="Audio config not available")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         current: dict = {}
@@ -375,7 +376,7 @@ async def update_audio_config(body: dict) -> dict:
         return merged
     except OSError as e:
         logger.error("config_write_failed", service="audio", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to write audio config") from e
+        raise ApiError(status_code=500, code="audio_config_write_failed", detail="Failed to write audio config") from e
 
 
 @router.get("/leds")
@@ -384,8 +385,9 @@ async def get_leds_config() -> dict:
     path = _config_path("leds")
     if not path or not path.exists():
         logger.warning("config_not_available", service="leds", path=str(path) if path else "none")
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
+            code="led_config_unavailable",
             detail="LED config not available (CONFIG_SERVICES_PATH not mounted?)",
         )
     try:
@@ -393,7 +395,7 @@ async def get_leds_config() -> dict:
         return data
     except (json.JSONDecodeError, OSError) as e:
         logger.error("config_read_failed", service="leds", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to read LED config") from e
+        raise ApiError(status_code=500, code="led_config_read_failed", detail="Failed to read LED config") from e
 
 
 @router.put("/leds")
@@ -401,7 +403,7 @@ async def update_leds_config(body: dict) -> dict:
     """Update LED service config."""
     path = _config_path("leds")
     if not path or not path.exists():
-        raise HTTPException(status_code=503, detail="LED config not available")
+        raise ApiError(status_code=503, code="led_config_unavailable", detail="LED config not available")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -413,7 +415,7 @@ async def update_leds_config(body: dict) -> dict:
         return body
     except OSError as e:
         logger.error("config_write_failed", service="leds", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to write LED config") from e
+        raise ApiError(status_code=500, code="led_config_write_failed", detail="Failed to write LED config") from e
 
 
 @router.post("/leds/test")
@@ -421,22 +423,22 @@ async def test_led(body: dict) -> dict:
     """Trigger a brief LED flash for testing via the LED service REST API."""
     led_id = body.get("led_id")
     if not led_id:
-        raise HTTPException(status_code=422, detail="led_id is required")
+        raise ApiError(status_code=422, code="led_id_required", detail="led_id is required")
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post("http://led:8000/test", json={"led_id": led_id})
         if response.status_code == 404:
-            raise HTTPException(status_code=404, detail=response.json().get("detail", "LED not found"))
+            raise ApiError(status_code=404, code="led_not_found", detail=response.json().get("detail", "LED not found"))
         response.raise_for_status()
         return response.json()
     except httpx.ConnectError:
         logger.warning("led_service_unreachable", led_id=led_id)
-        raise HTTPException(status_code=503, detail="LED service not reachable") from None
+        raise ApiError(status_code=503, code="led_service_unreachable", detail="LED service not reachable") from None
     except HTTPException:
         raise
     except Exception as e:
         logger.error("led_test_failed", led_id=led_id, error=str(e))
-        raise HTTPException(status_code=500, detail="LED test failed") from e
+        raise ApiError(status_code=500, code="led_test_failed", detail="LED test failed") from e
 
 
 @router.get("/buttons")
@@ -445,8 +447,9 @@ async def get_buttons_config() -> dict:
     path = _config_path("buttons")
     if not path or not path.exists():
         logger.warning("config_not_available", service="buttons", path=str(path) if path else "none")
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
+            code="button_config_unavailable",
             detail="Button config not available (CONFIG_SERVICES_PATH not mounted?)",
         )
     try:
@@ -454,7 +457,7 @@ async def get_buttons_config() -> dict:
         return data
     except (json.JSONDecodeError, OSError) as e:
         logger.error("config_read_failed", service="buttons", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to read button config") from e
+        raise ApiError(status_code=500, code="button_config_read_failed", detail="Failed to read button config") from e
 
 
 @router.put("/buttons")
@@ -462,7 +465,7 @@ async def update_buttons_config(body: dict) -> dict:
     """Update button service config."""
     path = _config_path("buttons")
     if not path or not path.exists():
-        raise HTTPException(status_code=503, detail="Button config not available")
+        raise ApiError(status_code=503, code="button_config_unavailable", detail="Button config not available")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -474,7 +477,7 @@ async def update_buttons_config(body: dict) -> dict:
         return body
     except OSError as e:
         logger.error("config_write_failed", service="buttons", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to write button config") from e
+        raise ApiError(status_code=500, code="button_config_write_failed", detail="Failed to write button config") from e
 
 
 @router.post("/display/test")
@@ -484,22 +487,23 @@ async def test_display() -> dict:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post("http://display:8000/test")
         if response.status_code == 404:
-            raise HTTPException(
+            raise ApiError(
                 status_code=404,
+                code="display_not_available",
                 detail=response.json().get("detail", "Display not available"),
             )
         response.raise_for_status()
         return response.json()
     except httpx.ConnectError:
         logger.warning("display_service_unreachable")
-        raise HTTPException(
-            status_code=503, detail="Display service not reachable"
+        raise ApiError(
+            status_code=503, code="display_service_unreachable", detail="Display service not reachable"
         ) from None
     except HTTPException:
         raise
     except Exception as e:
         logger.error("display_test_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Display test failed") from e
+        raise ApiError(status_code=500, code="display_test_failed", detail="Display test failed") from e
 
 
 @router.get("/display/element-types")
@@ -514,8 +518,9 @@ async def get_display_config() -> dict:
     path = _config_path("display")
     if not path or not path.exists():
         logger.warning("config_not_available", service="display", path=str(path) if path else "none")
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
+            code="display_config_unavailable",
             detail="Display config not available (CONFIG_SERVICES_PATH not mounted?)",
         )
     try:
@@ -523,7 +528,7 @@ async def get_display_config() -> dict:
         return data
     except (json.JSONDecodeError, OSError) as e:
         logger.error("config_read_failed", service="display", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to read display config") from e
+        raise ApiError(status_code=500, code="display_config_read_failed", detail="Failed to read display config") from e
 
 
 @router.put("/display")
@@ -531,7 +536,7 @@ async def update_display_config(body: dict) -> dict:
     """Update display service config."""
     path = _config_path("display")
     if path is None:
-        raise HTTPException(status_code=503, detail="Display config not available")
+        raise ApiError(status_code=503, code="display_config_unavailable", detail="Display config not available")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -543,7 +548,7 @@ async def update_display_config(body: dict) -> dict:
         return body
     except OSError as e:
         logger.error("config_write_failed", service="display", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to write display config") from e
+        raise ApiError(status_code=500, code="display_config_write_failed", detail="Failed to write display config") from e
 
 
 def _rfid_flatten(data: dict) -> dict:
@@ -586,8 +591,9 @@ async def get_rfid_config() -> dict:
     path = _config_path("rfid")
     if not path or not path.exists():
         logger.warning("config_not_available", service="rfid", path=str(path) if path else "none")
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
+            code="rfid_config_unavailable",
             detail="RFID config not available (CONFIG_SERVICES_PATH not mounted?)",
         )
     try:
@@ -595,7 +601,7 @@ async def get_rfid_config() -> dict:
         return _rfid_flatten(data)
     except (json.JSONDecodeError, OSError) as e:
         logger.error("config_read_failed", service="rfid", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to read RFID config") from e
+        raise ApiError(status_code=500, code="rfid_config_read_failed", detail="Failed to read RFID config") from e
 
 
 @router.put("/rfid")
@@ -603,7 +609,7 @@ async def update_rfid_config(body: dict) -> dict:
     """Update RFID service config (accepts flat body, writes nested reader)."""
     path = _config_path("rfid")
     if not path or not path.exists():
-        raise HTTPException(status_code=503, detail="RFID config not available")
+        raise ApiError(status_code=503, code="rfid_config_unavailable", detail="RFID config not available")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         nested = _rfid_nest(body)
@@ -611,7 +617,7 @@ async def update_rfid_config(body: dict) -> dict:
         return _rfid_flatten(nested)
     except OSError as e:
         logger.error("config_write_failed", service="rfid", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to write RFID config") from e
+        raise ApiError(status_code=500, code="rfid_config_write_failed", detail="Failed to write RFID config") from e
 
 
 # ---------------------------------------------------------------------------
@@ -630,7 +636,7 @@ async def upload_logo(file: UploadFile = File(...)) -> dict:
         return {"url": "/static/logo.png"}
     except OSError as e:
         logger.error("logo_upload_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to save logo") from e
+        raise ApiError(status_code=500, code="logo_save_failed", detail="Failed to save logo") from e
 
 
 @router.delete("/logo")

@@ -6,6 +6,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
+from backend_service.core.api_errors import ApiError
 from backend_service.core.auth import (
     AUTH_SETTINGS_PATH,
     create_session_token,
@@ -49,7 +50,7 @@ def _require_auth(request: Request) -> None:
     """Raise 401 if no valid session cookie."""
     token = _get_cookie_token(request)
     if not token or not verify_session_token(token):
-        raise HTTPException(status_code=401, detail="Authentication required")
+        raise ApiError(status_code=401, code="auth_required", detail="Authentication required")
 
 
 @router.get("/config")
@@ -76,10 +77,10 @@ async def login(body: LoginBody, response: Response) -> dict:
 
     password = (body.password or "").strip()
     if not password:
-        raise HTTPException(status_code=400, detail="Password required")
+        raise ApiError(status_code=400, code="password_required", detail="Password required")
 
     if not verify_password(password, hash_val):
-        raise HTTPException(status_code=401, detail="Invalid password")
+        raise ApiError(status_code=401, code="invalid_password", detail="Invalid password")
 
     token = create_session_token()
     response.set_cookie(
@@ -109,15 +110,15 @@ async def set_password(body: PasswordBody, request: Request, response: Response)
         new_raw = (body.new_password or "").strip()
 
         if not new_raw or len(new_raw) < 4:
-            raise HTTPException(status_code=400, detail="New password must be at least 4 characters")
+            raise ApiError(status_code=400, code="password_too_short", detail="New password must be at least 4 characters")
 
         if auth_enabled:
             _require_auth(request)
             current = (body.current_password or "").strip()
             if not current:
-                raise HTTPException(status_code=400, detail="Current password required")
+                raise ApiError(status_code=400, code="current_password_required", detail="Current password required")
             if not verify_password(current, settings.get("web_password_hash") or ""):
-                raise HTTPException(status_code=401, detail="Current password is wrong")
+                raise ApiError(status_code=401, code="current_password_invalid", detail="Current password is wrong")
         else:
             # Initial setup: set cookie so user is logged in after setting password
             token = create_session_token()
@@ -134,19 +135,19 @@ async def set_password(body: PasswordBody, request: Request, response: Response)
             new_hash = hash_password(new_raw)
         except Exception as e:
             logger.warning("auth_password_hash_failed", error=str(e))
-            raise HTTPException(status_code=500, detail=f"Password hashing failed: {e!s}") from e
+            raise ApiError(status_code=500, code="password_hash_failed", detail=f"Password hashing failed: {e!s}") from e
 
         try:
             write_auth_settings({"web_password_hash": new_hash, "protected_areas": settings.get("protected_areas", [])})
         except OSError as e:
             logger.warning("auth_settings_write_failed", path=str(AUTH_SETTINGS_PATH), error=str(e))
-            raise HTTPException(status_code=500, detail="Failed to write auth settings (check permissions)") from e
+            raise ApiError(status_code=500, code="auth_settings_write_failed", detail="Failed to write auth settings (check permissions)") from e
         return {"ok": True}
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("auth_set_password_error")
-        raise HTTPException(status_code=500, detail=f"Set password failed: {e!s}") from e
+        raise ApiError(status_code=500, code="password_set_failed", detail=f"Set password failed: {e!s}") from e
 
 
 @router.delete("/password")
@@ -159,7 +160,7 @@ async def delete_password(request: Request, response: Response) -> dict:
         return {"ok": True}
     except OSError as e:
         logger.warning("auth_settings_write_failed", path=str(AUTH_SETTINGS_PATH), error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to write auth settings (check permissions)") from e
+        raise ApiError(status_code=500, code="auth_settings_write_failed", detail="Failed to write auth settings (check permissions)") from e
 
 
 @router.put("/config")

@@ -11,12 +11,13 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import JSONResponse
 from mutagen import File as MutagenFile
 from sqlalchemy.orm import Session
 
 from backend_service.config import get_config
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.infrastructure.media_downloader_client import (
     MediaDownloaderClient,
@@ -62,16 +63,7 @@ def _check_allowed_domain(url: str) -> None:
         hostname = ""
     if hostname not in _ALLOWED_DOMAINS:
         logger.warning("api_domain_not_allowed", hostname=hostname, url=url)
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": {
-                    "code": "DOMAIN_NOT_ALLOWED",
-                    "message": f"Domain '{hostname}' is not supported. Allowed: {', '.join(sorted(_ALLOWED_DOMAINS))}",
-                    "details": {"hostname": hostname},
-                }
-            },
-        )
+        raise ApiError(status_code=400, code="domain_not_allowed", detail=f"Domain '{hostname}' is not supported. Allowed: {', '.join(sorted(_ALLOWED_DOMAINS))}")
 
 
 def _strip_playlist_params(url: str) -> str:
@@ -267,10 +259,7 @@ def list_tracks(
     elif folder_id is not None:
         folder = db.query(TrackFolder).filter(TrackFolder.id == folder_id).first()
         if not folder:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
-            )
+            raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {folder_id} not found")
         query = query.filter(Track.folder_id == folder_id)
     return [TrackResponse.model_validate(t) for t in query.all()]
 
@@ -294,10 +283,7 @@ async def validate_media_url(
     try:
         info = await client.get_video_info(clean_url)
     except MediaDownloaderError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail={"error": {"code": "MEDIA_URL_INVALID", "message": str(exc), "details": {"url": clean_url}}},
-        ) from exc
+        raise ApiError(status_code=422, code="media_url_invalid", detail=str(exc)) from exc
     return {
         "valid": True,
         "title": info.get("title", ""),
@@ -315,10 +301,7 @@ def get_download_status(track_id: int, db: Session = Depends(get_db)) -> dict:
     if status_entry is None:
         track = db.query(Track).filter(Track.id == track_id).first()
         if not track:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found"}},
-            )
+            raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
         return {"track_id": track_id, "status": "unknown", "error": None}
     return {"track_id": track_id, **status_entry}
 
@@ -328,7 +311,7 @@ def get_track(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
     logger.info("api_get_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
+        raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
     return TrackResponse.model_validate(track)
 
 
@@ -338,10 +321,7 @@ def create_track(track_data: TrackCreate, db: Session = Depends(get_db)) -> Trac
     if track_data.folder_id is not None:
         folder = db.query(TrackFolder).filter(TrackFolder.id == track_data.folder_id).first()
         if not folder:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {track_data.folder_id} not found", "details": {"folder_id": track_data.folder_id}}},
-            )
+            raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {track_data.folder_id} not found")
     track = Track(
         title=track_data.title,
         artist=track_data.artist,
@@ -460,10 +440,7 @@ async def upload_track(
     if folder_id is not None:
         folder = db.query(TrackFolder).filter(TrackFolder.id == folder_id).first()
         if not folder:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {folder_id} not found", "details": {"folder_id": folder_id}}},
-            )
+            raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {folder_id} not found")
     try:
         track = Track(title=title, artist=artist, album=album, source_type="file", source_uri="", folder_id=folder_id)
         db.add(track)
@@ -500,19 +477,19 @@ async def upload_track(
         logger.error("api_upload_track_failed", error=str(e))
         db.rollback()
         if e.errno == 13:
-            raise HTTPException(status_code=503, detail={"error": {"code": "AUDIO_STORAGE_READONLY", "message": "Audio storage path is not writable.", "details": {"path": config.audio_storage_path, "filename": file.filename}}}) from e
-        raise HTTPException(status_code=400, detail={"error": {"code": "UPLOAD_FAILED", "message": f"Failed to upload track: {str(e)}", "details": {"filename": file.filename}}}) from e
+            raise ApiError(status_code=503, code="audio_storage_readonly", detail="Audio storage path is not writable.") from e
+        raise ApiError(status_code=400, code="upload_failed", detail=f"Failed to upload track: {str(e)}") from e
     except Exception as e:
         logger.error("api_upload_track_failed", error=str(e))
         db.rollback()
-        raise HTTPException(status_code=400, detail={"error": {"code": "UPLOAD_FAILED", "message": f"Failed to upload track: {str(e)}", "details": {"filename": file.filename}}}) from e
+        raise ApiError(status_code=400, code="upload_failed", detail=f"Failed to upload track: {str(e)}") from e
 
 
 @router.post("/{track_id}/cover", response_model=TrackResponse)
 async def upload_track_cover(track_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)) -> TrackResponse:
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
+        raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"track_{track_id}.jpg"
     content = await file.read()
@@ -529,7 +506,7 @@ def update_track(track_id: int, track_data: TrackUpdate, db: Session = Depends(g
     logger.info("api_update_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
+        raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
     if track_data.title is not None:
         track.title = track_data.title
     if track_data.artist is not None:
@@ -542,10 +519,7 @@ def update_track(track_id: int, track_data: TrackUpdate, db: Session = Depends(g
         if track_data.folder_id is not None:
             folder = db.query(TrackFolder).filter(TrackFolder.id == track_data.folder_id).first()
             if not folder:
-                raise HTTPException(
-                    status_code=404,
-                    detail={"error": {"code": "FOLDER_NOT_FOUND", "message": f"Folder {track_data.folder_id} not found", "details": {"folder_id": track_data.folder_id}}},
-                )
+                raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {track_data.folder_id} not found")
         track.folder_id = track_data.folder_id
     db.commit()
     db.refresh(track)
@@ -556,7 +530,7 @@ def update_track(track_id: int, track_data: TrackUpdate, db: Session = Depends(g
 def delete_track_cover(track_id: int, db: Session = Depends(get_db)) -> TrackResponse:
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
+        raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
     for ext in (".jpg", ".png"):
         p = COVERS_DIR / f"track_{track_id}{ext}"
         if p.exists():
@@ -573,7 +547,7 @@ def delete_track(track_id: int, db: Session = Depends(get_db)) -> None:
     logger.info("api_delete_track", track_id=track_id)
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
-        raise HTTPException(status_code=404, detail={"error": {"code": "TRACK_NOT_FOUND", "message": f"Track {track_id} not found", "details": {"track_id": track_id}}})
+        raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
 
     if track.source_type == "file":
         try:

@@ -10,10 +10,11 @@ from typing import TYPE_CHECKING
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.playback_stats import get_today_listened_minutes
@@ -40,7 +41,7 @@ AUDIO_SERVICE_TIMEOUT = 10.0
 
 # MQTT client and handlers will be injected at startup
 _mqtt_client: MQTTClient | None = None
-_mqtt_handlers: "MQTTHandlers | None" = None
+_mqtt_handlers: MQTTHandlers | None = None
 
 
 def set_mqtt_client(mqtt_client: MQTTClient) -> None:
@@ -49,7 +50,7 @@ def set_mqtt_client(mqtt_client: MQTTClient) -> None:
     _mqtt_client = mqtt_client
 
 
-def set_mqtt_handlers(handlers: "MQTTHandlers") -> None:
+def set_mqtt_handlers(handlers: MQTTHandlers) -> None:
     """Set MQTT handlers for audio routes (needed for sleep timer)."""
     global _mqtt_handlers
     _mqtt_handlers = handlers
@@ -77,8 +78,9 @@ def _check_daily_limit(db: Session) -> None:
         return
     today_min = get_today_listened_minutes(db)
     if today_min >= limit_minutes:
-        raise HTTPException(
+        raise ApiError(
             status_code=403,
+            code="daily_limit_exceeded",
             detail="Daily listening limit exceeded",
         )
 
@@ -129,7 +131,7 @@ async def play_audio(
     logger.info("api_audio_play", command=command.model_dump())
 
     if not _mqtt_client:
-        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+        raise ApiError(status_code=500, code="mqtt_not_initialized", detail="MQTT client not initialized")
 
     if _mqtt_handlers:
         _mqtt_handlers.playback_intent_active = True
@@ -140,7 +142,7 @@ async def play_audio(
         _check_daily_limit(db)
         stream = db.query(Stream).filter(Stream.id == command.stream_id).first()
         if not stream:
-            raise HTTPException(status_code=404, detail="Stream not found")
+            raise ApiError(status_code=404, code="stream_not_found", detail="Stream not found")
         db.add(
             PlaybackEvent(
                 started_at=datetime.now(UTC),
@@ -162,7 +164,7 @@ async def play_audio(
         _check_daily_limit(db)
         podcast = db.query(Podcast).filter(Podcast.id == command.podcast_id).first()
         if not podcast:
-            raise HTTPException(status_code=404, detail="Podcast not found")
+            raise ApiError(status_code=404, code="podcast_not_found", detail="Podcast not found")
         episode = (
             db.query(PodcastEpisode)
             .filter(PodcastEpisode.podcast_id == podcast.id)
@@ -170,7 +172,7 @@ async def play_audio(
             .first()
         )
         if not episode:
-            raise HTTPException(status_code=400, detail="Podcast has no episodes")
+            raise ApiError(status_code=400, code="podcast_no_episodes", detail="Podcast has no episodes")
         podcast.last_played_at = datetime.now(UTC)
         db.add(
             PlaybackEvent(
@@ -211,7 +213,7 @@ async def play_audio(
         _check_daily_limit(db)
         playlist = db.query(Playlist).filter(Playlist.id == command.playlist_id).first()
         if not playlist:
-            raise HTTPException(status_code=404, detail="Playlist not found")
+            raise ApiError(status_code=404, code="playlist_not_found", detail="Playlist not found")
         pts = (
             db.query(PlaylistTrack)
             .filter(PlaylistTrack.playlist_id == playlist.id)
@@ -220,7 +222,7 @@ async def play_audio(
         )
         tracks = [pt.track for pt in pts]
         if not tracks:
-            raise HTTPException(status_code=400, detail="Playlist is empty")
+            raise ApiError(status_code=400, code="playlist_empty", detail="Playlist is empty")
         session_manager.create_session(tracks=tracks, playlist_id=playlist.id, shuffle=True)
         sess = session_manager.session
         first_track = sess.current_track
@@ -239,7 +241,7 @@ async def play_audio(
     _check_daily_limit(db)
     track = db.query(Track).filter(Track.id == command.track_id).first()
     if not track:
-        raise HTTPException(status_code=404, detail="Track not found")
+        raise ApiError(status_code=404, code="track_not_found", detail="Track not found")
     session_manager.create_session(tracks=[track])
     db.add(
         PlaybackEvent(
@@ -265,10 +267,10 @@ async def seek_audio(command: SeekRequest) -> dict:
     logger.info("api_audio_seek", position_ms=command.position_ms)
 
     if not _mqtt_client:
-        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+        raise ApiError(status_code=500, code="mqtt_not_initialized", detail="MQTT client not initialized")
 
     if not _mqtt_handlers:
-        raise HTTPException(status_code=500, detail="MQTT handlers not initialized")
+        raise ApiError(status_code=500, code="mqtt_handlers_not_initialized", detail="MQTT handlers not initialized")
 
     status = _mqtt_handlers.last_audio_status
     state = status.get("state", "stopped")
@@ -277,10 +279,10 @@ async def seek_audio(command: SeekRequest) -> dict:
     track_id = status.get("track_id")
 
     if state not in ("playing", "paused") or not source_uri:
-        raise HTTPException(status_code=409, detail="No active playback to seek in")
+        raise ApiError(status_code=409, code="no_active_playback", detail="No active playback to seek in")
 
     if source_type == "stream":
-        raise HTTPException(status_code=409, detail="Cannot seek in a live stream")
+        raise ApiError(status_code=409, code="seek_not_supported_live", detail="Cannot seek in a live stream")
 
     payload = {
         "track_id": str(track_id) if track_id else "",
@@ -298,7 +300,7 @@ async def pause_audio() -> dict:
     logger.info("api_audio_pause")
 
     if not _mqtt_client:
-        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+        raise ApiError(status_code=500, code="mqtt_not_initialized", detail="MQTT client not initialized")
 
     if _mqtt_handlers:
         _mqtt_handlers.mark_deliberate_stop()
@@ -314,7 +316,7 @@ async def stop_audio() -> dict:
     logger.info("api_audio_stop")
 
     if not _mqtt_client:
-        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+        raise ApiError(status_code=500, code="mqtt_not_initialized", detail="MQTT client not initialized")
 
     if _mqtt_handlers:
         _mqtt_handlers.mark_deliberate_stop()
@@ -330,7 +332,7 @@ async def next_track() -> dict:
     logger.info("api_audio_next")
 
     if not _mqtt_client:
-        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+        raise ApiError(status_code=500, code="mqtt_not_initialized", detail="MQTT client not initialized")
 
     if _mqtt_handlers:
         await _mqtt_handlers.button_handler._handle_next()
@@ -346,7 +348,7 @@ async def previous_track() -> dict:
     logger.info("api_audio_prev")
 
     if not _mqtt_client:
-        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+        raise ApiError(status_code=500, code="mqtt_not_initialized", detail="MQTT client not initialized")
 
     if _mqtt_handlers:
         await _mqtt_handlers.button_handler._handle_prev()
@@ -362,7 +364,7 @@ async def set_volume(command: AudioVolumeCommand) -> dict:
     logger.info("api_audio_set_volume", volume=command.volume)
 
     if not _mqtt_client:
-        raise HTTPException(status_code=500, detail="MQTT client not initialized")
+        raise ApiError(status_code=500, code="mqtt_not_initialized", detail="MQTT client not initialized")
 
     await _mqtt_client.publish_audio_command("set-volume", {"volume": command.volume})
 
@@ -381,7 +383,7 @@ async def get_sleep_timer() -> dict:
 async def start_sleep_timer(command: SleepTimerRequest) -> dict:
     """Start (or restart) the sleep timer."""
     if not _mqtt_handlers:
-        raise HTTPException(status_code=500, detail="Handlers not initialized")
+        raise ApiError(status_code=500, code="mqtt_handlers_not_initialized", detail="Handlers not initialized")
     logger.info("api_sleep_timer_start", minutes=command.minutes)
     await _mqtt_handlers.start_sleep_timer(command.minutes)
     return {"status": "ok", "active": True, "minutes": command.minutes}
@@ -391,7 +393,7 @@ async def start_sleep_timer(command: SleepTimerRequest) -> dict:
 async def cancel_sleep_timer() -> dict:
     """Cancel the running sleep timer."""
     if not _mqtt_handlers:
-        raise HTTPException(status_code=500, detail="Handlers not initialized")
+        raise ApiError(status_code=500, code="mqtt_handlers_not_initialized", detail="Handlers not initialized")
     logger.info("api_sleep_timer_cancel")
     await _mqtt_handlers.cancel_sleep_timer()
     return {"status": "ok", "active": False}
@@ -449,16 +451,17 @@ async def get_audio_devices(
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_devices_timeout")
-        raise HTTPException(status_code=503, detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_devices_error", status=e.response.status_code)
-        raise HTTPException(
+        raise ApiError(
             status_code=502 if e.response.status_code >= 500 else 400,
+            code="audio_service_error",
             detail=e.response.text or "Audio service error",
         )
     except Exception as e:
         logger.warning("audio_service_devices_failed", error=str(e))
-        raise HTTPException(status_code=503, detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
 
 
 class SwitchDeviceRequest(BaseModel):
@@ -477,8 +480,9 @@ async def switch_audio_device(body: SwitchDeviceRequest) -> dict:
     """Switch audio output sink (proxied to audio-service)."""
     sink_name = body.sink_name or body.alsa_device
     if not sink_name and body.direction != "next":
-        raise HTTPException(
+        raise ApiError(
             status_code=400,
+            code="audio_output_target_required",
             detail="Provide sink_name or direction='next'",
         )
     payload = {}
@@ -496,16 +500,17 @@ async def switch_audio_device(body: SwitchDeviceRequest) -> dict:
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_switch_device_timeout")
-        raise HTTPException(status_code=503, detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_switch_device_error", status=e.response.status_code)
-        raise HTTPException(
+        raise ApiError(
             status_code=502 if e.response.status_code >= 500 else 400,
+            code="audio_service_error",
             detail=e.response.text or "Audio service error",
         )
     except Exception as e:
         logger.warning("audio_service_switch_device_failed", error=str(e))
-        raise HTTPException(status_code=503, detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
 
 
 class TestToneRequest(BaseModel):
@@ -538,13 +543,14 @@ async def play_test_tone(body: TestToneRequest | None = None) -> dict:
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_test_tone_timeout")
-        raise HTTPException(status_code=503, detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_test_tone_error", status=e.response.status_code)
-        raise HTTPException(
+        raise ApiError(
             status_code=502 if e.response.status_code >= 500 else e.response.status_code,
+            code="audio_service_error",
             detail=e.response.text or "Audio service error",
         )
     except Exception as e:
         logger.warning("audio_service_test_tone_failed", error=str(e))
-        raise HTTPException(status_code=503, detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
