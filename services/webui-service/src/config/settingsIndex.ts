@@ -14,7 +14,8 @@
  * `searchKeys` sind i18n-Keys der Labels *innerhalb* einer Section. Sie werden
  * beim Suchen mit übersetzt, damit die Suche in DE und EN ohne eigene
  * Wortlisten funktioniert. Keys ohne Namespace-Präfix liegen im `admin`-
- * Namespace, `common:` verweist auf den gemeinsamen Namespace.
+ * Namespace, `setup:` verweist auf den setup-Namespace. `npm run check:i18n-calls`
+ * prüft diese und alle anderen t()-Aufrufe gegen die echten JSON-Keys.
  */
 
 export interface SettingsSectionMeta {

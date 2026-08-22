@@ -41,7 +41,7 @@ import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
-import type { LEDConfig, LED, LEDPattern } from '@/types/api';
+import type { LEDConfig, LED, LEDPattern, LEDPatternType } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
 
 
@@ -52,7 +52,7 @@ export const LEDConfigPanel: React.FC = () => {
 
   const [config, setConfig] = useState<LEDConfig | null>(null);
   const [ledStates, setLedStates] = useState<string[]>([]);
-  const [ledPatterns, setLedPatterns] = useState<string[]>([]);
+  const [ledPatterns, setLedPatterns] = useState<LEDPatternType[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testingLedId, setTestingLedId] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export const LEDConfigPanel: React.FC = () => {
       setConfig(updated);
       showSuccess(t('leds.save_success'));
     } catch {
-      showError(t('leds.save_error', { defaultValue: 'Speichern fehlgeschlagen' }));
+      showError(t('leds.save_error'));
     } finally {
       setSaving(false);
     }
@@ -180,9 +180,9 @@ export const LEDConfigPanel: React.FC = () => {
     setTestingLedId(led.id);
     try {
       await configApi.testLed(led.id);
-      showSuccess(t('leds.test_success', { name: led.name, defaultValue: `Test gestartet: ${led.name}` }));
+      showSuccess(t('leds.test_success', { name: led.name }));
     } catch {
-      showError(t('leds.test_error', { name: led.name, defaultValue: `Test fehlgeschlagen: ${led.name}` }));
+      showError(t('leds.test_error', { name: led.name }));
     } finally {
       setTestingLedId(null);
     }
@@ -199,7 +199,7 @@ export const LEDConfigPanel: React.FC = () => {
     const isEnabled = led.enabled ?? true;
     return (
       <Stack direction="row" spacing={0.5}>
-        <Tooltip title={isEnabled ? t('leds.disable_led', { defaultValue: 'Deaktivieren' }) : t('leds.enable_led', { defaultValue: 'Aktivieren' })}>
+        <Tooltip title={isEnabled ? t('leds.disable_led') : t('leds.enable_led')}>
           <IconButton size="small" color={isEnabled ? 'success' : 'default'} onClick={() => handleToggleEnabled(led)}>
             {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
           </IconButton>
@@ -416,7 +416,7 @@ export const LEDConfigPanel: React.FC = () => {
                         SelectProps={{ native: true }} InputLabelProps={{ shrink: true }}
                       >
                         {ledPatterns.map((p) => (
-                          <option key={p} value={p}>{t(`leds.bindings.patterns.${p}`)}</option>
+                          <option key={p} value={p}>{t(`leds.bindings.patterns.${p}` as const)}</option>
                         ))}
                       </TextField>
 
@@ -443,18 +443,18 @@ export const LEDConfigPanel: React.FC = () => {
                       {/* cycle_ms: only for 'glow' */}
                       {(pat.pattern_type === 'glow') && (
                         <TextField
-                          label={t('leds.bindings.cycle_ms', { defaultValue: 'Zyklusdauer (ms)' })} type="number"
+                          label={t('leds.bindings.cycle_ms')} type="number"
                           value={pat.cycle_ms ?? 2000}
                           onChange={(e) => updateBinding(state, { cycle_ms: e.target.value ? parseInt(e.target.value, 10) : 2000 })}
                           size="small" fullWidth inputProps={{ min: 500 }}
-                          helperText={t('leds.bindings.cycle_ms_hint', { defaultValue: 'Min. 500 ms, empfohlen: 1000–3000 ms' })}
+                          helperText={t('leds.bindings.cycle_ms_hint')}
                         />
                       )}
 
                       {/* min_brightness: only for 'glow' */}
                       {(pat.pattern_type === 'glow') && (
                         <TextField
-                          label={t('leds.bindings.min_brightness', { defaultValue: 'Min. Helligkeit (0–1)' })} type="number"
+                          label={t('leds.bindings.min_brightness')} type="number"
                           value={pat.min_brightness ?? 0.0}
                           onChange={(e) => updateBinding(state, { min_brightness: e.target.value !== '' ? parseFloat(e.target.value) : 0.0 })}
                           size="small" fullWidth inputProps={{ min: 0, max: 1, step: 0.1 }}
@@ -464,7 +464,7 @@ export const LEDConfigPanel: React.FC = () => {
                       {/* max_brightness: only for 'glow' */}
                       {(pat.pattern_type === 'glow') && (
                         <TextField
-                          label={t('leds.bindings.max_brightness', { defaultValue: 'Max. Helligkeit (0–1)' })} type="number"
+                          label={t('leds.bindings.max_brightness')} type="number"
                           value={pat.max_brightness ?? 1.0}
                           onChange={(e) => updateBinding(state, { max_brightness: e.target.value !== '' ? parseFloat(e.target.value) : 1.0 })}
                           size="small" fullWidth inputProps={{ min: 0, max: 1, step: 0.1 }}

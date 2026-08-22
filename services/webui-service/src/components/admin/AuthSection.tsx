@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { setPassword, updateAuthConfig, resetAuth } from '@/api/auth';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { apiErrorCode, translateApiError } from '@/utils/apiError';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 const PATH_TO_AREA: Record<string, string> = {
@@ -31,7 +32,7 @@ function pathsToAreas(protectedPaths: string[]): string[] {
 }
 
 export const AuthSection: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const { authEnabled, protectedPaths, login, logout, refreshConfig } = useAuth();
 
@@ -94,35 +95,15 @@ export const AuthSection: React.FC = () => {
       await refreshConfig();
       if (!authEnabled) await login(newPassword);
     } catch (err: unknown) {
-      const ax = err as { response?: { data?: unknown; status?: number }; message?: string };
-      if (import.meta.env.DEV) {
-        console.error('[AuthSection] setPassword error:', ax);
-      }
-      const res = ax?.response;
-      const data = res?.data;
-      const status = res?.status;
-      const rawDetail =
-        data != null && typeof data === 'object' && 'detail' in data
-          ? (data as { detail?: string | unknown[] }).detail
-          : undefined;
-      const detail =
-        typeof rawDetail === 'string'
-          ? rawDetail
-          : Array.isArray(rawDetail) && rawDetail.length > 0
-            ? String((rawDetail[0] as { msg?: string }).msg ?? rawDetail[0])
-            : null;
-      if (status === 401 && detail === 'Authentication required') {
+      const code = apiErrorCode(err);
+      if (code === 'auth_required') {
         showError(t('auth.session_expired'));
-      } else if (status === 400 && (detail === 'Current password required' || (detail && String(detail).includes('current')))) {
+      } else if (code === 'current_password_required') {
         showError(t('auth.current_password_required'));
-      } else if (status === 401) {
+      } else if (code === 'current_password_invalid') {
         showError(t('auth.wrong_password'));
-      } else if (detail) {
-        showError(detail);
-      } else if (status != null) {
-        showError(`${t('auth.password_save_failed')} (HTTP ${status})`);
       } else {
-        showError(t('auth.password_save_failed'));
+        showError(translateApiError(t, i18n, err));
       }
     } finally {
       setSavingPassword(false);

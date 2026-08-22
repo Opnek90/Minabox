@@ -41,7 +41,12 @@ export const SystemAlertBar: React.FC = () => {
 
   const severity = alert.level === 'error' ? 'error' : alert.level === 'warning' ? 'warning' : 'info';
   const icon = alert.level === 'error' ? <ErrorOutlineIcon fontSize="small" /> : alert.level === 'warning' ? <WarningAmberIcon fontSize="small" /> : <InfoOutlinedIcon fontSize="small" />;
-  const text = alert.message ? (alert.message.startsWith('alerts.') ? t(alert.message) : alert.message) : t('alerts.temperature_high', { defaultValue: 'System alert' });
+  // alert.message kommt vom Backend per WebSocket - "alerts.xxx" ist per
+  // Konvention ein i18n-Key, alles andere ein fertiger Text. Kein Weg, das
+  // statisch gegen die JSON-Keys zu pruefen.
+  const text = alert.message
+    ? (alert.message.startsWith('alerts.') ? t(alert.message as never) : alert.message)
+    : t('alerts.temperature_high');
 
   return (
     <Box

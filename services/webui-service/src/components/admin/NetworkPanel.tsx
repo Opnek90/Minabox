@@ -22,10 +22,11 @@ import { useToast } from '@/contexts/ToastContext';
 import { systemApi, type NetworkResponse } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { translateApiError } from '@/utils/apiError';
 
 /** WLAN, IP-Adresse und Gerätename – alles, was die Box im Netzwerk erreichbar macht. */
 export const NetworkPanel: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const [wifiNetworks, setWifiNetworks] = useState<Array<{ ssid: string; signal: number }>>([]);
   const [wifiScanning, setWifiScanning] = useState(false);
@@ -70,7 +71,7 @@ export const NetworkPanel: React.FC = () => {
       }
       setHostname(hostnameRes?.hostname ?? null);
     } catch {
-      setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' }));
+      setError(t('load_error'));
     } finally {
       setLoading(false);
     }
@@ -97,9 +98,7 @@ export const NetworkPanel: React.FC = () => {
       await systemApi.wifiConnect(wifiConnectSsid.trim(), wifiConnectPassword);
       showSuccess(t('system.wifi_connect'));
     } catch (err: unknown) {
-      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
-      const detail = ax?.data?.detail;
-      showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
+      showError(translateApiError(t, i18n, err));
     } finally {
       setWifiConnecting(false);
     }
@@ -112,8 +111,8 @@ export const NetworkPanel: React.FC = () => {
       setHotspotInfo({ ssid: data.ssid, password: data.password ?? '' });
       setHotspotStatus({ active: true, ssid: data.ssid });
       showSuccess(t('system.wifi_hotspot_start'));
-    } catch {
-      showError(t('system.logs_unavailable'));
+    } catch (err) {
+      showError(translateApiError(t, i18n, err));
     } finally {
       setHotspotLoading(false);
     }
@@ -126,8 +125,8 @@ export const NetworkPanel: React.FC = () => {
       setHotspotInfo(null);
       setHotspotStatus({ active: false, ssid: null });
       showSuccess(t('system.wifi_hotspot_stop'));
-    } catch {
-      showError(t('system.logs_unavailable'));
+    } catch (err) {
+      showError(translateApiError(t, i18n, err));
     } finally {
       setHotspotLoading(false);
     }
@@ -163,8 +162,8 @@ export const NetworkPanel: React.FC = () => {
         setNetworkDns(next.dns ?? '');
       }
       showSuccess(t('system.network_apply'));
-    } catch {
-      showError(t('system.logs_unavailable'));
+    } catch (err) {
+      showError(translateApiError(t, i18n, err));
     } finally {
       setNetworkSaving(false);
     }
@@ -185,8 +184,8 @@ export const NetworkPanel: React.FC = () => {
       setHostname(res?.hostname ?? null);
       setHostnameDialogOpen(false);
       showSuccess(t('system.hostname_apply'));
-    } catch {
-      showError(t('system.logs_unavailable'));
+    } catch (err) {
+      showError(translateApiError(t, i18n, err));
     } finally {
       setHostnameSaving(false);
     }

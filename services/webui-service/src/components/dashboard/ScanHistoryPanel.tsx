@@ -89,7 +89,7 @@ export const ScanHistoryPanel: React.FC = () => {
         alignItems={{ xs: 'stretch', sm: 'center' }}
       >
         <TextField
-          placeholder={t('dashboard.scan_history.filter_placeholder', { defaultValue: 'Nach Tag-ID filtern…' })}
+          placeholder={t('dashboard.scan_history.filter_placeholder')}
           value={filterTagId}
           onChange={(e) => setFilterTagId(e.target.value)}
           size="small"
@@ -110,9 +110,9 @@ export const ScanHistoryPanel: React.FC = () => {
             startIcon={<RefreshIcon />}
             onClick={() => void load()}
             disabled={loading}
-            aria-label={t('actions.refresh', { defaultValue: 'Aktualisieren' })}
+            aria-label={t('actions.refresh')}
           >
-            {!isMobile && t('actions.refresh', { defaultValue: 'Aktualisieren' })}
+            {!isMobile && t('actions.refresh')}
           </ActionButton>
           <ActionButton
             actionType="destructive"
@@ -120,9 +120,9 @@ export const ScanHistoryPanel: React.FC = () => {
             startIcon={<DeleteSweepIcon />}
             onClick={() => setClearDialogOpen(true)}
             disabled={events.length === 0}
-            aria-label={t('dashboard.scan_history.clear', { defaultValue: 'Verlauf löschen' })}
+            aria-label={t('dashboard.scan_history.clear')}
           >
-            {!isMobile && t('dashboard.scan_history.clear', { defaultValue: 'Verlauf löschen' })}
+            {!isMobile && t('dashboard.scan_history.clear')}
           </ActionButton>
         </Box>
       </Box>
@@ -136,7 +136,7 @@ export const ScanHistoryPanel: React.FC = () => {
         <Box display="flex" flexDirection="column" alignItems="center" py={6} gap={1} color="text.secondary">
           <NfcIcon sx={{ fontSize: 48, opacity: 0.3 }} />
           <Typography variant="body2">
-            {t('dashboard.scan_history.empty', { defaultValue: 'Noch keine Scan-Ereignisse vorhanden.' })}
+            {t('dashboard.scan_history.empty')}
           </Typography>
         </Box>
       ) : isMobile ? (
@@ -180,10 +180,10 @@ export const ScanHistoryPanel: React.FC = () => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>{t('dashboard.scan_history.col_time', { defaultValue: 'Zeit' })}</TableCell>
-                <TableCell>{t('dashboard.scan_history.col_tag', { defaultValue: 'Tag' })}</TableCell>
-                <TableCell>{t('dashboard.scan_history.col_media', { defaultValue: 'Inhalt' })}</TableCell>
-                <TableCell>{t('dashboard.scan_history.col_action', { defaultValue: 'Aktion' })}</TableCell>
+                <TableCell>{t('dashboard.scan_history.col_time')}</TableCell>
+                <TableCell>{t('dashboard.scan_history.col_tag')}</TableCell>
+                <TableCell>{t('dashboard.scan_history.col_media')}</TableCell>
+                <TableCell>{t('dashboard.scan_history.col_action')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -223,20 +223,18 @@ export const ScanHistoryPanel: React.FC = () => {
       )}
 
       <Dialog open={clearDialogOpen} onClose={() => setClearDialogOpen(false)}>
-        <DialogTitle>{t('dashboard.scan_history.clear', { defaultValue: 'Verlauf löschen' })}</DialogTitle>
+        <DialogTitle>{t('dashboard.scan_history.clear')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {t('dashboard.scan_history.clear_confirm', {
-              defaultValue: 'Möchtest du den gesamten Scan-Verlauf unwiderruflich löschen?',
-            })}
+            {t('dashboard.scan_history.clear_confirm')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <ActionButton actionType="secondary" onClick={() => setClearDialogOpen(false)} disabled={clearing}>
-            {t('actions.cancel', { defaultValue: 'Abbrechen' })}
+            {t('actions.cancel')}
           </ActionButton>
           <ActionButton actionType="destructive" onClick={() => void handleClearConfirm()} disabled={clearing}>
-            {t('actions.confirm', { defaultValue: 'Bestätigen' })}
+            {t('actions.confirm')}
           </ActionButton>
         </DialogActions>
       </Dialog>

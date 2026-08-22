@@ -51,14 +51,14 @@ def fake_helper(monkeypatch):
 @pytest.mark.asyncio
 async def test_proxy_returns_payload(api_key, fake_helper):
     fake_helper(lambda r: httpx.Response(200, json={"ok": True}))
-    got = await rh._proxy("POST", "/reboot", error_message="x", log_event="e")
+    got = await rh._proxy("POST", "/reboot", error_message="x", error_code="test_failed", log_event="e")
     assert got == {"ok": True}
 
 
 @pytest.mark.asyncio
 async def test_proxy_without_key_is_503(no_api_key):
     with pytest.raises(HTTPException) as exc:
-        await rh._proxy("POST", "/reboot", error_message="x", log_event="e")
+        await rh._proxy("POST", "/reboot", error_message="x", error_code="test_failed", log_event="e")
     assert exc.value.status_code == 503
     assert "HOST_HELPER_API_KEY" in exc.value.detail
 
@@ -68,7 +68,7 @@ async def test_helper_401_is_reported_as_503(api_key, fake_helper):
     """A 401 must not reach the WebUI, which reads it as an expired session."""
     fake_helper(lambda r: httpx.Response(401, json={"detail": "bad key"}))
     with pytest.raises(HTTPException) as exc:
-        await rh._proxy("POST", "/reboot", error_message="x", log_event="e")
+        await rh._proxy("POST", "/reboot", error_message="x", error_code="test_failed", log_event="e")
     assert exc.value.status_code == 503
     assert exc.value.detail == "Host-Helper authentication failed"
 
@@ -77,7 +77,7 @@ async def test_helper_401_is_reported_as_503(api_key, fake_helper):
 async def test_client_errors_keep_their_status(api_key, fake_helper):
     fake_helper(lambda r: httpx.Response(400, json={"detail": "Invalid path"}))
     with pytest.raises(HTTPException) as exc:
-        await rh._proxy("PUT", "/system/network", error_message="fallback", log_event="e")
+        await rh._proxy("PUT", "/system/network", error_message="fallback", error_code="test_failed", log_event="e")
     assert exc.value.status_code == 400
     assert exc.value.detail == "Invalid path"
 
@@ -86,7 +86,7 @@ async def test_client_errors_keep_their_status(api_key, fake_helper):
 async def test_server_errors_are_capped_at_502(api_key, fake_helper):
     fake_helper(lambda r: httpx.Response(504, json={"detail": "timed out"}))
     with pytest.raises(HTTPException) as exc:
-        await rh._proxy("POST", "/system/docker-prune", error_message="x", log_event="e")
+        await rh._proxy("POST", "/system/docker-prune", error_message="x", error_code="test_failed", log_event="e")
     assert exc.value.status_code == 502
 
 
@@ -94,7 +94,7 @@ async def test_server_errors_are_capped_at_502(api_key, fake_helper):
 async def test_error_message_is_used_when_body_is_empty(api_key, fake_helper):
     fake_helper(lambda r: httpx.Response(500))
     with pytest.raises(HTTPException) as exc:
-        await rh._proxy("POST", "/x", error_message="Reboot failed", log_event="e")
+        await rh._proxy("POST", "/x", error_message="Reboot failed", error_code="host_reboot_failed", log_event="e")
     assert exc.value.detail == "Reboot failed"
 
 
@@ -102,7 +102,7 @@ async def test_error_message_is_used_when_body_is_empty(api_key, fake_helper):
 async def test_non_json_error_body_does_not_explode(api_key, fake_helper):
     fake_helper(lambda r: httpx.Response(500, text="<html>nginx</html>"))
     with pytest.raises(HTTPException) as exc:
-        await rh._proxy("POST", "/x", error_message="fallback", log_event="e")
+        await rh._proxy("POST", "/x", error_message="fallback", error_code="test_failed", log_event="e")
     assert "nginx" in exc.value.detail
 
 
@@ -113,7 +113,7 @@ async def test_unreachable_helper_is_503(api_key, fake_helper):
 
     fake_helper(boom)
     with pytest.raises(HTTPException) as exc:
-        await rh._proxy("POST", "/reboot", error_message="x", log_event="e")
+        await rh._proxy("POST", "/reboot", error_message="x", error_code="test_failed", log_event="e")
     assert exc.value.status_code == 503
 
 

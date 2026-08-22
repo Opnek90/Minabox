@@ -2,6 +2,7 @@ import apiClient from './client';
 import type {
   AudioConfig,
   LEDConfig,
+  LEDPatternType,
   ButtonConfig,
   RFIDConfig,
   GeneralConfig,
@@ -45,8 +46,8 @@ export const configApi = {
     return response.data;
   },
 
-  getLedPatterns: async (): Promise<string[]> => {
-    const response = await apiClient.get<string[]>('/config/leds/patterns');
+  getLedPatterns: async (): Promise<LEDPatternType[]> => {
+    const response = await apiClient.get<LEDPatternType[]>('/config/leds/patterns');
     return response.data;
   },
 

@@ -44,8 +44,8 @@ export const FolderCard: React.FC<FolderCardProps> = ({
   const handleMenuClose = () => setAnchorEl(null);
 
   const meta: string[] = [];
-  if (trackCount > 0) meta.push(t('folders.track_count', { count: trackCount, defaultValue: '{{count}} track(s)' }));
-  if (subfolderCount > 0) meta.push(t('folders.subfolder_count', { count: subfolderCount, defaultValue: '{{count}} subfolder(s)' }));
+  if (trackCount > 0) meta.push(t('folders.track_count', { count: trackCount }));
+  if (subfolderCount > 0) meta.push(t('folders.subfolder_count', { count: subfolderCount }));
 
   return (
     <Card
@@ -72,7 +72,7 @@ export const FolderCard: React.FC<FolderCardProps> = ({
         </Box>
       </CardActionArea>
 
-      <Tooltip title={t('folders.options', { defaultValue: 'Options' })}>
+      <Tooltip title={t('folders.options')}>
         <IconButton size="small" onClick={handleMenuOpen} sx={{ mr: 0.5 }}>
           <MoreVertIcon fontSize="small" />
         </IconButton>
@@ -81,11 +81,11 @@ export const FolderCard: React.FC<FolderCardProps> = ({
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
         <MenuItem onClick={() => { handleMenuClose(); onRename(); }}>
           <DriveFileRenameOutlineIcon fontSize="small" sx={{ mr: 1 }} />
-          {t('folders.rename', { defaultValue: 'Rename' })}
+          {t('folders.rename')}
         </MenuItem>
         <MenuItem onClick={() => { handleMenuClose(); onDelete(); }} sx={{ color: 'error.main' }}>
           <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
-          {t('folders.delete', { defaultValue: 'Delete folder' })}
+          {t('folders.delete')}
         </MenuItem>
       </Menu>
     </Card>

@@ -21,7 +21,7 @@ interface StreamDialogProps {
 }
 
 export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuccess }) => {
-  const { t } = useTranslation('media');
+  const { t } = useTranslation(['media', 'common']);
   const { showError } = useToast();
 
   const [url, setUrl] = useState('');
@@ -48,7 +48,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
       onSuccess(stream);
       handleReset();
     } catch {
-      showError(t('stream.error', { defaultValue: 'Stream konnte nicht gespeichert werden' }));
+      showError(t('stream.error'));
     } finally {
       setLoading(false);
     }
@@ -110,7 +110,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
           onClick={handleSave}
           disabled={!isValid || loading}
         >
-          {t('add', { ns: 'common' })}
+          {t('common:actions.add')}
         </ActionButton>
       </DialogActions>
     </ResponsiveDialog>

@@ -25,7 +25,7 @@ export const PodcastDialog: React.FC<PodcastDialogProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { t } = useTranslation('media');
+  const { t } = useTranslation(['media', 'common']);
   const { showError } = useToast();
   const [title, setTitle] = useState('');
   const [rssUrl, setRssUrl] = useState('');
@@ -95,7 +95,7 @@ export const PodcastDialog: React.FC<PodcastDialogProps> = ({
       <DialogActions>
         <Button onClick={handleClose}>{t('cancel', { ns: 'common' })}</Button>
         <Button onClick={handleSave} variant="contained" disabled={!isValid || loading}>
-          {t('add', { ns: 'common' })}
+          {t('common:actions.add')}
         </Button>
       </DialogActions>
     </ResponsiveDialog>

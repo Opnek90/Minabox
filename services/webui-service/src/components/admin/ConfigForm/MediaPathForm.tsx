@@ -19,10 +19,11 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { translateApiError } from '@/utils/apiError';
 
 /** Wo die Musik auf dem Gerät liegt – inklusive Umzug auf einen anderen Datenträger. */
 export const MediaPathForm: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [newAudioPath, setNewAudioPath] = useState('');
@@ -41,11 +42,6 @@ export const MediaPathForm: React.FC = () => {
     systemApi.getAudioPath().then((r) => setAudioPath(r.path)).catch(() => setAudioPath(null));
   }, []);
 
-  const extractDetail = (err: unknown): string | null =>
-    err && typeof err === 'object' && 'response' in err
-      ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? null
-      : null;
-
   const saveAudioPathAndMaybeRestart = async (doRestart: boolean) => {
     const path = newAudioPath.trim();
     if (!path) return;
@@ -63,7 +59,7 @@ export const MediaPathForm: React.FC = () => {
         showSuccess(t('general.media_path_success'));
       }
     } catch (err) {
-      setAudioPathError(extractDetail(err) ?? t('general.media_path_error'));
+      setAudioPathError(translateApiError(t, i18n, err));
     } finally {
       setAudioPathSaving(false);
     }
@@ -95,13 +91,10 @@ export const MediaPathForm: React.FC = () => {
               setMoveProgressOpen(false);
               showSuccess(t('general.media_path_success_moved'));
             } catch (err) {
-              const detail = extractDetail(err);
               setMoveProgress((p) => ({
                 ...p,
                 status: 'error',
-                error: detail
-                  ? `${t('general.media_path_reboot_failed')}: ${detail}`
-                  : t('general.media_path_reboot_failed'),
+                error: translateApiError(t, i18n, err),
               }));
             }
             setAudioPathSaving(false);
@@ -118,7 +111,7 @@ export const MediaPathForm: React.FC = () => {
         status: 'error',
         total: 0,
         current: 0,
-        error: extractDetail(err) ?? t('general.media_path_move_error'),
+        error: translateApiError(t, i18n, err),
       });
       setAudioPathSaving(false);
     }
@@ -130,7 +123,7 @@ export const MediaPathForm: React.FC = () => {
       await navigator.clipboard.writeText(audioPath);
       showSuccess(t('general.media_path_copied'));
     } catch {
-      showError(t('general.media_path_copy_error', { defaultValue: 'Kopieren fehlgeschlagen' }));
+      showError(t('general.media_path_copy_error'));
     }
   };
 
@@ -251,10 +244,8 @@ export const MediaPathForm: React.FC = () => {
                 />
                 {moveProgress.total > 0 && (
                   <Typography variant="caption" color="text.secondary">
-                    {t('general.media_path_move_files_count', {
-                      current: moveProgress.current,
-                      total: moveProgress.total,
-                    })}
+                    {t('general.media_path_move_files_count', { current: moveProgress.current,
+                      total: moveProgress.total })}
                   </Typography>
                 )}
               </Box>

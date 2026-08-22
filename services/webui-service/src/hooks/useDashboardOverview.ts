@@ -69,15 +69,11 @@ export function useDashboardOverview(): UseDashboardOverviewResult {
       setResetDialogOpen(false);
       await load();
       showSuccess(
-        t('dashboard.reset_success', {
-          defaultValue: 'Zeiten zurückgesetzt',
-        }),
+        t('dashboard.reset_success'),
       );
     } catch {
       showError(
-        t('dashboard.reset_error', {
-          defaultValue: 'Zurücksetzen fehlgeschlagen',
-        }),
+        t('dashboard.reset_error'),
       );
     } finally {
       setResetting(false);

@@ -28,7 +28,7 @@ interface UploadDialogProps {
 
 
 export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuccess, currentFolderId }) => {
-  const { t } = useTranslation('media');
+  const { t } = useTranslation(['media', 'errors']);
   const { showError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -95,7 +95,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
       onSuccess(track);
       handleReset();
     } catch {
-      showError(t('upload.error', { defaultValue: 'Upload failed' }));
+      showError(t('errors:upload_failed'));
     } finally {
       setUploading(false);
     }
@@ -188,7 +188,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuc
 
         {currentFolderId != null && (
           <Typography variant="caption" color="primary.main">
-            {t('folders.upload_hint', { defaultValue: 'Track will be added to the current folder.' })}
+            {t('folders.upload_hint')}
           </Typography>
         )}
 

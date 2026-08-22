@@ -72,7 +72,7 @@ const RenderedSection: React.FC<{ section: SettingsSectionMeta; highlighted?: bo
   section,
   highlighted,
 }) => {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation(['admin', 'setup']);
   return (
     <Box
       id={sectionDomId(section.key)}
@@ -101,7 +101,7 @@ interface LayoutProps {
 const DesktopLayout: React.FC<LayoutProps> = ({
   groups, activeGroupKey, onActiveGroupChange, highlightedSection,
 }) => {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation(['admin', 'setup']);
   const tabIndex = Math.max(0, groups.findIndex((g) => g.key === activeGroupKey));
   const activeGroup = groups[tabIndex];
   return (
@@ -131,7 +131,7 @@ const DesktopLayout: React.FC<LayoutProps> = ({
 const MobileLayout: React.FC<LayoutProps> = ({
   groups, activeGroupKey, onActiveGroupChange, highlightedSection,
 }) => {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation(['admin', 'setup']);
   return (
     <Box sx={{ mt: 1 }}>
       {groups.map((group) => (
@@ -194,7 +194,7 @@ const SearchResults: React.FC<{ query: string; onSelect: (sectionKey: string) =>
   query,
   onSelect,
 }) => {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation(['admin', 'setup']);
   const q = query.trim().toLowerCase();
 
   const matches = useMemo(
@@ -216,7 +216,7 @@ const SearchResults: React.FC<{ query: string; onSelect: (sectionKey: string) =>
     return (
       <Box sx={{ pt: 3, textAlign: 'center' }}>
         <Typography color="text.secondary">
-          {t('search.no_results', { defaultValue: 'Keine Einstellungen gefunden.' })}
+          {t('search.no_results')}
         </Typography>
       </Box>
     );
@@ -249,7 +249,7 @@ const SearchResults: React.FC<{ query: string; onSelect: (sectionKey: string) =>
 };
 
 export const AdminPage: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation(['admin', 'setup']);
   const isMobile = useLayout().isMobile;
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
@@ -296,7 +296,7 @@ export const AdminPage: React.FC = () => {
       <TextField
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={t('search.placeholder', { defaultValue: 'Einstellungen durchsuchen…' })}
+        placeholder={t('search.placeholder')}
         size="small"
         fullWidth
         sx={{ mb: 2 }}

@@ -180,7 +180,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
   onClose,
   onSaved,
 }) => {
-  const { t } = useTranslation('media');
+  const { t } = useTranslation(['media', 'common']);
   const { showError } = useToast();
   const [trackIds, setTrackIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
@@ -239,7 +239,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
       onSaved(updated);
       onClose();
     } catch {
-      showError(t('playlists.tracks_save_error', { defaultValue: 'Tracks konnten nicht gespeichert werden' }));
+      showError(t('playlists.tracks_save_error'));
     } finally {
       setLoading(false);
     }
@@ -291,12 +291,12 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
         {tab === 0 && (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              {t('playlists.track_count_plural', { count: trackIds.length })}
+              {t('playlists.track_count', { count: trackIds.length })}
             </Typography>
 
             {trackIds.length === 0 ? (
               <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>
-                {t('playlists.no_tracks', { defaultValue: 'Noch keine Tracks.' })}
+                {t('playlists.no_tracks')}
               </Typography>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -349,7 +349,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
                     key={track.id}
                     sx={{ borderRadius: 1, mb: 0.25, '&:hover': { bgcolor: 'action.hover' } }}
                     secondaryAction={
-                      <Tooltip title={t('add', { ns: 'common' })}>
+                      <Tooltip title={t('common:actions.add')}>
                         <IconButton size="small" onClick={() => handleAddTrack(track.id)}>
                           <AddIcon fontSize="small" />
                         </IconButton>

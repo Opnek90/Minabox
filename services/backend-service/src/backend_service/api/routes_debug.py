@@ -27,11 +27,12 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, Body, Request
 from fastapi.responses import Response
 
 from backend_service.api.routes_auth import COOKIE_NAME
 from backend_service.config import get_config
+from backend_service.core.api_errors import ApiError
 from backend_service.core.auth import read_auth_settings, verify_session_token
 from backend_service.core.debug_export import (
     SCHEMA_VERSION,
@@ -153,35 +154,31 @@ async def _build_archive(
     address = _client_address(request)
     if not _is_private_client(address):
         logger.warning("debug_export_rejected_public", client=address)
-        raise HTTPException(
+        raise ApiError(
             status_code=403,
-            detail="Diagnose-Paket ist nur aus dem lokalen Netz abrufbar.",
+            code="debug_export_local_only",
+            detail="Debug package is only available from the local network.",
         )
 
     # Both cases are 429, but they mean different things to the user: one is
     # "your own export is still running" (the usual double-click), the other is
-    # "you just made one". The code lets the WebUI say which without parsing
-    # German prose.
+    # "you just made one". The code lets the WebUI say which apart.
     if _export_lock.locked():
-        raise HTTPException(
+        raise ApiError(
             status_code=429,
-            detail={
-                "code": "export_in_progress",
-                "message": "Es läuft bereits ein Export. Bitte kurz warten.",
-            },
+            code="export_in_progress",
+            detail="An export is already running.",
         )
 
     since_last = time.monotonic() - _last_export_at
     if _last_export_at and since_last < RATE_LIMIT_SECONDS:
         retry_after = int(RATE_LIMIT_SECONDS - since_last)
-        raise HTTPException(
+        raise ApiError(
             status_code=429,
-            detail={
-                "code": "export_rate_limited",
-                "message": f"Bitte {retry_after} Sekunden warten.",
-                "retry_after": retry_after,
-            },
+            code="export_rate_limited",
+            detail=f"Please wait {retry_after} seconds.",
             headers={"Retry-After": str(max(1, retry_after))},
+            extra={"retry_after": retry_after},
         )
 
     options = ExportOptions.from_payload(payload.get("options"))
@@ -208,14 +205,15 @@ async def _build_archive(
             )
         except TimeoutError as e:
             logger.error("debug_export_timeout", client=address)
-            raise HTTPException(
+            raise ApiError(
                 status_code=504,
-                detail="Erstellung des Diagnose-Pakets dauerte zu lange.",
+                code="debug_export_timeout",
+                detail="Building the debug package took too long.",
             ) from e
         except Exception as e:
             logger.error("debug_export_failed", error=str(e), client=address)
-            raise HTTPException(
-                status_code=500, detail="Diagnose-Paket konnte nicht erstellt werden."
+            raise ApiError(
+                status_code=500, code="debug_export_failed", detail="Could not build the debug package."
             ) from e
 
     logger.info(
@@ -304,15 +302,17 @@ async def debug_export_preview(
 async def debug_export_download(request: Request, export_id: str) -> Response:
     """Hand out the archive that the preview already built."""
     if not _is_private_client(_client_address(request)):
-        raise HTTPException(
+        raise ApiError(
             status_code=403,
-            detail="Diagnose-Paket ist nur aus dem lokalen Netz abrufbar.",
+            code="debug_export_local_only",
+            detail="Debug package is only available from the local network.",
         )
     cached = _load_preview(export_id)
     if cached is None:
-        raise HTTPException(
+        raise ApiError(
             status_code=404,
-            detail="Die Vorschau ist abgelaufen. Bitte das Paket neu erstellen.",
+            code="debug_export_preview_expired",
+            detail="The preview has expired. Please rebuild the package.",
         )
     archive, filename = cached
     _drop_preview()

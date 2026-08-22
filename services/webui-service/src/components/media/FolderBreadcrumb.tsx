@@ -48,7 +48,7 @@ export const FolderBreadcrumb: React.FC<FolderBreadcrumbProps> = ({
           sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}
         >
           <HomeIcon sx={{ fontSize: 16 }} />
-          {t('folders.root', { defaultValue: 'Library' })}
+          {t('folders.root')}
         </Link>
         {path.slice(0, -1).map((f) => (
           <Link

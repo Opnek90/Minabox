@@ -129,7 +129,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 
   const sortKeyLabel: Record<SortKey, string> = {
     name: t('playlists.fields.name'),
-    track_count: t('playlists.fields.track_count', { defaultValue: 'Tracks' }),
+    track_count: t('playlists.fields.track_count'),
   };
 
   const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
@@ -164,9 +164,9 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     <Box display="flex" alignItems="center" gap={0.5}>
       <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey} size="small">
         <ToggleButton value="name">{t('playlists.fields.name')}</ToggleButton>
-        <ToggleButton value="track_count">{t('playlists.fields.track_count', { defaultValue: 'Tracks' })}</ToggleButton>
+        <ToggleButton value="track_count">{t('playlists.fields.track_count')}</ToggleButton>
       </ToggleButtonGroup>
-      <Tooltip title={sortDir === 'asc' ? t('playlists.sort.asc', { defaultValue: 'Aufsteigend' }) : t('playlists.sort.desc', { defaultValue: 'Absteigend' })}>
+      <Tooltip title={sortDir === 'asc' ? t('playlists.sort.asc') : t('playlists.sort.desc')}>
         <IconButton size="small" onClick={handleSortDirToggle}>
           {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
         </IconButton>
@@ -188,7 +188,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     if (editingPlaylist?.cover_art_url) {
       playlistsApi.deleteCover(editingPlaylist.id)
         .then((updated) => { onUpdate(updated); setEditingPlaylist(updated); })
-        .catch(() => showError(t('playlists.cover_error', { defaultValue: 'Cover konnte nicht entfernt werden' })));
+        .catch(() => showError(t('playlists.cover_remove_error')));
     }
   };
 
@@ -203,7 +203,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         });
         if (formData.coverFile) updated = await playlistsApi.uploadCover(editingPlaylist.id, formData.coverFile);
         onUpdate(updated);
-        showSuccess(t('playlists.updated', { defaultValue: 'Playlist aktualisiert' }));
+        showSuccess(t('playlists.updated'));
       } else {
         const created = await playlistsApi.create({
           name: formData.name.trim(),
@@ -213,11 +213,11 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           ? await playlistsApi.uploadCover(created.id, formData.coverFile)
           : created;
         onCreate(withCover);
-        showSuccess(t('playlists.created', { defaultValue: 'Playlist erstellt' }));
+        showSuccess(t('playlists.created'));
       }
       setFormOpen(false);
     } catch {
-      showError(t('playlists.save_error', { defaultValue: 'Playlist konnte nicht gespeichert werden' }));
+      showError(t('playlists.save_error'));
     } finally {
       setLoading(false);
     }
@@ -228,9 +228,9 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     try {
       await playlistsApi.delete(deleteTarget.id);
       onDelete(deleteTarget);
-      showSuccess(t('playlists.deleted', { defaultValue: 'Playlist gelöscht' }));
+      showSuccess(t('playlists.deleted'));
     } catch {
-      showError(t('playlists.delete_error', { defaultValue: 'Playlist konnte nicht gelöscht werden' }));
+      showError(t('playlists.delete_error'));
     } finally {
       setDeleteTarget(null);
     }
@@ -241,7 +241,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
       const detail = await playlistsApi.getById(pl.id);
       setTracksDialogPlaylist(detail);
     } catch {
-      showError(t('playlists.load_error', { defaultValue: 'Tracks konnten nicht geladen werden' }));
+      showError(t('playlists.load_error'));
     }
   };
 
@@ -250,9 +250,9 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     try {
       const updated = await playlistsApi.uploadCover(coverTargetId, file);
       onUpdate(updated);
-      showSuccess(t('playlists.cover_uploaded', { defaultValue: 'Cover hochgeladen' }));
+      showSuccess(t('playlists.cover_uploaded'));
     } catch {
-      showError(t('playlists.cover_error', { defaultValue: 'Cover konnte nicht hochgeladen werden' }));
+      showError(t('playlists.cover_upload_error'));
     } finally {
       setCoverTargetId(null);
     }
@@ -260,7 +260,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 
   const handlePlay = (pl: Playlist) => {
     audioApi.play({ playlist_id: pl.id }).catch(() =>
-      showError(t('playlists.play_error', { defaultValue: 'Playlist konnte nicht abgespielt werden' }))
+      showError(t('playlists.play_error'))
     );
   };
 
@@ -274,7 +274,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         </ToggleButtonGroup>
 
         <TextField
-          placeholder={t('playlists.search_placeholder', { defaultValue: 'Playlists durchsuchen…' })}
+          placeholder={t('playlists.search_placeholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           size="small"
@@ -285,7 +285,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         {hasInlineControls && sortControls}
 
         {!hasInlineControls && (
-          <Tooltip title={t('playlists.sort.open', { defaultValue: 'Sortierung' })}>
+          <Tooltip title={t('playlists.sort.open')}>
             <IconButton
               ref={filterBtnRef}
               size="small"
@@ -338,15 +338,15 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box>
             <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.75}>
-              {t('playlists.sort.label', { defaultValue: 'Sortierung' })}
+              {t('playlists.sort.label')}
             </Typography>
             <Box display="flex" gap={1} alignItems="center">
               <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey}
                 size="small" sx={{ flex: 1, '& .MuiToggleButton-root': { flex: 1, fontSize: '0.78rem' } }}>
                 <ToggleButton value="name">{t('playlists.fields.name')}</ToggleButton>
-                <ToggleButton value="track_count">{t('playlists.fields.track_count', { defaultValue: 'Tracks' })}</ToggleButton>
+                <ToggleButton value="track_count">{t('playlists.fields.track_count')}</ToggleButton>
               </ToggleButtonGroup>
-              <Tooltip title={sortDir === 'asc' ? t('playlists.sort.asc', { defaultValue: 'Aufsteigend' }) : t('playlists.sort.desc', { defaultValue: 'Absteigend' })}>
+              <Tooltip title={sortDir === 'asc' ? t('playlists.sort.asc') : t('playlists.sort.desc')}>
                 <IconButton size="small" onClick={handleSortDirToggle}>
                   {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
                 </IconButton>
@@ -359,7 +359,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
               <Box component="button"
                 onClick={() => { onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR); setPopoverOpen(false); }}
                 sx={{ background: 'none', border: 'none', cursor: 'pointer', color: 'text.secondary', fontSize: '0.8rem', textAlign: 'left', p: 0, '&:hover': { color: 'text.primary' } }}>
-                {t('playlists.sort.reset', { defaultValue: 'Zurücksetzen' })}
+                {t('playlists.sort.reset')}
               </Box>
             </>
           )}
@@ -498,7 +498,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         playlist={tracksDialogPlaylist}
         allTracks={tracks}
         onClose={() => setTracksDialogPlaylist(null)}
-        onSaved={(updated) => { onUpdate(updated); showSuccess(t('playlists.tracks_saved', { defaultValue: 'Tracks gespeichert' })); }}
+        onSaved={(updated) => { onUpdate(updated); showSuccess(t('playlists.tracks_saved')); }}
       />
 
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>

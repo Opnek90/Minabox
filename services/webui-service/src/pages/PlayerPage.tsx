@@ -69,7 +69,7 @@ const UpNextCollapse: React.FC<{ queue: QueueItem[] }> = ({ queue }) => {
         sx={{ py: 0.25, minHeight: 32 }}
       >
         <Typography variant="caption" color="text.secondary">
-          {t('player.up_next_count', { defaultValue: 'Up next ({{count}})', count: n })}
+          {t('player.up_next_count', { count: n })}
         </Typography>
         {expanded ? <ExpandLessIcon fontSize="small" sx={{ ml: 0.5 }} /> : <ExpandMoreIcon fontSize="small" sx={{ ml: 0.5 }} />}
       </ListItemButton>
@@ -265,7 +265,7 @@ export const PlayerPage: React.FC = () => {
   const prevMutation = useMutation({ mutationFn: audioApi.previous });
   const seekMutation = useMutation({
     mutationFn: audioApi.seek,
-    onError: () => showError(t('player.seek_error', { defaultValue: 'Seek fehlgeschlagen' })),
+    onError: () => showError(t('player.seek_error')),
   });
   
   const volumeMutation = useMutation({ 
@@ -275,12 +275,12 @@ export const PlayerPage: React.FC = () => {
   
   const startSleepTimerMutation = useMutation({
     mutationFn: audioApi.startSleepTimer,
-    onError: () => showError(t('sleep_timer.error', { defaultValue: 'Sleep Timer konnte nicht gesetzt werden' }))
+    onError: () => showError(t('sleep_timer.error'))
   });
 
   const cancelSleepTimerMutation = useMutation({
     mutationFn: audioApi.cancelSleepTimer,
-    onError: () => showError(t('sleep_timer.cancel_error', { defaultValue: 'Sleep Timer konnte nicht abgebrochen werden' }))
+    onError: () => showError(t('sleep_timer.cancel_error'))
   });
 
   const switchDeviceMutation = useMutation({
@@ -292,7 +292,7 @@ export const PlayerPage: React.FC = () => {
           : old
       );
     },
-    onError: () => showError(t('player.output_device', { defaultValue: 'Could not switch device' }))
+    onError: () => showError(t('player.output_device_switch_error'))
   });
 
   const repeatMutation = useMutation({
@@ -415,12 +415,12 @@ export const PlayerPage: React.FC = () => {
                   deleteIcon={<CancelIcon />}
                 />
               )}
-              <Tooltip title={t('more_options', { defaultValue: 'More options' })}>
+              <Tooltip title={t('more_options')}>
                 <span>
                   <ActionButton
                     ref={moreButtonRef}
                     actionType="icon"
-                    aria-label={t('more_options', { defaultValue: 'More options' })}
+                    aria-label={t('more_options')}
                     onClick={() => setMoreMenuOpen(true)}
                   >
                     <MoreVertIcon fontSize="small" />
@@ -452,7 +452,7 @@ export const PlayerPage: React.FC = () => {
             )}
             <MenuItem onClick={() => { setMoreMenuOpen(false); setOutputDialogOpen(true); }}>
               <ListItemIcon><SpeakerIcon fontSize="small" /></ListItemIcon>
-              <ListItemText>{t('player.output_device', { defaultValue: 'Output device' })}</ListItemText>
+              <ListItemText>{t('player.output_device')}</ListItemText>
             </MenuItem>
             {session && [
               <Divider key="divider" />,
@@ -468,8 +468,8 @@ export const PlayerPage: React.FC = () => {
                 </ListItemIcon>
                 <ListItemText>
                   {session.repeat_mode === 'all'
-                    ? t('player.repeat_all', { defaultValue: 'Repeat all' })
-                    : t('player.repeat_off', { defaultValue: 'Repeat off' })}
+                    ? t('player.repeat_all')
+                    : t('player.repeat_off')}
                 </ListItemText>
               </MenuItem>,
               <MenuItem
@@ -484,8 +484,8 @@ export const PlayerPage: React.FC = () => {
                 </ListItemIcon>
                 <ListItemText>
                   {session.shuffle
-                    ? t('player.shuffle_on', { defaultValue: 'Shuffle on' })
-                    : t('player.shuffle_off', { defaultValue: 'Shuffle off' })}
+                    ? t('player.shuffle_on')
+                    : t('player.shuffle_off')}
                 </ListItemText>
               </MenuItem>,
             ]}
@@ -559,7 +559,7 @@ export const PlayerPage: React.FC = () => {
 
       {/* Output device dialog (moved out of the main card, see B2) */}
       <Dialog open={outputDialogOpen} onClose={() => setOutputDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('player.output_device', { defaultValue: 'Output device' })}</DialogTitle>
+        <DialogTitle>{t('player.output_device')}</DialogTitle>
         <DialogContent sx={{ pt: '8px !important' }}>
           <Box display="flex" alignItems="center" gap={0.5} sx={{ width: '100%' }}>
             <FormControl size="small" sx={{ minWidth: 140, flex: 1 }}>
@@ -568,7 +568,7 @@ export const PlayerPage: React.FC = () => {
                 displayEmpty
                 renderValue={(v) => {
                   const d = outputDevices.find((x: AudioDeviceItem) => x.alsa_device === v);
-                  return d ? d.name : (v || t('player.output_device', { defaultValue: 'Output device' }));
+                  return d ? d.name : (v || t('player.output_device'));
                 }}
                 onChange={(e) => {
                   const v = e.target.value as string;
@@ -576,7 +576,7 @@ export const PlayerPage: React.FC = () => {
                   switchDeviceMutation.mutate(v);
                 }}
                 disabled={outputDevicesLoading || switchDeviceMutation.isPending}
-                aria-label={t('player.output_device', { defaultValue: 'Output device' })}
+                aria-label={t('player.output_device')}
               >
                 {outputDevices.map((d: AudioDeviceItem) => (
                   <MenuItem key={d.alsa_device} value={d.alsa_device}>
@@ -585,13 +585,13 @@ export const PlayerPage: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
-            <Tooltip title={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}>
+            <Tooltip title={t('player.output_device_refresh')}>
               <span>
                 <ActionButton
                   actionType="icon"
                   onClick={() => refetchDevices()}
                   disabled={outputDevicesLoading}
-                  aria-label={t('player.output_device_refresh', { defaultValue: 'Refresh devices' })}
+                  aria-label={t('player.output_device_refresh')}
                 >
                   <RefreshIcon fontSize="small" />
                 </ActionButton>

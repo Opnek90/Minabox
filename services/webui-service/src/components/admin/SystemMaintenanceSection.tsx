@@ -38,6 +38,7 @@ import {
 } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { translateApiError } from '@/utils/apiError';
 
 /** Eine Zeile der Versionsliste: Dienst, laufende Version, Hinweis auf Neues. */
 const ServiceVersionRow: React.FC<{ service: ServiceUpdateInfo }> = ({ service }) => {
@@ -119,7 +120,7 @@ const ReleaseNotesList: React.FC<{ service: ServiceUpdateInfo }> = ({ service })
 };
 
 export const SystemMaintenanceSection: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const [check, setCheck] = useState<UpdateCheckResponse | null>(null);
   const [checking, setChecking] = useState(false);
@@ -176,9 +177,9 @@ export const SystemMaintenanceSection: React.FC = () => {
     setAutoUpdateCheck(checked);
     try {
       await configApi.updateGeneral({ auto_update_check_enabled: checked });
-    } catch {
+    } catch (err) {
       setAutoUpdateCheck(!checked);
-      showError(t('system.logs_unavailable'));
+      showError(translateApiError(t, i18n, err));
     }
   };
 
@@ -224,8 +225,8 @@ export const SystemMaintenanceSection: React.FC = () => {
       a.click();
       URL.revokeObjectURL(url);
       showSuccess(t('system.backup_restore_success'));
-    } catch {
-      showError(t('system.logs_unavailable'));
+    } catch (err) {
+      showError(translateApiError(t, i18n, err));
     }
   };
 
@@ -237,8 +238,8 @@ export const SystemMaintenanceSection: React.FC = () => {
       await systemApi.restoreBackup(restoreFile);
       setRestoreFile(null);
       showSuccess(t('system.backup_restore_success'));
-    } catch {
-      showError(t('system.logs_unavailable'));
+    } catch (err) {
+      showError(translateApiError(t, i18n, err));
     } finally {
       setRestorePending(false);
     }
@@ -258,9 +259,7 @@ export const SystemMaintenanceSection: React.FC = () => {
       // was passiert.
       setUpdateProgressOpen(true);
     } catch (err: unknown) {
-      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
-      const detail = ax?.data?.detail;
-      showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
+      showError(translateApiError(t, i18n, err));
       setUpdating(false);
     }
   };
@@ -311,9 +310,7 @@ export const SystemMaintenanceSection: React.FC = () => {
       showSuccess(t('system.update_os_success'));
       setUpdateOsLogOpen(true);
     } catch (err: unknown) {
-      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
-      const detail = ax?.data?.detail;
-      showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
+      showError(translateApiError(t, i18n, err));
     } finally {
       setUpdatingOs(false);
     }
@@ -326,9 +323,7 @@ export const SystemMaintenanceSection: React.FC = () => {
       await systemApi.dockerPrune();
       showSuccess(t('system.cleanup_success'));
     } catch (err: unknown) {
-      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { detail?: string } } }).response : undefined;
-      const detail = ax?.data?.detail;
-      showError(typeof detail === 'string' && detail ? detail : t('system.logs_unavailable'));
+      showError(translateApiError(t, i18n, err));
     } finally {
       setDockerPrunePending(false);
     }
@@ -343,8 +338,8 @@ export const SystemMaintenanceSection: React.FC = () => {
     try {
       await systemApi.factoryReset(factoryResetDeleteAudio);
       showSuccess(t('system.factory_reset_success'));
-    } catch {
-      showError(t('system.logs_unavailable'));
+    } catch (err) {
+      showError(translateApiError(t, i18n, err));
     } finally {
       setFactoryResetPending(false);
     }
@@ -669,10 +664,8 @@ export const SystemMaintenanceSection: React.FC = () => {
             <Box minWidth={0}>
               <Typography variant="body2">
                 {updateStatus?.step != null && updateStatus?.step_count != null
-                  ? t('system.update_step', {
-                      step: updateStatus.step,
-                      count: updateStatus.step_count,
-                    })
+                  ? t('system.update_step', { step: updateStatus.step,
+                      count: updateStatus.step_count })
                   : t('system.update_starting')}
               </Typography>
               <Typography variant="caption" color="text.secondary">
@@ -681,7 +674,9 @@ export const SystemMaintenanceSection: React.FC = () => {
                   : !updating && updateStatus?.exit_code != null
                     ? t('system.update_failed')
                     : updateStatus?.step_key
-                      ? t(`system.update_step_${updateStatus.step_key}`)
+                      // step_key kommt vom Backend/Orchestrierungsskript und ist nicht
+                      // an eine feste Werte-Menge gebunden - Key statisch pruefen geht nicht.
+                      ? t(`system.update_step_${updateStatus.step_key}` as never)
                       : ''}
               </Typography>
             </Box>

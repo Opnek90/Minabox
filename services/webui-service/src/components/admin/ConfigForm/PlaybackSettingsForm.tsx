@@ -36,17 +36,17 @@ const END_BEHAVIORS: readonly PlaybackEndBehavior[] = [
   'repeat_while_tag',
 ] as const;
 
-const END_BEHAVIOR_LABEL_KEY: Record<PlaybackEndBehavior, string> = {
+const END_BEHAVIOR_LABEL_KEY = {
   stop: 'playback.end_stop',
   repeat: 'playback.end_repeat',
   repeat_while_tag: 'playback.end_repeat_while_tag',
-};
+} as const satisfies Record<PlaybackEndBehavior, string>;
 
-const END_BEHAVIOR_HINT_KEY: Record<PlaybackEndBehavior, string> = {
+const END_BEHAVIOR_HINT_KEY = {
   stop: 'playback.end_stop_hint',
   repeat: 'playback.end_repeat_hint',
   repeat_while_tag: 'playback.end_repeat_while_tag_hint',
-};
+} as const satisfies Record<PlaybackEndBehavior, string>;
 
 export const PlaybackSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -71,7 +71,7 @@ export const PlaybackSettingsForm: React.FC = () => {
         });
         if (g.playback_loop_guard_minutes) setGuardMinutes(g.playback_loop_guard_minutes);
       })
-      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
+      .catch(() => setError(t('load_error')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -124,9 +124,7 @@ export const PlaybackSettingsForm: React.FC = () => {
             }
           />
         }
-        label={t('control.resume_on_tag_rescan', {
-          defaultValue: 'Ab letzter Position fortsetzen (Tag erneut auflegen)',
-        })}
+        label={t('control.resume_on_tag_rescan')}
       />
 
       </SettingsBlock>

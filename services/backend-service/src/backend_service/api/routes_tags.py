@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.models.database import Tag
 from backend_service.models.schemas import TagCreate, TagResponse, TagUpdate
@@ -29,16 +30,7 @@ def get_tag(tag_id: str, db: Session = Depends(get_db)) -> TagResponse:
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()
     if not tag:
         logger.warning("api_tag_not_found", tag_id=tag_id)
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "TAG_NOT_FOUND",
-                    "message": f"Tag {tag_id} not found in database",
-                    "details": {"tag_id": tag_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="tag_not_found", detail=f"Tag {tag_id} not found in database")
     return TagResponse.model_validate(tag)
 
 
@@ -53,16 +45,7 @@ def create_tag(
     existing_tag = db.query(Tag).filter(Tag.tag_id == tag_data.tag_id).first()
     if existing_tag:
         logger.warning("api_tag_already_exists", tag_id=tag_data.tag_id)
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": {
-                    "code": "TAG_ALREADY_EXISTS",
-                    "message": f"Tag {tag_data.tag_id} already exists",
-                    "details": {"tag_id": tag_data.tag_id},
-                }
-            },
-        )
+        raise ApiError(status_code=400, code="tag_already_exists", detail=f"Tag {tag_data.tag_id} already exists")
 
     tag = Tag(
         tag_id=tag_data.tag_id,
@@ -95,16 +78,7 @@ async def update_tag(
 
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()
     if not tag:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "TAG_NOT_FOUND",
-                    "message": f"Tag {tag_id} not found",
-                    "details": {"tag_id": tag_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="tag_not_found", detail=f"Tag {tag_id} not found")
 
     # Parse raw body once to detect explicit null vs omitted fields
     try:
@@ -149,16 +123,7 @@ def delete_tag(tag_id: str, db: Session = Depends(get_db)) -> None:
 
     tag = db.query(Tag).filter(Tag.tag_id == tag_id).first()
     if not tag:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": {
-                    "code": "TAG_NOT_FOUND",
-                    "message": f"Tag {tag_id} not found",
-                    "details": {"tag_id": tag_id},
-                }
-            },
-        )
+        raise ApiError(status_code=404, code="tag_not_found", detail=f"Tag {tag_id} not found")
 
     db.delete(tag)
     db.commit()

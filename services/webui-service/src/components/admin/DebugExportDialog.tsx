@@ -32,6 +32,7 @@ import {
   type DebugExportPreview,
 } from '@/api/system';
 import { collectClientContext } from '@/utils/debugRingBuffer';
+import { apiErrorCode } from '@/utils/apiError';
 
 type Preset = 'minimal' | 'recommended' | 'full';
 
@@ -138,20 +139,14 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
 
   const describeError = useCallback(
     (e: unknown) => {
-      const response = (e as {
-        response?: { status?: number; data?: { detail?: unknown } };
-      })?.response;
+      const response = (e as { response?: { status?: number } })?.response;
       const status = response?.status;
-      const detail = response?.data?.detail;
-      // The backend sends a code for the two different 429 reasons; older
-      // builds send a plain string, so fall back on the status alone.
-      const code =
-        detail && typeof detail === 'object'
-          ? (detail as { code?: string }).code
-          : undefined;
+      const code = apiErrorCode(e);
 
       if (code === 'export_in_progress') return t('system.debug_export.error_in_progress');
       if (code === 'export_rate_limited') return t('system.debug_export.error_rate_limited');
+      if (code === 'debug_export_local_only') return t('system.debug_export.error_remote');
+      if (code === 'debug_export_preview_expired') return t('system.debug_export.preview_expired');
       if (status === 429) return t('system.debug_export.error_in_progress');
       if (status === 403) return t('system.debug_export.error_remote');
       if (status === 404) return t('system.debug_export.preview_expired');
@@ -237,6 +232,9 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
     extras?: React.ReactNode
   ) => {
     // The option is called include_db, its texts live under `database`.
+    // `base` ist aus einem geschlossenen Set (keyof Selection) gebaut, bleibt aber
+    // fuer TS ein generischer string - die vier t()-Aufrufe unten sind deshalb
+    // per `as never` von der Key-Pruefung ausgenommen.
     const base = `system.debug_export.blocks.${key === 'include_db' ? 'database' : key}`;
     const locked = onToggle === undefined ? false : !elevated && (key === 'history' || key === 'include_db');
     const goodToKnow = key === 'history' || key === 'include_db';
@@ -256,7 +254,7 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
             label={
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                 <Typography variant="body2">
-                  {t(`${base}.label`)}
+                  {t(`${base}.label` as never)}
                 </Typography>
                 {!onToggle && (
                   <Chip size="small" variant="outlined" label={t('system.debug_export.always_on')} />
@@ -269,10 +267,10 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
         <AccordionDetails sx={{ pt: 0 }}>
           <Stack spacing={1}>
             <Typography variant="caption" color="text.secondary">
-              <strong>{t('system.debug_export.contains')}:</strong> {t(`${base}.contains`)}
+              <strong>{t('system.debug_export.contains')}:</strong> {t(`${base}.contains` as never)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              <strong>{t('system.debug_export.helps')}:</strong> {t(`${base}.helps`)}
+              <strong>{t('system.debug_export.helps')}:</strong> {t(`${base}.helps` as never)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               <strong>
@@ -281,7 +279,7 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
                   : t('system.debug_export.not_included')}
                 :
               </strong>{' '}
-              {goodToKnow ? t(`${base}.good_to_know`) : t(`${base}.not_included`)}
+              {goodToKnow ? t(`${base}.good_to_know` as never) : t(`${base}.not_included` as never)}
             </Typography>
             {locked && (
               <Typography variant="caption" color="warning.main">
@@ -308,15 +306,11 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
               {t('system.debug_export.preview_hint')}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {t('system.debug_export.preview_size', {
-                size: formatBytes(preview.total_bytes),
-              })}
+              {t('system.debug_export.preview_size', { size: formatBytes(preview.total_bytes) })}
             </Typography>
             {preview.collectors_failed.length > 0 && (
               <Alert severity="warning">
-                {t('system.debug_export.preview_failed_parts', {
-                  names: preview.collectors_failed.map((c) => c.name).join(', '),
-                })}
+                {t('system.debug_export.preview_failed_parts', { names: preview.collectors_failed.map((c) => c.name).join(', ') })}
               </Alert>
             )}
             <List dense disablePadding sx={{ maxHeight: 360, overflowY: 'auto' }}>

@@ -22,6 +22,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.10 - 2026-08-22
+
+#### Improved
+- API error responses now carry a stable code, so the interface can reliably
+  show every error message in the selected language instead of sometimes
+  showing a raw technical string.
+
 ### 0.1.9 - 2026-08-22
 
 #### Fixed
@@ -102,6 +109,18 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.10 - 2026-08-22
+
+#### Fixed
+- Error messages for WiFi, Bluetooth, backup/restore, system maintenance, and
+  login often showed a wrong or unrelated message (e.g. always "logs not
+  available", no matter which action failed) - every action now shows the
+  matching, translated message.
+- Track and subfolder counts in the media library incorrectly stayed
+  singular for more than one item ("1 track" instead of "5 tracks").
+- A few texts (sleep timer, output device switching, debug export among
+  others) always showed German regardless of the selected language.
 
 ### 0.1.9 - 2026-08-22
 

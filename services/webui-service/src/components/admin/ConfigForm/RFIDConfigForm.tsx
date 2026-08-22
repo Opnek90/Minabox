@@ -34,7 +34,7 @@ export const RFIDConfigForm: React.FC = () => {
     configApi
       .getRfid()
       .then((data) => setConfig({ ...DEFAULT_RFID_CONFIG, ...data }))
-      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
+      .catch(() => setError(t('load_error')))
       .finally(() => setLoading(false));
   }, []);
 

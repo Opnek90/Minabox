@@ -34,9 +34,22 @@
   "up_next_count": "Als Nächstes ({{count}})",
   "sleep_timer": {
     "title": "Sleep-Timer",
-    "preset": "Stopp in {{minutes}} Min."
+    "preset": "Stopp in {{minutes}} Min.",
+    "error": "Sleep-Timer konnte nicht gesetzt werden",
+    "cancel_error": "Sleep-Timer konnte nicht abgebrochen werden"
   },
   "kiosk_mode": "Kiosk-Modus",
   "kiosk_exit": "Kiosk-Modus beenden",
-  "more_options": "Weitere Optionen"
+  "more_options": "Weitere Optionen",
+  "player": {
+    "seek_error": "Seek fehlgeschlagen",
+    "output_device_switch_error": "Gerät konnte nicht gewechselt werden",
+    "output_device": "Ausgabegerät",
+    "repeat_all": "Alle wiederholen",
+    "repeat_off": "Wiederholung aus",
+    "shuffle_on": "Zufallswiedergabe an",
+    "shuffle_off": "Zufallswiedergabe aus",
+    "output_device_refresh": "Geräte aktualisieren",
+    "up_next_count": "Als Nächstes ({{count}})"
+  }
 }

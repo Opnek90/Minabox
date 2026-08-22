@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { systemApi } from '@/api/system';
+import { apiErrorCode } from '@/utils/apiError';
 
 const AUTO_REFRESH_INTERVAL_MS = 5_000;
 
@@ -15,7 +16,7 @@ export interface UseServiceLogsResult {
 }
 
 export function useServiceLogs(serviceName: string, open: boolean): UseServiceLogsResult {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
   const [logsLines, setLogsLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,39 +31,13 @@ export function useServiceLogs(serviceName: string, open: boolean): UseServiceLo
       const lines = (res.lines ?? '').split('\n').filter(Boolean);
       setLogsLines(lines);
     } catch (err: unknown) {
-      const res =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { status?: number; data?: { detail?: string } } }).response
-          : undefined;
-      const status = res?.status;
-      const detail = res?.data?.detail;
-      // #region agent log
-      fetch('http://localhost:7587/ingest/956f1dfb-30a2-4644-a364-2be2e1ac338d', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Debug-Session-Id': '771350',
-        },
-        body: JSON.stringify({
-          sessionId: '771350',
-          location: 'ServiceLogsModal.tsx:fetchLogs',
-          message: 'getLogs error',
-          data: {
-            status,
-            detail: typeof detail === 'string' ? detail : undefined,
-            serviceName,
-          },
-          timestamp: Date.now(),
-          hypothesisId: 'H4,H5',
-        }),
-      }).catch(() => {});
-      // #endregion
       const fallback = t('system.logs_unavailable').replace('<service>', serviceName);
-      setError(detail && typeof detail === 'string' ? detail : fallback);
+      const code = apiErrorCode(err);
+      setError(code && i18n.exists(`errors:${code}`) ? t(`errors:${code}` as never) : fallback);
     } finally {
       setLoading(false);
     }
-  }, [serviceName, t]);
+  }, [serviceName, t, i18n]);
 
   useEffect(() => {
     if (open && serviceName) {

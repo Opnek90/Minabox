@@ -11,7 +11,7 @@ from pathlib import Path
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from shared_lib.version import get_version
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -21,6 +21,7 @@ from backend_service.api.websocket import ws_manager
 from backend_service.config import get_config
 from backend_service.core import container_registry
 from backend_service.core import update_check as update_check_service
+from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.models.schemas import HealthCheckResponse
@@ -302,9 +303,9 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
     # entscheiden die Profile. Ein unbekannter Name ist "gibt es hier nicht"
     # (404), ein syntaktisch unmoeglicher ist ein Aufruffehler (400).
     if not _SERVICE_NAME_RE.match(service):
-        raise HTTPException(status_code=400, detail="Invalid service")
+        raise ApiError(status_code=400, code="service_invalid", detail="Invalid service")
     if await _container_for(service) is None and service not in SERVICE_IDS:
-        raise HTTPException(status_code=404, detail="Unknown service")
+        raise ApiError(status_code=404, code="service_unknown", detail="Unknown service")
     content = await _get_logs_via_host_helper(service, tail)
     if content is None:
         content = await _get_logs_via_docker(service, tail)
@@ -313,8 +314,9 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
     data_path = os.environ.get("DATA_PATH", "/data")
     path = Path(data_path) / "logs" / f"{service}.log"
     if not path.exists():
-        raise HTTPException(
+        raise ApiError(
             status_code=404,
+            code="logs_unavailable",
             detail="Logs not available. Configure Host-Helper (HOST_HELPER_API_KEY) or mount Docker socket into backend.",
         )
     try:
@@ -323,7 +325,7 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
         return {"service": service, "lines": content, "tail": tail}
     except Exception as e:
         logger.warning("logs_read_failed", service=service, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to read logs") from e
+        raise ApiError(status_code=500, code="logs_read_failed", detail="Failed to read logs") from e
 
 
 @router.get("/update-check")
@@ -335,9 +337,10 @@ async def update_check(force: bool = False) -> dict:
     """
     entries = await container_registry.discover()
     if entries is None:
-        raise HTTPException(
+        raise ApiError(
             status_code=503,
-            detail="Ohne Docker-Zugriff sind die laufenden Versionen nicht bekannt.",
+            code="versions_unknown_no_docker",
+            detail="Running versions are unknown without Docker access.",
         )
     installed = {
         e["service"]: e["version"]

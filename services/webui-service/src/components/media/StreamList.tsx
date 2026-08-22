@@ -640,7 +640,7 @@ export const StreamList: React.FC<StreamListProps> = ({
                   onDelete={(folder) => void onFolderDelete(folder as StreamFolder)}
                   onDropItem={handleDropStreamOnFolder}
                   dragType={STREAM_DRAG_TYPE}
-                  treeLabel={t('tabs.streams', { defaultValue: 'Streams' })}
+                  treeLabel={t('tabs.streams')}
                 />
               </Box>
             )}
@@ -661,7 +661,7 @@ export const StreamList: React.FC<StreamListProps> = ({
               onDelete={(folder) => void onFolderDelete(folder as StreamFolder)}
               onDropItem={handleDropStreamOnFolder}
               dragType={STREAM_DRAG_TYPE}
-              treeLabel={t('tabs.streams', { defaultValue: 'Streams' })}
+              treeLabel={t('tabs.streams')}
             />
           ) : (
             listPanel

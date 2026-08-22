@@ -261,10 +261,6 @@ export const DisplayConfigPanel: React.FC = () => {
         <Alert severity="warning" sx={{ mb: 2 }}>
           {t('display.overcrowded_warning', {
             areas: overcrowdedAreas.map(areaLabel).join(', '),
-            defaultValue:
-              `Achtung: In den Bereichen "{{areas}}" sind mehr Elemente aktiviert als angezeigt werden können (max. 3 pro Spalte, 6 im Header). ` +
-              'Bedingte Elemente (Shuffle, Repeat, Mute …) werden nur bei aktiver Funktion angezeigt – wenn mehrere gleichzeitig aktiv sind, werden Elemente am Ende der Liste verworfen. ' +
-              'Bitte Elemente deaktivieren oder in andere Bereiche verschieben.',
           })}
         </Alert>
       )}
@@ -298,7 +294,7 @@ export const DisplayConfigPanel: React.FC = () => {
                   <Typography variant="body2" fontWeight={500}>
                     {t(`display.element_types.${el.type}` as const)}
                     {DISPLAY_CONDITIONAL_TYPES.has(el.type) && (
-                      <Tooltip title={t('display.conditional_hint', { defaultValue: 'Bedingtes Element – wird nur angezeigt wenn aktiv' })}>
+                      <Tooltip title={t('display.conditional_hint')}>
                         <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>*</Typography>
                       </Tooltip>
                     )}
@@ -411,7 +407,7 @@ export const DisplayConfigPanel: React.FC = () => {
                     <Box display="flex" alignItems="center" gap={0.5}>
                       {t(`display.element_types.${el.type}` as const)}
                       {DISPLAY_CONDITIONAL_TYPES.has(el.type) && (
-                        <Tooltip title={t('display.conditional_hint', { defaultValue: 'Bedingtes Element – wird nur angezeigt wenn aktiv' })}>
+                        <Tooltip title={t('display.conditional_hint')}>
                           <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>*</Typography>
                         </Tooltip>
                       )}
@@ -453,7 +449,7 @@ export const DisplayConfigPanel: React.FC = () => {
         onClick={handleSave}
         disabled={saving}
       >
-        {saving ? '…' : t('display.save_button', { defaultValue: 'Speichern' })}
+        {saving ? '…' : t('display.save_button')}
       </Button>
       </SettingsBlock>
     </Box>

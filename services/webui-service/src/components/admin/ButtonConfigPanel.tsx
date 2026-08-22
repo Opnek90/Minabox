@@ -103,7 +103,7 @@ export const ButtonConfigPanel: React.FC = () => {
       setConfig(updated);
       showSuccess(t('buttons.save_success'));
     } catch {
-      showError(t('buttons.save_error', { defaultValue: 'Speichern fehlgeschlagen' }));
+      showError(t('buttons.save_error'));
     } finally {
       setSaving(false);
     }
@@ -202,15 +202,15 @@ export const ButtonConfigPanel: React.FC = () => {
 
   const advancedEvents =
     btnForm.type === 'rotary'
-      ? ['rotate_cw', 'rotate_ccw', 'press']
-      : ['short_press', 'long_press', 'double_press'];
+      ? (['rotate_cw', 'rotate_ccw', 'press'] as const)
+      : (['short_press', 'long_press', 'double_press'] as const);
 
   // ── Shared action buttons renderer ────────────────────────────────────
   const renderBtnActions = (btn: ButtonType) => {
     const isEnabled = btn.enabled ?? true;
     return (
       <Stack direction="row" spacing={0.5}>
-        <Tooltip title={isEnabled ? t('buttons.disable_button', { defaultValue: 'Deaktivieren' }) : t('buttons.enable_button', { defaultValue: 'Aktivieren' })}>
+        <Tooltip title={isEnabled ? t('buttons.disable_button') : t('buttons.enable_button')}>
           <IconButton size="small" color={isEnabled ? 'success' : 'default'} onClick={() => handleToggleEnabled(btn)}>
             {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
           </IconButton>
@@ -460,7 +460,7 @@ export const ButtonConfigPanel: React.FC = () => {
                   {advancedEvents.map((ev) => (
                     <TextField
                       key={ev} select
-                      label={t(`buttons.actions.events.${ev}`)}
+                      label={t(`buttons.actions.events.${ev}` as const)}
                       value={btnForm.actions?.[ev] ?? ''}
                       onChange={(e) => setBtnForm((p) => ({ ...p, actions: { ...(p.actions || {}), [ev]: e.target.value || '' } }))}
                       size="small" fullWidth

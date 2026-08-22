@@ -61,7 +61,7 @@ export const ChildSettingsForm: React.FC = () => {
         });
         setAudioConfig(audio);
       })
-      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
+      .catch(() => setError(t('load_error')))
       .finally(() => setLoading(false));
   }, []);
 
