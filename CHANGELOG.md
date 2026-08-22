@@ -23,6 +23,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.10 - 2026-08-22
+
+#### Verbessert
+- Fehlerantworten der API tragen jetzt einen stabilen Code, damit die
+  Oberflaeche jede Fehlermeldung zuverlaessig in der eingestellten Sprache
+  zeigt statt manchmal einen rohen technischen Text.
+
 ### 0.1.9 - 2026-08-22
 
 #### Behoben
@@ -104,6 +111,18 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.10 - 2026-08-22
+
+#### Behoben
+- Fehlermeldungen bei WLAN, Bluetooth, Backup/Wiederherstellung,
+  Systemwartung und Anmeldung zeigten oft eine falsche oder unpassende
+  Meldung (z. B. immer "Protokolle nicht verfuegbar", egal welche Aktion
+  fehlschlug) - jetzt erscheint ueberall die passende, uebersetzte Meldung.
+- Die Anzahl der Tracks und Unterordner in der Mediathek stand bei mehr als
+  einem Eintrag faelschlich in der Einzahl ("1 Track" statt "5 Tracks").
+- Einzelne Texte (u. a. Sleep-Timer, Ausgabegeraet-Wechsel, Debug-Export)
+  blieben unabhaengig von der eingestellten Sprache immer Deutsch.
 
 ### 0.1.9 - 2026-08-22
 

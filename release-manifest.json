@@ -22,8 +22,22 @@
       ]
     },
     "backend": {
-      "latest": "0.1.9",
+      "latest": "0.1.10",
       "releases": [
+        {
+          "version": "0.1.10",
+          "date": "2026-08-22",
+          "notes": {
+            "improved": {
+              "de": [
+                "Fehlerantworten der API tragen jetzt einen stabilen Code, damit die Oberflaeche jede Fehlermeldung zuverlaessig in der eingestellten Sprache zeigt statt manchmal einen rohen technischen Text."
+              ],
+              "en": [
+                "API error responses now carry a stable code, so the interface can reliably show every error message in the selected language instead of sometimes showing a raw technical string."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.9",
           "date": "2026-08-22",
@@ -390,8 +404,26 @@
       ]
     },
     "webui": {
-      "latest": "0.1.9",
+      "latest": "0.1.10",
       "releases": [
+        {
+          "version": "0.1.10",
+          "date": "2026-08-22",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Fehlermeldungen bei WLAN, Bluetooth, Backup/Wiederherstellung, Systemwartung und Anmeldung zeigten oft eine falsche oder unpassende Meldung (z. B. immer \"Protokolle nicht verfuegbar\", egal welche Aktion fehlschlug) - jetzt erscheint ueberall die passende, uebersetzte Meldung.",
+                "Die Anzahl der Tracks und Unterordner in der Mediathek stand bei mehr als einem Eintrag faelschlich in der Einzahl (\"1 Track\" statt \"5 Tracks\").",
+                "Einzelne Texte (u. a. Sleep-Timer, Ausgabegeraet-Wechsel, Debug-Export) blieben unabhaengig von der eingestellten Sprache immer Deutsch."
+              ],
+              "en": [
+                "Error messages for WiFi, Bluetooth, backup/restore, system maintenance, and login often showed a wrong or unrelated message (e.g. always \"logs not available\", no matter which action failed) - every action now shows the matching, translated message.",
+                "Track and subfolder counts in the media library incorrectly stayed singular for more than one item (\"1 track\" instead of \"5 tracks\").",
+                "A few texts (sleep timer, output device switching, debug export among others) always showed German regardless of the selected language."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.9",
           "date": "2026-08-22",
