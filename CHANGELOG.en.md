@@ -263,6 +263,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## button
 
+### 0.1.1 - 2026-08-22
+
 ### 0.1.0 - 2026-08-20
 
 #### Added
