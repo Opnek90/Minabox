@@ -22,6 +22,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.11 - 2026-08-23
+
+#### Fixed
+- A pending update and an overheating warning could push each other aside,
+  because the interface could only fetch the single most severe alert. Both
+  are now available independently.
+
 ### 0.1.10 - 2026-08-22
 
 #### Improved
@@ -109,6 +116,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.11 - 2026-08-23
+
+#### Fixed
+- The hint about an available update stayed invisible despite the 0.1.9 fix -
+  it was completely hidden behind the header. It now shows as its own icon
+  right in the header, linking to Maintenance -> Version & update.
 
 ### 0.1.10 - 2026-08-22
 
