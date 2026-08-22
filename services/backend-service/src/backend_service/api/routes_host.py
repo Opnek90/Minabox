@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
-from backend_service.core.temperature_logger import get_current_alert
+from backend_service.core.system_alerts import get_all_alerts
 from backend_service.models.database import TemperatureReading
 
 logger = structlog.get_logger(__name__)
@@ -323,11 +323,15 @@ def get_temperature_history(
     return {"readings": readings}
 
 
-@router.get("/current-alert")
-async def get_current_system_alert() -> dict:
-    """Return the currently active system alert (e.g. overheating) for the WebUI bar."""
-    alert = get_current_alert()
-    return {"alert": alert}
+@router.get("/alerts")
+async def get_system_alerts() -> dict:
+    """All active system alerts, most severe first.
+
+    Die Kopfzeile zeigt daraus gezielt den Update-Hinweis als Icon, waehrend
+    der Hinweisbalken alles andere (etwa Uebertemperatur) weiter als volle
+    Zeile darstellt - beides kann gleichzeitig aktiv sein.
+    """
+    return {"alerts": get_all_alerts()}
 
 
 # ── Audio path & move ────────────────────────────────────────────────────────

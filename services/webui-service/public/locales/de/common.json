@@ -5,6 +5,9 @@
     "update_available": "Ein Update ist bereit – siehe Wartung → Version & Update."
   },
   "app_name": "Minabox",
+  "header": {
+    "update_available_label": "Update"
+  },
   "dashboard": {
     "tabs": {
       "overview": "Übersicht",

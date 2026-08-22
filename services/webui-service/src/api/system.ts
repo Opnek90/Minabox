@@ -37,8 +37,8 @@ export interface SystemAlert {
   message: string;
 }
 
-export interface CurrentAlertResponse {
-  alert: SystemAlert | null;
+export interface AllAlertsResponse {
+  alerts: SystemAlert[];
 }
 
 export interface TemperatureHistoryResponse {
@@ -133,9 +133,9 @@ export const systemApi = {
     return response.data;
   },
 
-  /** Current system alert (e.g. overheating) for the global bar. */
-  getCurrentAlert: async (): Promise<CurrentAlertResponse> => {
-    const response = await apiClient.get<CurrentAlertResponse>('/system/current-alert');
+  /** All active system alerts, most severe first - lets Header and SystemAlertBar each pick their own. */
+  getAllAlerts: async (): Promise<AllAlertsResponse> => {
+    const response = await apiClient.get<AllAlertsResponse>('/system/alerts');
     return response.data;
   },
 

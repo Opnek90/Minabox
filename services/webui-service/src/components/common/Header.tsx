@@ -9,14 +9,19 @@ import {
 } from '@mui/material';
 import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
+import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import SearchIcon from '@mui/icons-material/Search';
 import { CommandPalette } from '@/components/common/CommandPalette';
+import { ALERT_UPDATE_AVAILABLE, useSystemAlerts } from '@/hooks/useSystemAlerts';
 
 export const Header: React.FC = () => {
   const { t } = useTranslation('common');
+  const navigate = useNavigate();
   const { isConnected } = useWebSocket();
+  const updateAvailable = useSystemAlerts().some((a) => a.code === ALERT_UPDATE_AVAILABLE);
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -49,6 +54,22 @@ export const Header: React.FC = () => {
         <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 700 }}>
           {t('app_name')}
         </Typography>
+
+{/* Update-Hinweis: nur ein Icon, damit die Kopfzeile ihre Hoehe behaelt -
+    der ausfuehrliche Text kommt per Tooltip und auf der Wartungsseite. */}
+{updateAvailable && (
+  <Tooltip title={t('alerts.update_available')}>
+    <Chip
+      icon={<SystemUpdateAltIcon fontSize="small" />}
+      label={t('header.update_available_label')}
+      onClick={() => navigate('/admin?section=maintenance')}
+      color="info"
+      variant="outlined"
+      size="small"
+      sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', mr: 1.5, cursor: 'pointer' }}
+    />
+  </Tooltip>
+)}
 
 {/* WebSocket status */}
 <Tooltip title={isConnected ? t('websocket.connected') : t('websocket.disconnected')}>
