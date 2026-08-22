@@ -249,5 +249,25 @@ services/audio-service/state/
 # nicht, das Verzeichnis selbst muss sichtbar bleiben.
 .claude/*
 !.claude/skills/
+# Symlinks aus .claude/skills/ in das ignorierte .agents/ hinein: lokal
+# nuetzlich, im Klon aber tote Verweise. Deshalb nicht mitversionieren.
+.claude/skills/web-design-guidelines
 .agents/
 skills-lock.json
+.cursor/
+
+# =================================
+# Debug- und Messreste
+# =================================
+# Ad-hoc-Skripte und Beispielmedien, die beim Nachmessen entstehen. Echte
+# Tests liegen unter services/<dienst>-service/tests/, echte Assets unter
+# services/<dienst>-service/assets/ - beides bleibt versioniert.
+/test_*.py
+/*.mp3
+/*.wav
+/*.m4a
+/*.flac
+*.pid
+
+# Leere Platzhalter-Configs, die kein Dienst liest
+services/button-service/config/service.json
