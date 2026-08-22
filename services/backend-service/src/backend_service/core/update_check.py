@@ -274,7 +274,7 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
     return result
 
 
-async def _apply_alert(result: dict[str, Any], ws_broadcast: Any) -> None:
+async def apply_alert(result: dict[str, Any], ws_broadcast: Any) -> None:
     """Kopfzeilen-Hinweis mit dem Befund abgleichen: setzen, oder zuruecknehmen.
 
     Ein Fehlschlag beim Abruf (`result["error"]`) darf den Hinweis nicht
@@ -290,9 +290,11 @@ async def _apply_alert(result: dict[str, Any], ws_broadcast: Any) -> None:
             try:
                 await ws_broadcast({
                     "type": "system_alert",
-                    "level": "info",
-                    "code": ALERT_UPDATE_AVAILABLE,
-                    "message": "alerts.update_available",
+                    "data": {
+                        "level": "info",
+                        "code": ALERT_UPDATE_AVAILABLE,
+                        "message": "alerts.update_available",
+                    },
                 })
             except Exception as e:
                 logger.debug("update_check_ws_broadcast_failed", error=str(e))
@@ -300,7 +302,7 @@ async def _apply_alert(result: dict[str, Any], ws_broadcast: Any) -> None:
         try:
             await ws_broadcast({
                 "type": "system_alert_cleared",
-                "code": ALERT_UPDATE_AVAILABLE,
+                "data": {"code": ALERT_UPDATE_AVAILABLE},
             })
         except Exception as e:
             logger.debug("update_check_ws_broadcast_failed", error=str(e))
@@ -327,7 +329,7 @@ async def run_update_check_loop(ws_broadcast: Any) -> None:
                 }
                 if installed:
                     result = await check(installed, force=False)
-                    await _apply_alert(result, ws_broadcast)
+                    await apply_alert(result, ws_broadcast)
         except asyncio.CancelledError:
             break
         except Exception as e:

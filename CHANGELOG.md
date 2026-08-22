@@ -23,6 +23,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.9 - 2026-08-22
+
+#### Behoben
+- Der Hinweis auf ein verfuegbares Update erscheint jetzt auch in der
+  Kopfzeile - bisher blieb er dort trotz laufendem Hintergrund-Scan und
+  manueller Pruefung unsichtbar.
+
 ### 0.1.8 - 2026-08-21
 
 #### Neu
