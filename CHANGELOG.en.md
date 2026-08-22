@@ -96,6 +96,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.1.9 - 2026-08-22
+
+#### Fixed
+- "Last scanned" on RFID tags incorrectly showed "2 hours ago" right after
+  scanning instead of "just now" (timezone offset).
+
 ### 0.1.8 - 2026-08-21
 
 #### Added
