@@ -22,8 +22,22 @@
       ]
     },
     "backend": {
-      "latest": "0.1.10",
+      "latest": "0.1.11",
       "releases": [
+        {
+          "version": "0.1.11",
+          "date": "2026-08-23",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Ein bereitstehendes Update und eine Uebertemperatur-Warnung konnten sich gegenseitig verdraengen, weil die Oberflaeche nur den schwerwiegendsten Hinweis abrufen konnte. Beide stehen jetzt unabhaengig voneinander bereit."
+              ],
+              "en": [
+                "A pending update and an overheating warning could push each other aside, because the interface could only fetch the single most severe alert. Both are now available independently."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.10",
           "date": "2026-08-22",
@@ -404,8 +418,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.10",
+      "latest": "0.1.11",
       "releases": [
+        {
+          "version": "0.1.11",
+          "date": "2026-08-23",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Der Hinweis auf ein verfuegbares Update blieb trotz der Behebung in 0.1.9 weiterhin unsichtbar - er lag vollstaendig hinter der Kopfzeile verborgen. Er erscheint jetzt als eigenes Icon direkt in der Kopfzeile, mit Klick zu Wartung -> Version & Update."
+              ],
+              "en": [
+                "The hint about an available update stayed invisible despite the 0.1.9 fix - it was completely hidden behind the header. It now shows as its own icon right in the header, linking to Maintenance -> Version & update."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.10",
           "date": "2026-08-22",

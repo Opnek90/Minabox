@@ -23,6 +23,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.11 - 2026-08-23
+
+#### Behoben
+- Ein bereitstehendes Update und eine Uebertemperatur-Warnung konnten sich
+  gegenseitig verdraengen, weil die Oberflaeche nur den schwerwiegendsten
+  Hinweis abrufen konnte. Beide stehen jetzt unabhaengig voneinander bereit.
+
 ### 0.1.10 - 2026-08-22
 
 #### Verbessert
@@ -111,6 +118,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.11 - 2026-08-23
+
+#### Behoben
+- Der Hinweis auf ein verfuegbares Update blieb trotz der Behebung in 0.1.9
+  weiterhin unsichtbar - er lag vollstaendig hinter der Kopfzeile verborgen.
+  Er erscheint jetzt als eigenes Icon direkt in der Kopfzeile, mit Klick zu
+  Wartung -> Version & Update.
 
 ### 0.1.10 - 2026-08-22
 
