@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend_service.api.routes_host import _host_helper_api_key, _host_helper_url
+from backend_service.api.websocket import ws_manager
 from backend_service.config import get_config
 from backend_service.core import container_registry
 from backend_service.core import update_check as update_check_service
@@ -343,7 +344,9 @@ async def update_check(force: bool = False) -> dict:
         for e in entries
         if e.get("service") and e.get("version")
     }
-    return await update_check_service.check(installed, force=force)
+    result = await update_check_service.check(installed, force=force)
+    await update_check_service.apply_alert(result, ws_manager.broadcast)
+    return result
 
 
 @router.get("/health", response_model=HealthCheckResponse)

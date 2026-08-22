@@ -22,6 +22,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.9 - 2026-08-22
+
+#### Fixed
+- The hint about an available update now also shows up in the header - it
+  used to stay invisible there despite a running background scan and a
+  manual check.
+
 ### 0.1.8 - 2026-08-21
 
 #### Added

@@ -126,9 +126,11 @@ async def _publish_overheating_start(
         try:
             await ws_broadcast({
                 "type": "system_alert",
-                "level": "warning",
-                "code": "temperature_high",
-                "message": "alerts.temperature_high",
+                "data": {
+                    "level": "warning",
+                    "code": "temperature_high",
+                    "message": "alerts.temperature_high",
+                },
             })
         except Exception as e:
             logger.debug("temperature_ws_broadcast_failed", error=str(e))
@@ -154,7 +156,7 @@ async def _publish_overheating_end(
         try:
             await ws_broadcast({
                 "type": "system_alert_cleared",
-                "code": "temperature_high",
+                "data": {"code": "temperature_high"},
             })
         except Exception as e:
             logger.debug("temperature_ws_broadcast_failed", error=str(e))
