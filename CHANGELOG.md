@@ -98,6 +98,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.1.9 - 2026-08-22
+
+#### Behoben
+- "Zuletzt gescannt" bei RFID-Tags zeigte direkt nach dem Scan faelschlich
+  "vor 2 Stunden" statt "gerade eben" (Zeitzonen-Versatz).
+
 ### 0.1.8 - 2026-08-21
 
 #### Neu
