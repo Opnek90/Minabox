@@ -308,15 +308,11 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
               {t('system.debug_export.preview_hint')}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {t('system.debug_export.preview_size', {
-                size: formatBytes(preview.total_bytes),
-              })}
+              {t('system.debug_export.preview_size', { size: formatBytes(preview.total_bytes) })}
             </Typography>
             {preview.collectors_failed.length > 0 && (
               <Alert severity="warning">
-                {t('system.debug_export.preview_failed_parts', {
-                  names: preview.collectors_failed.map((c) => c.name).join(', '),
-                })}
+                {t('system.debug_export.preview_failed_parts', { names: preview.collectors_failed.map((c) => c.name).join(', ') })}
               </Alert>
             )}
             <List dense disablePadding sx={{ maxHeight: 360, overflowY: 'auto' }}>

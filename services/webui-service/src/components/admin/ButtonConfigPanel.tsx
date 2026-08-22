@@ -103,7 +103,7 @@ export const ButtonConfigPanel: React.FC = () => {
       setConfig(updated);
       showSuccess(t('buttons.save_success'));
     } catch {
-      showError(t('buttons.save_error', { defaultValue: 'Speichern fehlgeschlagen' }));
+      showError(t('buttons.save_error'));
     } finally {
       setSaving(false);
     }
@@ -210,7 +210,7 @@ export const ButtonConfigPanel: React.FC = () => {
     const isEnabled = btn.enabled ?? true;
     return (
       <Stack direction="row" spacing={0.5}>
-        <Tooltip title={isEnabled ? t('buttons.disable_button', { defaultValue: 'Deaktivieren' }) : t('buttons.enable_button', { defaultValue: 'Aktivieren' })}>
+        <Tooltip title={isEnabled ? t('buttons.disable_button') : t('buttons.enable_button')}>
           <IconButton size="small" color={isEnabled ? 'success' : 'default'} onClick={() => handleToggleEnabled(btn)}>
             {isEnabled ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
           </IconButton>

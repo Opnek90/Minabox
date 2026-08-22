@@ -202,9 +202,7 @@ const HeatmapLegend: React.FC<{ maxMinutes: number; baseColor: string }> = ({
               sx={{ display: 'block', fontSize: '0.65rem', color: 'text.secondary' }}
             >
               {i === LEGEND_STEPS.length - 1
-                ? t('stats.minutes_short', {
-                    value: formatMinutes(step * maxMinutes, maxMinutes),
-                  })
+                ? t('stats.minutes_short', { value: formatMinutes(step * maxMinutes, maxMinutes) })
                 : formatMinutes(step * maxMinutes, maxMinutes)}
             </Typography>
           </Box>
@@ -356,8 +354,8 @@ export const StatsDashboard: React.FC = () => {
                       {showDateAxis ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                       <Typography variant="caption">
                         {showDateAxis
-                          ? t('stats.hide_date_axis', { defaultValue: 'Datumsachse ausblenden' })
-                          : t('stats.show_date_axis', { defaultValue: 'Datumsachse anzeigen' })}
+                          ? t('stats.hide_date_axis')
+                          : t('stats.show_date_axis')}
                       </Typography>
                     </Box>
 
@@ -516,12 +514,10 @@ export const StatsDashboard: React.FC = () => {
                     }}
                   >
                     {selectedCell
-                      ? t('stats.heatmap_selected', {
-                          day: t(`stats.${WEEKDAY_KEYS[selectedCell.weekday]}`),
+                      ? t('stats.heatmap_selected', { day: t(`stats.${WEEKDAY_KEYS[selectedCell.weekday]}`),
                           from: selectedCell.hour,
                           to: selectedCell.hour + 1,
-                          minutes: Math.round(selectedCell.minutes),
-                        })
+                          minutes: Math.round(selectedCell.minutes) })
                       : t('stats.heatmap_tap_hint')}
                   </Typography>
                 )}

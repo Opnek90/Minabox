@@ -19,8 +19,8 @@
     "kind_stream": "Stream",
     "kind_podcast": "Podcast",
     "empty": "Noch nichts gehört und nichts hinzugefügt.",
-    "track_count": "{{count}} Track",
-    "track_count_plural": "{{count}} Tracks"
+    "track_count_one": "{{count}} Track",
+    "track_count_other": "{{count}} Tracks"
   },
   "fab": {
     "aria_label": "Medien-Aktionen"
@@ -44,10 +44,6 @@
     "options": "Optionen",
     "name_label": "Ordnername",
     "move_to": "In Ordner verschieben",
-    "track_count": "{{count}} Track",
-    "track_count_plural": "{{count}} Tracks",
-    "subfolder_count": "{{count}} Unterordner",
-    "subfolder_count_plural": "{{count}} Unterordner",
     "upload_hint": "Track wird in den aktuellen Ordner hochgeladen.",
     "empty_hint": "Noch keine Ordner.",
     "created": "Ordner erstellt",
@@ -65,7 +61,11 @@
     "delete_confirm_title": "Ordner löschen?",
     "delete_confirm_text": "Ordner \"{{name}}\" wirklich löschen? Die enthaltenen Tracks werden in die Bibliothek zurückgelegt.",
     "collapse_tree": "Ordnerbaum einklappen",
-    "expand_tree": "Ordnerbaum ausklappen"
+    "expand_tree": "Ordnerbaum ausklappen",
+    "track_count_one": "{{count}} Track",
+    "track_count_other": "{{count}} Tracks",
+    "subfolder_count_one": "{{count}} Unterordner",
+    "subfolder_count_other": "{{count}} Unterordner"
   },
   "playlists": {
     "title": "Playlists",
@@ -78,8 +78,6 @@
     "delete": "Playlist löschen",
     "delete_confirm": "Möchten Sie die Playlist \"{{name}}\" wirklich löschen?",
     "add_tracks": "Tracks hinzufügen",
-    "track_count": "{{count}} Track",
-    "track_count_plural": "{{count}} Tracks",
     "track_count_label": "Tracks",
     "upload_cover": "Cover-Bild hochladen",
     "clear_cover": "Cover abwählen",
@@ -87,7 +85,8 @@
       "name": "Name",
       "name_placeholder": "Playlist-Name eingeben",
       "description": "Beschreibung",
-      "description_placeholder": "Optionale Beschreibung"
+      "description_placeholder": "Optionale Beschreibung",
+      "track_count": "Tracks"
     },
     "track_order": "Reihenfolge",
     "remove_track": "Track entfernen",
@@ -99,7 +98,29 @@
     "track_add_error": "Track konnte nicht hinzugefügt werden",
     "save_error": "Playlist konnte nicht gespeichert werden",
     "move_up": "Nach oben",
-    "move_down": "Nach unten"
+    "move_down": "Nach unten",
+    "track_count_one": "{{count}} Track",
+    "track_count_other": "{{count}} Tracks",
+    "sort": {
+      "asc": "Aufsteigend",
+      "desc": "Absteigend",
+      "open": "Sortierung",
+      "label": "Sortierung",
+      "reset": "Zurücksetzen"
+    },
+    "cover_remove_error": "Cover konnte nicht entfernt werden",
+    "updated": "Playlist aktualisiert",
+    "created": "Playlist erstellt",
+    "deleted": "Playlist gelöscht",
+    "delete_error": "Playlist konnte nicht gelöscht werden",
+    "load_error": "Tracks konnten nicht geladen werden",
+    "cover_uploaded": "Cover hochgeladen",
+    "cover_upload_error": "Cover konnte nicht hochgeladen werden",
+    "play_error": "Playlist konnte nicht abgespielt werden",
+    "search_placeholder": "Playlists durchsuchen…",
+    "tracks_saved": "Tracks gespeichert",
+    "tracks_save_error": "Tracks konnten nicht gespeichert werden",
+    "no_tracks": "Noch keine Tracks."
   },
   "tracks": {
     "title": "Tracks",
@@ -137,7 +158,9 @@
       "album": "Album",
       "duration": "Dauer",
       "last_played": "Zuletzt gespielt",
-      "source": "Quelle"
+      "source": "Quelle",
+      "source_uri": "URI (smb://, nfs://, …)",
+      "source_uri_hint": "z. B. smb://, nfs:// oder DLNA-URL"
     },
     "sort": {
       "label": "Sortierung",
@@ -148,7 +171,8 @@
     "source_types": {
       "file": "Datei",
       "stream": "Stream"
-    }
+    },
+    "remote_error": "Remote-Track konnte nicht angelegt werden"
   },
   "upload": {
     "title": "Track hochladen",
@@ -178,7 +202,8 @@
       "title_placeholder": "Stream-Name",
       "artist": "Sender/Künstler",
       "album": "Genre/Kategorie"
-    }
+    },
+    "error": "Stream konnte nicht gespeichert werden"
   },
   "track_selector": {
     "title": "Track auswählen",

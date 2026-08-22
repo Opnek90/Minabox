@@ -41,7 +41,7 @@ export const AudioConfigForm: React.FC = () => {
     configApi
       .getAudio()
       .then(setConfig)
-      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
+      .catch(() => setError(t('load_error')))
       .finally(() => setLoading(false));
   }, []);
 

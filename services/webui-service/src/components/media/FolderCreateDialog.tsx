@@ -48,13 +48,13 @@ export const FolderCreateDialog: React.FC<FolderCreateDialogProps> = ({
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>
         {isRename
-          ? t('folders.rename_title', { defaultValue: 'Rename Folder' })
-          : t('folders.create_title', { defaultValue: 'New Folder' })}
+          ? t('folders.rename_title')
+          : t('folders.create_title')}
       </DialogTitle>
       <DialogContent sx={{ pt: '16px !important' }}>
         <TextField
           autoFocus
-          label={t('folders.name_label', { defaultValue: 'Folder name' })}
+          label={t('folders.name_label')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void handleSubmit(); }}
@@ -73,8 +73,8 @@ export const FolderCreateDialog: React.FC<FolderCreateDialogProps> = ({
           disabled={!name.trim() || saving}
         >
           {isRename
-            ? t('folders.rename_confirm', { defaultValue: 'Rename' })
-            : t('folders.create_confirm', { defaultValue: 'Create' })}
+            ? t('folders.rename_confirm')
+            : t('folders.create_confirm')}
         </ActionButton>
       </DialogActions>
     </Dialog>

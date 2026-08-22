@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
+    "check:locales": "node scripts/check-locales.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

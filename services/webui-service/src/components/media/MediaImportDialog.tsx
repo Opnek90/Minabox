@@ -314,7 +314,7 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
               )}
               <Box flex={1} minWidth={0}>
                 <Typography variant="caption" color="text.secondary" display="block">
-                  {t('media_import.edit_hint', { defaultValue: 'Angaben vor dem Import anpassen:' })}
+                  {t('media_import.edit_hint')}
                 </Typography>
                 {preview.duration_ms != null && (
                   <Typography variant="caption" color="text.secondary">

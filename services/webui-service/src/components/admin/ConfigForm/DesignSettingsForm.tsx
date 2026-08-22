@@ -52,9 +52,9 @@ export const DesignSettingsForm: React.FC = () => {
     try {
       await configApi.uploadLogo(file);
       setLogoUrl('/static/logo.png?t=' + Date.now());
-      showSuccess(t('general.logo_upload_success', { defaultValue: 'Logo hochgeladen' }));
+      showSuccess(t('general.logo_upload_success'));
     } catch {
-      showError(t('general.logo_upload_error', { defaultValue: 'Logo-Upload fehlgeschlagen' }));
+      showError(t('general.logo_upload_error'));
     } finally {
       setLogoUploading(false);
     }
@@ -64,9 +64,9 @@ export const DesignSettingsForm: React.FC = () => {
     try {
       await configApi.deleteLogo();
       setLogoUrl(null);
-      showSuccess(t('general.logo_delete_success', { defaultValue: 'Logo gelöscht' }));
+      showSuccess(t('general.logo_delete_success'));
     } catch {
-      showError(t('general.logo_delete_error', { defaultValue: 'Logo konnte nicht gelöscht werden' }));
+      showError(t('general.logo_delete_error'));
     }
   };
 

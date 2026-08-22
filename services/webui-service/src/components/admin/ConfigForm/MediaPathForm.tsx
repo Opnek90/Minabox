@@ -130,7 +130,7 @@ export const MediaPathForm: React.FC = () => {
       await navigator.clipboard.writeText(audioPath);
       showSuccess(t('general.media_path_copied'));
     } catch {
-      showError(t('general.media_path_copy_error', { defaultValue: 'Kopieren fehlgeschlagen' }));
+      showError(t('general.media_path_copy_error'));
     }
   };
 
@@ -251,10 +251,8 @@ export const MediaPathForm: React.FC = () => {
                 />
                 {moveProgress.total > 0 && (
                   <Typography variant="caption" color="text.secondary">
-                    {t('general.media_path_move_files_count', {
-                      current: moveProgress.current,
-                      total: moveProgress.total,
-                    })}
+                    {t('general.media_path_move_files_count', { current: moveProgress.current,
+                      total: moveProgress.total })}
                   </Typography>
                 )}
               </Box>

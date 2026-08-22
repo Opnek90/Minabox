@@ -71,7 +71,7 @@ export const PlaybackSettingsForm: React.FC = () => {
         });
         if (g.playback_loop_guard_minutes) setGuardMinutes(g.playback_loop_guard_minutes);
       })
-      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })))
+      .catch(() => setError(t('load_error')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -124,9 +124,7 @@ export const PlaybackSettingsForm: React.FC = () => {
             }
           />
         }
-        label={t('control.resume_on_tag_rescan', {
-          defaultValue: 'Ab letzter Position fortsetzen (Tag erneut auflegen)',
-        })}
+        label={t('control.resume_on_tag_rescan')}
       />
 
       </SettingsBlock>

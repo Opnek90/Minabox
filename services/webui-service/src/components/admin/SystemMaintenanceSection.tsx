@@ -669,10 +669,8 @@ export const SystemMaintenanceSection: React.FC = () => {
             <Box minWidth={0}>
               <Typography variant="body2">
                 {updateStatus?.step != null && updateStatus?.step_count != null
-                  ? t('system.update_step', {
-                      step: updateStatus.step,
-                      count: updateStatus.step_count,
-                    })
+                  ? t('system.update_step', { step: updateStatus.step,
+                      count: updateStatus.step_count })
                   : t('system.update_starting')}
               </Typography>
               <Typography variant="caption" color="text.secondary">

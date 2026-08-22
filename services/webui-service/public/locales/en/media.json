@@ -19,8 +19,8 @@
     "kind_stream": "Stream",
     "kind_podcast": "Podcast",
     "empty": "Nothing played and nothing added yet.",
-    "track_count": "{{count}} track",
-    "track_count_plural": "{{count}} tracks"
+    "track_count_one": "{{count}} track",
+    "track_count_other": "{{count}} tracks"
   },
   "fab": {
     "aria_label": "Media actions"
@@ -44,10 +44,6 @@
     "options": "Options",
     "name_label": "Folder name",
     "move_to": "Move to folder",
-    "track_count": "{{count}} track",
-    "track_count_plural": "{{count}} tracks",
-    "subfolder_count": "{{count}} subfolder",
-    "subfolder_count_plural": "{{count}} subfolders",
     "upload_hint": "Track will be added to the current folder.",
     "empty_hint": "No folders yet.",
     "created": "Folder created",
@@ -65,7 +61,11 @@
     "delete_confirm_title": "Delete folder?",
     "delete_confirm_text": "Really delete folder \"{{name}}\"? All contained tracks will be moved back to the library.",
     "collapse_tree": "Collapse folder tree",
-    "expand_tree": "Expand folder tree"
+    "expand_tree": "Expand folder tree",
+    "track_count_one": "{{count}} track",
+    "track_count_other": "{{count}} tracks",
+    "subfolder_count_one": "{{count}} subfolder",
+    "subfolder_count_other": "{{count}} subfolders"
   },
   "playlists": {
     "title": "Playlists",
@@ -78,8 +78,6 @@
     "delete": "Delete Playlist",
     "delete_confirm": "Do you really want to delete the playlist \"{{name}}\"?",
     "add_tracks": "Add Tracks",
-    "track_count": "{{count}} track",
-    "track_count_plural": "{{count}} tracks",
     "track_count_label": "Tracks",
     "upload_cover": "Upload cover image",
     "clear_cover": "Clear cover",
@@ -87,7 +85,8 @@
       "name": "Name",
       "name_placeholder": "Enter playlist name",
       "description": "Description",
-      "description_placeholder": "Optional description"
+      "description_placeholder": "Optional description",
+      "track_count": "Tracks"
     },
     "track_order": "Order",
     "remove_track": "Remove Track",
@@ -99,7 +98,29 @@
     "track_add_error": "Could not add track to playlist",
     "save_error": "Could not save playlist",
     "move_up": "Move up",
-    "move_down": "Move down"
+    "move_down": "Move down",
+    "track_count_one": "{{count}} track",
+    "track_count_other": "{{count}} tracks",
+    "sort": {
+      "asc": "Ascending",
+      "desc": "Descending",
+      "open": "Sort",
+      "label": "Sort",
+      "reset": "Reset"
+    },
+    "cover_remove_error": "Could not remove cover",
+    "updated": "Playlist updated",
+    "created": "Playlist created",
+    "deleted": "Playlist deleted",
+    "delete_error": "Could not delete playlist",
+    "load_error": "Could not load tracks",
+    "cover_uploaded": "Cover uploaded",
+    "cover_upload_error": "Could not upload cover",
+    "play_error": "Could not play playlist",
+    "search_placeholder": "Search playlists…",
+    "tracks_saved": "Tracks saved",
+    "tracks_save_error": "Could not save tracks",
+    "no_tracks": "No tracks yet."
   },
   "tracks": {
     "title": "Tracks",
@@ -137,7 +158,9 @@
       "album": "Album",
       "duration": "Duration",
       "last_played": "Last played",
-      "source": "Source"
+      "source": "Source",
+      "source_uri": "URI (smb://, nfs://, …)",
+      "source_uri_hint": "e.g. smb://, nfs:// or a DLNA URL"
     },
     "sort": {
       "label": "Sort",
@@ -148,7 +171,8 @@
     "source_types": {
       "file": "File",
       "stream": "Stream"
-    }
+    },
+    "remote_error": "Could not create remote track"
   },
   "upload": {
     "title": "Upload Track",
@@ -178,7 +202,8 @@
       "title_placeholder": "Stream name",
       "artist": "Station/Artist",
       "album": "Genre/Category"
-    }
+    },
+    "error": "Could not save stream"
   },
   "track_selector": {
     "title": "Select Track",

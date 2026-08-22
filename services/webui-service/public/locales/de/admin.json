@@ -162,7 +162,8 @@
     "save_button": "Speichern",
     "save_error": "Speichern fehlgeschlagen",
     "save_success": "Display-Einstellungen gespeichert",
-    "title": "Display am Gerät"
+    "title": "Display am Gerät",
+    "overcrowded_warning": "Achtung: In den Bereichen \"{{areas}}\" sind mehr Elemente aktiviert als angezeigt werden können (max. 3 pro Spalte, 6 im Header). Bedingte Elemente (Shuffle, Repeat, Mute …) werden nur bei aktiver Funktion angezeigt – wenn mehrere gleichzeitig aktiv sind, werden Elemente am Ende der Liste verworfen. Bitte Elemente deaktivieren oder in andere Bereiche verschieben."
   },
   "general": {
     "accent_color": "Akzentfarbe",

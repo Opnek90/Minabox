@@ -54,9 +54,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
       onClose();
     } catch {
       showError(
-        t('tracks.remote_error', {
-          defaultValue: 'Remote-Track konnte nicht angelegt werden',
-        })
+        t('tracks.remote_error')
       );
     } finally {
       setLoading(false);
@@ -79,7 +77,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
   return (
     <ResponsiveDialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-        {t('tracks.add_remote', { defaultValue: 'Remote-Track hinzufügen' })}
+        {t('tracks.add_remote')}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         <CoverUploadField
@@ -111,16 +109,14 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
           size="small"
         />
         <TextField
-          label={t('tracks.fields.source_uri', { defaultValue: 'URI (smb://, nfs://, …)' })}
+          label={t('tracks.fields.source_uri')}
           value={sourceUri}
           onChange={(e) => setSourceUri(e.target.value)}
           fullWidth
           size="small"
           required
           placeholder="smb://server/share/path.mp3"
-          helperText={t('tracks.fields.source_uri_hint', {
-            defaultValue: 'z. B. smb://, nfs:// oder DLNA-URL',
-          })}
+          helperText={t('tracks.fields.source_uri_hint')}
         />
       </DialogContent>
       <DialogActions>

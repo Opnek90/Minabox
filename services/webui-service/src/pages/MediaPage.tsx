@@ -149,9 +149,9 @@ export const MediaPage: React.FC = () => {
     try {
       const folder = await trackFoldersApi.create({ name, parent_id: parentId });
       setFolders((prev) => [...prev, folder]);
-      showSuccess(t('folders.created', { defaultValue: 'Folder created' }));
+      showSuccess(t('folders.created'));
     } catch {
-      showError(t('folders.create_error', { defaultValue: 'Failed to create folder' }));
+      showError(t('folders.create_error'));
     }
   };
 
@@ -159,9 +159,9 @@ export const MediaPage: React.FC = () => {
     try {
       const updated = await trackFoldersApi.update(folder.id, { name });
       setFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-      showSuccess(t('folders.renamed', { defaultValue: 'Folder renamed' }));
+      showSuccess(t('folders.renamed'));
     } catch {
-      showError(t('folders.rename_error', { defaultValue: 'Failed to rename folder' }));
+      showError(t('folders.rename_error'));
     }
   };
 
@@ -171,9 +171,9 @@ export const MediaPage: React.FC = () => {
       setFolders((prev) => prev.filter((f) => f.id !== folder.id));
       const updatedTracks = await tracksApi.getAll();
       setTracks(updatedTracks);
-      showSuccess(t('folders.deleted', { defaultValue: 'Folder deleted' }));
+      showSuccess(t('folders.deleted'));
     } catch {
-      showError(t('folders.delete_error', { defaultValue: 'Failed to delete folder' }));
+      showError(t('folders.delete_error'));
     }
   };
 
@@ -181,9 +181,9 @@ export const MediaPage: React.FC = () => {
     try {
       const updated = await tracksApi.update(track.id, { folder_id: folderId });
       setTracks((prev) => prev.map((tr) => (tr.id === updated.id ? updated : tr)));
-      showSuccess(t('folders.track_moved', { defaultValue: 'Track moved' }));
+      showSuccess(t('folders.track_moved'));
     } catch {
-      showError(t('folders.move_error', { defaultValue: 'Failed to move track' }));
+      showError(t('folders.move_error'));
     }
   };
 
@@ -191,9 +191,9 @@ export const MediaPage: React.FC = () => {
     try {
       const folder = await streamFoldersApi.create({ name, parent_id: parentId });
       setStreamFolders((prev) => [...prev, folder]);
-      showSuccess(t('folders.created', { defaultValue: 'Folder created' }));
+      showSuccess(t('folders.created'));
     } catch {
-      showError(t('folders.create_error', { defaultValue: 'Failed to create folder' }));
+      showError(t('folders.create_error'));
     }
   };
 
@@ -201,9 +201,9 @@ export const MediaPage: React.FC = () => {
     try {
       const updated = await streamFoldersApi.update(folder.id, { name });
       setStreamFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-      showSuccess(t('folders.renamed', { defaultValue: 'Folder renamed' }));
+      showSuccess(t('folders.renamed'));
     } catch {
-      showError(t('folders.rename_error', { defaultValue: 'Failed to rename folder' }));
+      showError(t('folders.rename_error'));
     }
   };
 
@@ -213,9 +213,9 @@ export const MediaPage: React.FC = () => {
       setStreamFolders((prev) => prev.filter((f) => f.id !== folder.id));
       const updatedStreams = await streamsApi.getAll();
       setStreams(updatedStreams);
-      showSuccess(t('folders.deleted', { defaultValue: 'Folder deleted' }));
+      showSuccess(t('folders.deleted'));
     } catch {
-      showError(t('folders.delete_error', { defaultValue: 'Failed to delete folder' }));
+      showError(t('folders.delete_error'));
     }
   };
 
@@ -223,9 +223,9 @@ export const MediaPage: React.FC = () => {
     try {
       const updated = await streamsApi.update(stream.id, { folder_id: folderId });
       setStreams((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      showSuccess(t('folders.stream_moved', { defaultValue: 'Stream moved' }));
+      showSuccess(t('folders.stream_moved'));
     } catch {
-      showError(t('folders.stream_move_error', { defaultValue: 'Failed to move stream' }));
+      showError(t('folders.stream_move_error'));
     }
   };
 
@@ -233,9 +233,9 @@ export const MediaPage: React.FC = () => {
     try {
       const folder = await podcastFoldersApi.create({ name, parent_id: parentId });
       setPodcastFolders((prev) => [...prev, folder]);
-      showSuccess(t('folders.created', { defaultValue: 'Folder created' }));
+      showSuccess(t('folders.created'));
     } catch {
-      showError(t('folders.create_error', { defaultValue: 'Failed to create folder' }));
+      showError(t('folders.create_error'));
     }
   };
 
@@ -243,9 +243,9 @@ export const MediaPage: React.FC = () => {
     try {
       const updated = await podcastFoldersApi.update(folder.id, { name });
       setPodcastFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-      showSuccess(t('folders.renamed', { defaultValue: 'Folder renamed' }));
+      showSuccess(t('folders.renamed'));
     } catch {
-      showError(t('folders.rename_error', { defaultValue: 'Failed to rename folder' }));
+      showError(t('folders.rename_error'));
     }
   };
 
@@ -255,9 +255,9 @@ export const MediaPage: React.FC = () => {
       setPodcastFolders((prev) => prev.filter((f) => f.id !== folder.id));
       const updatedPodcasts = await podcastsApi.list();
       setPodcasts(updatedPodcasts);
-      showSuccess(t('folders.deleted', { defaultValue: 'Folder deleted' }));
+      showSuccess(t('folders.deleted'));
     } catch {
-      showError(t('folders.delete_error', { defaultValue: 'Failed to delete folder' }));
+      showError(t('folders.delete_error'));
     }
   };
 
@@ -265,9 +265,9 @@ export const MediaPage: React.FC = () => {
     try {
       const updated = await podcastsApi.update(podcast.id, { folder_id: folderId });
       setPodcasts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      showSuccess(t('folders.podcast_moved', { defaultValue: 'Podcast moved' }));
+      showSuccess(t('folders.podcast_moved'));
     } catch {
-      showError(t('folders.podcast_move_error', { defaultValue: 'Failed to move podcast' }));
+      showError(t('folders.podcast_move_error'));
     }
   };
 
@@ -398,7 +398,7 @@ export const MediaPage: React.FC = () => {
           { label: t('tabs.recent'), icon: <HistoryIcon /> },
           { label: t('tabs.playlists'), icon: <QueueMusicIcon />, count: playlists.length },
           { label: t('tabs.tracks'), icon: <MusicNoteIcon />, count: tracks.length },
-          { label: t('tabs.streams', { defaultValue: 'Streams' }), icon: <RadioIcon />, count: streams.length },
+          { label: t('tabs.streams'), icon: <RadioIcon />, count: streams.length },
           { label: t('tabs.podcasts'), icon: <MicNoneIcon />, count: podcasts.length },
         ]}
       />
@@ -528,18 +528,18 @@ export const MediaPage: React.FC = () => {
       )}
 
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('media.delete_confirm_title', { defaultValue: 'Delete media?' })}</DialogTitle>
+        <DialogTitle>{t('media.delete_confirm_title')}</DialogTitle>
         <DialogContent>
           {assignedTagNames.length > 0 ? (
             <DialogContentText>
-              {t('media.delete_assigned_warning', { defaultValue: 'This media is still assigned to the following RFID tags:' })}
+              {t('media.delete_assigned_warning')}
               <Box component="ul" sx={{ mt: 1, pl: 2 }}>
                 {assignedTagNames.map((name) => <li key={name}>{name}</li>)}
               </Box>
             </DialogContentText>
           ) : (
             <DialogContentText>
-              {t('media.delete_confirm_text', { defaultValue: 'Are you sure you want to delete this media?' })}
+              {t('media.delete_confirm_text')}
             </DialogContentText>
           )}
         </DialogContent>
@@ -550,12 +550,12 @@ export const MediaPage: React.FC = () => {
             </ActionButton>
             {assignedTagNames.length > 0 && (
               <ActionButton actionType="destructive" onClick={() => void performDelete(false)} fullWidth>
-                {t('media.delete_media_only', { defaultValue: 'Delete media only' })}
+                {t('media.delete_media_only')}
               </ActionButton>
             )}
             <ActionButton actionType="destructive" onClick={() => void performDelete(assignedTagNames.length > 0)} fullWidth>
               {assignedTagNames.length > 0
-                ? t('media.delete_media_and_unassign', { defaultValue: 'Delete media & remove tag assignment' })
+                ? t('media.delete_media_and_unassign')
                 : t('delete', { ns: 'common' })}
             </ActionButton>
           </Stack>
@@ -596,14 +596,14 @@ export const MediaPage: React.FC = () => {
         onSuccess={(track) => { setTracks((prev) => [...prev, track]); setUploadOpen(false); showSuccess(t('tracks.uploaded')); }}
       />
       <RemoteTrackDialog open={remoteTrackOpen} onClose={() => setRemoteTrackOpen(false)}
-        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added', { defaultValue: 'Remote track added' })); }} />
+        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added')); }} />
       <MediaImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onSuccess={(track) => {
           setTracks((prev) => [...prev, track]);
           setImportOpen(false);
-          showSuccess(t('tracks.imported', { defaultValue: 'Track imported successfully' }));
+          showSuccess(t('tracks.imported'));
         }}
       />
       <StreamDialog open={streamOpen} onClose={() => setStreamOpen(false)}

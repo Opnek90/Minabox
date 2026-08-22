@@ -63,10 +63,10 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
         updated = await streamsApi.uploadCover(stream.id, pendingCoverFile);
       }
       onSuccess(updated);
-      showSuccess(t('streams.updated', { defaultValue: 'Stream aktualisiert' }));
+      showSuccess(t('streams.updated'));
       onClose();
     } catch {
-      showError(t('streams.update_error', { defaultValue: 'Stream konnte nicht gespeichert werden' }));
+      showError(t('streams.update_error'));
     } finally {
       setLoading(false);
     }
@@ -80,9 +80,9 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
       const updated = await streamsApi.deleteCover(stream.id);
       setCoverUrl(updated.cover_art_url ?? null);
       onSuccess(updated);
-      showSuccess(t('streams.cover_removed', { defaultValue: 'Cover entfernt' }));
+      showSuccess(t('streams.cover_removed'));
     } catch {
-      showError(t('streams.cover_error', { defaultValue: 'Cover konnte nicht entfernt werden' }));
+      showError(t('streams.cover_error'));
     }
   };
 
@@ -110,7 +110,7 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
   return (
     <ResponsiveDialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-        {t('streams.edit', { defaultValue: 'Stream bearbeiten' })}
+        {t('streams.edit')}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         <CoverUploadField

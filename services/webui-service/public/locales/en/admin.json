@@ -162,7 +162,8 @@
     "save_button": "Save",
     "save_error": "Save failed",
     "save_success": "Display settings saved",
-    "title": "Display on the Device"
+    "title": "Display on the Device",
+    "overcrowded_warning": "Warning: In the areas \"{{areas}}\" more elements are enabled than can be displayed (max. 3 per column, 6 in the header). Conditional elements (shuffle, repeat, mute, …) are only shown while their function is active – if several are active at once, elements at the end of the list are dropped. Please disable elements or move them to other areas."
   },
   "general": {
     "accent_color": "Accent Color",

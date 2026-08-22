@@ -60,7 +60,8 @@
     "recognized": "Tag recognized: {{name}}",
     "unknown_tag": "Unknown tag scanned",
     "assign_now": "Assign now",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "usage_denied": "Usage time outside the allowed hours, or limit reached"
   },
   "toast": {
     "tag_updated": "Tag updated",

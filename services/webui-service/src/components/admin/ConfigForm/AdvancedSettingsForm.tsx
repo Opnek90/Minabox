@@ -31,7 +31,7 @@ export const AdvancedSettingsForm: React.FC = () => {
     configApi
       .getGeneral()
       .then((data) => setGeneral(data as GeneralConfig))
-      .catch(() => setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' })));
+      .catch(() => setError(t('load_error')));
   }, []);
 
   const handleSave = () =>

@@ -70,7 +70,7 @@ export const NetworkPanel: React.FC = () => {
       }
       setHostname(hostnameRes?.hostname ?? null);
     } catch {
-      setError(t('load_error', { defaultValue: 'Laden fehlgeschlagen' }));
+      setError(t('load_error'));
     } finally {
       setLoading(false);
     }

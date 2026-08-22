@@ -41,7 +41,7 @@ export const SystemAlertBar: React.FC = () => {
 
   const severity = alert.level === 'error' ? 'error' : alert.level === 'warning' ? 'warning' : 'info';
   const icon = alert.level === 'error' ? <ErrorOutlineIcon fontSize="small" /> : alert.level === 'warning' ? <WarningAmberIcon fontSize="small" /> : <InfoOutlinedIcon fontSize="small" />;
-  const text = alert.message ? (alert.message.startsWith('alerts.') ? t(alert.message) : alert.message) : t('alerts.temperature_high', { defaultValue: 'System alert' });
+  const text = alert.message ? (alert.message.startsWith('alerts.') ? t(alert.message) : alert.message) : t('alerts.temperature_high');
 
   return (
     <Box

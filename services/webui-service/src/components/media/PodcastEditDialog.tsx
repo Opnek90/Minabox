@@ -63,10 +63,10 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
         updated = await podcastsApi.uploadCover(podcast.id, pendingCoverFile);
       }
       onSuccess(updated);
-      showSuccess(t('podcasts.updated', { defaultValue: 'Podcast aktualisiert' }));
+      showSuccess(t('podcasts.updated'));
       onClose();
     } catch {
-      showError(t('podcasts.update_error', { defaultValue: 'Podcast konnte nicht gespeichert werden' }));
+      showError(t('podcasts.update_error'));
     } finally {
       setLoading(false);
     }
@@ -80,9 +80,9 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
       const updated = await podcastsApi.deleteCover(podcast.id);
       setCoverUrl(updated.cover_art_url ?? null);
       onSuccess(updated);
-      showSuccess(t('podcasts.cover_removed', { defaultValue: 'Cover entfernt' }));
+      showSuccess(t('podcasts.cover_removed'));
     } catch {
-      showError(t('podcasts.cover_error', { defaultValue: 'Cover konnte nicht entfernt werden' }));
+      showError(t('podcasts.cover_error'));
     }
   };
 
@@ -110,7 +110,7 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
   return (
     <ResponsiveDialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>
-        {t('podcasts.edit', { defaultValue: 'Podcast bearbeiten' })}
+        {t('podcasts.edit')}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         <CoverUploadField
@@ -139,7 +139,7 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
           required
         />
         <TextField
-          label={t('podcasts.fields.description', { defaultValue: 'Beschreibung' })}
+          label={t('podcasts.fields.description')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           fullWidth

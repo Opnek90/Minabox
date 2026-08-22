@@ -34,9 +34,22 @@
   "up_next_count": "Up next ({{count}})",
   "sleep_timer": {
     "title": "Sleep Timer",
-    "preset": "Stop in {{minutes}} min"
+    "preset": "Stop in {{minutes}} min",
+    "error": "Could not set sleep timer",
+    "cancel_error": "Could not cancel sleep timer"
   },
   "kiosk_mode": "Kiosk Mode",
   "kiosk_exit": "Exit Kiosk Mode",
-  "more_options": "More options"
+  "more_options": "More options",
+  "player": {
+    "seek_error": "Seek failed",
+    "output_device_switch_error": "Could not switch device",
+    "output_device": "Output device",
+    "repeat_all": "Repeat all",
+    "repeat_off": "Repeat off",
+    "shuffle_on": "Shuffle on",
+    "shuffle_off": "Shuffle off",
+    "output_device_refresh": "Refresh devices",
+    "up_next_count": "Up next ({{count}})"
+  }
 }

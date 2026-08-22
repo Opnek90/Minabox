@@ -48,7 +48,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
       onSuccess(stream);
       handleReset();
     } catch {
-      showError(t('stream.error', { defaultValue: 'Stream konnte nicht gespeichert werden' }));
+      showError(t('stream.error'));
     } finally {
       setLoading(false);
     }

@@ -216,7 +216,7 @@ const SearchResults: React.FC<{ query: string; onSelect: (sectionKey: string) =>
     return (
       <Box sx={{ pt: 3, textAlign: 'center' }}>
         <Typography color="text.secondary">
-          {t('search.no_results', { defaultValue: 'Keine Einstellungen gefunden.' })}
+          {t('search.no_results')}
         </Typography>
       </Box>
     );
@@ -296,7 +296,7 @@ export const AdminPage: React.FC = () => {
       <TextField
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={t('search.placeholder', { defaultValue: 'Einstellungen durchsuchen…' })}
+        placeholder={t('search.placeholder')}
         size="small"
         fullWidth
         sx={{ mb: 2 }}
