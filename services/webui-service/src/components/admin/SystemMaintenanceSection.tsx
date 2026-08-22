@@ -679,7 +679,9 @@ export const SystemMaintenanceSection: React.FC = () => {
                   : !updating && updateStatus?.exit_code != null
                     ? t('system.update_failed')
                     : updateStatus?.step_key
-                      ? t(`system.update_step_${updateStatus.step_key}`)
+                      // step_key kommt vom Backend/Orchestrierungsskript und ist nicht
+                      // an eine feste Werte-Menge gebunden - Key statisch pruefen geht nicht.
+                      ? t(`system.update_step_${updateStatus.step_key}` as never)
                       : ''}
               </Typography>
             </Box>

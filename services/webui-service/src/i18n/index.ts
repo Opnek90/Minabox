@@ -3,17 +3,19 @@ import { initReactI18next } from 'react-i18next';
 import Backend from 'i18next-http-backend';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { recordClientError } from '@/utils/debugRingBuffer';
+import { DEFAULT_LANGUAGE, LANGUAGE_STORAGE_KEY, SUPPORTED_LANGUAGES } from './languages';
+import { DEFAULT_NAMESPACE, NAMESPACES } from './namespaces';
 
 i18n
   .use(Backend)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    fallbackLng: 'en',
-    lng: localStorage.getItem('minabox-language') ?? 'en',
-    supportedLngs: ['de', 'en'],
-    ns: ['common', 'player', 'rfid', 'media', 'admin', 'errors', 'setup'],
-    defaultNS: 'common',
+    fallbackLng: DEFAULT_LANGUAGE,
+    lng: localStorage.getItem(LANGUAGE_STORAGE_KEY) ?? DEFAULT_LANGUAGE,
+    supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
+    ns: [...NAMESPACES],
+    defaultNS: DEFAULT_NAMESPACE,
     backend: {
       // Die Build-Kennung macht die URL pro Build eindeutig, damit ein alter oder
       // beschaedigter Cache-Eintrag nicht ueber ein Update hinweg ueberlebt.
@@ -27,7 +29,7 @@ i18n
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
-      lookupLocalStorage: 'minabox-language',
+      lookupLocalStorage: LANGUAGE_STORAGE_KEY,
     },
     interpolation: {
       escapeValue: false,

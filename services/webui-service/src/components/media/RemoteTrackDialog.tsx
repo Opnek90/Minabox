@@ -24,7 +24,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { t } = useTranslation('media');
+  const { t } = useTranslation(['media', 'common']);
   const { showError } = useToast();
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
@@ -126,7 +126,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
           onClick={handleSave}
           disabled={!isValid || loading}
         >
-          {t('add', { ns: 'common' })}
+          {t('common:actions.add')}
         </Button>
       </DialogActions>
     </ResponsiveDialog>

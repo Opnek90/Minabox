@@ -28,7 +28,7 @@ interface UploadDialogProps {
 
 
 export const UploadDialog: React.FC<UploadDialogProps> = ({ open, onClose, onSuccess, currentFolderId }) => {
-  const { t } = useTranslation('media');
+  const { t } = useTranslation(['media', 'errors']);
   const { showError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 

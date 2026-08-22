@@ -202,8 +202,8 @@ export const ButtonConfigPanel: React.FC = () => {
 
   const advancedEvents =
     btnForm.type === 'rotary'
-      ? ['rotate_cw', 'rotate_ccw', 'press']
-      : ['short_press', 'long_press', 'double_press'];
+      ? (['rotate_cw', 'rotate_ccw', 'press'] as const)
+      : (['short_press', 'long_press', 'double_press'] as const);
 
   // ── Shared action buttons renderer ────────────────────────────────────
   const renderBtnActions = (btn: ButtonType) => {
@@ -460,7 +460,7 @@ export const ButtonConfigPanel: React.FC = () => {
                   {advancedEvents.map((ev) => (
                     <TextField
                       key={ev} select
-                      label={t(`buttons.actions.events.${ev}`)}
+                      label={t(`buttons.actions.events.${ev}` as const)}
                       value={btnForm.actions?.[ev] ?? ''}
                       onChange={(e) => setBtnForm((p) => ({ ...p, actions: { ...(p.actions || {}), [ev]: e.target.value || '' } }))}
                       size="small" fullWidth

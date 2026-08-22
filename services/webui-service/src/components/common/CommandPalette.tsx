@@ -58,7 +58,7 @@ interface CommandPaletteProps {
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, onOpen }) => {
   const { t } = useTranslation('common');
-  const { t: tAdmin } = useTranslation('admin');
+  const { t: tAdmin } = useTranslation(['admin', 'setup']);
   const fullScreen = useLayout().isMobile;
   const navigate = useNavigate();
   const [query, setQuery] = useState('');

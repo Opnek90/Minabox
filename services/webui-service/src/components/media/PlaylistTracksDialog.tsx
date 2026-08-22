@@ -180,7 +180,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
   onClose,
   onSaved,
 }) => {
-  const { t } = useTranslation('media');
+  const { t } = useTranslation(['media', 'common']);
   const { showError } = useToast();
   const [trackIds, setTrackIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
@@ -349,7 +349,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
                     key={track.id}
                     sx={{ borderRadius: 1, mb: 0.25, '&:hover': { bgcolor: 'action.hover' } }}
                     secondaryAction={
-                      <Tooltip title={t('add', { ns: 'common' })}>
+                      <Tooltip title={t('common:actions.add')}>
                         <IconButton size="small" onClick={() => handleAddTrack(track.id)}>
                           <AddIcon fontSize="small" />
                         </IconButton>

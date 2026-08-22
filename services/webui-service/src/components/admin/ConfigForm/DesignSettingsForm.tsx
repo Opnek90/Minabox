@@ -21,6 +21,7 @@ import { configApi } from '@/api/config';
 import { useThemeContext, COLOR_PRESETS, type ColorPresetKey } from '@/contexts/ThemeContext';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { LANGUAGE_STORAGE_KEY, SUPPORTED_LANGUAGES, resolveSupportedLanguage } from '@/i18n/languages';
 
 const COLOR_PRESET_LABELS: Record<ColorPresetKey, string> = {
   orange: 'Orange',
@@ -72,7 +73,7 @@ export const DesignSettingsForm: React.FC = () => {
 
   const handleLanguageChange = (lng: string) => {
     void i18n.changeLanguage(lng);
-    localStorage.setItem('minabox-language', lng);
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, lng);
   };
 
   return (
@@ -128,12 +129,13 @@ export const DesignSettingsForm: React.FC = () => {
       <FormControl fullWidth size="small">
         <InputLabel>{t('general.language')}</InputLabel>
         <Select
-          value={i18n.language.startsWith('de') ? 'de' : 'en'}
+          value={resolveSupportedLanguage(i18n.language)}
           label={t('general.language')}
           onChange={(e) => handleLanguageChange(e.target.value)}
         >
-          <MenuItem value="de">{t('general.language_de')}</MenuItem>
-          <MenuItem value="en">{t('general.language_en')}</MenuItem>
+          {SUPPORTED_LANGUAGES.map((l) => (
+            <MenuItem key={l.code} value={l.code}>{l.nativeName}</MenuItem>
+          ))}
         </Select>
       </FormControl>
       </SettingsBlock>

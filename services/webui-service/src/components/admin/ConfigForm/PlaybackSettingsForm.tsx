@@ -36,17 +36,17 @@ const END_BEHAVIORS: readonly PlaybackEndBehavior[] = [
   'repeat_while_tag',
 ] as const;
 
-const END_BEHAVIOR_LABEL_KEY: Record<PlaybackEndBehavior, string> = {
+const END_BEHAVIOR_LABEL_KEY = {
   stop: 'playback.end_stop',
   repeat: 'playback.end_repeat',
   repeat_while_tag: 'playback.end_repeat_while_tag',
-};
+} as const satisfies Record<PlaybackEndBehavior, string>;
 
-const END_BEHAVIOR_HINT_KEY: Record<PlaybackEndBehavior, string> = {
+const END_BEHAVIOR_HINT_KEY = {
   stop: 'playback.end_stop_hint',
   repeat: 'playback.end_repeat_hint',
   repeat_while_tag: 'playback.end_repeat_while_tag_hint',
-};
+} as const satisfies Record<PlaybackEndBehavior, string>;
 
 export const PlaybackSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');

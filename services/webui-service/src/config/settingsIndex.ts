@@ -14,18 +14,23 @@
  * `searchKeys` sind i18n-Keys der Labels *innerhalb* einer Section. Sie werden
  * beim Suchen mit übersetzt, damit die Suche in DE und EN ohne eigene
  * Wortlisten funktioniert. Keys ohne Namespace-Präfix liegen im `admin`-
- * Namespace, `common:` verweist auf den gemeinsamen Namespace.
+ * Namespace, `setup:` verweist auf den setup-Namespace. Der Typ `SettingsKey`
+ * prüft das gegen die echten Keys aus admin.json/setup.json.
  */
+
+import type { ParseKeys } from 'i18next';
+
+type SettingsKey = ParseKeys<'admin'> | `setup:${ParseKeys<'setup'>}`;
 
 export interface SettingsSectionMeta {
   key: string;
-  titleKey: string;
-  searchKeys: string[];
+  titleKey: SettingsKey;
+  searchKeys: SettingsKey[];
 }
 
 export interface SettingsGroupMeta {
   key: string;
-  labelKey: string;
+  labelKey: SettingsKey;
   sections: SettingsSectionMeta[];
 }
 
@@ -229,7 +234,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
 ];
 
 /** Flache Liste aller Sections inklusive ihrer Gruppe – für Suche und Deep-Links. */
-export const SETTINGS_SECTIONS: Array<SettingsSectionMeta & { groupKey: string; groupLabelKey: string }> =
+export const SETTINGS_SECTIONS: Array<SettingsSectionMeta & { groupKey: string; groupLabelKey: SettingsKey }> =
   SETTINGS_INDEX.flatMap((group) =>
     group.sections.map((section) => ({
       ...section,

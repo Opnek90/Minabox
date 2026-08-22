@@ -23,6 +23,7 @@ import { SecurityStep } from '@/components/setup/SecurityStep';
 import { AudioStep } from '@/components/setup/AudioStep';
 import { HardwareStep } from '@/components/setup/HardwareStep';
 import { ContentStep } from '@/components/setup/ContentStep';
+import { LANGUAGE_STORAGE_KEY, SUPPORTED_LANGUAGES } from '@/i18n/languages';
 
 type StepKey = 'welcome' | 'security' | 'audio' | 'hardware' | 'content' | 'done';
 const STEPS: StepKey[] = ['welcome', 'security', 'audio', 'hardware', 'content', 'done'];
@@ -90,7 +91,7 @@ export const SetupWizardPage: React.FC = () => {
 
   const changeLanguage = (lng: string) => {
     void i18n.changeLanguage(lng);
-    localStorage.setItem('minabox-language', lng);
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, lng);
   };
 
   return (
@@ -134,8 +135,9 @@ export const SetupWizardPage: React.FC = () => {
                 size="small"
                 sx={{ maxWidth: 240 }}
               >
-                <MenuItem value="de">Deutsch</MenuItem>
-                <MenuItem value="en">English</MenuItem>
+                {SUPPORTED_LANGUAGES.map((l) => (
+                  <MenuItem key={l.code} value={l.code}>{l.nativeName}</MenuItem>
+                ))}
               </TextField>
             </Stack>
           )}

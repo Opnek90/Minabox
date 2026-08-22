@@ -41,7 +41,7 @@ import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
-import type { LEDConfig, LED, LEDPattern } from '@/types/api';
+import type { LEDConfig, LED, LEDPattern, LEDPatternType } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
 
 
@@ -52,7 +52,7 @@ export const LEDConfigPanel: React.FC = () => {
 
   const [config, setConfig] = useState<LEDConfig | null>(null);
   const [ledStates, setLedStates] = useState<string[]>([]);
-  const [ledPatterns, setLedPatterns] = useState<string[]>([]);
+  const [ledPatterns, setLedPatterns] = useState<LEDPatternType[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testingLedId, setTestingLedId] = useState<string | null>(null);
@@ -416,7 +416,7 @@ export const LEDConfigPanel: React.FC = () => {
                         SelectProps={{ native: true }} InputLabelProps={{ shrink: true }}
                       >
                         {ledPatterns.map((p) => (
-                          <option key={p} value={p}>{t(`leds.bindings.patterns.${p}`)}</option>
+                          <option key={p} value={p}>{t(`leds.bindings.patterns.${p}` as const)}</option>
                         ))}
                       </TextField>
 

@@ -180,8 +180,6 @@
     "device_id": "Device ID",
     "disable_gpio": "Disable GPIO (e.g. without hardware)",
     "language": "Language",
-    "language_de": "German",
-    "language_en": "English",
     "log_level": "Log Level",
     "logo": "Custom Logo",
     "logo_delete": "Remove Logo",
