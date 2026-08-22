@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { translateApiError } from '@/utils/apiError';
 
 export function useFormState() {
+  const { t, i18n } = useTranslation('errors');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -10,11 +13,7 @@ export function useFormState() {
     try {
       await fn();
     } catch (err) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : null;
-      setError(msg ?? (err instanceof Error ? err.message : 'Fehler'));
+      setError(translateApiError(t, i18n, err));
       throw err; // re-throw so caller can bail out
     } finally {
       setSaving(false);

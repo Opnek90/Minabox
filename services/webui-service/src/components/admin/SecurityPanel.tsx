@@ -19,9 +19,10 @@ import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { translateApiError } from '@/utils/apiError';
 
 export const SecurityPanel: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const [sshStatus, setSshStatus] = useState<{ enabled: boolean; active: boolean } | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -58,8 +59,8 @@ export const SecurityPanel: React.FC = () => {
       setPasswordNew('');
       setPasswordConfirm('');
       showSuccess(t('system.password_apply'));
-    } catch {
-      showError(t('system.logs_unavailable'));
+    } catch (err) {
+      showError(translateApiError(t, i18n, err));
     } finally {
       setPasswordSaving(false);
     }
@@ -70,15 +71,7 @@ export const SecurityPanel: React.FC = () => {
       const next = await systemApi.setSshToggle(enable);
       setSshStatus({ enabled: next.enabled, active: next.active });
     } catch (err: unknown) {
-      const ax = err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: unknown } }).response : undefined;
-      const data = ax && typeof ax === 'object' && 'data' in ax ? (ax as { data?: unknown }).data : undefined;
-      const d = data && typeof data === 'object' && data !== null && 'detail' in data ? (data as { detail: unknown }).detail : undefined;
-      let msg: string;
-      if (typeof d === 'string') msg = d;
-      else if (Array.isArray(d)) msg = d.map((x: { msg?: string }) => x?.msg ?? String(x)).filter(Boolean).join(' ') || t('system.ssh_toggle_failed');
-      else if (d && typeof d === 'object' && ('detail' in d || 'message' in d)) msg = String((d as { detail?: string; message?: string }).detail ?? (d as { message?: string }).message);
-      else msg = t('system.ssh_toggle_failed');
-      showError(msg);
+      showError(translateApiError(t, i18n, err));
     }
   };
 

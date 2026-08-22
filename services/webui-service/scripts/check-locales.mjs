@@ -7,7 +7,9 @@
 //
 // 1 und 2 sind harte Fehler (Exit-Code 1). 3 kann durch dynamische
 // Key-Konstruktion (t(`foo.${bar}`)) falsch-positiv sein und wird deshalb nur
-// als Warnung ausgegeben.
+// als Warnung ausgegeben. Fuer tatsaechlich falsche/getippte Keys in t()-
+// Aufrufen siehe check-i18n-calls.mjs - das TypeScript-Typsystem kann das auf
+// dieser Codebase-Groesse nicht mehr leisten (siehe dortiger Kommentar).
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';

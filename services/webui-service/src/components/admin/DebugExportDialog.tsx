@@ -32,6 +32,7 @@ import {
   type DebugExportPreview,
 } from '@/api/system';
 import { collectClientContext } from '@/utils/debugRingBuffer';
+import { apiErrorCode } from '@/utils/apiError';
 
 type Preset = 'minimal' | 'recommended' | 'full';
 
@@ -138,20 +139,14 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
 
   const describeError = useCallback(
     (e: unknown) => {
-      const response = (e as {
-        response?: { status?: number; data?: { detail?: unknown } };
-      })?.response;
+      const response = (e as { response?: { status?: number } })?.response;
       const status = response?.status;
-      const detail = response?.data?.detail;
-      // The backend sends a code for the two different 429 reasons; older
-      // builds send a plain string, so fall back on the status alone.
-      const code =
-        detail && typeof detail === 'object'
-          ? (detail as { code?: string }).code
-          : undefined;
+      const code = apiErrorCode(e);
 
       if (code === 'export_in_progress') return t('system.debug_export.error_in_progress');
       if (code === 'export_rate_limited') return t('system.debug_export.error_rate_limited');
+      if (code === 'debug_export_local_only') return t('system.debug_export.error_remote');
+      if (code === 'debug_export_preview_expired') return t('system.debug_export.preview_expired');
       if (status === 429) return t('system.debug_export.error_in_progress');
       if (status === 403) return t('system.debug_export.error_remote');
       if (status === 404) return t('system.debug_export.preview_expired');

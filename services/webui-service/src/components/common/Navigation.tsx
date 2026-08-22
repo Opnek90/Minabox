@@ -21,7 +21,6 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { ParseKeys } from 'i18next';
 
 const DRAWER_WIDTH = 220;
 /**
@@ -45,7 +44,7 @@ const SAFE_AREA_BOTTOM = 'env(safe-area-inset-bottom, 0px)';
 
 interface NavItem {
   path: string;
-  labelKey: ParseKeys<'common'>;
+  labelKey: string;
   icon: React.ReactNode;
 }
 

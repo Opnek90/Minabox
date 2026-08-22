@@ -20,6 +20,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { translateApiError } from '@/utils/apiError';
 
 type PairedDevice = { address: string; name: string | null; connected?: boolean };
 type ScanDevice = { address: string; name: string | null };
@@ -29,13 +30,8 @@ const loadPaired = async () => {
   return data.devices ?? [];
 };
 
-function getBluetoothErrorMessage(err: unknown, fallback: string): string {
-  const d = err && typeof err === 'object' && 'response' in err && (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-  return typeof d === 'string' && d.length > 0 ? d : fallback;
-}
-
 export const BluetoothSection: React.FC = () => {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const [pairedDevices, setPairedDevices] = useState<PairedDevice[]>([]);
   const [pairedLoading, setPairedLoading] = useState(true);
@@ -77,7 +73,7 @@ export const BluetoothSection: React.FC = () => {
       await refreshPaired();
     } catch (e) {
       setScanDevices([]);
-      showError(getBluetoothErrorMessage(e, t('system.logs_unavailable')));
+      showError(translateApiError(t, i18n, e));
     } finally {
       setScanning(false);
     }
@@ -90,7 +86,7 @@ export const BluetoothSection: React.FC = () => {
       showSuccess(t('system.bluetooth_pair'));
       await refreshPaired();
     } catch (e) {
-      showError(getBluetoothErrorMessage(e, t('system.logs_unavailable')));
+      showError(translateApiError(t, i18n, e));
     } finally {
       setPairing(null);
     }
@@ -103,7 +99,7 @@ export const BluetoothSection: React.FC = () => {
       showSuccess(t('system.bluetooth_connect'));
       await refreshPaired();
     } catch (e) {
-      showError(getBluetoothErrorMessage(e, t('system.logs_unavailable')));
+      showError(translateApiError(t, i18n, e));
     } finally {
       setConnecting(null);
     }
@@ -116,7 +112,7 @@ export const BluetoothSection: React.FC = () => {
       showSuccess(t('system.bluetooth_disconnect'));
       await refreshPaired();
     } catch (e) {
-      showError(getBluetoothErrorMessage(e, t('system.logs_unavailable')));
+      showError(translateApiError(t, i18n, e));
     } finally {
       setDisconnecting(null);
     }
@@ -133,7 +129,7 @@ export const BluetoothSection: React.FC = () => {
       showSuccess(t('system.bluetooth_remove'));
       await refreshPaired();
     } catch (e) {
-      showError(getBluetoothErrorMessage(e, t('system.logs_unavailable')));
+      showError(translateApiError(t, i18n, e));
     } finally {
       setRemoving(null);
     }
