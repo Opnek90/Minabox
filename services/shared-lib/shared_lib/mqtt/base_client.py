@@ -16,7 +16,10 @@ This module centralises the lifecycle so the correction lives in one place:
 * ``is_connected`` reflects the *live* socket state, so ``/health`` can report
   ``mqtt_connected: false`` while the broker is away,
 * ``publish()`` never raises when the broker is gone -- it reports failure via
-  its return value, so a status publish cannot kill a caller's task.
+  its return value, so a status publish cannot kill a caller's task,
+* an optional last will lets a service declare the retained state the broker
+  must publish on its behalf when the process dies without saying goodbye --
+  otherwise a stale retained message outlives the service that wrote it.
 
 Services subclass this and implement :meth:`on_message` (and optionally
 :meth:`on_connected`) with their domain-specific dispatch.
@@ -31,7 +34,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 import structlog
-from aiomqtt import Client, MqttError
+from aiomqtt import Client, MqttError, Will
 
 logger = structlog.get_logger(__name__)
 
@@ -74,6 +77,7 @@ class BaseMQTTClient:
         backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
         jitter: float = DEFAULT_JITTER,
         client_factory: Callable[[], Any] | None = None,
+        will: Will | None = None,
     ) -> None:
         self._host = host
         self._port = port
@@ -85,6 +89,7 @@ class BaseMQTTClient:
         self._backoff_factor = backoff_factor
         self._jitter = jitter
         self._client_factory = client_factory
+        self._will = will
 
         self._client: Any | None = None
         self._connected = False
@@ -106,7 +111,27 @@ class BaseMQTTClient:
     def _make_client(self) -> Any:
         if self._client_factory is not None:
             return self._client_factory()
-        return Client(hostname=self._host, port=self._port, identifier=self._identifier)
+        return Client(
+            hostname=self._host,
+            port=self._port,
+            identifier=self._identifier,
+            will=self._will,
+        )
+
+    def set_will(
+        self,
+        topic: str,
+        payload: Any,
+        *,
+        qos: int = 1,
+        retain: bool = True,
+    ) -> None:
+        """Declare the message the broker publishes if this client dies.
+
+        Takes effect on the next connect, so call it before :meth:`start`.
+        Dicts and lists are JSON-encoded like a normal publish payload.
+        """
+        self._will = Will(topic=topic, payload=_encode(payload), qos=qos, retain=retain)
 
     # ------------------------------------------------------------------
     # State
