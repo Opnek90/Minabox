@@ -35,6 +35,16 @@ from backend_service.core.system_alerts import (  # noqa: E402
     set_alert,
 )
 
+# Named explicitly so the re-export survives an automatic import cleanup:
+# `get_current_alert` has no caller inside this module, only outside it.
+__all__ = [
+    "ALERT_TEMPERATURE_HIGH",
+    "clear_alert",
+    "get_current_alert",
+    "run_temperature_log_loop",
+    "set_alert",
+]
+
 ALERT_TEMPERATURE_HIGH = "temperature_high"
 
 

@@ -51,6 +51,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'playback.end_repeat_while_tag',
           'playback.guard_enabled',
           'playback.guard_minutes',
+          'playback.playlist_shuffle',
         ],
       },
       {

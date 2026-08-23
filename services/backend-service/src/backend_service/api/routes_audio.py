@@ -223,7 +223,7 @@ async def play_audio(
         tracks = [pt.track for pt in pts]
         if not tracks:
             raise ApiError(status_code=400, code="playlist_empty", detail="Playlist is empty")
-        session_manager.create_session(tracks=tracks, playlist_id=playlist.id, shuffle=True)
+        session_manager.create_session(tracks=tracks, playlist_id=playlist.id)
         sess = session_manager.session
         first_track = sess.current_track
         db.add(
@@ -451,17 +451,17 @@ async def get_audio_devices(
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_devices_timeout")
-        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout") from None
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_devices_error", status=e.response.status_code)
         raise ApiError(
             status_code=502 if e.response.status_code >= 500 else 400,
             code="audio_service_error",
             detail=e.response.text or "Audio service error",
-        )
+        ) from e
     except Exception as e:
         logger.warning("audio_service_devices_failed", error=str(e))
-        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable") from e
 
 
 class SwitchDeviceRequest(BaseModel):
@@ -500,17 +500,17 @@ async def switch_audio_device(body: SwitchDeviceRequest) -> dict:
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_switch_device_timeout")
-        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout") from None
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_switch_device_error", status=e.response.status_code)
         raise ApiError(
             status_code=502 if e.response.status_code >= 500 else 400,
             code="audio_service_error",
             detail=e.response.text or "Audio service error",
-        )
+        ) from e
     except Exception as e:
         logger.warning("audio_service_switch_device_failed", error=str(e))
-        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable") from e
 
 
 class TestToneRequest(BaseModel):
@@ -543,14 +543,14 @@ async def play_test_tone(body: TestToneRequest | None = None) -> dict:
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_test_tone_timeout")
-        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout") from None
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_test_tone_error", status=e.response.status_code)
         raise ApiError(
             status_code=502 if e.response.status_code >= 500 else e.response.status_code,
             code="audio_service_error",
             detail=e.response.text or "Audio service error",
-        )
+        ) from e
     except Exception as e:
         logger.warning("audio_service_test_tone_failed", error=str(e))
-        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable") from e

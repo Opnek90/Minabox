@@ -69,7 +69,7 @@ def _record_scan_event(
 
 
 class RFIDHandler:
-    def __init__(self, dispatcher: "MQTTHandlers") -> None:
+    def __init__(self, dispatcher: MQTTHandlers) -> None:
         self.dispatcher = dispatcher
         self.tag_scan_cooldown_until: dict[str, float] = {}
         self.last_played_tag_id: str | None = None
@@ -260,7 +260,7 @@ class RFIDHandler:
             return
 
         tracks = [pt.track for pt in playlist_tracks]
-        session_manager.create_session(tracks=tracks, playlist_id=playlist_id, shuffle=True)
+        session_manager.create_session(tracks=tracks, playlist_id=playlist_id)
         first_track = session_manager.session.current_track if session_manager.session else tracks[0]
 
         event = PlaybackEvent(started_at=datetime.now(UTC), content_type="playlist", playlist_id=playlist_id, tag_id=tag_id)

@@ -112,7 +112,7 @@ class PlaylistResponse(PlaylistBase):
 class PlaylistDetailResponse(PlaylistResponse):
     """Schema for playlist API response with tracks."""
 
-    tracks: list["TrackResponse"] = Field(default_factory=list)
+    tracks: list[TrackResponse] = Field(default_factory=list)
 
 
 class StreamBase(BaseModel):

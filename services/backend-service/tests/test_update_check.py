@@ -11,7 +11,6 @@ import pytest
 
 from backend_service.core import update_check as uc
 
-
 # ── Versionsvergleich ───────────────────────────────────────────────────────
 
 

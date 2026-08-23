@@ -7,9 +7,7 @@ from pathlib import Path
 from typing import Final
 
 import structlog
-
 from shared_lib.config import load_env, load_general_settings, load_json_config
-from shared_lib.exceptions import ConfigError
 
 from backend_service.config_schema import AppConfig, BackendServiceConfig, EnvConfig
 

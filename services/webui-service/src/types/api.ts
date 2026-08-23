@@ -541,6 +541,8 @@ export interface GeneralConfig {
   playback_end_behavior?: PlaybackEndBehavior;
   /** Minutes of continuous repetition before the box fades out; 0 = no limit. */
   playback_loop_guard_minutes?: number;
+  /** Play a playlist in random order. Default true, which is what the box always did. */
+  playlist_shuffle?: boolean;
   /** True once the setup wizard has been completed (or explicitly dismissed). */
   setup_completed?: boolean;
   /** Version of the wizard that was completed; lets a later release offer it again. */

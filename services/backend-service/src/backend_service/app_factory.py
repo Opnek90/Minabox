@@ -68,12 +68,9 @@ class BackendService:
 
         # Initialize database
         logger.debug("initializing_database", path=self.config.database_path)
+        # init_db() brings the schema up to date itself - the ordering matters,
+        # because the column migrations that follow assume the tables exist.
         self._db = init_db(self.config.database_path)
-
-        try:
-            self._db.run_migrations()
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.warning("migration_failed", error=str(exc))
 
         # Aeltere Fassung auf neuerer Datenbank: es wird trotzdem gestartet,
         # damit die Box diagnostizierbar bleibt - aber der Hinweisbalken sagt

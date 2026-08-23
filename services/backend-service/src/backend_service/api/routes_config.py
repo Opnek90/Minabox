@@ -20,6 +20,7 @@ from backend_service.core.json_store import write_json_atomic
 from backend_service.core.playback_settings import (
     DEFAULT_END_BEHAVIOR,
     DEFAULT_LOOP_GUARD_MINUTES,
+    DEFAULT_PLAYLIST_SHUFFLE,
     clamp_end_behavior,
     clamp_loop_guard_minutes,
 )
@@ -145,6 +146,7 @@ def _general_settings_read() -> dict:
     resume_on_tag_rescan = True
     playback_end_behavior = DEFAULT_END_BEHAVIOR
     playback_loop_guard_minutes = DEFAULT_LOOP_GUARD_MINUTES
+    playlist_shuffle = DEFAULT_PLAYLIST_SHUFFLE
     auto_update_check_enabled = False
     # Read through the same helper the upload path uses, so the value shown in
     # the WebUI is exactly the one that will be enforced.
@@ -168,6 +170,7 @@ def _general_settings_read() -> dict:
                     data["playback_loop_guard_minutes"]
                 )
             auto_update_check_enabled = bool(data.get("auto_update_check_enabled", False))
+            playlist_shuffle = bool(data.get("playlist_shuffle", DEFAULT_PLAYLIST_SHUFFLE))
             if "max_upload_size_mb" in data:
                 upload_size_mb = clamp_upload_size_mb(data["max_upload_size_mb"])
             raw_times = data.get("allowed_usage_times")
@@ -197,6 +200,7 @@ def _general_settings_read() -> dict:
         "resume_on_tag_rescan": resume_on_tag_rescan,
         "playback_end_behavior": playback_end_behavior,
         "playback_loop_guard_minutes": playback_loop_guard_minutes,
+        "playlist_shuffle": playlist_shuffle,
         "allowed_usage_times": allowed_usage_times,
         "auto_update_check_enabled": auto_update_check_enabled,
         "max_upload_size_mb": upload_size_mb,
@@ -237,6 +241,7 @@ async def update_general_config(body: dict) -> dict:
         "resume_on_tag_rescan",
         "playback_end_behavior",
         "playback_loop_guard_minutes",
+        "playlist_shuffle",
         "allowed_usage_times",
         "auto_update_check_enabled",
         "max_upload_size_mb",
@@ -284,6 +289,8 @@ async def update_general_config(body: dict) -> dict:
     if "allowed_usage_times" in data:
         raw = data["allowed_usage_times"]
         data["allowed_usage_times"] = _validate_allowed_usage_times(raw if isinstance(raw, list) else [])
+    if "playlist_shuffle" in data:
+        data["playlist_shuffle"] = bool(data["playlist_shuffle"])
     if "auto_update_check_enabled" in data:
         data["auto_update_check_enabled"] = bool(data["auto_update_check_enabled"])
     if "max_upload_size_mb" in data:

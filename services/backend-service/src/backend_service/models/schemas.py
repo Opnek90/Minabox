@@ -7,7 +7,6 @@ imports stable (`backend_service.models.schemas.*`) while improving structure.
 from __future__ import annotations
 
 from .schemas_audio import AudioPlayCommand, AudioStatusResponse, AudioVolumeCommand
-from .schemas_config import AudioConfig, ButtonConfig, LEDConfig, RFIDConfig
 from .schemas_content import (
     PlaylistBase,
     PlaylistCreate,
@@ -107,11 +106,6 @@ __all__ = [
     "RFIDLearningModeCommand",
     "RFIDScanEvent",
     "RFIDModeResponse",
-    # Service config
-    "ButtonConfig",
-    "LEDConfig",
-    "AudioConfig",
-    "RFIDConfig",
     # System & health
     "HealthCheckResponse",
     "ServiceStatus",

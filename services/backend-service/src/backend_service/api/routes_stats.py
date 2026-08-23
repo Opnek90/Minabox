@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -18,7 +19,14 @@ from backend_service.core.playback_stats import (
     get_total_listened_minutes,
     minutes_for_event,
 )
-from backend_service.models.database import PlaybackEvent, Playlist, Podcast, Stream, Tag, Track
+from backend_service.models.database import (
+    PlaybackEvent,
+    Playlist,
+    Podcast,
+    Stream,
+    Tag,
+    Track,
+)
 
 router = APIRouter()
 

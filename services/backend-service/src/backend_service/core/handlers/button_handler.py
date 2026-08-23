@@ -26,7 +26,7 @@ logger = structlog.get_logger(__name__)
 
 
 class ButtonHandler:
-    def __init__(self, dispatcher: "MQTTHandlers") -> None:
+    def __init__(self, dispatcher: MQTTHandlers) -> None:
         self.dispatcher = dispatcher
 
     async def handle_button_action(self, topic: str, data: dict[str, Any]) -> None:

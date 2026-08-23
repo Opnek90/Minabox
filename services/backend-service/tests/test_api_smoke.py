@@ -314,6 +314,61 @@ def test_the_upload_limit_is_clamped(client, sent, stored):
     assert response.json()["max_upload_size_mb"] == stored
 
 
+# --- Playlist order is a setting now (C4) -----------------------------------
+
+
+def test_playlists_shuffle_by_default(client):
+    """Unchanged behaviour: the box has always randomised playlists."""
+    assert client.get("/api/v1/config/general").json()["playlist_shuffle"] is True
+
+
+def test_turning_shuffle_off_keeps_the_playlist_order(client, env):
+    """An audio play in chapters has to run in the order it was put together.
+
+    `PlaylistTrack.position` kept that order all along - it was simply never
+    used, because the call site passed shuffle=True unconditionally.
+    """
+    from backend_service.core.session_manager import SessionManager
+    from backend_service.models.database import Track
+
+    saved = client.put("/api/v1/config/general", json={"playlist_shuffle": False})
+    assert saved.status_code == 200
+    assert saved.json()["playlist_shuffle"] is False
+
+    tracks = [
+        Track(id=i, title=f"Chapter {i}", source_type="file", source_uri=f"/x/{i}.mp3")
+        for i in range(1, 21)
+    ]
+    session = SessionManager().create_session(tracks=tracks, playlist_id=1)
+
+    assert session.shuffle is False
+    assert [t.id for t in session.tracks] == list(range(1, 21))
+
+
+def test_shuffle_stays_on_when_the_setting_says_so(client, env):
+    from backend_service.core.session_manager import SessionManager
+    from backend_service.models.database import Track
+
+    client.put("/api/v1/config/general", json={"playlist_shuffle": True})
+    tracks = [
+        Track(id=i, title=str(i), source_type="file", source_uri=f"/x/{i}.mp3")
+        for i in range(1, 21)
+    ]
+    session = SessionManager().create_session(tracks=tracks, playlist_id=1)
+    assert session.shuffle is True
+
+
+def test_a_single_track_is_never_shuffled(client, env):
+    """The setting is about playlists; one track has no order to randomise."""
+    from backend_service.core.session_manager import SessionManager
+    from backend_service.models.database import Track
+
+    client.put("/api/v1/config/general", json={"playlist_shuffle": True})
+    track = Track(id=1, title="Solo", source_type="file", source_uri="/x/1.mp3")
+    session = SessionManager().create_session(tracks=[track])
+    assert session.shuffle is False
+
+
 # --- Auth middleware --------------------------------------------------------
 
 

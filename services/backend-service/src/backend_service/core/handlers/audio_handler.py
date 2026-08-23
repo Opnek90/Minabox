@@ -28,7 +28,7 @@ class AudioHandler:
     MAX_RECONNECT_DELAY_SEC: float = 30.0
     RECONNECT_BASE_DELAY_SEC: float = 2.0
 
-    def __init__(self, dispatcher: "MQTTHandlers") -> None:
+    def __init__(self, dispatcher: MQTTHandlers) -> None:
         self.dispatcher = dispatcher
         self._play_started_at: datetime | None = None
         self._active_event_id: int | None = None
@@ -73,7 +73,7 @@ class AudioHandler:
             db_session = _db_module.db_manager.get_session()
             try:
                 from backend_service.models.database import PlaybackEvent
-                event = db_session.query(PlaybackEvent).get(self._active_event_id)
+                event = db_session.get(PlaybackEvent, self._active_event_id)
                 if event and event.ended_at is None:
                     event.listened_ms = current_total
                     db_session.commit()

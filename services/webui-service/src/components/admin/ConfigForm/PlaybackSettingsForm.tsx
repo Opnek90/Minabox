@@ -4,6 +4,7 @@ import {
   Box,
   Collapse,
   FormControlLabel,
+  FormHelperText,
   Switch,
   TextField,
   ToggleButton,
@@ -67,6 +68,7 @@ export const PlaybackSettingsForm: React.FC = () => {
           stop_playback_on_tag_remove: g.stop_playback_on_tag_remove ?? false,
           resume_on_tag_rescan: g.resume_on_tag_rescan ?? true,
           playback_end_behavior: g.playback_end_behavior ?? 'stop',
+          playlist_shuffle: g.playlist_shuffle ?? true,
           playback_loop_guard_minutes: g.playback_loop_guard_minutes ?? DEFAULT_GUARD_MINUTES,
         });
         if (g.playback_loop_guard_minutes) setGuardMinutes(g.playback_loop_guard_minutes);
@@ -82,6 +84,7 @@ export const PlaybackSettingsForm: React.FC = () => {
         stop_playback_on_tag_remove: general.stop_playback_on_tag_remove,
         resume_on_tag_rescan: general.resume_on_tag_rescan,
         playback_end_behavior: general.playback_end_behavior,
+        playlist_shuffle: general.playlist_shuffle,
         playback_loop_guard_minutes: general.playback_loop_guard_minutes,
       });
       setError(null);
@@ -203,6 +206,19 @@ export const PlaybackSettingsForm: React.FC = () => {
           )}
         </Box>
       </Collapse>
+
+      <FormControlLabel
+        control={
+          <Switch
+            checked={general.playlist_shuffle ?? true}
+            onChange={(e) =>
+              setGeneral((p) => (p ? { ...p, playlist_shuffle: e.target.checked } : p))
+            }
+          />
+        }
+        label={t('playback.playlist_shuffle')}
+      />
+      <FormHelperText>{t('playback.playlist_shuffle_hint')}</FormHelperText>
       </SettingsBlock>
 
       {error && <Alert severity="error">{error}</Alert>}

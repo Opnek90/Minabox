@@ -27,8 +27,8 @@ class PlaybackEvent(Base):
     __tablename__ = "playback_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    started_at = Column(DateTime, nullable=False)
-    ended_at = Column(DateTime, nullable=True)
+    started_at = Column(DateTime, nullable=False, index=True)
+    ended_at = Column(DateTime, nullable=True, index=True)
     track_id = Column(Integer, ForeignKey("tracks.id", ondelete="SET NULL"), nullable=True)
     stream_id = Column(Integer, ForeignKey("streams.id", ondelete="SET NULL"), nullable=True)
     playlist_id = Column(Integer, ForeignKey("playlists.id", ondelete="SET NULL"), nullable=True)
@@ -49,7 +49,7 @@ class TagScanEvent(Base):
     media_title = Column(String(512), nullable=True)
     media_type = Column(String(16), nullable=True)
     action = Column(String(16), nullable=False)
-    scanned_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    scanned_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False, index=True)
 
     def __repr__(self) -> str:
         return (
@@ -294,7 +294,7 @@ class TemperatureReading(Base):
     __tablename__ = "temperature_readings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    recorded_at = Column(DateTime, nullable=False)
+    recorded_at = Column(DateTime, nullable=False, index=True)
     temperature_celsius = Column(Float, nullable=False)
 
     def __repr__(self) -> str:

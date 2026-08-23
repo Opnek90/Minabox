@@ -5,25 +5,20 @@ Database models (SQLAlchemy) are in a separate module.
 """
 
 from backend_service.models.schemas import (
-    AudioConfig,
     # Audio Control
     AudioPlayCommand,
     AudioStatusResponse,
     AudioVolumeCommand,
-    # Config
-    ButtonConfig,
     # Error
     ErrorResponse,
     # System
     HealthCheckResponse,
-    LEDConfig,
     # Playlists
     PlaylistBase,
     PlaylistCreate,
     PlaylistDetailResponse,
     PlaylistResponse,
     PlaylistUpdate,
-    RFIDConfig,
     # RFID
     RFIDLearningModeCommand,
     RFIDScanEvent,
@@ -65,11 +60,6 @@ __all__ = [
     # RFID
     "RFIDLearningModeCommand",
     "RFIDScanEvent",
-    # Config
-    "ButtonConfig",
-    "LEDConfig",
-    "AudioConfig",
-    "RFIDConfig",
     # System
     "HealthCheckResponse",
     "SystemStatusResponse",

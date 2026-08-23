@@ -4,16 +4,36 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import structlog
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from backend_service.models.database import Base, PlaybackEvent, PlaylistTrack, Stream, Track
+from backend_service.models.database import (
+    Base,
+    PlaybackEvent,
+    PlaylistTrack,
+    Stream,
+    Track,
+)
 
 logger = structlog.get_logger(__name__)
+
+#: services/backend-service/ - alembic.ini and alembic/ sit here, and in the
+#: container they land next to each other under /app. Resolved from this file
+#: rather than from the working directory: `Config("alembic.ini")` only ever
+#: worked because the container happens to start in /app.
+SERVICE_ROOT: Final[Path] = Path(__file__).resolve().parents[3]
+
+#: The revision a database built by the old `create_all()` path corresponds to.
+#:
+#: Such a database has every table the models declared at the time, so replaying
+#: the chain would fail on "table already exists" - but stamping it straight to
+#: head would claim later revisions had run when they had not, and their changes
+#: would never reach it. It is stamped here and then upgraded normally.
+ADOPTION_REVISION: Final[str] = "0005"
 
 # Stand, den dieser Code von der Datenbank erwartet.
 #
@@ -79,7 +99,7 @@ class DatabaseManager:
             bind=self.engine,
         )
 
-        Base.metadata.create_all(bind=self.engine)
+        self._setup_schema()
 
         found = self._read_schema_version()
         if found > SCHEMA_VERSION:
@@ -117,6 +137,80 @@ class DatabaseManager:
         self._close_orphaned_playback_events()
 
         logger.debug("db_connected_successfully", database_url=database_url)
+
+    def _alembic_config(self) -> Any:
+        from alembic.config import Config
+
+        config = Config(str(SERVICE_ROOT / "alembic.ini"))
+        config.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+        config.set_main_option("sqlalchemy.url", f"sqlite:///{self.database_path}")
+        return config
+
+    def _is_stamped(self) -> bool:
+        """Whether Alembic has recorded a revision for this database."""
+        try:
+            with self.engine.connect() as conn:
+                if not inspect(conn).has_table("alembic_version"):
+                    return False
+                return conn.execute(text("SELECT count(*) FROM alembic_version")).scalar() > 0
+        except Exception as exc:
+            logger.warning("db_alembic_state_unreadable", error=str(exc))
+            return False
+
+    def _setup_schema(self) -> None:
+        """Bring the schema up to date. Alembic owns it.
+
+        Three cases, and the middle one is why this is not a plain upgrade:
+
+        * empty database - the baseline and every revision after it build the
+          schema from nothing,
+        * tables present but never stamped - a database that predates Alembic
+          being usable here. `create_all()` used to run first, so revision 0001
+          always failed on "table already exists" and left `alembic_version`
+          empty for good. It is stamped at the revision its schema corresponds
+          to, then upgraded like any other,
+        * stamped - the normal path, upgrade whatever is outstanding.
+
+        The upgrade runs in every case. Stamping straight to head instead would
+        leave an adopted database permanently missing everything added after
+        the adoption point.
+        """
+        with self.engine.connect() as conn:
+            tables = set(inspect(conn).get_table_names())
+        has_data_tables = bool(tables - {"alembic_version"})
+
+        try:
+            from alembic import command
+
+            config = self._alembic_config()
+            if has_data_tables and not self._is_stamped():
+                command.stamp(config, ADOPTION_REVISION)
+                logger.info(
+                    "db_schema_adopted", tables=len(tables), revision=ADOPTION_REVISION
+                )
+            command.upgrade(config, "head")
+            logger.debug("db_schema_upgraded")
+        except Exception as exc:
+            logger.error("db_migrations_failed", error=str(exc))
+
+        self._ensure_schema_complete()
+
+    def _ensure_schema_complete(self) -> None:
+        """Last line of defence: never leave the box without its tables.
+
+        If the migrations did not produce what the models expect - a broken
+        revision, a half-applied upgrade - the box would come up unable to do
+        anything at all. Creating what is missing keeps it usable and says so
+        loudly, rather than failing at the first query.
+        """
+        with self.engine.connect() as conn:
+            present = set(inspect(conn).get_table_names())
+        missing = {t.name for t in Base.metadata.sorted_tables} - present
+        if not missing:
+            return
+        logger.error("db_schema_incomplete_after_migrations", missing=sorted(missing))
+        Base.metadata.create_all(bind=self.engine)
+        self.schema_state["repaired"] = sorted(missing)
 
     def _close_orphaned_playback_events(self) -> None:
         """Close any PlaybackEvents left open by an unclean shutdown.
@@ -282,19 +376,13 @@ class DatabaseManager:
             return False
 
     def run_migrations(self) -> None:
-        logger.debug("db_running_migrations")
-        try:
-            from alembic.config import Config
-            from alembic import command
-            alembic_cfg = Config("alembic.ini")
-            alembic_cfg.set_main_option(
-                "sqlalchemy.url", f"sqlite:///{self.database_path}"
-            )
-            command.upgrade(alembic_cfg, "head")
-            logger.debug("db_migrations_completed")
-        except Exception as e:
-            logger.error("db_migrations_failed", error=str(e))
-            raise
+        """Kept for callers; the schema is set up by connect() itself now.
+
+        Doing it inside connect() is what makes the ordering guaranteed: the
+        column migrations and the stream move below both assume the tables are
+        already there.
+        """
+        logger.debug("db_migrations_already_applied_during_connect")
 
 
 db_manager: DatabaseManager | None = None

@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 import structlog
 
+from backend_service.core.debug_export import logfilter
 from backend_service.core.debug_export.framework import (
     BLOCK_LOGS,
     BLOCK_NETWORK,
@@ -20,7 +21,6 @@ from backend_service.core.debug_export.framework import (
     ExportContext,
     register,
 )
-from backend_service.core.debug_export import logfilter
 from backend_service.core.debug_export.redaction import pseudonymize
 
 logger = structlog.get_logger(__name__)

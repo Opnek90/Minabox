@@ -10,7 +10,10 @@ from typing import Literal
 
 import structlog
 
-from backend_service.core.playback_settings import read_playback_end_behavior
+from backend_service.core.playback_settings import (
+    read_playback_end_behavior,
+    read_playlist_shuffle,
+)
 from backend_service.models.database import Track
 
 logger = structlog.get_logger(__name__)
@@ -139,7 +142,7 @@ class SessionManager:
         self,
         tracks: list[Track],
         playlist_id: int | None = None,
-        shuffle: bool = False,
+        shuffle: bool | None = None,
     ) -> PlaybackSession:
         """Create a new playback session.
 
@@ -149,11 +152,18 @@ class SessionManager:
         Args:
             tracks: List of tracks to play (must be loaded in active DB session)
             playlist_id: Optional playlist ID if session is from a playlist
-            shuffle: If True, shuffle track order (used for playlist playback)
+            shuffle: Force an order; ``None`` follows the user setting for a
+                playlist and keeps a single track in place.
 
         Returns:
             Created session
         """
+        if shuffle is None:
+            # Read here rather than passed in, for the same reason the end
+            # behaviour is: it is a user setting and has to survive a tag scan,
+            # which creates a fresh session every time.
+            shuffle = read_playlist_shuffle() if playlist_id is not None else False
+
         snapshots = [
             SessionTrack(
                 id=t.id,

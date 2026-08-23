@@ -317,6 +317,8 @@
     "guard_enabled": "Stop on its own after a while",
     "guard_minutes": "Longest stretch in one go (minutes)",
     "guard_minutes_hint": "After that the volume fades down and the box stops – so it will not keep playing for hours when a card is left on it.",
+      "playlist_shuffle": "Play playlists in random order",
+      "playlist_shuffle_hint": "Off: tracks play in the playlist's own order - what an audio play in chapters needs.",
     "sleep_title": "Falling asleep",
     "title": "When a card is tapped"
   },

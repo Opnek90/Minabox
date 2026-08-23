@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
-from pydantic import BaseModel, Field, PositiveInt
-
+from pydantic import BaseModel, Field
 from shared_lib.config import EnvConfigBase
 
 
@@ -41,23 +38,19 @@ class EnvConfig(EnvConfigBase):
 
 
 class BackendServiceConfig(BaseModel):
-    """Backend-specific configuration loaded from config/backend.json."""
+    """Backend-specific configuration loaded from config/backend.json.
 
-    session_timeout_min: int = Field(
-        default=60,
-        ge=1,
-        description="Playback session timeout in minutes.",
-    )
-    health_check_interval_sec: int = Field(
-        default=30,
-        ge=5,
-        description="Health check interval in seconds.",
-    )
+    Only the default upload limit lives here. The file is mounted read-only, so
+    a user-changeable value belongs in general_settings.json instead - see
+    core/uploads.py. `session_timeout_min` and `health_check_interval_sec` used
+    to sit here too and were never read by anything.
+    """
+
     max_upload_size_mb: int = Field(
         default=100,
         ge=1,
-        le=1000,
-        description="Max file upload size in MB.",
+        le=2048,
+        description="Default upload limit in MB; general_settings.json overrides it.",
     )
 
 

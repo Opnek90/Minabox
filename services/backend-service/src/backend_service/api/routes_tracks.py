@@ -54,7 +54,17 @@ _PLAYLIST_PARAMS = {"list", "start_radio", "index", "t"}
 
 # In-memory download status store: track_id -> status dict
 # Status values: "pending" | "downloading" | "done" | "error"
+#
+# Bounded: nothing ever removed an entry, so a box running for months kept
+# every import it had ever done. Finished entries are the ones worth dropping -
+# a client polls only until it sees a terminal state.
+_MAX_DOWNLOAD_STATUS_ENTRIES = 50
 _download_status: dict[int, dict] = {}
+
+# Background tasks are held until they finish. Without a reference the event
+# loop keeps only a weak one, and an import can be garbage collected mid-flight
+# (documented asyncio behaviour).
+_background_tasks: set[asyncio.Task] = set()
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -114,6 +124,17 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
     except Exception as e:
         logger.warning("track_cover_extract_failed", track_id=track_id, error=str(e))
         return None
+
+
+def _set_download_status(track_id: int, status: str, error: str | None = None) -> None:
+    """Record an import's state, dropping the oldest finished ones."""
+    _download_status[track_id] = {"status": status, "error": error}
+    if len(_download_status) > _MAX_DOWNLOAD_STATUS_ENTRIES:
+        for done_id, entry in list(_download_status.items()):
+            if len(_download_status) <= _MAX_DOWNLOAD_STATUS_ENTRIES:
+                break
+            if entry.get("status") in ("done", "error") and done_id != track_id:
+                del _download_status[done_id]
 
 
 def _stored_track_dir(track: Track) -> Path | None:
@@ -230,7 +251,7 @@ async def _run_download_task(
     engine = create_engine(db_url)
     SessionLocal = sessionmaker(bind=engine)
 
-    _download_status[track_id] = {"status": "downloading", "error": None}
+    _set_download_status(track_id, "downloading")
     client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
     db = SessionLocal()
     try:
@@ -240,7 +261,7 @@ async def _run_download_task(
         track = db.query(Track).filter(Track.id == track_id).first()
         if track is None:
             logger.error("download_task_track_missing", track_id=track_id)
-            _download_status[track_id] = {"status": "error", "error": "Track record not found"}
+            _set_download_status(track_id, "error", "Track record not found")
             return
 
         track.title = title_override or result["title"]
@@ -263,11 +284,11 @@ async def _run_download_task(
             db.commit()
 
         logger.info("download_task_completed", track_id=track_id, title=track.title)
-        _download_status[track_id] = {"status": "done", "error": None}
+        _set_download_status(track_id, "done")
 
     except MediaDownloaderError as exc:
         logger.error("download_task_failed", track_id=track_id, error=str(exc))
-        _download_status[track_id] = {"status": "error", "error": str(exc)}
+        _set_download_status(track_id, "error", str(exc))
         try:
             track = db.query(Track).filter(Track.id == track_id).first()
             if track:
@@ -281,9 +302,12 @@ async def _run_download_task(
             pass
     except Exception as exc:  # noqa: BLE001
         logger.exception("download_task_unexpected_error", track_id=track_id, error=str(exc))
-        _download_status[track_id] = {"status": "error", "error": "Unexpected error during download"}
+        _set_download_status(track_id, "error", "Unexpected error during download")
     finally:
         db.close()
+        # The task builds its own engine because it outlives the request that
+        # started it, so it also has to hand back that connection pool.
+        engine.dispose()
 
 
 @router.get("", response_model=list[TrackResponse])
@@ -443,11 +467,11 @@ async def create_track_from_url(
     track_dir = AUDIO_STORAGE_PATH / str(track_id)
     track_dir.mkdir(parents=True, exist_ok=True)
 
-    _download_status[track_id] = {"status": "pending", "error": None}
+    _set_download_status(track_id, "pending")
 
     db_url = str(db.bind.url)  # type: ignore[union-attr]
 
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_download_task(
             track_id=track_id,
             clean_url=clean_url,
@@ -458,6 +482,8 @@ async def create_track_from_url(
             album_override=album,
         )
     )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     logger.info("api_create_track_from_url_accepted", track_id=track_id, url=clean_url)
     return JSONResponse(

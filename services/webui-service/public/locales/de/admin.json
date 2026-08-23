@@ -317,6 +317,8 @@
     "guard_enabled": "Nach einer Weile von selbst beenden",
     "guard_minutes": "Höchstdauer am Stück (Minuten)",
     "guard_minutes_hint": "Danach wird die Lautstärke langsam heruntergeregelt und die Box hört auf – damit sie nicht stundenlang weiterspielt, wenn die Karte liegen bleibt.",
+      "playlist_shuffle": "Playlists zufällig abspielen",
+      "playlist_shuffle_hint": "Aus: die Titel laufen in der Reihenfolge der Playlist – passend für Hörspiele in Kapiteln.",
     "sleep_title": "Einschlafen",
     "title": "Beim Auflegen einer Karte"
   },

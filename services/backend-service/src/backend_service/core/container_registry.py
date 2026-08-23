@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -57,15 +58,32 @@ NAME_PREFIX = "minabox-"
 _STATS_MAX_WORKERS = 16
 
 
-def _docker_client() -> Any | None:
-    """Docker SDK client, or None when the socket is not usable."""
-    try:
-        import docker
+_client_lock = threading.Lock()
+_client: Any | None = None
 
-        return docker.from_env()
-    except Exception as e:  # ImportError, DockerException, PermissionError
-        logger.debug("docker_client_unavailable", error=str(e))
-        return None
+
+def _docker_client() -> Any | None:
+    """Docker SDK client, or None when the socket is not usable.
+
+    Cached: this used to build a fresh client per call, and `collect_stats`
+    calls it once per container. One /system/status request - which the WebUI
+    polls - therefore opened a dozen connections to the socket and closed none
+    of them. Guarded by a lock because the stats run in a thread pool.
+    """
+    global _client
+    if _client is not None:
+        return _client
+    with _client_lock:
+        if _client is not None:
+            return _client
+        try:
+            import docker
+
+            _client = docker.from_env()
+        except Exception as e:  # ImportError, DockerException, PermissionError
+            logger.debug("docker_client_unavailable", error=str(e))
+            return None
+    return _client
 
 
 def _own_project(client: Any) -> str:

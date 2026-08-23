@@ -15,8 +15,8 @@ import signal
 import structlog
 
 from backend_service.app_factory import BackendService, setup_structlog
-from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 from backend_service.config import load_app_config
+from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 
 logger = structlog.get_logger(__name__)
 

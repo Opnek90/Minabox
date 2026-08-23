@@ -27,8 +27,8 @@ class MQTTHandlers:
 
     def __init__(
         self,
-        mqtt_client: "MQTTClient",
-        websocket_manager: "WebSocketManager" | None = None,
+        mqtt_client: MQTTClient,
+        websocket_manager: WebSocketManager | None = None,
     ) -> None:
         """Initialize MQTT handlers.
 

@@ -21,6 +21,7 @@ VALID_END_BEHAVIORS: frozenset[str] = frozenset({"stop", "repeat", "repeat_while
 
 DEFAULT_END_BEHAVIOR: EndBehavior = "stop"
 DEFAULT_LOOP_GUARD_MINUTES = 60
+DEFAULT_PLAYLIST_SHUFFLE = True
 MIN_LOOP_GUARD_MINUTES = 5
 MAX_LOOP_GUARD_MINUTES = 1440
 
@@ -64,6 +65,19 @@ def read_playback_end_behavior() -> EndBehavior:
     return clamp_end_behavior(_read_general_settings().get("playback_end_behavior"))
 
 
+def read_playlist_shuffle() -> bool:
+    """Whether a playlist starts in random order.
+
+    Defaults to ``True``, which is what the box always did. An audio play in
+    chapters wants the other setting, and `PlaylistTrack.position` has kept the
+    intended order all along - it was simply never used for playback.
+    """
+    raw = _read_general_settings().get("playlist_shuffle")
+    if raw is None:
+        return DEFAULT_PLAYLIST_SHUFFLE
+    return bool(raw)
+
+
 def read_loop_guard_minutes() -> int:
     """Minutes of continuous looping after which playback fades out.
 
@@ -79,6 +93,7 @@ def read_loop_guard_minutes() -> int:
 __all__ = [
     "DEFAULT_END_BEHAVIOR",
     "DEFAULT_LOOP_GUARD_MINUTES",
+    "DEFAULT_PLAYLIST_SHUFFLE",
     "EndBehavior",
     "MAX_LOOP_GUARD_MINUTES",
     "MIN_LOOP_GUARD_MINUTES",
@@ -87,4 +102,5 @@ __all__ = [
     "clamp_loop_guard_minutes",
     "read_loop_guard_minutes",
     "read_playback_end_behavior",
+    "read_playlist_shuffle",
 ]

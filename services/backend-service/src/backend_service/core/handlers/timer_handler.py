@@ -22,7 +22,7 @@ logger = structlog.get_logger(__name__)
 
 
 class TimerHandler:
-    def __init__(self, dispatcher: "MQTTHandlers") -> None:
+    def __init__(self, dispatcher: MQTTHandlers) -> None:
         self.dispatcher = dispatcher
         self.sleep_timer_task: asyncio.Task | None = None
         self.sleep_timer_start_time: float = 0.0
