@@ -3,6 +3,29 @@
     "reader_type": "pn532",
     "interface": "i2c",
     "scan_interval_ms": 200,
-    "duplicate_suppression_ms": 2000
+    "duplicate_suppression_ms": 2000,
+    "removal_debounce_reads": 3,
+    "error_retry_delay_ms": 5000,
+    "init_retry_delay_ms": 2000,
+    "init_retry_max_delay_ms": 60000,
+    "init_max_attempts": 0,
+    "reinit_after_read_errors": 5,
+    "pn532": {
+      "i2c_bus": 1,
+      "spi_device": 0,
+      "uart_port": "/dev/ttyS0",
+      "passive_activation_retries": 2
+    },
+    "mock": {
+      "tags": ["04A224BC19", "DEADBEEF01"],
+      "hold_reads": 10,
+      "gap_reads": 10
+    }
+  },
+  "modes": {
+    "learning_timeout_s": 300
+  },
+  "service": {
+    "shutdown_timeout_s": 5.0
   }
 }

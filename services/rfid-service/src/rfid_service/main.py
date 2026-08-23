@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import signal
 
 import structlog
@@ -14,12 +13,13 @@ from .api.routes import create_app
 from .config import load_app_config
 from .config_schema import AppConfig
 from .core import RFIDManager
-from .infrastructure import MQTTClient, RFIDReader, create_reader
+from .core.rfid_manager import Mode
+from .infrastructure import MQTTClient, create_reader
 
 logger = structlog.get_logger(__name__)
 
 
-async def _cancel_task(task: asyncio.Task | None, timeout: float = 5.0) -> None:
+async def _cancel_task(task: asyncio.Task | None, timeout: float) -> None:
     """Cancel an asyncio Task and wait for it to finish cleanly."""
     if task is None or task.done():
         return
@@ -30,7 +30,13 @@ async def _cancel_task(task: asyncio.Task | None, timeout: float = 5.0) -> None:
 
 
 class RFIDService:
-    """Main RFID service class."""
+    """Main RFID service class.
+
+    Startup order matters: MQTT and the REST API come up first, and the reader
+    is initialised inside the scan loop afterwards. Hardware that is missing or
+    miswired therefore produces an observable error status instead of a process
+    that dies before it can report anything.
+    """
 
     def __init__(self, config: AppConfig) -> None:
         self.config = config
@@ -39,8 +45,11 @@ class RFIDService:
         self._scan_task: asyncio.Task | None = None
         self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
-        self._reader: RFIDReader | None = None
         self._manager: RFIDManager | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        # Strong references so fire-and-forget tasks are not garbage collected
+        # while they are still running.
+        self._pending_tasks: set[asyncio.Task] = set()
 
         self.mqtt_client = MQTTClient(
             config=config,
@@ -50,16 +59,13 @@ class RFIDService:
     async def start(self) -> None:
         """Start the RFID service."""
         logger.info("rfid_service_starting")
+        self._loop = asyncio.get_running_loop()
 
         try:
-            self._reader = create_reader(self.config.rfid.reader)
-            self._reader.initialize()
-
             # Connects in the background and retries forever, so an unreachable
             # broker no longer fails startup.
             self._mqtt_task = await self.mqtt_client.start()
 
-            # Use get_mqtt_topic() instead of manual f-string (issue #28).
             # remember=True: re-announced after a reconnect.
             await self.mqtt_client.publish(
                 self.config.get_mqtt_topic("system", "service-started"),
@@ -67,10 +73,16 @@ class RFIDService:
                 remember=True,
             )
 
-            self._manager = RFIDManager(self.config, self._reader, self.mqtt_client)
+            self._manager = RFIDManager(
+                self.config,
+                lambda: create_reader(self.config.rfid.reader),
+                self.mqtt_client,
+            )
             await self._manager.start()
 
-            self._scan_task = asyncio.create_task(self._manager.scan_loop())
+            self._scan_task = asyncio.create_task(
+                self._manager.scan_loop(), name="rfid-scan-loop"
+            )
 
             await self._start_api_server()
 
@@ -81,8 +93,7 @@ class RFIDService:
             raise
 
     async def _start_api_server(self) -> None:
-        app = create_app(self.config, self.mqtt_client)
-        # Read port from config instead of hardcoding 8000 (issue #17)
+        app = create_app(self.config, self.mqtt_client, lambda: self._manager)
         port = self.config.env.api_port
         uvicorn_config = uvicorn.Config(
             app=app,
@@ -91,7 +102,9 @@ class RFIDService:
             log_config=None,
         )
         self._api_server = uvicorn.Server(uvicorn_config)
-        self._uvicorn_task = asyncio.create_task(self._api_server.serve())
+        self._uvicorn_task = asyncio.create_task(
+            self._api_server.serve(), name="rfid-api-server"
+        )
         logger.info("api_server_started", port=port)
 
     async def run(self) -> None:
@@ -101,23 +114,29 @@ class RFIDService:
     async def stop(self) -> None:
         """Stop the RFID service gracefully."""
         logger.info("rfid_service_stopping")
+        timeout = self.config.rfid.service.shutdown_timeout_s
 
         if self._api_server:
             self._api_server.should_exit = True
-        await _cancel_task(self._uvicorn_task)
+        await _cancel_task(self._uvicorn_task, timeout)
         logger.info("api_server_stopped")
+
+        # Stop scanning before the manager publishes its farewell status, so no
+        # tag event races the shutdown.
+        if self._manager:
+            self._manager.request_stop()
+        await _cancel_task(self._scan_task, timeout)
+
+        for task in list(self._pending_tasks):
+            await _cancel_task(task, timeout)
+        self._pending_tasks.clear()
 
         if self._manager:
             await self._manager.stop()
 
         await self.mqtt_client.stop()
-        await _cancel_task(self._scan_task)
-        await _cancel_task(self._mqtt_task)
+        await _cancel_task(self._mqtt_task, timeout)
         await self.mqtt_client.disconnect()
-
-        if self._reader:
-            self._reader.cleanup()
-            self._reader = None
 
         logger.info("rfid_service_stopped")
 
@@ -125,16 +144,21 @@ class RFIDService:
         logger.info("shutdown_signal_received")
         self._shutdown_event.set()
 
-    def _handle_set_mode(self, mode: str) -> None:
+    def _handle_set_mode(self, mode: Mode) -> None:
         """Handle set-mode command from MQTT (thread-safe)."""
-        if self._manager:
-            try:
-                loop = asyncio.get_event_loop()
-                loop.call_soon_threadsafe(
-                    lambda: asyncio.ensure_future(self._manager.set_mode(mode))
-                )
-            except RuntimeError:
-                logger.warning("set_mode_no_event_loop", mode=mode)
+        loop = self._loop
+        if self._manager is None or loop is None:
+            logger.warning("set_mode_not_ready", mode=mode)
+            return
+        loop.call_soon_threadsafe(self._schedule_set_mode, mode)
+
+    def _schedule_set_mode(self, mode: Mode) -> None:
+        """Run the mode switch on the event loop, keeping a task reference."""
+        if self._manager is None:
+            return
+        task = asyncio.create_task(self._manager.set_mode(mode), name="rfid-set-mode")
+        self._pending_tasks.add(task)
+        task.add_done_callback(self._pending_tasks.discard)
 
 
 async def main() -> None:
@@ -156,7 +180,7 @@ async def main() -> None:
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
-            loop.add_signal_handler(sig, lambda s=sig: signal_handler(s))
+            loop.add_signal_handler(sig, signal_handler, sig)
         except NotImplementedError:
             break
 

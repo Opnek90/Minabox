@@ -4,20 +4,32 @@ Connection lifecycle, reconnection and status replay come from
 ``shared_lib.mqtt.BaseMQTTClient``. This module adds:
 - the RFID subscription list
 - the cmd/set-mode command handler
+- the last will that clears the retained tag presence if this process dies
 """
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, get_args
 
 import structlog
 from shared_lib.mqtt import BaseMQTTClient
 
+from ..models import TagPresenceEvent
+
 if TYPE_CHECKING:
     from ..config_schema import AppConfig
+    from ..core.rfid_manager import Mode
 
 logger = structlog.get_logger(__name__)
+
+
+def _valid_modes() -> tuple[str, ...]:
+    """Accepted values of the set-mode command, derived from the Mode type."""
+    from ..core.rfid_manager import Mode
+
+    return get_args(Mode)
 
 
 class MQTTClient(BaseMQTTClient):
@@ -26,7 +38,7 @@ class MQTTClient(BaseMQTTClient):
     def __init__(
         self,
         config: AppConfig,
-        on_set_mode_callback: Callable[[str], None] | None = None,
+        on_set_mode_callback: Callable[[Mode], None] | None = None,
     ) -> None:
         """Initialize the MQTT client.
 
@@ -49,12 +61,39 @@ class MQTTClient(BaseMQTTClient):
         for topic in self._build_subscription_topics():
             self._subscriptions[topic] = 1
 
+        self._register_presence_will()
+
     def _build_subscription_topics(self) -> list[str]:
         """Build list of MQTT topics to subscribe to."""
         return [
             f"{self._topic_prefix}/cmd/set-mode",
             f"minabox/{self._device_id}/config/general",
         ]
+
+    def _register_presence_will(self) -> None:
+        """Let the broker clear the retained presence if this process dies.
+
+        Presence is retained, so a crashed service would leave subscribers
+        believing a tag is still on the reader forever. The timestamp in the
+        will payload is the one from connection time -- MQTT fixes the payload
+        when the session opens -- so consumers must read ``tag_present``, not
+        the age of the message.
+        """
+        reader_id = (
+            f"{self._config.rfid.reader.reader_type}_"
+            f"{self._config.rfid.reader.interface}"
+        )
+        event = TagPresenceEvent(
+            tag_present=False,
+            tag_id=None,
+            reader_id=reader_id,
+        )
+        self.set_will(
+            f"{self._topic_prefix}/presence",
+            event.model_dump(),
+            qos=1,
+            retain=True,
+        )
 
     async def on_message(self, topic: str, payload: bytes) -> None:
         """Dispatch an incoming message to the RFID handlers."""
@@ -69,12 +108,15 @@ class MQTTClient(BaseMQTTClient):
         """Handle cmd/set-mode message."""
         try:
             data = json.loads(payload.decode("utf-8"))
-            mode = data.get("mode")
-            if mode in ("normal", "learning"):
-                logger.info("set_mode_received", mode=mode)
-                if self._on_set_mode:
-                    self._on_set_mode(mode)
-            else:
-                logger.warning("invalid_mode", mode=mode)
-        except json.JSONDecodeError:
-            logger.warning("invalid_command_json")
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            logger.warning("invalid_command_json", error=str(exc))
+            return
+
+        mode = data.get("mode") if isinstance(data, dict) else None
+        if mode not in _valid_modes():
+            logger.warning("invalid_mode", mode=mode)
+            return
+
+        logger.info("set_mode_received", mode=mode)
+        if self._on_set_mode:
+            self._on_set_mode(mode)

@@ -30,14 +30,13 @@ rfid_service/
 ├── main.py                      # Entry point: config, reader, MQTT, RFIDManager, API server, graceful shutdown
 ├── config.py                    # Loads environment variables + config/rfid.json
 ├── config_schema.py             # Pydantic schema for env and RFID config
-├── config_manager.py            # JsonConfigManager wrapper for config/rfid.json (currently unused)
 ├── exceptions.py                # Service-specific exception hierarchy
 ├── core/
 │   ├── __init__.py
-│   └── rfid_manager.py          # Scan loop, mode switching, duplicate suppression, presence tracking, event publishing
+│   └── rfid_manager.py          # Reader supervision, scan loop, modes, debouncing, presence tracking, event publishing
 ├── infrastructure/
 │   ├── __init__.py
-│   ├── mqtt_client.py           # Subscriptions (cmd/set-mode, config/general) and message dispatch
+│   ├── mqtt_client.py           # Subscriptions (cmd/set-mode, config/general), message dispatch, last will
 │   └── hardware/
 │       ├── __init__.py
 │       ├── reader_interface.py  # Abstract RFIDReader interface
@@ -49,9 +48,13 @@ rfid_service/
 │   └── routes.py                # FastAPI: GET /health
 └── models/
     ├── __init__.py
-    ├── events.py                # Backward-compatible re-export of schemas.py (deprecated)
     └── schemas.py               # Pydantic event models for all MQTT payloads
 ```
+
+Tests live in `services/rfid-service/tests/` and cover the manager state
+machine, the mock reader, the MQTT command handling and the health endpoint.
+`rfid_test_doubles.py` holds the scripted reader and the recording MQTT client
+they share.
 
 Connection handling, reconnect backoff, subscription replay and the
 `config/general` log-level handler are **not** implemented here. They come from
@@ -95,6 +98,19 @@ Field semantics:
 Subscribers that reconnect or re-initialise (Backend, LED service) get the
 correct state immediately instead of waiting for the next change event.
 
+`presence` and `status` are published with `remember=True`, so the shared MQTT
+client re-sends them after every reconnect. A broker that restarted without
+persistence would otherwise drop the retained messages and nobody would refresh
+them.
+
+The service also registers a **last will** on `.../rfid/presence` carrying
+`tag_present: false`. If the process dies without disconnecting cleanly, the
+broker publishes it on the service's behalf; without it a retained
+`tag_present: true` would outlive the service and keep subscribers acting on a
+tag nobody is reading any more. MQTT fixes the will payload when the session
+opens, so its `timestamp` is the connection time -- consumers must read
+`tag_present`, not the age of the message.
+
 #### Subscribed by the RFID service
 
 | Topic | Payload | Effect |
@@ -125,14 +141,31 @@ The service exposes one HTTP endpoint on port 8000 inside the container
   "device_id": "minabox-01",
   "mqtt_connected": true,
   "mqtt_broker": "mqtt",
-  "mqtt_port": 1883
+  "mqtt_port": 1883,
+  "reader": {
+    "reader_id": "pn532_i2c",
+    "reader_ready": true,
+    "scan_loop_alive": true,
+    "mode": "normal",
+    "tag_present": false,
+    "tag_id": null,
+    "last_scan_age_s": 0.181,
+    "last_error": null
+  }
 }
 ```
 
-`status` is `healthy` while the broker connection is live and `degraded` while
-it is down; the endpoint always answers with HTTP 200, so a broker outage does
-not mark the container unhealthy. All functional operations run over MQTT and
-are bundled in the Backend service.
+`status` is `healthy` only while the broker connection is live, the reader is
+initialised and the scan loop is running; anything else reports `degraded`. The
+`reader` block says which of the three is missing, which is what a diagnosis
+starts from.
+
+The endpoint always answers with HTTP 200. The container health check probes
+this URL, and a service that is merely waiting for the broker or for hardware
+should stay visible rather than be restarted in a loop. The port comes from
+`API_PORT`, which the Dockerfile also uses for `EXPOSE` and the health check.
+
+All functional operations run over MQTT and are bundled in the Backend service.
 
 ---
 
@@ -150,6 +183,12 @@ are bundled in the Backend service.
 4. Backend/WebUI shows the tag and lets the user assign a playlist or track.
 5. The Backend stores the tag-to-content mapping in the database.
 6. The WebUI switches the mode back to `normal` when the learning dialog closes.
+
+Learning mode also times out on its own after `modes.learning_timeout_s` without
+a scan. The WebUI does send the "back to normal" command, but a browser tab that
+is closed abruptly or loses its connection never gets to -- and a box stuck in
+learning mode ignores every tag, so playback simply stops working. The timeout
+is the server-side safety net; setting it to 0 disables it.
 
 The mode is not persisted: a service restart always comes up in `normal`.
 
@@ -175,12 +214,33 @@ Two mechanisms keep the event stream free of repetitions:
   defines a window per tag UID. A tag that reappears within this window after
   having been removed produces no new `tag-scanned` event.
 
-### 4.4 Startup behaviour
+### 4.4 Startup behaviour and reader supervision
 
-`RFIDManager.start()` performs one synchronous read before the scan loop begins
-and publishes the result. A box that boots with a tag already on the reader
-therefore reports the correct state, and one that boots with an empty reader
-publishes `tag-removed` (with an empty `tag_id`) plus `presence: false`.
+Startup order is deliberate: MQTT and the REST API come up **first**, and the
+reader is built and initialised inside the scan loop afterwards. Hardware that
+is missing or miswired therefore produces an observable `status: error` and a
+reachable `/health`, instead of an exception that kills the process before it
+can report anything and leaves Docker restarting it in a loop.
+
+1. The MQTT client starts (non-blocking, retries forever) and announces
+   `system/service-started`.
+2. The scan loop starts and tries to initialise the reader. Each failure
+   publishes `status: error` with the matching error code and is retried with an
+   exponential backoff between `init_retry_delay_ms` and
+   `init_retry_max_delay_ms`. `init_max_attempts` bounds the attempts; 0 means
+   retry forever.
+3. Once the reader answers, the service publishes its mode as status and reads
+   the reader once to establish the real-world tag state. A box that boots with
+   a tag already on the reader reports it; one that boots with an empty reader
+   publishes `tag-removed` (with an empty `tag_id`) plus `presence: false`, so a
+   stale retained presence from a previous run cannot survive.
+4. Normal scanning begins.
+
+While running, `reinit_after_read_errors` consecutive read errors cause the
+reader to be released and rebuilt from scratch, because a PN532 that has gone
+into a bad state does not recover by being polled again. Reads happen in a
+worker thread, so a blocking hardware transaction cannot stall the MQTT loop or
+the health endpoint.
 
 ---
 
@@ -252,10 +312,12 @@ Example status on error:
 }
 ```
 
-A hardware fault during scanning does not stop the service: it publishes the
-error status, pauses for five seconds and then retries. A hardware fault while
-the reader is being initialised at startup aborts the start, and Docker's
-restart policy brings the container back up.
+No hardware fault stops the service. A failed read publishes the error status,
+pauses for `error_retry_delay_ms` and retries; after `reinit_after_read_errors`
+consecutive failures the reader is rebuilt. A reader that cannot be initialised
+at all is retried with a backoff while the service keeps serving `/health` and
+reporting `status: error`, which is what makes the fault diagnosable from the
+WebUI.
 
 ### 6.3 Logging
 
@@ -263,10 +325,14 @@ The service logs structured events via `structlog` (JSON), among them:
 
 - `tag_scanned` with `tag_id`, `mode`
 - `tag_removed` with `tag_id`
+- `tag_removal_pending` with `tag_id`, `missing_reads` (debounce in progress)
 - `presence_published` with `tag_present`, `tag_id`
 - `mode_changed` with `old_mode`, `new_mode`
+- `learning_mode_timeout` with `idle_seconds`
 - `status_published` with `state`, `error`
-- `scan_hardware_error` with `error`, `reader_id`
+- `reader_ready` / `reader_init_failed` with `reader_id`, `attempt`
+- `reader_reinit_triggered` with `consecutive_errors`
+- `scan_hardware_error` with `error`, `reader_id`, `consecutive_errors`
 
 The log level follows the global logging rules of the framework and can be
 changed at runtime through `.../config/general`.

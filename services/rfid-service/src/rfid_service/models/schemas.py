@@ -6,10 +6,10 @@ by the RFID service, following the Framework convention of models/schemas.py.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TagScannedEvent(BaseModel):
@@ -22,18 +22,19 @@ class TagScannedEvent(BaseModel):
         description="Identifier of the reader that detected the tag.",
     )
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="ISO-8601 timestamp of the event.",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "tag_id": "04A224BC19",
                 "reader_id": "pn532_i2c",
                 "timestamp": "2026-02-16T22:48:00Z",
             }
         }
+    )
 
 
 class TagScannedLearningEvent(BaseModel):
@@ -46,18 +47,19 @@ class TagScannedLearningEvent(BaseModel):
         description="Identifier of the reader that detected the tag.",
     )
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="ISO-8601 timestamp of the event.",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "tag_id": "DEADBEEF01",
                 "reader_id": "pn532_i2c",
                 "timestamp": "2026-02-16T22:48:05Z",
             }
         }
+    )
 
 
 class TagRemovedEvent(BaseModel):
@@ -70,18 +72,19 @@ class TagRemovedEvent(BaseModel):
         description="Identifier of the reader.",
     )
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="ISO-8601 timestamp of the event.",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "tag_id": "04A224BC19",
                 "reader_id": "pn532_i2c",
                 "timestamp": "2026-02-16T22:48:10Z",
             }
         }
+    )
 
 
 class TagPresenceEvent(BaseModel):
@@ -104,12 +107,12 @@ class TagPresenceEvent(BaseModel):
         description="Identifier of the reader.",
     )
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="ISO-8601 timestamp of the last presence change.",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "tag_present": True,
@@ -125,6 +128,7 @@ class TagPresenceEvent(BaseModel):
                 },
             ]
         }
+    )
 
 
 class RFIDStatusEvent(BaseModel):
@@ -144,12 +148,12 @@ class RFIDStatusEvent(BaseModel):
         ),
     )
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="ISO-8601 timestamp of the status.",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "state": "normal",
@@ -165,3 +169,4 @@ class RFIDStatusEvent(BaseModel):
                 },
             ]
         }
+    )

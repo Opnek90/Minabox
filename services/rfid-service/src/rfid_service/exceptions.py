@@ -21,9 +21,5 @@ class ReaderInitError(HardwareError):
     """Reader initialization failed."""
 
 
-class ReadTimeoutError(HardwareError):
-    """Reading a tag timed out after multiple retries."""
-
-
 class ProtocolError(HardwareError):
     """Unexpected or invalid response from the reader."""

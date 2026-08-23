@@ -34,9 +34,21 @@ General config (subscribe for runtime log level):
 
 Main config file: `config/rfid.json`
 
-Reader configuration:
+Every timing and threshold lives in this file; the service hard-codes none of
+them. It is read at startup, so changes take effect on the next container
+restart. The full table is in the architecture document; the ones you are most
+likely to touch:
+
 - `reader.reader_type`: `"pn532"` or `"mock"`
 - `reader.interface`: `"i2c"`, `"spi"`, or `"uart"`
 - `reader.scan_interval_ms`: scan loop interval
 - `reader.duplicate_suppression_ms`: suppression window for repeated scans of the same tag
+- `reader.removal_debounce_reads`: empty reads required before a tag counts as removed
+- `modes.learning_timeout_s`: idle seconds before learning mode reverts to normal
+
+## Tests
+
+```bash
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') python -m pytest services/rfid-service/tests -q
+```
 
