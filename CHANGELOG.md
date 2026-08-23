@@ -23,6 +23,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.1.12 - 2026-08-23
+
 ### 0.1.11 - 2026-08-23
 
 #### Behoben
@@ -229,6 +231,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## media-downloader
 
+### 0.1.2 - 2026-08-23
+
 ### 0.1.1 - 2026-08-21
 
 #### Verbessert
@@ -243,6 +247,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.1.5 - 2026-08-23
 
 ### 0.1.4 - 2026-08-21
 
@@ -288,6 +294,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## audio
 
+### 0.1.1 - 2026-08-23
+
 ### 0.1.0 - 2026-08-20
 
 #### Neu
@@ -297,6 +305,28 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## rfid
 
+### 0.2.0 - 2026-08-23
+
+#### Verbessert
+- Eine Karte, die auf dem Leser leicht verrutscht, unterbricht die Wiedergabe
+  nicht mehr. Bisher genuegte ein einziger verlorener Lesevorgang, damit die
+  Musik stoppte und der Titel Sekunden spaeter von vorn begann.
+- Steckt der Kartenleser nicht richtig, zeigt die Box das jetzt als Fehler an
+  und faengt sich von selbst, sobald er wieder da ist. Bisher startete der
+  Dienst endlos neu, ohne dass irgendwo zu sehen war, woran es lag.
+- Der Lern-Modus schaltet nach fuenf Minuten ohne Scan von selbst zurueck.
+  Wer das Anlern-Fenster nur schloss, ohne es zu beenden, konnte danach keine
+  Karte mehr zum Abspielen benutzen.
+- Nach einem Neustart des Nachrichtendienstes stehen Kartenzustand und
+  Dienststatus wieder zur Verfuegung, statt dauerhaft zu fehlen.
+- Stuerzt der Dienst ab, gilt die Karte sofort als abgenommen. Bisher rechnete
+  die Box weiter mit einer aufliegenden Karte.
+- Alle Zeitwerte des Lesers - Entprellung, Scan-Intervall, Lern-Timeout und
+  die PN532-Einstellungen - stehen jetzt in der Konfigurationsdatei und lassen
+  sich ohne neues Abbild anpassen.
+- Die Zustandsseite des Dienstes nennt jetzt Leser, Betriebsart und letzten
+  Fehler, was die Fehlersuche deutlich abkuerzt.
+
 ### 0.1.0 - 2026-08-20
 
 #### Neu
@@ -305,6 +335,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## button
+
+### 0.1.2 - 2026-08-23
 
 ### 0.1.1 - 2026-08-22
 
@@ -317,6 +349,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## led
 
+### 0.1.1 - 2026-08-23
+
 ### 0.1.0 - 2026-08-20
 
 #### Neu
@@ -325,6 +359,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## display
+
+### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20
 

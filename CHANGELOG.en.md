@@ -22,6 +22,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.1.12 - 2026-08-23
+
 ### 0.1.11 - 2026-08-23
 
 #### Fixed
@@ -221,6 +223,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## media-downloader
 
+### 0.1.2 - 2026-08-23
+
 ### 0.1.1 - 2026-08-21
 
 #### Improved
@@ -235,6 +239,8 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.1.5 - 2026-08-23
 
 ### 0.1.4 - 2026-08-21
 
@@ -278,6 +284,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## audio
 
+### 0.1.1 - 2026-08-23
+
 ### 0.1.0 - 2026-08-20
 
 #### Added
@@ -287,6 +295,28 @@ A version without a visible change may stay empty - the interface then says
 
 ## rfid
 
+### 0.2.0 - 2026-08-23
+
+#### Improved
+- A card that shifts slightly on the reader no longer interrupts playback.
+  A single dropped read used to stop the music, and the track restarted from
+  the beginning seconds later.
+- A reader that is not seated properly is now reported as an error and
+  recovers on its own once it is back. The service used to restart endlessly
+  with no visible sign of what was wrong.
+- Learning mode returns to normal by itself after five minutes without a scan.
+  Closing the learning dialog without finishing it used to leave the box
+  unable to play anything from a card.
+- Card presence and service status are available again after the messaging
+  service restarts, instead of being gone for good.
+- If the service crashes, the card counts as removed straight away. The box
+  used to keep assuming a card was still on the reader.
+- Every reader timing - debounce, scan interval, learning timeout and the
+  PN532 settings - now lives in the configuration file and can be changed
+  without a new image.
+- The service status page now names the reader, the operating mode and the
+  last error, which shortens fault finding considerably.
+
 ### 0.1.0 - 2026-08-20
 
 #### Added
@@ -295,6 +325,8 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## button
+
+### 0.1.2 - 2026-08-23
 
 ### 0.1.1 - 2026-08-22
 
@@ -307,6 +339,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## led
 
+### 0.1.1 - 2026-08-23
+
 ### 0.1.0 - 2026-08-20
 
 #### Added
@@ -315,6 +349,8 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## display
+
+### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20
 

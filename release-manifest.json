@@ -3,8 +3,13 @@
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
-      "latest": "0.1.0",
+      "latest": "0.1.1",
       "releases": [
+        {
+          "version": "0.1.1",
+          "date": "2026-08-23",
+          "notes": {}
+        },
         {
           "version": "0.1.0",
           "date": "2026-08-20",
@@ -22,8 +27,13 @@
       ]
     },
     "backend": {
-      "latest": "0.1.11",
+      "latest": "0.1.12",
       "releases": [
+        {
+          "version": "0.1.12",
+          "date": "2026-08-23",
+          "notes": {}
+        },
         {
           "version": "0.1.11",
           "date": "2026-08-23",
@@ -217,8 +227,13 @@
       ]
     },
     "button": {
-      "latest": "0.1.1",
+      "latest": "0.1.2",
       "releases": [
+        {
+          "version": "0.1.2",
+          "date": "2026-08-23",
+          "notes": {}
+        },
         {
           "version": "0.1.1",
           "date": "2026-08-22",
@@ -241,8 +256,13 @@
       ]
     },
     "display": {
-      "latest": "0.1.0",
+      "latest": "0.1.1",
       "releases": [
+        {
+          "version": "0.1.1",
+          "date": "2026-08-23",
+          "notes": {}
+        },
         {
           "version": "0.1.0",
           "date": "2026-08-20",
@@ -260,8 +280,13 @@
       ]
     },
     "host-helper": {
-      "latest": "0.1.4",
+      "latest": "0.1.5",
       "releases": [
+        {
+          "version": "0.1.5",
+          "date": "2026-08-23",
+          "notes": {}
+        },
         {
           "version": "0.1.4",
           "date": "2026-08-21",
@@ -347,8 +372,13 @@
       ]
     },
     "led": {
-      "latest": "0.1.0",
+      "latest": "0.1.1",
       "releases": [
+        {
+          "version": "0.1.1",
+          "date": "2026-08-23",
+          "notes": {}
+        },
         {
           "version": "0.1.0",
           "date": "2026-08-20",
@@ -366,8 +396,13 @@
       ]
     },
     "media-downloader": {
-      "latest": "0.1.1",
+      "latest": "0.1.2",
       "releases": [
+        {
+          "version": "0.1.2",
+          "date": "2026-08-23",
+          "notes": {}
+        },
         {
           "version": "0.1.1",
           "date": "2026-08-21",
@@ -399,8 +434,34 @@
       ]
     },
     "rfid": {
-      "latest": "0.1.0",
+      "latest": "0.2.0",
       "releases": [
+        {
+          "version": "0.2.0",
+          "date": "2026-08-23",
+          "notes": {
+            "improved": {
+              "de": [
+                "Eine Karte, die auf dem Leser leicht verrutscht, unterbricht die Wiedergabe nicht mehr. Bisher genuegte ein einziger verlorener Lesevorgang, damit die Musik stoppte und der Titel Sekunden spaeter von vorn begann.",
+                "Steckt der Kartenleser nicht richtig, zeigt die Box das jetzt als Fehler an und faengt sich von selbst, sobald er wieder da ist. Bisher startete der Dienst endlos neu, ohne dass irgendwo zu sehen war, woran es lag.",
+                "Der Lern-Modus schaltet nach fuenf Minuten ohne Scan von selbst zurueck. Wer das Anlern-Fenster nur schloss, ohne es zu beenden, konnte danach keine Karte mehr zum Abspielen benutzen.",
+                "Nach einem Neustart des Nachrichtendienstes stehen Kartenzustand und Dienststatus wieder zur Verfuegung, statt dauerhaft zu fehlen.",
+                "Stuerzt der Dienst ab, gilt die Karte sofort als abgenommen. Bisher rechnete die Box weiter mit einer aufliegenden Karte.",
+                "Alle Zeitwerte des Lesers - Entprellung, Scan-Intervall, Lern-Timeout und die PN532-Einstellungen - stehen jetzt in der Konfigurationsdatei und lassen sich ohne neues Abbild anpassen.",
+                "Die Zustandsseite des Dienstes nennt jetzt Leser, Betriebsart und letzten Fehler, was die Fehlersuche deutlich abkuerzt."
+              ],
+              "en": [
+                "A card that shifts slightly on the reader no longer interrupts playback. A single dropped read used to stop the music, and the track restarted from the beginning seconds later.",
+                "A reader that is not seated properly is now reported as an error and recovers on its own once it is back. The service used to restart endlessly with no visible sign of what was wrong.",
+                "Learning mode returns to normal by itself after five minutes without a scan. Closing the learning dialog without finishing it used to leave the box unable to play anything from a card.",
+                "Card presence and service status are available again after the messaging service restarts, instead of being gone for good.",
+                "If the service crashes, the card counts as removed straight away. The box used to keep assuming a card was still on the reader.",
+                "Every reader timing - debounce, scan interval, learning timeout and the PN532 settings - now lives in the configuration file and can be changed without a new image.",
+                "The service status page now names the reader, the operating mode and the last error, which shortens fault finding considerably."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.0",
           "date": "2026-08-20",
