@@ -21,21 +21,33 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install VLC, ALSA and Pulse/PipeWire CLI for sink discovery
-# Note: Debian Trixie only has 'vlc' (not vlc-nox)
+# libVLC plus the Pulse/PipeWire command line tools.
+#
+# Deliberately NOT the 'vlc' package: that is the desktop player and drags in
+# vlc-plugin-qt, which pulls Qt5 and the full Mesa stack - libLLVM (118 MB),
+# libgallium (34 MB), libz3 (26 MB). None of it is reachable from a headless
+# audio service, and together they were more than half the image.
+#
+# libvlc5 is the library python-vlc binds against; vlc-plugin-base carries the
+# codecs and the pulse output module, vlc-plugin-access-extra the HTTP/HTTPS
+# stream access. No ALSA tooling: /dev/snd is not mapped into the container,
+# audio only ever leaves through the host's Pulse socket.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    vlc \
-    libvlc-dev \
+    libvlc5 \
     vlc-plugin-base \
     vlc-plugin-access-extra \
-    libasound2 \
-    alsa-utils \
     pulseaudio-utils \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Disable VLC GUI components (we run headless)
-ENV VLC_PLUGIN_PATH=/usr/lib/vlc/plugins
+# No VLC_PLUGIN_PATH: the plugin directory is architecture-specific
+# (/usr/lib/<triplet>/vlc/plugins), so any fixed value is wrong on some
+# platform. libVLC finds its own plugins.
+
+# Do not write .pyc files (the source is read-only anyway) and keep stdout
+# unbuffered so structlog output reaches the container log immediately.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 # Copy Python packages from builder
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
@@ -44,7 +56,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code (paths relative to context ./services)
 COPY audio-service/src/ ./src/
 COPY audio-service/config/ ./config/
-# Testton fuer den Ersteinrichtungs-Assistenten (POST /test-tone)
+# Test tone for the first-run setup wizard (POST /test-tone)
 COPY audio-service/assets/ ./assets/
 
 # Create state directory

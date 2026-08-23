@@ -1,0 +1,45 @@
+# Build-Kontext fuer alle Python-Dienste (context: ./services).
+#
+# Warum hier und nicht je Dienst: Docker liest ausschliesslich die
+# .dockerignore im Wurzelverzeichnis des Build-Kontexts. Die Dateien in
+# services/<dienst>-service/ wurden nie ausgewertet, und jeder Build hat
+# 466 MB hochgeladen - davon 401 MB webui-Abhaengigkeiten, die kein
+# Python-Dienst kopiert.
+#
+# webui-service baut aus einem eigenen, engeren Kontext
+# (./services/webui-service) und ist von dieser Datei nicht betroffen.
+
+webui-service/
+
+# Caches von Test- und Typwerkzeugen
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/
+
+# Tests laufen im Arbeitsbaum, nicht im Image
+tests/
+
+# Laufzeitdaten - gehoeren nie ins Image
+state/
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Lokale Umgebungen und Bauartefakte
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Editor und Betriebssystem
+.vscode/
+.idea/
+*.swp
+.DS_Store
