@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Literal
+from typing import Any, Literal
 
 
 class RFIDReader(ABC):
@@ -18,7 +18,7 @@ class RFIDReader(ABC):
     def __init__(
         self,
         interface: Literal["i2c", "spi", "uart"],
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         """Initialize the reader with the specified interface.
 
@@ -27,7 +27,8 @@ class RFIDReader(ABC):
         interface:
             Hardware interface type (i2c, spi, or uart).
         kwargs:
-            Additional interface-specific configuration.
+            Additional interface-specific configuration, typically the reader's
+            section of config/rfid.json passed as ``config``.
         """
 
     @abstractmethod
@@ -39,7 +40,7 @@ class RFIDReader(ABC):
         ReaderNotFoundError
             If the reader hardware is not detected.
         ReaderInitError
-            If initialization fails.
+            If initialization fails for any other reason.
         """
 
     @abstractmethod

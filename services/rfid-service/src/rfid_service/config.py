@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Final
 
 import structlog
-
 from shared_lib.config import load_env, load_json_config
 
 from .config_schema import AppConfig, EnvConfig, RFIDServiceConfig
@@ -15,10 +14,17 @@ SERVICE_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 CONFIG_DIR: Final[Path] = SERVICE_ROOT / "config"
 RFID_CONFIG_PATH: Final[Path] = CONFIG_DIR / "rfid.json"
 
+#: Port used when API_PORT is not set in the environment.
+DEFAULT_API_PORT: Final[int] = 8000
+
 
 def _load_env_config() -> EnvConfig:
-    """Load required environment variables into an EnvConfig."""
-    return EnvConfig(**load_env())
+    """Load required environment variables into an EnvConfig.
+
+    API_PORT is optional; the default matches the port the Dockerfile exposes
+    and the container health check probes.
+    """
+    return EnvConfig(**load_env(optional_defaults={"API_PORT": DEFAULT_API_PORT}))
 
 
 def _load_rfid_config(path: Path = RFID_CONFIG_PATH) -> RFIDServiceConfig:
@@ -41,6 +47,7 @@ def load_app_config() -> AppConfig:
         mqtt_broker=app_config.env.mqtt_broker,
         mqtt_port=app_config.env.mqtt_port,
         device_id=app_config.env.minabox_device_id,
+        api_port=app_config.env.api_port,
         reader_type=app_config.rfid.reader.reader_type,
     )
     return app_config

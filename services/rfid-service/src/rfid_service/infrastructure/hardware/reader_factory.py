@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import structlog
-
 from shared_lib.exceptions import ConfigError
+
 from .mock_reader import MockReader
 from .reader_interface import RFIDReader
 
@@ -22,26 +22,26 @@ def create_reader(config: ReaderConfig) -> RFIDReader:
     Parameters
     ----------
     config:
-        Reader configuration from service.json.
+        Reader configuration from ``config/rfid.json``.
 
     Returns
     -------
     RFIDReader
-        Configured reader instance.
+        Configured reader instance. The instance is constructed only; the
+        caller is responsible for calling :meth:`RFIDReader.initialize`.
 
     Raises
     ------
     ConfigError
-        If reader_type is unsupported or reader initialization fails.
+        If reader_type is unsupported or the reader library is missing.
 
     Examples
     --------
-    Adding a new reader type (e.g., RC522):
+    Adding a new reader type (e.g. RC522):
 
     1. Create rc522_reader.py implementing RFIDReader
-    2. Add import: from .rc522_reader import RC522Reader
-    3. Add case in the if/elif chain below
-    4. Update config_schema.py: Literal["pn532", "rc522", "mock"]
+    2. Add a branch below that constructs it from its own config section
+    3. Update config_schema.py: Literal["pn532", "rc522", "mock"]
     """
     reader_type = config.reader_type
     interface = config.interface
@@ -53,34 +53,29 @@ def create_reader(config: ReaderConfig) -> RFIDReader:
     )
 
     if reader_type == "mock":
-        # Mock reader doesn't need hardware libraries
+        # The mock reader needs no hardware libraries.
         return MockReader(
             interface=interface,
             reader_id=f"mock_{interface}",
-            mock_tags=["04A224BC19", "DEADBEEF01"],  # Default test tags
+            config=config.mock,
         )
 
-    elif reader_type == "pn532":
-        # PN532 reader - lazy import to avoid requiring the library
-        # on systems that don't have PN532 hardware
+    if reader_type == "pn532":
+        # Imported lazily so a system without PN532 hardware can still run the
+        # service with the mock reader.
         try:
             from .pn532_reader import PN532Reader
         except ImportError as exc:
             msg = (
-                f"Cannot load {reader_type} reader. "
-                "Install with: pip install pn532pi"
+                f"Cannot load {reader_type} reader. Install with: pip install pn532pi"
             )
-            logger.error("reader_import_failed", reader_type=reader_type, error=str(exc))
+            logger.error(
+                "reader_import_failed", reader_type=reader_type, error=str(exc)
+            )
             raise ConfigError(msg) from exc
 
-        return PN532Reader(interface=interface)
+        return PN532Reader(interface=interface, config=config.pn532)
 
-    # Future: Add more reader types here
-    # elif reader_type == "rc522":
-    #     from .rc522_reader import RC522Reader
-    #     return RC522Reader(interface=interface)
-
-    else:
-        msg = f"Unsupported reader_type: {reader_type}"
-        logger.error("unsupported_reader_type", reader_type=reader_type)
-        raise ConfigError(msg)
+    msg = f"Unsupported reader_type: {reader_type}"
+    logger.error("unsupported_reader_type", reader_type=reader_type)
+    raise ConfigError(msg)
