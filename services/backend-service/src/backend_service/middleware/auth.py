@@ -6,8 +6,10 @@ Extracted from app_factory._create_app() for testability and clarity.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from backend_service.api.routes_auth import COOKIE_NAME
 from backend_service.core.auth import read_auth_settings, verify_session_token
@@ -62,7 +64,9 @@ def area_requires_session(area: str) -> bool:
     return area in set(settings.get("protected_areas") or [])
 
 
-async def web_auth_middleware(request: Request, call_next):
+async def web_auth_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """Require a valid session cookie for protected API paths.
 
     Short-circuits immediately for:

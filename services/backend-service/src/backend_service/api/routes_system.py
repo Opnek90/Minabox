@@ -32,13 +32,13 @@ router = APIRouter()
 _start_time = time.time()
 _mqtt_client: MQTTClient | None = None
 
-# Welche Container es auf einer Box wirklich gibt, haengt an COMPOSE_PROFILES -
-# deshalb wird die Liste zur Laufzeit bei Docker erfragt (container_registry).
-# Dieser Katalog bleibt aus zwei Gruenden bestehen:
-#   1. als Fallback, wenn der Docker-Socket nicht nutzbar ist,
-#   2. als Anzeigereihenfolge - erst die Basis, dann die Hardware, zuletzt die
-#      Dienste, die ein Nutzer selten anschaut.
-# Ein Dienst, der hier fehlt, wird trotzdem angezeigt; er landet nur ans Ende.
+# Which containers a box really has depends on COMPOSE_PROFILES, so the list is
+# asked of Docker at runtime (container_registry). This catalogue stays for two
+# reasons:
+#   1. as a fallback when the Docker socket is unusable,
+#   2. as the display order - the basics first, then the hardware, and last the
+#      services a user rarely looks at.
+# A service missing from here is still shown; it just ends up at the bottom.
 SERVICE_IDS = (
     "backend",
     "mqtt",
@@ -109,7 +109,7 @@ async def _check_service_http(sid: str) -> dict | None:
 
 
 def _schema_state() -> dict:
-    """Ergebnis der Schemapruefung aus dem Datenbank-Manager."""
+    """The schema check result from the database manager."""
     try:
         from backend_service.core import db_manager
 
@@ -223,14 +223,14 @@ async def system_status() -> dict:
         "memory_stats_available": any(
             s.get("memory_mb") is not None for s in services
         ),
-        # Stand der Datenbank gegenueber dem, was dieser Code erwartet.
+        # Where the database stands against what this code expects.
         "database": _schema_state(),
         "services": services,
     }
 
 
-# Ein Dienstname muss ein Docker-Name sein koennen - alles andere kommt gar
-# nicht erst bis zum Socket.
+# A service name has to be a possible Docker name - anything else never even
+# reaches the socket.
 _SERVICE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 
 
@@ -299,9 +299,9 @@ async def _get_logs_via_docker(service: str, tail: int) -> str | None:
 
 @router.get("/logs")
 async def get_service_logs(service: str, tail: int = 200) -> dict:
-    # Nicht mehr gegen die feste Liste pruefen: welche Dienste es gibt,
-    # entscheiden die Profile. Ein unbekannter Name ist "gibt es hier nicht"
-    # (404), ein syntaktisch unmoeglicher ist ein Aufruffehler (400).
+    # No longer checked against the fixed list: the profiles decide which
+    # services exist. An unknown name means "not on this box" (404); one that
+    # cannot be a name at all is a caller error (400).
     if not _SERVICE_NAME_RE.match(service):
         raise ApiError(status_code=400, code="service_invalid", detail="Invalid service")
     if await _container_for(service) is None and service not in SERVICE_IDS:
@@ -330,10 +330,10 @@ async def get_service_logs(service: str, tail: int = 200) -> dict:
 
 @router.get("/update-check")
 async def update_check(force: bool = False) -> dict:
-    """Vergleicht die laufenden Versionen mit dem veroeffentlichten Stand.
+    """Compare the running versions against the published ones.
 
-    `force=true` umgeht den Zwischenspeicher - das ist der Knopf in der
-    Oberflaeche; ohne den Parameter antwortet der zwischengespeicherte Stand.
+    `force=true` bypasses the cache - that is the button in the WebUI; without
+    the parameter the cached state answers.
     """
     entries = await container_registry.discover()
     if entries is None:
@@ -362,9 +362,8 @@ def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
         logger.error("health_check_db_failed", error=str(e))
         database_connected = False
     mqtt_connected = _mqtt_client.is_connected if _mqtt_client else False
-    # Eine Datenbank, die neuer ist als dieser Code, ist kein "gesund": die
-    # Verbindung steht, aber die Daten liegen moeglicherweise woanders, als
-    # diese Fassung sie sucht.
+    # A database newer than this code is not "healthy": the connection is
+    # fine, but the data may not be where this version looks for it.
     schema_ok = _schema_state().get("status") != "too_new"
     status = (
         "healthy" if (database_connected and mqtt_connected and schema_ok) else "unhealthy"

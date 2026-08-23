@@ -330,9 +330,9 @@ def get_temperature_history(
 async def get_system_alerts() -> dict:
     """All active system alerts, most severe first.
 
-    Die Kopfzeile zeigt daraus gezielt den Update-Hinweis als Icon, waehrend
-    der Hinweisbalken alles andere (etwa Uebertemperatur) weiter als volle
-    Zeile darstellt - beides kann gleichzeitig aktiv sein.
+    The header picks the update hint out of this and shows it as an icon,
+    while the notice bar renders everything else - overheating, say - as a full
+    row. Both can be active at once.
     """
     return {"alerts": get_all_alerts()}
 
@@ -375,7 +375,7 @@ async def put_audio_path(body: AudioPathBody) -> dict:
 
 
 @router.post("/move-audio")
-async def move_audio(body: MoveAudioBody):
+async def move_audio(body: MoveAudioBody) -> JSONResponse:
     _validate_path(body.source)
     _validate_path(body.destination)
     api_key = _host_helper_api_key()
@@ -632,7 +632,7 @@ async def factory_reset(body: FactoryResetBody | None = None) -> dict:
 
 
 class UpdateTargetsBody(BaseModel):
-    """Zielversionen je Dienst. Leer bedeutet: alles auf den neuesten Stand."""
+    """Target version per service. Empty means: everything to the latest."""
 
     targets: dict[str, str] | None = None
     backup: bool = True
@@ -640,14 +640,14 @@ class UpdateTargetsBody(BaseModel):
 
 @router.post("/update-minabox")
 async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
-    """Update im Hintergrund starten. Weitergereicht an den Host-Helper.
+    """Start the update in the background. Proxied to the Host-Helper.
 
-    Kehrt sofort zurueck; der Fortschritt kommt aus /update-minabox/status.
-    Das Update laeuft als eigene Unit auf dem Host und ueberlebt deshalb, dass
-    der Host-Helper waehrenddessen selbst neu erzeugt wird.
+    Returns immediately; progress comes from /update-minabox/status. The
+    update runs as its own unit on the host, so it survives the host-helper
+    being recreated underneath it.
 
-    Mit `targets` werden genau die genannten Dienste auf genau die genannten
-    Versionen gebracht.
+    With `targets`, exactly the named services go to exactly the named
+    versions.
     """
     payload = body.model_dump() if body else {"targets": None, "backup": True}
     return await _proxy(
@@ -663,11 +663,11 @@ async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
 
 @router.get("/update-minabox/status")
 async def update_minabox_status() -> dict:
-    """Fortschritt und Ausgabe des laufenden oder letzten Updates.
+    """Progress and output of the running or last update.
 
-    Faellt weich aus: waehrend des Neustarts ist der Host-Helper kurz nicht
-    erreichbar, und die Oberflaeche soll dann weiter fragen duerfen, statt
-    einen Fehler zu zeigen.
+    Soft-fails on purpose: during the restart the host-helper is briefly
+    unreachable, and the WebUI should be allowed to keep asking rather than
+    show an error.
     """
     return await _proxy_optional(
         "/system/update-minabox/status",

@@ -166,16 +166,16 @@ def collect_power(ctx: ExportContext) -> dict[str, Any]:
 
     data = {
         "undervoltage_now": undervoltage,
-        "undervoltage_source": hwmon_name or "nicht verfügbar",
+        "undervoltage_source": hwmon_name or "unavailable",
         "temperature_celsius": round(temp_raw / 1000, 1) if temp_raw else None,
         "cpu_current_khz": current_khz,
         "cpu_max_khz": max_khz,
         "cpu_at_max": (
             None if not (current_khz and max_khz) else current_khz >= max_khz * 0.95
         ),
-        "hinweis": (
-            "undervoltage_now stammt aus dem rpi_volt-Treiber und beschreibt den "
-            "Moment der Messung. Die Historie steht im Kernel-Log."
+        "note": (
+            "undervoltage_now comes from the rpi_volt driver and describes the "
+            "moment of measurement. The history is in the kernel log."
         ),
     }
     return {"system/power.json": data}
@@ -279,11 +279,11 @@ def collect_storage(ctx: ExportContext) -> dict[str, Any]:
         "usage": usage,
         "mounts": filesystems,
         "readonly_mounts": readonly,
-        "hinweis": (
-            "usage misst die Pfade, die der Backend-Container erreicht; der Host-"
-            "Wurzelspeicher steht in system/host_status.json. readonly_mounts ist "
-            "nur harmlos, wenn dort bewusst read-only gemountet wurde - ein "
-            "read-only gewordenes / deutet auf eine defekte SD-Karte hin."
+        "note": (
+            "usage measures the paths the backend container can reach; the host "
+            "Root storage is in system/host_status.json. readonly_mounts is only "
+            "harmless where read-only was mounted on purpose - a / that turned "
+            "read-only points at a failing SD card."
         ),
     }
     return {"system/storage.json": data}
@@ -426,7 +426,7 @@ def collect_apt_history(ctx: ExportContext) -> dict[str, Any]:
         return {}
     header = (
         "# /var/log/apt/history.log\n"
-        f"# vorhandene ältere Dateien (nicht entpackt): {', '.join(sorted(rotated)) or 'keine'}\n\n"
+        f"# older files present (not unpacked): {', '.join(sorted(rotated)) or 'none'}\n\n"
     )
     return {"system/apt_history.txt": header + (history or "(leer)")}
 

@@ -50,9 +50,25 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.13"
 warn_unused_configs = true
+# Every function carries a signature. This one holds and is worth keeping: it
+# is what makes the rest of the checking possible at all.
 disallow_untyped_defs = true
-warn_return_any = true
 
+# warn_return_any is deliberately off. Almost everything this service reads is
+# untyped by nature - JSON settings files, MQTT payloads, proxied responses from
+# other services - so json.loads() and response.json() hand back Any and the
+# rule fires on roughly fifty honest functions. It produced noise, not findings,
+# and a rule that is always ignored is worse than one that is not set.
+warn_return_any = false
+
+# Third-party packages that ship no type information. Naming them here keeps
+# "this library is untyped" apart from "this import is broken".
 [[tool.mypy.overrides]]
-module = "alembic.*"
+module = ["alembic.*", "docker.*", "feedparser.*", "mutagen.*", "jose.*"]
+ignore_missing_imports = true
+
+# shared_lib has no py.typed marker yet. Adding one means touching shared-lib,
+# which makes every dependent service a changed service - see docs/Versionierung.md.
+[[tool.mypy.overrides]]
+module = "shared_lib.*"
 ignore_missing_imports = true

@@ -68,7 +68,7 @@ def collect_settings(ctx: ExportContext) -> dict[str, Any]:
             files["config/auth_settings.shape.json"] = {
                 "web_password_hash_gesetzt": bool(payload.get("web_password_hash")),
                 "protected_areas": payload.get("protected_areas") or [],
-                "hinweis": "Der Hash selbst ist bewusst nicht enthalten.",
+                "note": "The hash itself is deliberately not included.",
             }
         except (OSError, ValueError) as e:
             files["config/auth_settings.shape.json"] = {"error": str(e)}
@@ -100,7 +100,7 @@ def collect_environment(ctx: ExportContext) -> dict[str, Any]:
     }
     return {
         "config/env.sanitized.json": {
-            "hinweis": "Nur Namen und ob ein Wert gesetzt ist - niemals der Wert selbst.",
+            "note": "Names and whether a value is set - never the value itself.",
             "variables": interesting,
         }
     }
@@ -111,7 +111,7 @@ def collect_database_meta(ctx: ExportContext) -> dict[str, Any]:
     """Schema, migration state, row counts and integrity - no user content."""
     path = _database_path()
     if not path.exists():
-        return {"db/meta.json": {"error": f"Datenbank nicht gefunden: {path}"}}
+        return {"db/meta.json": {"error": f"Database not found: {path}"}}
 
     files: dict[str, Any] = {}
     try:
@@ -236,9 +236,9 @@ def collect_media(ctx: ExportContext) -> dict[str, Any]:
         files["media/missing_files.json"] = {
             "count": len(missing),
             "entries": missing[:200],
-            "hinweis": (
-                "Einträge, deren Datei auf der Platte fehlt. Der häufigste Grund "
-                "für 'ein Titel spielt nicht'."
+            "note": (
+                "Entries whose file is missing from disk. The most common reason "
+                "for 'a track will not play'."
             ),
         }
     finally:
@@ -368,18 +368,18 @@ def collect_runtime_buffers(ctx: ExportContext) -> dict[str, Any]:
     errors = log_buffer.entries()
     files["runtime/errors_recent.json"] = {
         "count": len(errors),
-        "hinweis": (
-            "Die letzten Warnungen und Fehler des Backends, unabhängig von der "
-            "Log-Rotation der Container."
+        "note": (
+            "The backend's last warnings and errors, independent of the "
+            "containers' log rotation."
         ),
         "entries": errors,
     }
     messages = mqtt_buffer.entries()
     files["runtime/mqtt_recent.json"] = {
         "count": len(messages),
-        "hinweis": (
+        "note": (
             "Letzte MQTT-Nachrichten (in = empfangen, out = gesendet). Zeigt, ob "
-            "ein Tastendruck oder Kartenscan das Backend überhaupt erreicht hat."
+            "a button press or card scan reached the backend at all."
         ),
         "entries": messages,
     }
@@ -397,7 +397,7 @@ def collect_client(ctx: ExportContext) -> dict[str, Any]:
     if not payload:
         return {
             "client/context.json": {
-                "hinweis": "Die Oberfläche hat keine Browser-Daten mitgeschickt."
+                "note": "The WebUI sent no browser data along."
             }
         }
 

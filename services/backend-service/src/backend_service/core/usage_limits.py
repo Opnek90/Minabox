@@ -6,12 +6,13 @@ been extracted to :mod:`backend_service.core.rfid_settings`.
 
 from __future__ import annotations
 
-import json
-import os
 from datetime import datetime
 from datetime import time as dt_time
-from pathlib import Path
 from typing import Any
+
+from backend_service.core.general_settings import read_general_settings
+
+DEFAULT_DAILY_LIMIT_MINUTES = 120
 
 
 def read_allowed_usage_times() -> list[dict[str, Any]]:
@@ -19,27 +20,24 @@ def read_allowed_usage_times() -> list[dict[str, Any]]:
 
     Empty list = no restriction. When usage_times_enabled is False, returns [].
     """
-    data_path = os.environ.get("DATA_PATH", "/data")
-    gs_path = Path(data_path) / "general_settings.json"
+    data = read_general_settings()
+    if not bool(data.get("usage_times_enabled", False)):
+        return []
+    raw = data.get("allowed_usage_times")
+    if not isinstance(raw, list) or not raw:
+        return []
     try:
-        if gs_path.exists():
-            data = json.loads(gs_path.read_text(encoding="utf-8"))
-            if not bool(data.get("usage_times_enabled", False)):
-                return []
-            raw = data.get("allowed_usage_times")
-            if isinstance(raw, list) and raw:
-                return [
-                    {
-                        "weekday": int(x.get("weekday", 0)),
-                        "start": str(x.get("start", "07:00")),
-                        "end": str(x.get("end", "19:00")),
-                    }
-                    for x in raw
-                    if isinstance(x, dict) and 0 <= x.get("weekday", 0) <= 6
-                ]
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
-        pass
-    return []
+        return [
+            {
+                "weekday": int(x.get("weekday", 0)),
+                "start": str(x.get("start", "07:00")),
+                "end": str(x.get("end", "19:00")),
+            }
+            for x in raw
+            if isinstance(x, dict) and 0 <= x.get("weekday", 0) <= 6
+        ]
+    except (TypeError, ValueError):
+        return []
 
 
 def is_within_allowed_usage_time(now: datetime, slots: list[dict[str, Any]]) -> bool:
@@ -72,17 +70,14 @@ def is_within_allowed_usage_time(now: datetime, slots: list[dict[str, Any]]) -> 
 
 def read_daily_limit_settings() -> tuple[bool, int]:
     """Read daily_limit_enabled and daily_limit_minutes from general_settings.json."""
-    data_path = os.environ.get("DATA_PATH", "/data")
-    gs_path = Path(data_path) / "general_settings.json"
+    data = read_general_settings()
     try:
-        if gs_path.exists():
-            data = json.loads(gs_path.read_text(encoding="utf-8"))
-            enabled = bool(data.get("daily_limit_enabled", False))
-            minutes = max(1, min(1440, int(data.get("daily_limit_minutes", 120))))
-            return (enabled, minutes)
-    except (OSError, ValueError, json.JSONDecodeError, TypeError):
-        pass
-    return (False, 120)
+        return (
+            bool(data.get("daily_limit_enabled", False)),
+            max(1, min(1440, int(data.get("daily_limit_minutes", DEFAULT_DAILY_LIMIT_MINUTES)))),
+        )
+    except (TypeError, ValueError):
+        return (False, DEFAULT_DAILY_LIMIT_MINUTES)
 
 
 __all__ = [

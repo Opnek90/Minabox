@@ -236,5 +236,5 @@ class SecretLeakError(RuntimeError):
         self.path = path
         self.names = names
         super().__init__(
-            f"Export abgebrochen: {path} enthält Geheimnisse ({', '.join(names)})"
+            f"Export aborted: {path} still contains secrets ({', '.join(names)})"
         )

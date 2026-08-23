@@ -162,12 +162,15 @@ class AudioHandler:
                         db_session.close()
 
                 track_id_raw = data.get("track_id")
-                is_stream = isinstance(track_id_raw, str) and (
-                    track_id_raw.startswith("stream-") or track_id_raw.startswith("podcast-")
+                stream_track_id = (
+                    track_id_raw
+                    if isinstance(track_id_raw, str)
+                    and track_id_raw.startswith(("stream-", "podcast-"))
+                    else None
                 )
 
-                if is_stream:
-                    logger.warning("stream_ended_unexpectedly", track_id=track_id_raw)
+                if stream_track_id is not None:
+                    logger.warning("stream_ended_unexpectedly", track_id=stream_track_id)
                     if self.dispatcher.stream_reconnect_attempts < self.MAX_RECONNECT_ATTEMPTS:
                         self.dispatcher.stream_reconnect_attempts += 1
                         delay = min(
@@ -182,10 +185,10 @@ class AudioHandler:
                         if self.dispatcher.stream_reconnect_task and not self.dispatcher.stream_reconnect_task.done():
                             self.dispatcher.stream_reconnect_task.cancel()
                         self.dispatcher.stream_reconnect_task = asyncio.create_task(
-                            self.dispatcher.schedule_stream_reconnect(track_id_raw, data.get("source_uri"), delay)
+                            self.dispatcher.schedule_stream_reconnect(stream_track_id, data.get("source_uri"), delay)
                         )
                     else:
-                        logger.error("stream_reconnect_gave_up", track_id=track_id_raw)
+                        logger.error("stream_reconnect_gave_up", track_id=stream_track_id)
                         self.dispatcher.playback_intent_active = False
                 else:
                     logger.info("track_ended_naturally_auto_advancing")

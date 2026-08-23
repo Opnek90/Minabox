@@ -57,9 +57,9 @@ EXPOSE 8080
 
 # Run application
 # -- Version (Build-Args; docs/Versionierung.md) ------------------------------
-# Die Defaults sind absichtlich "dev": ein lokal gebautes Image soll sich nicht
-# als Release ausgeben. Der Block steht am Ende der Datei, damit ein
-# Versionswechsel nur die letzten Metadaten-Layer ungueltig macht.
+# The defaults are deliberately "dev": a locally built image must not pass
+# itself off as a release. The block sits at the end of the file so a version
+# change only invalidates the last few metadata layers.
 ARG APP_VERSION=0.0.0-dev
 ARG GIT_SHA=unknown
 ARG BUILD_DATE=unknown

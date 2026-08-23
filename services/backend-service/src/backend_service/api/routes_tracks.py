@@ -98,7 +98,7 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
         data: bytes | None = None
         ext = ".jpg"
         if hasattr(audio, "tags") and audio.tags:
-            apics = getattr(audio.tags, "getall", lambda _: [])("APIC")
+            apics: list[Any] = getattr(audio.tags, "getall", lambda _: [])("APIC")
             if not apics:
                 for key in getattr(audio.tags, "keys", lambda: [])():
                     if key and str(key).startswith("APIC"):
@@ -567,7 +567,7 @@ async def upload_track(
         db.commit()
         db.refresh(track)
         logger.info("api_upload_track_completed", track_id=track.id, title=track.title)
-        return track
+        return TrackResponse.model_validate(track)
 
     except ApiError:
         # Already a shaped error (e.g. the size limit) - only clean up.

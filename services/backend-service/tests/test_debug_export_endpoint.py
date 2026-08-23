@@ -18,6 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend_service.api import routes_debug
 from backend_service.core.api_errors import ApiError, api_error_handler
+from backend_service.core.debug_export.descriptions import describe
 from backend_service.middleware.auth import web_auth_middleware
 
 
@@ -234,8 +235,8 @@ async def test_preview_lists_every_file_in_plain_language(app, tiny_export):
     paths = {entry["path"]: entry for entry in payload["files"]}
     assert "system/power.json" in paths
     # Every entry carries a sentence a non-technical user can read.
-    assert paths["system/power.json"]["description"] == "Stromversorgung und Temperatur"
-    assert paths["services/audio/logs.txt"]["description"] == "Ablaufprotokoll von „audio“"
+    assert paths["system/power.json"]["description"] == describe("system/power.json")
+    assert paths["services/audio/logs.txt"]["description"] == describe("services/audio/logs.txt")
     assert paths["system/power.json"]["bytes"] == 210
 
 
@@ -257,7 +258,7 @@ async def test_preview_hands_out_the_same_archive_without_rebuilding(app, tiny_e
 
     assert download.status_code == 200
     assert download.headers["content-type"] == "application/zip"
-    assert builds["count"] == 1, "Download darf das Paket nicht erneut bauen"
+    assert builds["count"] == 1, "the download must not rebuild the archive"
 
 
 @pytest.mark.asyncio

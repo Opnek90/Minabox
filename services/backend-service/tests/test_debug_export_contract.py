@@ -31,15 +31,15 @@ def _schema_text() -> str:
     for candidate in _schema_candidates():
         if candidate.exists():
             return candidate.read_text(encoding="utf-8")
-    pytest.skip("export-schema.md nicht eingebunden")
+    pytest.skip("export-schema.md not available")
 
 
 def test_every_collector_is_documented():
     schema = _schema_text()
     undocumented = sorted(name for name in REGISTRY if name not in schema)
     assert not undocumented, (
-        "Diese Collectors fehlen in references/export-schema.md: "
-        f"{undocumented}. Ohne Eintrag weiss die Analyse nichts von ihnen."
+        "These collectors are missing from references/export-schema.md: "
+        f"{undocumented}. Without an entry the analysis knows nothing about them."
     )
 
 
@@ -72,7 +72,7 @@ def test_no_documented_collector_disappeared():
         )
     }
     missing = sorted(name for name in documented if name not in REGISTRY)
-    assert not missing, f"In der Doku, aber nicht im Code: {missing}"
+    assert not missing, f"Documented but not in the code: {missing}"
 
 
 def test_schema_version_is_documented():
@@ -95,6 +95,6 @@ def test_collector_blocks_are_known():
             "history",
             "client",
             "database",
-        }, f"{name} hat einen unbekannten Block: {collector.block}"
+        }, f"{name} declares an unknown block: {collector.block}"
         # block_enabled must have an answer for it, otherwise it would never run.
         assert isinstance(options.block_enabled(collector.block), bool)

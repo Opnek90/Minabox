@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 import httpx
 import structlog
@@ -39,7 +40,7 @@ router = APIRouter()
 _mqtt_client = None
 
 
-def set_mqtt_client(client) -> None:  # noqa: ANN001
+def set_mqtt_client(client: Any) -> None:
     """Inject MQTT client (called from main.py at startup)."""
     global _mqtt_client
     _mqtt_client = client
@@ -245,9 +246,9 @@ async def update_general_config(body: dict) -> dict:
         "allowed_usage_times",
         "auto_update_check_enabled",
         "max_upload_size_mb",
-        # Ersteinrichtungs-Assistent (docs/services/webui/Setup-Wizard.md).
-        # Fehlen die Schluessel hier, verwirft der Filter unten sie
-        # stillschweigend und der Assistent kaeme bei jedem Aufruf wieder.
+        # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
+        # keys the filter below drops them silently, and the wizard would come
+        # back on every visit.
         "setup_completed",
         "setup_version",
     }
@@ -315,8 +316,8 @@ async def update_general_config(body: dict) -> dict:
 
     # Live-update log level in this process and broadcast to other services
     if "log_level" in data:
-        # Ohne extra_processors wuerde der Ringpuffer des Diagnose-Pakets beim
-        # Umschalten des Log-Levels stillschweigend abgehaengt.
+        # Without extra_processors, switching the log level would silently
+        # detach the debug export's ring buffer.
         setup_structlog(
             data["log_level"],
             silence_loggers=["alembic.runtime.migration", "sqlalchemy.engine"],
@@ -430,8 +431,8 @@ async def update_audio_config(body: dict) -> dict:
             topic = config.get_mqtt_topic("audio", "config/reload")
             await _mqtt_client.publish(topic, {})
             logger.info("audio_config_reload_published", topic=topic)
-        # Ohne diesen Push merkt eine offene Player-Seite nichts von neuen
-        # Lautstaerke-Grenzen und zeigt bis zum Reload den alten Regler-Bereich.
+        # Without this push an open player page never learns about new volume
+        # limits and keeps the old slider range until it is reloaded.
         await ws_manager.broadcast({"type": "audio_config", "data": merged})
         return merged
     except OSError as e:

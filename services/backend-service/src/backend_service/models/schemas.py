@@ -8,6 +8,9 @@ from __future__ import annotations
 
 from .schemas_audio import AudioPlayCommand, AudioStatusResponse, AudioVolumeCommand
 from .schemas_content import (
+    FolderCreate,
+    FolderResponse,
+    FolderUpdate,
     PlaylistBase,
     PlaylistCreate,
     PlaylistDetailResponse,
@@ -81,6 +84,10 @@ __all__ = [
     "PodcastUpdate",
     "PodcastResponse",
     "PodcastEpisodeResponse",
+    # Folders (one shape for tracks, streams and podcasts)
+    "FolderCreate",
+    "FolderUpdate",
+    "FolderResponse",
     # Track Folders
     "TrackFolderCreate",
     "TrackFolderUpdate",

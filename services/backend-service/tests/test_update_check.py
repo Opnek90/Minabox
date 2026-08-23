@@ -1,8 +1,8 @@
-"""Tests fuer den Versionsvergleich hinter dem Update-Knopf.
+"""Tests for the version comparison behind the update button.
 
-Der Schwerpunkt liegt auf den beiden Zusagen, die das Modul gibt: es behauptet
-nie ein Update, das niemand pruefen konnte, und es verschweigt keine
-uebersprungene Ausgabe.
+The focus is on the two promises the module makes: it never claims an update
+that nobody could verify, and it hides no release that was skipped along the
+way.
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ from backend_service.core import update_check as uc
         ("1.0.0", "0.9.9", True),
         ("0.1.0", "0.1.0", False),
         ("0.1.0", "0.1.1", False),
-        # Zweistellige Zahlen duerfen nicht als Text verglichen werden,
-        # sonst gilt 0.9.0 als neuer als 0.10.0.
+        # Two-digit numbers must not be compared as text,
+        # otherwise 0.9.0 would count as newer than 0.10.0.
         ("0.10.0", "0.9.0", True),
         ("0.9.0", "0.10.0", False),
-        # Eine Vorabversion ist aelter als die fertige gleicher Nummer.
+        # A pre-release is older than the finished version of the same number.
         ("0.2.0-rc.1", "0.2.0", False),
         ("0.2.0", "0.2.0-rc.1", True),
     ],
@@ -36,11 +36,11 @@ def test_is_newer(candidate: str, installed: str, expected: bool) -> None:
 
 
 def test_parse_version_survives_nonsense() -> None:
-    """Ein kaputter Versionsstring darf den Vergleich nicht sprengen."""
+    """A broken version string must not blow up the comparison."""
     assert uc.parse_version("keine-version") < uc.parse_version("0.0.1")
 
 
-# ── Aufbau der Antwort ──────────────────────────────────────────────────────
+# ── Shape of the answer ────────────────────────────────────────────────────
 
 
 def _manifest() -> dict:
@@ -65,7 +65,7 @@ def _manifest() -> dict:
 
 
 def test_lists_every_skipped_release() -> None:
-    """Wer zwei Ausgaben ueberspringt, muss beide zu sehen bekommen."""
+    """Skipping two releases has to show both of them."""
     entries = uc._build_entries(_manifest(), {"backend": "0.1.1"})
     backend = next(e for e in entries if e["service"] == "backend")
     assert backend["update_available"] is True
@@ -79,7 +79,7 @@ def test_current_service_reports_nothing_to_do() -> None:
 
 
 def test_unmanaged_service_is_shown_but_never_stale() -> None:
-    """Der MQTT-Broker kommt aus einem fremden Image und steht nicht im Manifest."""
+    """The MQTT broker comes from a third-party image and is not in the manifest."""
     entries = uc._build_entries(_manifest(), {"mqtt": "2.1.2"})
     assert entries[0]["managed"] is False
     assert entries[0]["update_available"] is False
@@ -87,7 +87,7 @@ def test_unmanaged_service_is_shown_but_never_stale() -> None:
 
 
 def test_newer_installed_than_published_is_not_an_update() -> None:
-    """Auf einem Entwicklungs-Pi laeuft schon mal mehr, als veroeffentlicht ist."""
+    """A development Pi sometimes runs more than has been published."""
     entries = uc._build_entries(_manifest(), {"backend": "0.2.0"})
     assert entries[0]["update_available"] is False
     assert entries[0]["releases"] == []
@@ -98,7 +98,7 @@ def test_newer_installed_than_published_is_not_an_update() -> None:
 
 @pytest.mark.asyncio
 async def test_network_failure_never_claims_an_update(monkeypatch, tmp_path) -> None:
-    """Ohne Netz gibt es keinen Update-Hinweis - nur eine benannte Stoerung."""
+    """No network means no update hint - only a named failure."""
     monkeypatch.setenv("DATA_PATH", str(tmp_path))
     monkeypatch.setenv("MINABOX_MANIFEST_URL", "http://127.0.0.1:9/manifest.json")
 
@@ -111,11 +111,11 @@ async def test_network_failure_never_claims_an_update(monkeypatch, tmp_path) -> 
 
 @pytest.mark.asyncio
 async def test_failure_falls_back_to_the_last_known_state(monkeypatch, tmp_path) -> None:
-    """Ein frueher geholter Stand bleibt sichtbar, aber als Stoerung markiert."""
+    """An earlier result stays visible, but marked as a failure."""
     monkeypatch.setenv("DATA_PATH", str(tmp_path))
     uc._write_cache(
         {
-            "cached_at": 0,  # abgelaufen, erzwingt einen neuen Versuch
+            "cached_at": 0,  # expired, forces a fresh attempt
             "result": {
                 "checked_at": "2026-08-21T10:00:00+00:00",
                 "from_cache": False,
@@ -131,5 +131,5 @@ async def test_failure_falls_back_to_the_last_known_state(monkeypatch, tmp_path)
 
     assert result["from_cache"] is True
     assert result["error"]
-    # Der alte Stand bleibt erhalten - er war zum Zeitpunkt des Abrufs wahr.
+    # The old state is kept - it was true at the time it was fetched.
     assert result["update_available"] is True

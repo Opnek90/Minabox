@@ -18,6 +18,7 @@ from backend_service.models.schemas import (
     PlaylistDetailResponse,
     PlaylistResponse,
     PlaylistUpdate,
+    TrackResponse,
 )
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
@@ -69,7 +70,7 @@ def get_playlist(
         .all()
     )
 
-    tracks = [pt.track for pt in playlist_tracks]
+    tracks = [TrackResponse.model_validate(pt.track) for pt in playlist_tracks]
 
     return PlaylistDetailResponse(
         id=playlist.id,
@@ -124,7 +125,7 @@ def create_playlist(
     db.refresh(playlist)
 
     logger.info("api_playlist_created", playlist_id=playlist.id, name=playlist.name)
-    return playlist
+    return PlaylistResponse.model_validate(playlist)
 
 
 @router.put("/{playlist_id}", response_model=PlaylistResponse)

@@ -49,8 +49,10 @@ def _general_settings_path() -> Path:
 
 def clamp_upload_size_mb(value: object) -> int:
     """Normalize a raw value to a usable limit in MB."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return DEFAULT_UPLOAD_SIZE_MB
     try:
-        megabytes = int(value)  # type: ignore[arg-type]
+        megabytes = int(value)
     except (TypeError, ValueError):
         return DEFAULT_UPLOAD_SIZE_MB
     return max(MIN_UPLOAD_SIZE_MB, min(MAX_UPLOAD_SIZE_MB, megabytes))

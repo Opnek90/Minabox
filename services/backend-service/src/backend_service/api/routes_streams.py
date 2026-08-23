@@ -77,7 +77,7 @@ def create_stream(
     db.commit()
     db.refresh(stream)
     logger.info("api_stream_created", stream_id=stream.id, title=stream.title)
-    return stream
+    return StreamResponse.model_validate(stream)
 
 
 @router.put("/{stream_id}", response_model=StreamResponse)

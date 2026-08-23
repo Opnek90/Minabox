@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .schemas_enums import ContentType, SourceType
 
@@ -208,22 +208,24 @@ class PodcastEpisodeResponse(BaseModel):
         from_attributes = True
 
 
-class TrackFolderCreate(BaseModel):
-    """Schema for creating a new track folder."""
+class FolderCreate(BaseModel):
+    """Schema for creating a folder in the media library."""
 
     name: str = Field(..., min_length=1, max_length=255, description="Folder name")
-    parent_id: int | None = Field(None, description="Parent folder ID; null for root-level folder")
+    parent_id: int | None = Field(
+        None, description="Parent folder ID; null for root-level folder"
+    )
 
 
-class TrackFolderUpdate(BaseModel):
-    """Schema for updating a track folder."""
+class FolderUpdate(BaseModel):
+    """Schema for renaming a folder or moving it below a different parent."""
 
     name: str | None = Field(None, min_length=1, max_length=255)
     parent_id: int | None = None
 
 
-class TrackFolderResponse(BaseModel):
-    """Schema for track folder API response."""
+class FolderResponse(BaseModel):
+    """Schema for a folder API response."""
 
     id: int
     name: str
@@ -231,61 +233,24 @@ class TrackFolderResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-class StreamFolderCreate(BaseModel):
-    """Schema for creating a new stream folder."""
-
-    name: str = Field(..., min_length=1, max_length=255, description="Folder name")
-    parent_id: int | None = Field(None, description="Parent folder ID; null for root-level folder")
-
-
-class StreamFolderUpdate(BaseModel):
-    """Schema for updating a stream folder."""
-
-    name: str | None = Field(None, min_length=1, max_length=255)
-    parent_id: int | None = None
-
-
-class StreamFolderResponse(BaseModel):
-    """Schema for stream folder API response."""
-
-    id: int
-    name: str
-    parent_id: int | None = None
-    created_at: datetime
-    updated_at: datetime | None = None
-
-    class Config:
-        from_attributes = True
+# Folders behave identically for tracks, streams and podcasts, so they share one
+# set of schemas. The per-type names stay as aliases: they are what the routers
+# and the re-export modules already import.
+TrackFolderCreate = FolderCreate
+TrackFolderUpdate = FolderUpdate
+TrackFolderResponse = FolderResponse
+StreamFolderCreate = FolderCreate
+StreamFolderUpdate = FolderUpdate
+StreamFolderResponse = FolderResponse
+PodcastFolderCreate = FolderCreate
+PodcastFolderUpdate = FolderUpdate
+PodcastFolderResponse = FolderResponse
 
 
-class PodcastFolderCreate(BaseModel):
-    """Schema for creating a new podcast folder."""
-
-    name: str = Field(..., min_length=1, max_length=255, description="Folder name")
-    parent_id: int | None = Field(None, description="Parent folder ID; null for root-level folder")
-
-
-class PodcastFolderUpdate(BaseModel):
-    """Schema for updating a podcast folder."""
-
-    name: str | None = Field(None, min_length=1, max_length=255)
-    parent_id: int | None = None
-
-
-class PodcastFolderResponse(BaseModel):
-    """Schema for podcast folder API response."""
-
-    id: int
-    name: str
-    parent_id: int | None = None
-    created_at: datetime
-    updated_at: datetime | None = None
-
-    class Config:
+class Config:
         from_attributes = True
 
 

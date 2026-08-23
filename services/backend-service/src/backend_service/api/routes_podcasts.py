@@ -78,12 +78,12 @@ def list_podcasts(
     result = []
     for p in podcasts:
         base = PodcastResponse.model_validate(p)
-        ep = latest_by_podcast.get(p.id)
+        latest = latest_by_podcast.get(p.id)
         result.append(
             base.model_copy(
                 update={
-                    "latest_episode_title": ep.title if ep else None,
-                    "latest_episode_published_at": ep.published_at if ep else None,
+                    "latest_episode_title": latest.title if latest else None,
+                    "latest_episode_published_at": latest.published_at if latest else None,
                 }
             )
         )
