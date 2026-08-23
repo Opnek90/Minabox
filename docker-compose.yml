@@ -111,7 +111,6 @@ services:
       - ${BOOT_CONFIG_DIR:-/boot/firmware}:/host/boot:ro
       - /var/lib/dpkg/status:/host/var/lib/dpkg/status:ro
       - /var/log/apt:/host/var/log/apt:ro
-      - ./.cursor:/cursor-debug
     group_add:
       # GID der Host-Gruppe "docker" - nur damit ist der read-only gemountete
       # /var/run/docker.sock lesbar. Der Wert ist hostabhaengig (hier 984), die
@@ -165,7 +164,6 @@ services:
       - /proc:/host/proc:ro
       - /etc/hostname:/host/etc/hostname:ro
       - /:/host:rw
-      - ./.cursor:/cursor-debug
     group_add:
       # GID der Host-Gruppe "docker" - nur damit ist der read-only gemountete
       # /var/run/docker.sock lesbar. Der Wert ist hostabhaengig (hier 984), die

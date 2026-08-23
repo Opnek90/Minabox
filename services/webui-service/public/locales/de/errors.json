@@ -67,6 +67,7 @@
   "led_test_failed": "LED-Test fehlgeschlagen",
   "logo_save_failed": "Logo konnte nicht gespeichert werden",
   "logs_read_failed": "Protokolle konnten nicht gelesen werden",
+  "login_locked_out": "Zu viele Fehlversuche – bitte einige Minuten warten",
   "logs_unavailable": "Protokolle nicht verfügbar",
   "media_url_invalid": "Ungültige Medien-URL",
   "move_failed": "Verschieben fehlgeschlagen",

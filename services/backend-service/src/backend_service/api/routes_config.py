@@ -16,6 +16,7 @@ from backend_service.api.websocket import ws_manager
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
 from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
+from backend_service.core.json_store import write_json_atomic
 from backend_service.core.playback_settings import (
     DEFAULT_END_BEHAVIOR,
     DEFAULT_LOOP_GUARD_MINUTES,
@@ -297,9 +298,7 @@ async def update_general_config(body: dict) -> dict:
             except (json.JSONDecodeError, OSError):
                 pass
         to_write.update(data)
-        GENERAL_SETTINGS_PATH.write_text(
-            json.dumps(to_write, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        write_json_atomic(GENERAL_SETTINGS_PATH, to_write)
     except OSError as e:
         logger.error("general_config_write_failed", error=str(e))
         raise ApiError(status_code=500, code="general_settings_write_failed", detail="Failed to write general settings") from e
@@ -333,6 +332,46 @@ CONFIG_FILES = {
     "rfid": ("rfid", "rfid.json"),
     "display": ("display", "display.json"),
 }
+
+
+# What each service config must structurally look like: the top-level key it
+# cannot do without, and its type.
+#
+# Deliberately not the Pydantic models in models/schemas_config.py - those
+# describe something else entirely (a `brightness` field for LEDs, for
+# instance, where the real file holds a list of LEDs with GPIO pins and
+# bindings). Validating against them would reject every legitimate save.
+#
+# A structural check is enough for what goes wrong in practice: a body that
+# lost its content on the way and would leave the other service with a config
+# it cannot start from.
+_CONFIG_SHAPE: dict[str, tuple[str, type]] = {
+    "leds": ("leds", list),
+    "buttons": ("buttons", list),
+    "display": ("elements", list),
+}
+
+
+def _validate_config_shape(service: str, body: dict) -> None:
+    """Reject a config body that would leave the service unable to start."""
+    expected = _CONFIG_SHAPE.get(service)
+    if expected is None:
+        return
+    key, kind = expected
+    value = body.get(key)
+    if not isinstance(value, kind):
+        logger.warning(
+            "config_rejected_bad_shape",
+            service=service,
+            expected_key=key,
+            expected_type=kind.__name__,
+            got=type(value).__name__,
+        )
+        raise ApiError(
+            status_code=422,
+            code="config_invalid",
+            detail=f"{service} config must contain '{key}' as a {kind.__name__}",
+        )
 
 
 def _config_path(service: str) -> Path | None:
@@ -378,7 +417,7 @@ async def update_audio_config(body: dict) -> dict:
             except (json.JSONDecodeError, OSError):
                 pass
         merged = {**current, **body}
-        path.write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomic(path, merged)
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("audio", "config/reload")
@@ -418,9 +457,9 @@ async def update_leds_config(body: dict) -> dict:
     path = _config_path("leds")
     if not path or not path.exists():
         raise ApiError(status_code=503, code="led_config_unavailable", detail="LED config not available")
+    _validate_config_shape("leds", body)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomic(path, body)
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("led", "config/reload")
@@ -480,9 +519,9 @@ async def update_buttons_config(body: dict) -> dict:
     path = _config_path("buttons")
     if not path or not path.exists():
         raise ApiError(status_code=503, code="button_config_unavailable", detail="Button config not available")
+    _validate_config_shape("buttons", body)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomic(path, body)
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("button", "config/reload")
@@ -551,9 +590,9 @@ async def update_display_config(body: dict) -> dict:
     path = _config_path("display")
     if path is None:
         raise ApiError(status_code=503, code="display_config_unavailable", detail="Display config not available")
+    _validate_config_shape("display", body)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomic(path, body)
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("display", "config/reload")
@@ -625,9 +664,18 @@ async def update_rfid_config(body: dict) -> dict:
     if not path or not path.exists():
         raise ApiError(status_code=503, code="rfid_config_unavailable", detail="RFID config not available")
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        nested = _rfid_nest(body)
-        path.write_text(json.dumps(nested, indent=2, ensure_ascii=False), encoding="utf-8")
+        # Merge, do not replace: _rfid_nest only builds the `reader` block, and
+        # writing that alone used to drop the `modes` and `service` sections the
+        # RFID service also reads from this file.
+        current: dict = {}
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                current = loaded
+        except (json.JSONDecodeError, OSError):
+            pass
+        nested = {**current, **_rfid_nest(body)}
+        write_json_atomic(path, nested)
         return _rfid_flatten(nested)
     except OSError as e:
         logger.error("config_write_failed", service="rfid", error=str(e))

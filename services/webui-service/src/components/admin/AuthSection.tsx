@@ -7,6 +7,7 @@ import {
   DialogContentText,
   DialogTitle,
   FormControlLabel,
+  FormHelperText,
   Switch,
   TextField,
 } from '@mui/material';
@@ -19,10 +20,14 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { apiErrorCode, translateApiError } from '@/utils/apiError';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
+// Ein Bereich kann mehrere Seiten abdecken: „Player" schuetzt auch die
+// Karten-Seite, weil beide auf denselben Backend-Routen sitzen.
 const PATH_TO_AREA: Record<string, string> = {
   '/admin': 'admin',
   '/media': 'media',
   '/dashboard': 'dashboard',
+  '/player': 'player',
+  '/rfid': 'player',
 };
 
 function pathsToAreas(protectedPaths: string[]): string[] {
@@ -39,6 +44,7 @@ export const AuthSection: React.FC = () => {
   const [adminProtected, setAdminProtected] = useState(false);
   const [mediaProtected, setMediaProtected] = useState(false);
   const [dashboardProtected, setDashboardProtected] = useState(false);
+  const [playerProtected, setPlayerProtected] = useState(false);
   const [savingAreas, setSavingAreas] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -53,6 +59,7 @@ export const AuthSection: React.FC = () => {
     setAdminProtected(areas.includes('admin'));
     setMediaProtected(areas.includes('media'));
     setDashboardProtected(areas.includes('dashboard'));
+    setPlayerProtected(areas.includes('player'));
   }, [protectedPaths]);
 
   const handleSaveAreas = async () => {
@@ -62,6 +69,7 @@ export const AuthSection: React.FC = () => {
       if (adminProtected) areas.push('admin');
       if (mediaProtected) areas.push('media');
       if (dashboardProtected) areas.push('dashboard');
+      if (playerProtected) areas.push('player');
       await updateAuthConfig({ protected_areas: areas });
       await refreshConfig();
       showSuccess(t('auth.areas_saved'));
@@ -141,6 +149,11 @@ export const AuthSection: React.FC = () => {
           control={<Switch checked={dashboardProtected} onChange={(_, v) => setDashboardProtected(v)} />}
           label={t('auth.protected_dashboard')}
         />
+        <FormControlLabel
+          control={<Switch checked={playerProtected} onChange={(_, v) => setPlayerProtected(v)} />}
+          label={t('auth.protected_player')}
+        />
+        <FormHelperText>{t('auth.protected_player_hint')}</FormHelperText>
         <Box sx={{ mt: 1 }}>
           <ActionButton
             actionType="primary"

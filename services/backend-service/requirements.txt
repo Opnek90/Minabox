@@ -35,4 +35,7 @@ mutagen>=1.47.0,<2.0.0
 # bcrypt is imported directly by core/auth.py - it used to be pulled in only as
 # a passlib extra, while passlib itself was never imported anywhere.
 bcrypt>=4.1.0,<6.0.0
-python-jose[cryptography]>=3.5.0,<4.0.0
+# PyJWT instead of python-jose: the session token is plain HS256, so the
+# asymmetric stack python-jose pulls in (cryptography, ecdsa, rsa) was never
+# used. python-jose is also unmaintained and carries open advisories.
+PyJWT>=2.8.0,<3.0.0

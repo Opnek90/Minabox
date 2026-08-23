@@ -11,7 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { getAuthConfig, setPassword, updateAuthConfig } from '@/api/auth';
 
-const AREAS = ['admin', 'media', 'dashboard'] as const;
+const AREAS = ['admin', 'media', 'dashboard', 'player'] as const;
 type Area = (typeof AREAS)[number];
 
 interface Props {

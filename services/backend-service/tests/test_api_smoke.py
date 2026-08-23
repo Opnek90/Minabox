@@ -9,6 +9,7 @@ track without a stored file, and an unbounded upload) lived in exactly that gap.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -18,8 +19,9 @@ from fastapi.testclient import TestClient
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import backend_service.core.db_manager as db_module
-from backend_service.api import api_router, routes_config, routes_tracks
+from backend_service.api import api_router, routes_auth, routes_config, routes_tracks
 from backend_service.api.routes_auth import COOKIE_NAME
+from backend_service.api.websocket import websocket_endpoint
 from backend_service.core import auth as auth_module
 from backend_service.core.api_errors import ApiError, api_error_handler
 from backend_service.middleware.auth import web_auth_middleware
@@ -62,13 +64,21 @@ def client(env):
     """A TestClient over the real router stack, on a fresh database."""
     db_module.init_db(str(env["data"] / "minabox.db"))
 
+    # Login failures are module-level state keyed by client address, and every
+    # test here arrives as the same "testclient" - without this a lockout in one
+    # test would leak into the next.
+    routes_auth.reset_login_failures()
+
     app = FastAPI()
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_middleware(BaseHTTPMiddleware, dispatch=web_auth_middleware)
     app.include_router(api_router)
+    app.add_websocket_route("/ws", websocket_endpoint)
 
     with TestClient(app) as test_client:
         yield test_client
+
+    routes_auth.reset_login_failures()
 
     if db_module.db_manager is not None:
         db_module.db_manager.disconnect()
@@ -336,3 +346,160 @@ def test_wrong_password_is_rejected(client):
     response = client.post("/api/v1/auth/login", json={"password": "falsch"})
     assert response.status_code == 401
     assert response.json()["code"] == "invalid_password"
+
+
+def test_repeated_wrong_passwords_lock_the_address_out(client):
+    """bcrypt slows a guess down; it is not a rate limit on its own."""
+    _enable_password("geheim", ["admin"])
+
+    for _ in range(routes_auth.LOGIN_MAX_FAILURES):
+        assert client.post("/api/v1/auth/login", json={"password": "falsch"}).status_code == 401
+
+    locked = client.post("/api/v1/auth/login", json={"password": "falsch"})
+    assert locked.status_code == 429
+    assert locked.json()["code"] == "login_locked_out"
+    assert int(locked.headers["Retry-After"]) > 0
+
+    # The correct password is refused too - otherwise the lockout would be
+    # trivially bypassed by guessing on.
+    assert client.post("/api/v1/auth/login", json={"password": "geheim"}).status_code == 429
+
+
+def test_a_successful_login_clears_the_counter(client):
+    _enable_password("geheim", ["admin"])
+
+    for _ in range(routes_auth.LOGIN_MAX_FAILURES - 1):
+        client.post("/api/v1/auth/login", json={"password": "falsch"})
+    assert client.post("/api/v1/auth/login", json={"password": "geheim"}).status_code == 200
+
+    # Counter reset: a fresh run of failures must be needed to lock out again.
+    for _ in range(routes_auth.LOGIN_MAX_FAILURES - 1):
+        assert client.post("/api/v1/auth/login", json={"password": "falsch"}).status_code == 401
+
+
+# --- The player area (B1/B2) ------------------------------------------------
+
+
+def test_player_routes_are_open_unless_the_area_is_switched_on(client):
+    """Default behaviour must not change for a box that already has a password."""
+    _enable_password("geheim", ["admin", "media", "dashboard"])
+
+    assert client.get("/api/v1/tags").status_code == 200
+    assert client.get("/api/v1/audio/status").status_code == 200
+    assert client.get("/api/v1/scan-history/").status_code == 200
+
+
+def test_the_player_area_protects_playback_cards_and_history(client):
+    _enable_password("geheim", ["player"])
+
+    assert client.get("/api/v1/tags").status_code == 401
+    assert client.get("/api/v1/audio/status").status_code == 401
+    assert client.get("/api/v1/scan-history/").status_code == 401
+    # Media is not protected here, so it stays open.
+    assert client.get("/api/v1/tracks").status_code == 200
+
+    assert client.post("/api/v1/auth/login", json={"password": "geheim"}).status_code == 200
+    assert client.get("/api/v1/tags").status_code == 200
+
+
+def test_the_player_area_covers_the_websocket(client):
+    """The middleware never sees a handshake, so /ws checks for itself."""
+    from starlette.websockets import WebSocketDisconnect as StarletteDisconnect
+
+    _enable_password("geheim", ["player"])
+    with pytest.raises(StarletteDisconnect):
+        with client.websocket_connect("/ws"):
+            pass
+
+    client.post("/api/v1/auth/login", json={"password": "geheim"})
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text('{"hello": true}')
+        assert ws.receive_json()["type"] == "ack"
+
+
+def test_the_websocket_is_open_while_the_area_is_off(client):
+    _enable_password("geheim", ["admin"])
+    with client.websocket_connect("/ws") as ws:
+        ws.send_text('{"hello": true}')
+        assert ws.receive_json()["type"] == "ack"
+
+
+# --- Config writing (B6/B7) -------------------------------------------------
+
+
+def test_a_config_body_that_lost_its_content_is_refused(client, tmp_path, monkeypatch):
+    """A body without its list would leave the LED service unable to start."""
+    config_dir = tmp_path / "config_services"
+    (config_dir / "led").mkdir(parents=True)
+    led_file = config_dir / "led" / "leds.json"
+    original = '{"leds": [{"id": "led_1", "gpio": 17}]}'
+    led_file.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(routes_config, "CONFIG_SERVICES_BASE", config_dir)
+
+    refused = client.put("/api/v1/config/leds", json={"brightness": 50})
+    assert refused.status_code == 422
+    assert refused.json()["code"] == "config_invalid"
+    assert led_file.read_text(encoding="utf-8") == original  # untouched
+
+    accepted = client.put("/api/v1/config/leds", json={"leds": []})
+    assert accepted.status_code == 200
+    assert json.loads(led_file.read_text(encoding="utf-8")) == {"leds": []}
+
+
+def test_writing_the_rfid_config_keeps_the_sections_it_does_not_own(
+    client, tmp_path, monkeypatch
+):
+    config_dir = tmp_path / "config_services"
+    (config_dir / "rfid").mkdir(parents=True)
+    rfid_file = config_dir / "rfid" / "rfid.json"
+    rfid_file.write_text(
+        json.dumps(
+            {
+                "reader": {"reader_type": "pn532", "interface": "i2c"},
+                "modes": {"default": "normal"},
+                "service": {"health_port": 8000},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(routes_config, "CONFIG_SERVICES_BASE", config_dir)
+
+    response = client.put("/api/v1/config/rfid", json={"reader_type": "PN532", "interface": "SPI"})
+    assert response.status_code == 200
+
+    written = json.loads(rfid_file.read_text(encoding="utf-8"))
+    assert written["reader"]["interface"] == "spi"
+    # These belong to the RFID service and were previously dropped on save.
+    assert written["modes"] == {"default": "normal"}
+    assert written["service"] == {"health_port": 8000}
+
+
+def test_auth_settings_are_written_atomically_and_privately(client, env):
+    _enable_password("geheim", ["admin"])
+    path = env["data"] / "auth_settings.json"
+
+    assert json.loads(path.read_text(encoding="utf-8"))["protected_areas"] == ["admin"]
+    assert oct(path.stat().st_mode)[-3:] == "600"
+    # No temporary file left behind by the rename.
+    assert list(env["data"].glob(".auth_settings.json.*")) == []
+
+
+# --- The signing secret (B4) ------------------------------------------------
+
+
+def test_a_secret_is_generated_per_box_instead_of_a_shared_default(env, monkeypatch):
+    monkeypatch.delenv("WEB_AUTH_SECRET", raising=False)
+    monkeypatch.delenv("HOST_HELPER_API_KEY", raising=False)
+    monkeypatch.setattr(auth_module, "_generated_secret", None)
+
+    secret = auth_module._auth_secret()
+    assert len(secret) >= 32
+    assert "minabox" not in secret  # never the old hard-coded fallback
+
+    stored = env["data"] / "web_auth_secret"
+    assert stored.read_text(encoding="utf-8").strip() == secret
+    assert oct(stored.stat().st_mode)[-3:] == "600"
+
+    # Stable across calls, so sessions survive within a run.
+    monkeypatch.setattr(auth_module, "_generated_secret", None)
+    assert auth_module._auth_secret() == secret

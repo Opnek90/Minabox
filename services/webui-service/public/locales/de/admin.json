@@ -43,6 +43,8 @@
     "protected_areas_title": "Geschützte Bereiche",
     "protected_dashboard": "Passwort für Dashboard-Bereich",
     "protected_media": "Passwort für Media-Bereich",
+    "protected_player": "Passwort für Player und Karten",
+    "protected_player_hint": "Schützt auch die Live-Verbindung, über die der Player Wiedergabe, Kartenscans und Tastendrücke empfängt. Standardmäßig aus, damit die Box im Alltag ohne Anmeldung bedienbar bleibt.",
     "reset_button": "Passwort & Sperren zurücksetzen",
     "reset_confirm_text": "Möchtest du das WebUI-Passwort wirklich löschen und alle gesperrten Bereiche entsperren? Der Zugriffsschutz wird vollständig deaktiviert.",
     "reset_failed": "Zurücksetzen fehlgeschlagen.",
