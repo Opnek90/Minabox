@@ -1,12 +1,20 @@
 # Web Framework & Server
 fastapi>=0.126.0,<0.127.0
-uvicorn[standard]>=0.34.0,<0.35.0
+# Not uvicorn[standard]: that extra also pulls watchfiles (--reload only),
+# python-dotenv (--env-file only) and PyYAML (--log-config only, and the server
+# is started with log_config=None). The three parts that do matter are named
+# explicitly instead - uvloop and httptools for speed, websockets for /ws.
+uvicorn>=0.34.0,<0.35.0
+uvloop>=0.21.0,<0.23.0
+httptools>=0.6.0,<0.9.0
+websockets>=13.0,<18.0
 python-multipart>=0.0.18
 
 # Data Validation
 pydantic>=2.12.0,<2.13.0
 
-# Database
+# Database. Alembic owns the schema - see core/db_manager.py - so it is a
+# runtime dependency, not a development one.
 sqlalchemy>=2.0.46,<2.1.0
 alembic>=1.15.0,<2.0.0
 
@@ -15,9 +23,6 @@ aiomqtt>=2.5.0,<2.6.0
 
 # Logging
 structlog>=25.4.0,<25.5.0
-
-# Retry Logic
-tenacity>=9.0.0,<10.0.0
 
 # HTTP client for service health checks & podcast RSS fetch
 httpx>=0.28.0,<0.29.0

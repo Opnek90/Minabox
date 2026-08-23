@@ -4,24 +4,43 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies
+# gcc only. g++ used to be here for packages that no longer build from source
+# on arm64 - every dependency ships a wheel - and a C++ toolchain costs minutes
+# of build time for nothing.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Install shared-lib first (minabox-shared), then backend requirements
 COPY shared-lib ./shared-lib
 COPY backend-service/requirements.txt ./requirements.txt
+# Drop the builder's own pip/setuptools before the runtime stage copies this
+# directory - they would otherwise be carried across for nothing.
+#
+# It has to happen here, not after the COPY: layers are additive, so deleting
+# afterwards adds a whiteout and leaves the bytes in the layer underneath.
+#
+# Note this does not remove pip from the image. The runtime base ships its own
+# copy in the same directory, and the COPY merges rather than replaces. Getting
+# rid of that one would mean rebuilding the base image, which is not worth it.
 RUN pip install --no-cache-dir ./shared-lib && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /usr/local/lib/python3.13/site-packages/pip \
+           /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+           /usr/local/lib/python3.13/site-packages/setuptools \
+           /usr/local/lib/python3.13/site-packages/setuptools-*.dist-info \
+           /usr/local/lib/python3.13/site-packages/pkg_resources \
+           /usr/local/lib/python3.13/site-packages/wheel \
+           /usr/local/lib/python3.13/site-packages/wheel-*.dist-info
 
 # Stage 2: Runtime
 FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install runtime dependencies
+# curl is here for the health check. A Python one-liner would save the ~14 MB,
+# but it would also start a CPython process every 30 seconds, which on a Pi
+# costs more than the space is worth.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -30,8 +49,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Set Python path
-ENV PYTHONPATH=/app/src
+# PYTHONPATH so `python -m backend_service.main` finds the package.
+# PYTHONUNBUFFERED because Python buffers stdout when it is not attached to a
+# terminal, and a log line that arrives late is worth nothing while a box is
+# hanging.
+ENV PYTHONPATH=/app/src \
+    PYTHONUNBUFFERED=1
 
 # Copy application code (paths relative to context ./services)
 COPY backend-service/src/ ./src/

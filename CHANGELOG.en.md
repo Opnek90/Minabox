@@ -22,6 +22,36 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.0 - 2026-08-23
+
+#### Fixed
+- Deleting a track could, in rare cases, take the service's working directory
+  with it when no file had been stored for that track.
+- An unreachable podcast feed froze the box for up to 30 seconds per feed -
+  interface, buttons and cards stopped responding for that time.
+- On a fresh install the database migrations failed on every start. The
+  database is now built entirely from the migrations; existing boxes are
+  unaffected.
+- A failed upload no longer leaves an unplayable entry in the media library.
+- Saving the RFID settings no longer drops the other sections of the same
+  file.
+
+#### Added
+- New protected area "Player and cards": covers playback, card management,
+  history and the live connection. Off by default, so nothing changes about
+  the current behaviour.
+- The maximum upload size is now configurable and applies immediately.
+- Playlists can play in order instead of shuffled - what an audio play in
+  chapters needs.
+
+#### Improved
+- After five wrong passwords, signing in is locked for five minutes.
+- Settings are written so a power cut mid-write cannot leave a damaged file.
+- Uploads are bounded and no longer pass through memory in one piece; the
+  same applies to backup and restore.
+- Dashboard and history answer noticeably faster once data has accumulated.
+- The image is about 38 MB smaller.
+
 ### 0.1.12 - 2026-08-23
 
 ### 0.1.11 - 2026-08-23
@@ -118,6 +148,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.12 - 2026-08-23
+
+#### Added
+- New switch for the "Player and cards" protected area.
+- The maximum upload size can be set under Maintenance.
+- New switch for whether playlists shuffle or play in order.
 
 ### 0.1.11 - 2026-08-23
 

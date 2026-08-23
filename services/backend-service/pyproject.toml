@@ -9,13 +9,15 @@ description = "Minabox Backend Service - Central orchestration and data manageme
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.126.0,<0.127.0",
-    "uvicorn[standard]>=0.34.0,<0.35.0",
+    "uvicorn>=0.34.0,<0.35.0",
+    "uvloop>=0.21.0,<0.23.0",
+    "httptools>=0.6.0,<0.9.0",
+    "websockets>=13.0,<18.0",
     "pydantic>=2.12.0,<2.13.0",
     "sqlalchemy>=2.0.46,<2.1.0",
     "alembic>=1.15.0,<2.0.0",
     "aiomqtt>=2.5.0,<2.6.0",
     "structlog>=25.4.0,<25.5.0",
-    "tenacity>=9.0.0,<10.0.0",
     "mutagen>=1.47.0,<2.0.0",
     "python-multipart>=0.0.18",
     "feedparser>=6.0.0,<7.0.0",
