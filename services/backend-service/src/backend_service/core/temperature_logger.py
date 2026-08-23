@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -14,6 +12,7 @@ import structlog
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from backend_service.core.general_settings import read_general_settings
 from backend_service.models.database import TemperatureReading
 
 if TYPE_CHECKING:
@@ -26,29 +25,40 @@ LOG_INTERVAL_SECONDS = 5 * 60  # 5 minutes
 HOST_HELPER_TIMEOUT = 10.0
 RETENTION_DAYS = 30
 
-# Der Warnungsspeicher liegt in system_alerts - dort koennen mehrere Meldungen
-# nebeneinander stehen, ohne sich zu verdraengen. Hier nur noch re-exportiert,
-# damit bestehende Aufrufer unveraendert bleiben.
+# The alert store lives in system_alerts, where several notices can stand side
+# by side without displacing each other. Only re-exported here so existing
+# callers stay unchanged.
 from backend_service.core.system_alerts import (  # noqa: E402
     clear_alert,
     get_current_alert,
     set_alert,
 )
 
+# Named explicitly so the re-export survives an automatic import cleanup:
+# `get_current_alert` has no caller inside this module, only outside it.
+__all__ = [
+    "ALERT_TEMPERATURE_HIGH",
+    "clear_alert",
+    "get_current_alert",
+    "run_temperature_log_loop",
+    "set_alert",
+]
+
 ALERT_TEMPERATURE_HIGH = "temperature_high"
 
 
+DEFAULT_WARNING_CELSIUS = 80.0
+
+
 def _read_temperature_warning_celsius() -> float:
-    """Read temperature_warning_celsius from general_settings.json (default 80)."""
-    data_path = os.environ.get("DATA_PATH", "/data")
-    gs_path = Path(data_path) / "general_settings.json"
-    if not gs_path.exists():
-        return 80.0
+    """Temperature above which the box reports itself as overheating."""
     try:
-        data = json.loads(gs_path.read_text(encoding="utf-8"))
-        return max(0, min(100, float(data.get("temperature_warning_celsius", 80))))
-    except (OSError, ValueError, TypeError):
-        return 80.0
+        raw = read_general_settings().get(
+            "temperature_warning_celsius", DEFAULT_WARNING_CELSIUS
+        )
+        return max(0.0, min(100.0, float(raw)))
+    except (TypeError, ValueError):
+        return DEFAULT_WARNING_CELSIUS
 
 
 def _host_helper_url() -> str:

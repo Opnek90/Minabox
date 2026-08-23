@@ -67,6 +67,7 @@
   "led_test_failed": "LED test failed",
   "logo_save_failed": "Could not save logo",
   "logs_read_failed": "Could not read logs",
+  "login_locked_out": "Too many failed attempts - please wait a few minutes",
   "logs_unavailable": "Logs not available",
   "media_url_invalid": "Invalid media URL",
   "move_failed": "Move failed",

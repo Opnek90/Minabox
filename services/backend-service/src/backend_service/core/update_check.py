@@ -1,18 +1,18 @@
-"""Vergleicht die laufenden Dienstversionen mit dem veroeffentlichten Stand.
+"""Compares the running service versions against the published ones.
 
-Die Quelle ist `release-manifest.json` im Repository (docs/Versionierung.md):
-eine Datei, ein Abruf, je Dienst die aktuelle Version und die
-Aenderungsnotizen in beiden Sprachen.
+The source is `release-manifest.json` in the repository (docs/Versionierung.md):
+one file, one request, per service the current version and the release notes in
+both languages.
 
-Zwei Regeln bestimmen den Aufbau:
+Two rules shape this module:
 
-* **Kein Netz heisst niemals "Update verfuegbar".** Faellt der Abruf aus, wird
-  der letzte bekannte Stand gezeigt und der Fehler benannt - nie ein Update
-  behauptet, das niemand pruefen konnte.
-* **Angeboten wird nur, was auch abholbar ist.** Das Manifest wird mit dem
-  Commit veroeffentlicht, die Images erst wenn die CI durch ist. In diesem
-  Fenster kennt es eine Version, die es in der Registry noch nicht gibt.
-  Deshalb wird vor jedem Angebot geprueft, ob der Image-Tag wirklich liegt.
+* **No network never means "update available".** When the fetch fails, the last
+  known state is shown and the error is named - never an update that nobody
+  could verify.
+* **Only offer what can actually be pulled.** The manifest is published with the
+  commit, the images only once CI is through. In that window it knows a version
+  the registry does not have yet, so every candidate is checked against the
+  registry before it is offered.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ import httpx
 import structlog
 
 from backend_service.core import container_registry
+from backend_service.core.general_settings import read_general_settings
 from backend_service.core.system_alerts import clear_alert, set_alert
 
 logger = structlog.get_logger(__name__)
@@ -38,33 +39,22 @@ DEFAULT_MANIFEST_URL = (
 )
 DEFAULT_REGISTRY = "ghcr.io/opnek90"
 
-# Sechs Stunden: haeufig genug, dass ein Update nicht wochenlang unbemerkt
-# bleibt, selten genug, dass niemand die GitHub-Grenzen streift.
+# Six hours: often enough that an update does not go unnoticed for weeks, rare
+# enough that nobody brushes against GitHub's rate limits.
 CACHE_TTL_SECONDS = 6 * 60 * 60
 FETCH_TIMEOUT = 10.0
 
-# Wie oft der Hintergrund-Scan nachsieht. Der eigentliche Abruf bleibt durch
-# CACHE_TTL_SECONDS gebremst - dieses Intervall bestimmt nur, wie schnell ein
-# frisch eingeschalteter Scan reagiert und die Kopfzeile aktuell haelt.
+# How often the background scan looks. The fetch itself stays throttled by
+# CACHE_TTL_SECONDS - this interval only decides how quickly a freshly enabled
+# scan reacts and keeps the header hint current.
 POLL_INTERVAL_SECONDS = 30 * 60
 
 ALERT_UPDATE_AVAILABLE = "update_available"
 
 
-def _general_settings_path() -> Path:
-    return Path(os.environ.get("DATA_PATH", "/data")) / "general_settings.json"
-
-
 def _read_auto_update_check_enabled() -> bool:
-    """Ob der Hintergrund-Scan laufen soll (general_settings.json, Default aus)."""
-    path = _general_settings_path()
-    if not path.exists():
-        return False
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return bool(data.get("auto_update_check_enabled", False))
-    except (OSError, ValueError, TypeError):
-        return False
+    """Whether the background scan should run (default: off)."""
+    return bool(read_general_settings().get("auto_update_check_enabled", False))
 
 
 def _manifest_url() -> str:
@@ -76,7 +66,7 @@ def _cache_path() -> Path:
 
 
 def parse_version(version: str) -> tuple:
-    """Sortierschluessel fuer SemVer; ein Vorab-Kennzeichen sortiert davor."""
+    """Sort key for a SemVer string; a pre-release marker sorts before it."""
     core, _, pre = version.partition("-")
     try:
         numbers = tuple(int(part) for part in core.split("."))
@@ -94,15 +84,15 @@ async def _fetch_manifest(client: httpx.AsyncClient) -> dict[str, Any]:
     response.raise_for_status()
     data = response.json()
     if not isinstance(data, dict) or "services" not in data:
-        raise ValueError("Manifest hat kein 'services'-Feld")
+        raise ValueError("Manifest has no 'services' field")
     return data
 
 
 async def _tag_exists(client: httpx.AsyncClient, image: str, tag: str) -> bool:
-    """Liegt dieses Image mit diesem Tag wirklich in der Registry?
+    """Is this image really in the registry under this tag?
 
-    Ohne diese Pruefung wuerde in dem Fenster zwischen Commit und fertigem
-    CI-Build ein Update angeboten, das der Pull nicht finden kann.
+    Without the check, the window between the commit and the finished CI build
+    would offer an update that the pull cannot find.
     """
     repository = image.split("/", 1)[1] if "/" in image else image
     try:
@@ -112,8 +102,8 @@ async def _tag_exists(client: httpx.AsyncClient, image: str, tag: str) -> bool:
         )
         token = token_response.json().get("token") if token_response.is_success else None
         if not token:
-            # Private Pakete koennen wir nicht pruefen. Dann lieber anbieten
-            # als grundlos verschweigen - der Pull meldet sich notfalls selbst.
+            # Private packages cannot be checked. Better to offer than to
+            # withhold for no reason - the pull will say so if it has to.
             logger.debug("registry_token_unavailable", image=image)
             return True
         manifest = await client.head(
@@ -156,16 +146,16 @@ def _write_cache(payload: dict[str, Any]) -> None:
 def _build_entries(
     manifest: dict[str, Any], installed: dict[str, str]
 ) -> list[dict[str, Any]]:
-    """Je Dienst: was laeuft, was es gibt, und was dazwischen passiert ist."""
+    """Per service: what runs, what exists, and what happened in between."""
     entries: list[dict[str, Any]] = []
     services = manifest.get("services") or {}
 
     for service, running in sorted(installed.items()):
         info = services.get(service)
         if not info:
-            # Ein Dienst ohne Eintrag im Manifest - etwa der MQTT-Broker, der
-            # aus einem fremden Image kommt. Er wird gezeigt, aber nie als
-            # veraltet gemeldet.
+            # A service with no manifest entry - the MQTT broker, say, which
+            # comes from a third-party image. It is shown, but never reported
+            # as outdated.
             entries.append(
                 {
                     "service": service,
@@ -193,9 +183,8 @@ def _build_entries(
                 "latest": latest,
                 "update_available": bool(latest and is_newer(latest, running)),
                 "managed": True,
-                # Alle uebersprungenen Ausgaben, nicht nur die neueste - wer
-                # zwei Versionen ueberspringt, verlaere sonst die Haelfte der
-                # Information.
+                # Every release that was skipped, not just the newest: two
+                # versions behind, and half the information would be lost.
                 "releases": newer,
             }
         )
@@ -203,7 +192,7 @@ def _build_entries(
 
 
 async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, Any]:
-    """Update-Stand ermitteln. `installed` ist {dienst: laufende Version}."""
+    """Work out the update state. `installed` is {service: running version}."""
     cached = _read_cache()
     if not force and cached:
         age = time.time() - float(cached.get("cached_at") or 0)
@@ -211,7 +200,7 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
             return {**cached["result"], "from_cache": True}
 
     def _stale(error: str) -> dict[str, Any]:
-        """Fehlerfall: den letzten bekannten Stand zeigen, aber nichts behaupten."""
+        """On failure: show the last known state, but claim nothing."""
         if cached:
             return {**cached["result"], "from_cache": True, "error": error}
         return {
@@ -250,7 +239,7 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
                 )
                 for entry, published in zip(pending, results, strict=True):
                     if not published:
-                        # Das Manifest ist der CI voraus - noch nichts anbieten.
+                        # The manifest is ahead of CI - offer nothing yet.
                         entry["update_available"] = False
                         entry["pending_publish"] = True
                         entry["releases"] = []
@@ -275,11 +264,11 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
 
 
 async def apply_alert(result: dict[str, Any], ws_broadcast: Any) -> None:
-    """Kopfzeilen-Hinweis mit dem Befund abgleichen: setzen, oder zuruecknehmen.
+    """Reconcile the header hint with the finding: set it, or withdraw it.
 
-    Ein Fehlschlag beim Abruf (`result["error"]`) darf den Hinweis nicht
-    loeschen - das waere genau das Verschweigen, das update_check.py oben
-    ausschliesst. Er bleibt dann einfach stehen, bis ein Abruf gelingt.
+    A failed fetch (`result["error"]`) must not clear the hint - that would be
+    exactly the withholding this module rules out above. It simply stays until
+    a fetch succeeds.
     """
     if result.get("error"):
         return
@@ -309,12 +298,11 @@ async def apply_alert(result: dict[str, Any], ws_broadcast: Any) -> None:
 
 
 async def run_update_check_loop(ws_broadcast: Any) -> None:
-    """Hintergrund-Task: regelmaessig auf Updates pruefen, wenn eingeschaltet.
+    """Background task: check for updates regularly, while switched on.
 
-    Der eigentliche Netzabruf bleibt durch den Zwischenspeicher in `check()`
-    gebremst (CACHE_TTL_SECONDS) - dieser Task fragt nur oefter nach, ob
-    inzwischen ein neuer Stand faellig ist, und haelt den Hinweis in der
-    Kopfzeile aktuell.
+    The network fetch stays throttled by the cache in `check()`
+    (CACHE_TTL_SECONDS) - this task only asks more often whether a fresh look
+    is due, and keeps the header hint current.
     """
     await asyncio.sleep(60)  # initial delay before first check
 
@@ -333,7 +321,7 @@ async def run_update_check_loop(ws_broadcast: Any) -> None:
         except asyncio.CancelledError:
             break
         except Exception as e:
-            # Ein fehlgeschlagener Durchlauf darf den Hintergrund-Task nicht beenden.
+            # A failed round must not end the background task.
             logger.warning("update_check_loop_failed", error=str(e))
 
         try:

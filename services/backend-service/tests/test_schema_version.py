@@ -1,9 +1,9 @@
-"""Tests fuer den Schemastempel der Datenbank.
+"""Tests for the database schema stamp.
 
-Die Datenbank ueberlebt jedes Update; ausgetauscht werden nur die Container.
-Damit trifft neuer Code auf alte Daten - und beim Zurueckdrehen alter Code auf
-neue. Der zweite Fall lief frueher stillschweigend an und liess Daten als
-verschwunden erscheinen. Diese Tests halten fest, dass er jetzt erkannt wird.
+The database survives every update; only the containers are replaced. So new
+code meets old data - and a rollback means old code meets new. The second case
+used to start up silently and make data look like it had vanished. These tests
+pin down that it is detected now.
 """
 
 from __future__ import annotations
@@ -21,14 +21,14 @@ def db_path(tmp_path: Path) -> Path:
     return tmp_path / "test.db"
 
 
-# ── Stempel setzen und lesen ────────────────────────────────────────────────
+# ── Writing and reading the stamp ───────────────────────────────────────────
 
 
 def test_fresh_database_is_stamped(db_path: Path) -> None:
     manager = DatabaseManager(str(db_path))
     manager.connect()
 
-    # Eine neue Datei meldet 0 und wird auf den aktuellen Stand gehoben.
+    # A new file reports 0 and is brought up to the current state.
     assert manager.schema_state == {
         "expected": SCHEMA_VERSION,
         "found": 0,
@@ -48,7 +48,7 @@ def test_second_start_finds_nothing_to_do(db_path: Path) -> None:
 
 
 def test_database_from_before_the_stamp_is_migrated(db_path: Path) -> None:
-    """Bestehende Boxen haben keinen Stempel - sie duerfen nicht anecken."""
+    """Existing boxes carry no stamp - they must not trip over that."""
     manager = DatabaseManager(str(db_path))
     manager.connect()
     manager._write_schema_version(0)
@@ -60,11 +60,11 @@ def test_database_from_before_the_stamp_is_migrated(db_path: Path) -> None:
     assert again._read_schema_version() == SCHEMA_VERSION
 
 
-# ── Der Fall, um den es geht ────────────────────────────────────────────────
+# ── The case this is all about ─────────────────────────────────────────────
 
 
 def test_newer_database_is_detected(db_path: Path) -> None:
-    """Aelterer Code auf neuerer Datenbank: erkannt statt stillschweigend."""
+    """Older code on a newer database: detected instead of silent."""
     first = DatabaseManager(str(db_path))
     first.connect()
     first._write_schema_version(SCHEMA_VERSION + 5)
@@ -80,10 +80,10 @@ def test_newer_database_is_detected(db_path: Path) -> None:
 
 
 def test_newer_database_does_not_get_downgraded(db_path: Path) -> None:
-    """Der Stempel darf nicht zurueckgesetzt werden.
+    """The stamp must not be reset.
 
-    Sonst haette der naechste Start keinen Anhaltspunkt mehr, und aus einer
-    erkannten Lage waere wieder eine unbemerkte geworden.
+    Otherwise the next start would have nothing to go on, and a detected
+    situation would turn back into an unnoticed one.
     """
     first = DatabaseManager(str(db_path))
     first.connect()
@@ -96,7 +96,7 @@ def test_newer_database_does_not_get_downgraded(db_path: Path) -> None:
 
 
 def test_newer_database_still_connects(db_path: Path) -> None:
-    """Es wird nicht abgebrochen - eine tote Box laesst sich nicht diagnostizieren."""
+    """It does not abort - a dead box cannot be diagnosed."""
     first = DatabaseManager(str(db_path))
     first.connect()
     first._write_schema_version(SCHEMA_VERSION + 1)
@@ -111,18 +111,18 @@ def test_newer_database_still_connects(db_path: Path) -> None:
         session.close()
 
 
-# ── Meldung an die Oberflaeche ──────────────────────────────────────────────
+# ── What the WebUI is told ─────────────────────────────────────────────────
 
 
 def test_alert_store_keeps_both_alerts() -> None:
-    """Die Datenbankmeldung darf nicht von einer Temperaturwarnung verdraengt werden."""
+    """A temperature warning must not displace the database notice."""
     system_alerts.set_alert("db_schema_newer", "error", "alerts.db_schema_newer")
     system_alerts.set_alert("temperature_high", "warning", "alerts.temperature_high")
 
-    # Der Balken zeigt eine - und zwar die schwerwiegendere.
+    # The bar shows one - and it is the more severe one.
     assert system_alerts.get_current_alert()["code"] == "db_schema_newer"
     assert len(system_alerts.get_all_alerts()) == 2
 
-    # Kuehlt die Box ab, bleibt die Datenbankmeldung stehen.
+    # Once the box cools down, the database notice stays.
     system_alerts.clear_alert("temperature_high")
     assert system_alerts.get_current_alert()["code"] == "db_schema_newer"

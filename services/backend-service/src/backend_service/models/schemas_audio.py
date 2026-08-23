@@ -21,7 +21,7 @@ class AudioPlayCommand(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_single_content(self) -> "AudioPlayCommand":
+    def validate_single_content(self) -> AudioPlayCommand:
         """Ensure at most one of track_id, playlist_id, stream_id, podcast_id is provided."""
         provided = sum(
             1

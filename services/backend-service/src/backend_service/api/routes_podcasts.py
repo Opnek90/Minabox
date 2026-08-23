@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
+from backend_service.core.uploads import read_image_upload
 from backend_service.models.database import Podcast, PodcastEpisode, PodcastFolder
 from backend_service.models.schemas import (
     PodcastCreate,
@@ -77,12 +78,12 @@ def list_podcasts(
     result = []
     for p in podcasts:
         base = PodcastResponse.model_validate(p)
-        ep = latest_by_podcast.get(p.id)
+        latest = latest_by_podcast.get(p.id)
         result.append(
             base.model_copy(
                 update={
-                    "latest_episode_title": ep.title if ep else None,
-                    "latest_episode_published_at": ep.published_at if ep else None,
+                    "latest_episode_title": latest.title if latest else None,
+                    "latest_episode_published_at": latest.published_at if latest else None,
                 }
             )
         )
@@ -201,9 +202,9 @@ async def upload_podcast_cover(
     podcast = db.query(Podcast).filter(Podcast.id == podcast_id).first()
     if not podcast:
         raise ApiError(status_code=404, code="podcast_not_found", detail=f"Podcast {podcast_id} not found")
+    content = await read_image_upload(file)
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"podcast_{podcast_id}.jpg"
-    content = await file.read()
     cover_path.write_bytes(content)
     podcast.cover_art_url = f"/static/covers/podcast_{podcast_id}.jpg"
     db.commit()

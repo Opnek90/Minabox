@@ -1,14 +1,13 @@
-"""Aktive Systemwarnungen fuer den Hinweisbalken der Oberflaeche.
+"""Active system alerts for the notice bar in the WebUI.
 
-Vorher hielt der Temperatur-Logger eine einzige Warnung in einer
-Modulvariablen. Das reicht, solange es nur eine Sorte gibt - sobald eine
-zweite dazukommt, verdraengt die eine die andere: eine voruebergehende
-Temperaturwarnung haette die dauerhafte Meldung ueber eine unpassende
-Datenbank ueberschrieben, und beim Abkuehlen waere gar keine mehr uebrig.
+The temperature logger used to keep a single alert in a module variable. That
+works while there is only one kind - as soon as a second appears, one displaces
+the other: a passing temperature warning would overwrite the standing notice
+about an incompatible database, and once the box cooled down there would be
+none left at all.
 
-Deshalb liegen die Warnungen hier nach Kennung getrennt, und ``get_current_alert``
-zeigt die schwerwiegendste. Der Balken zeigt weiterhin nur eine - aber die
-richtige.
+So alerts live here keyed by code, and ``get_current_alert`` returns the most
+severe one. The bar still shows a single alert - but the right one.
 """
 
 from __future__ import annotations
@@ -19,14 +18,14 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-# Je hoeher, desto wichtiger - entscheidet, welche Warnung der Balken zeigt.
+# Higher wins: this decides which alert the bar shows.
 _SEVERITY = {"info": 0, "warning": 1, "error": 2}
 
 _alerts: dict[str, dict[str, Any]] = {}
 
 
 def set_alert(code: str, level: str, message: str) -> dict[str, Any]:
-    """Eine Warnung setzen oder aktualisieren. `message` ist ein i18n-Schluessel."""
+    """Raise or update an alert. `message` is an i18n key, not display text."""
     alert = {"code": code, "level": level, "message": message}
     _alerts[code] = alert
     logger.info("system_alert_set", code=code, level=level)
@@ -34,7 +33,7 @@ def set_alert(code: str, level: str, message: str) -> dict[str, Any]:
 
 
 def clear_alert(code: str) -> bool:
-    """Eine Warnung zuruecknehmen. True, wenn es sie gab."""
+    """Withdraw an alert. True when there was one."""
     if _alerts.pop(code, None) is not None:
         logger.info("system_alert_cleared", code=code)
         return True
@@ -42,14 +41,14 @@ def clear_alert(code: str) -> bool:
 
 
 def get_current_alert() -> dict[str, Any] | None:
-    """Die schwerwiegendste aktive Warnung, oder None."""
+    """The most severe active alert, or None."""
     if not _alerts:
         return None
     return max(_alerts.values(), key=lambda a: _SEVERITY.get(a.get("level", "info"), 0))
 
 
 def get_all_alerts() -> list[dict[str, Any]]:
-    """Alle aktiven Warnungen, schwerwiegendste zuerst."""
+    """Every active alert, most severe first."""
     return sorted(
         _alerts.values(),
         key=lambda a: _SEVERITY.get(a.get("level", "info"), 0),
@@ -58,5 +57,5 @@ def get_all_alerts() -> list[dict[str, Any]]:
 
 
 def clear_all() -> None:
-    """Alles zuruecksetzen - fuer Tests."""
+    """Drop everything - for tests."""
     _alerts.clear()

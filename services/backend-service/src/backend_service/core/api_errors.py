@@ -1,12 +1,11 @@
-"""HTTP-Fehler mit stabilem, uebersetzbarem Code fuer die WebUI.
+"""HTTP errors carrying a stable, translatable code for the WebUI.
 
-`detail` bleibt ein englischer, entwicklerorientierter Text (Logs, curl,
-GitHub Issues). `code` ist das, was die WebUI dem Nutzer tatsaechlich zeigt -
-uebersetzt ueber den `errors`-i18n-Namespace, mit `generic_error` als
-Fallback fuer unbekannte Codes. Ein Tippfehler in `detail` ist damit folgenlos
-fuer die Anzeige; ein Tippfehler in `code` faellt lediglich auf den
-generischen Text zurueck statt eine falsche Sprache oder ein rohes JSON
-anzuzeigen.
+`detail` stays English and developer-facing - logs, curl, issue reports.
+`code` is what the WebUI actually shows the user, translated through the
+`errors` i18n namespace with `generic_error` as the fallback for unknown codes.
+A typo in `detail` therefore has no effect on what anyone sees; a typo in
+`code` merely falls back to the generic text, rather than showing the wrong
+language or raw JSON.
 """
 
 from __future__ import annotations
@@ -18,10 +17,10 @@ from fastapi.responses import JSONResponse
 
 
 class ApiError(HTTPException):
-    """HTTPException, die zusaetzlich einen stabilen `code` traegt.
+    """An HTTPException that also carries a stable `code`.
 
-    `extra` haengt weitere Felder an den JSON-Body (z. B. `retry_after` bei
-    Rate-Limits) - fuer die uebersetzte Anzeige selbst reicht `code`.
+    `extra` adds further fields to the JSON body (``retry_after`` on a rate
+    limit, say). For the translated message itself, `code` is all it takes.
     """
 
     def __init__(

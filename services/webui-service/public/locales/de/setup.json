@@ -35,6 +35,7 @@
     "area_admin": "Einstellungen",
     "area_media": "Mediathek",
     "area_dashboard": "Eltern-Dashboard",
+    "area_player": "Player und Karten",
     "already_set": "Es ist bereits ein Passwort gesetzt. Dieser Schritt kann übersprungen werden.",
     "skip_note": "Ohne Passwort bleibt die Minabox im Heimnetz für alle offen.",
     "saved": "Passwort gespeichert."

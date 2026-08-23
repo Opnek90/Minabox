@@ -29,6 +29,7 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import Response
+from shared_lib.version import get_version
 
 from backend_service.api.routes_auth import COOKIE_NAME
 from backend_service.config import get_config
@@ -139,7 +140,7 @@ def _has_admin_session(request: Request) -> bool:
 def _versions() -> dict[str, Any]:
     config = get_config()
     return {
-        "backend": "0.1.0",
+        "backend": get_version(),
         "schema_version": SCHEMA_VERSION,
         "device_id": config.device_id,
         "generated_at": datetime.now(UTC).isoformat(),

@@ -541,12 +541,16 @@ export interface GeneralConfig {
   playback_end_behavior?: PlaybackEndBehavior;
   /** Minutes of continuous repetition before the box fades out; 0 = no limit. */
   playback_loop_guard_minutes?: number;
+  /** Play a playlist in random order. Default true, which is what the box always did. */
+  playlist_shuffle?: boolean;
   /** True once the setup wizard has been completed (or explicitly dismissed). */
   setup_completed?: boolean;
   /** Version of the wizard that was completed; lets a later release offer it again. */
   setup_version?: number;
   /** Periodic background scan for updates; shows a header hint when one is ready. */
   auto_update_check_enabled?: boolean;
+  /** Largest audio upload accepted over the web UI, in MB. Applied without a restart. */
+  max_upload_size_mb?: number;
 }
 
 export interface SleepTimerStatus {

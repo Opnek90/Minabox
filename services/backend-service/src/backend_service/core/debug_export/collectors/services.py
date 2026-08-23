@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 import structlog
 
+from backend_service.core.debug_export import logfilter
 from backend_service.core.debug_export.framework import (
     BLOCK_LOGS,
     BLOCK_NETWORK,
@@ -20,7 +21,6 @@ from backend_service.core.debug_export.framework import (
     ExportContext,
     register,
 )
-from backend_service.core.debug_export import logfilter
 from backend_service.core.debug_export.redaction import pseudonymize
 
 logger = structlog.get_logger(__name__)
@@ -41,7 +41,7 @@ async def collect_service_health(ctx: ExportContext) -> dict[str, Any]:
         url = SERVICE_HEALTH_URLS.get(service_id)
         entry: dict[str, Any] = {"service": service_id}
         if not url:
-            entry["state"] = "nicht geprüft"
+            entry["state"] = "not checked"
             return entry
         try:
             async with httpx.AsyncClient(timeout=HEALTH_TIMEOUT) as client:
@@ -177,9 +177,9 @@ async def collect_service_logs(ctx: ExportContext) -> dict[str, Any]:
     if missing:
         files["services/logs_missing.json"] = {
             "services": missing,
-            "hinweis": (
-                "Für diese Dienste waren keine Logs abrufbar. Das kann bedeuten, "
-                "dass der Container nicht existiert - was selbst ein Befund ist."
+            "note": (
+                "No logs could be fetched for these services. It may mean the "
+                "container does not exist - which is a finding in itself."
             ),
         }
     return files
@@ -203,7 +203,7 @@ async def collect_syslog(ctx: ExportContext) -> dict[str, Any]:
     if not api_key:
         return {
             "logs/syslog_unavailable.json": {
-                "grund": "Host-Helper nicht konfiguriert (HOST_HELPER_API_KEY fehlt)"
+                "reason": "Host-Helper not configured (HOST_HELPER_API_KEY missing)"
             }
         }
 
@@ -224,7 +224,7 @@ async def collect_syslog(ctx: ExportContext) -> dict[str, Any]:
             )
             if response.status_code != 200:
                 files[f"logs/syslog-{source}.txt"] = (
-                    f"(Host-Helper antwortete mit HTTP {response.status_code})"
+                    f"(Host-Helper answered with HTTP {response.status_code})"
                 )
                 continue
             lines = [str(line) for line in ((response.json() or {}).get("lines") or [])]
@@ -241,14 +241,14 @@ async def collect_syslog(ctx: ExportContext) -> dict[str, Any]:
                 )
         except Exception as e:
             files[f"logs/syslog-{source}.txt"] = (
-                f"(nicht abrufbar: {type(e).__name__}: {e})"
+                f"(not retrievable: {type(e).__name__}: {e})"
             )
 
     files["logs/kernel_findings.json"] = {
         "undervoltage_or_throttling_lines": undervoltage_hits,
-        "hinweis": (
-            "Zählt Zeilen im Kernel-Log, die Unterspannung oder Drosselung melden. "
-            "Ersetzt die Historie-Bits von vcgencmd."
+        "note": (
+            "Counts kernel-log lines reporting under-voltage or throttling. "
+            "Replaces the history bits from vcgencmd."
         ),
     }
     return files
@@ -272,7 +272,7 @@ async def collect_host_diagnostics(ctx: ExportContext) -> dict[str, Any]:
     if response.status_code == 404:
         return {
             "system/systemd.json": {
-                "error": "Host-Helper kennt /diagnostics/host nicht - ältere Version?"
+                "error": "Host-Helper does not know /diagnostics/host - older version?"
             }
         }
     if response.status_code != 200:
@@ -289,7 +289,7 @@ async def collect_network(ctx: ExportContext) -> dict[str, Any]:
     if not api_key:
         return {
             "system/network.json": {
-                "grund": "Host-Helper nicht konfiguriert (HOST_HELPER_API_KEY fehlt)"
+                "reason": "Host-Helper not configured (HOST_HELPER_API_KEY missing)"
             }
         }
 

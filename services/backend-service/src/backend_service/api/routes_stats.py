@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import os
-from pathlib import Path
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -18,25 +18,20 @@ from backend_service.core.playback_stats import (
     get_total_listened_minutes,
     minutes_for_event,
 )
-from backend_service.models.database import PlaybackEvent, Playlist, Podcast, Stream, Tag, Track
+from backend_service.core.usage_limits import read_daily_limit_settings
+from backend_service.models.database import (
+    PlaybackEvent,
+    Playlist,
+    Podcast,
+    Stream,
+    Tag,
+    Track,
+)
 
 router = APIRouter()
 
 DATA_PATH = Path(os.environ.get("DATA_PATH", "/data"))
 GENERAL_SETTINGS_PATH = DATA_PATH / "general_settings.json"
-
-
-def _read_daily_limit() -> tuple[bool, int]:
-    """Read daily_limit_enabled and daily_limit_minutes from general_settings.json."""
-    if not GENERAL_SETTINGS_PATH.exists():
-        return (False, 120)
-    try:
-        data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
-        enabled = bool(data.get("daily_limit_enabled", False))
-        minutes = max(1, min(1440, int(data.get("daily_limit_minutes", 120))))
-        return (enabled, minutes)
-    except (OSError, ValueError, json.JSONDecodeError, TypeError):
-        return (False, 120)
 
 
 class MinutesPerDayItem(BaseModel):
@@ -104,7 +99,7 @@ def get_overview(db: Session = Depends(get_db)) -> OverviewResponse:
     """
     minutes_today = get_today_listened_minutes(db) + get_live_listened_minutes(db)
     minutes_total = get_total_listened_minutes(db)
-    daily_limit_enabled, daily_limit_minutes = _read_daily_limit()
+    daily_limit_enabled, daily_limit_minutes = read_daily_limit_settings()
     tags_count = db.query(Tag).count()
     tracks_count = db.query(Track).count()
     streams_count = db.query(Stream).count()
@@ -129,7 +124,7 @@ def get_overview(db: Session = Depends(get_db)) -> OverviewResponse:
     summary="Reset listening statistics (Parent Dashboard)",
 )
 def reset_listening_stats(db: Session = Depends(get_db)) -> None:
-    """Delete all playback events. Heute gehört and Gesamt gehört become 0."""
+    """Delete all playback events. Both today's and the total listening time become 0."""
     db.query(PlaybackEvent).delete()
     db.commit()
 
@@ -148,7 +143,7 @@ def get_usage_today(db: Session = Depends(get_db)) -> UsageTodayResponse:
     cutting off active playback.
     """
     minutes_today = get_today_listened_minutes(db) + get_live_listened_minutes(db)
-    daily_limit_enabled, daily_limit_minutes = _read_daily_limit()
+    daily_limit_enabled, daily_limit_minutes = read_daily_limit_settings()
     return UsageTodayResponse(
         minutes_today=round(minutes_today, 1),
         daily_limit_enabled=daily_limit_enabled,

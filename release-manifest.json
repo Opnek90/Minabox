@@ -57,8 +57,58 @@
       ]
     },
     "backend": {
-      "latest": "0.1.12",
+      "latest": "0.2.0",
       "releases": [
+        {
+          "version": "0.2.0",
+          "date": "2026-08-23",
+          "notes": {
+            "added": {
+              "de": [
+                "Neuer Schutzbereich \"Player und Karten\": schuetzt Wiedergabe, Karten- verwaltung, Verlauf und die Live-Verbindung. Standardmaessig aus, damit sich am bisherigen Verhalten nichts aendert.",
+                "Die maximale Upload-Groesse laesst sich jetzt einstellen und wirkt sofort.",
+                "Playlists lassen sich der Reihe nach abspielen statt zufaellig - passend fuer Hoerspiele in Kapiteln."
+              ],
+              "en": [
+                "New protected area \"Player and cards\": covers playback, card management, history and the live connection. Off by default, so nothing changes about the current behaviour.",
+                "The maximum upload size is now configurable and applies immediately.",
+                "Playlists can play in order instead of shuffled - what an audio play in chapters needs."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Nach fuenf falschen Passwoertern ist die Anmeldung fuer fuenf Minuten gesperrt.",
+                "Einstellungen werden so gespeichert, dass ein Stromausfall mitten im Schreiben keine beschaedigte Datei hinterlaesst.",
+                "Uploads sind begrenzt und laufen nicht mehr komplett durch den Arbeitsspeicher; das gilt auch fuer Backup und Wiederherstellung.",
+                "Dashboard und Verlauf antworten auf gewachsenen Datenbestaenden spuerbar schneller.",
+                "Das Image ist rund 38 MB kleiner."
+              ],
+              "en": [
+                "After five wrong passwords, signing in is locked for five minutes.",
+                "Settings are written so a power cut mid-write cannot leave a damaged file.",
+                "Uploads are bounded and no longer pass through memory in one piece; the same applies to backup and restore.",
+                "Dashboard and history answer noticeably faster once data has accumulated.",
+                "The image is about 38 MB smaller."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Das Loeschen eines Titels konnte in seltenen Faellen das Arbeitsverzeichnis des Dienstes mitloeschen, wenn zu dem Titel keine Datei gespeichert war.",
+                "Ein nicht erreichbarer Podcast-Feed legte die Box fuer bis zu 30 Sekunden je Feed lahm - Oberflaeche, Tasten und Karten reagierten in dieser Zeit nicht.",
+                "Bei einer Neuinstallation schlugen die Datenbank-Migrationen bei jedem Start fehl. Die Datenbank wird jetzt vollstaendig ueber die Migrationen aufgebaut; bestehende Boxen bleiben unveraendert.",
+                "Ein fehlgeschlagener Upload hinterlaesst keinen unabspielbaren Eintrag mehr in der Mediathek.",
+                "Beim Speichern der RFID-Einstellungen gingen andere Abschnitte derselben Datei verloren."
+              ],
+              "en": [
+                "Deleting a track could, in rare cases, take the service's working directory with it when no file had been stored for that track.",
+                "An unreachable podcast feed froze the box for up to 30 seconds per feed - interface, buttons and cards stopped responding for that time.",
+                "On a fresh install the database migrations failed on every start. The database is now built entirely from the migrations; existing boxes are unaffected.",
+                "A failed upload no longer leaves an unplayable entry in the media library.",
+                "Saving the RFID settings no longer drops the other sections of the same file."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.12",
           "date": "2026-08-23",
@@ -509,8 +559,26 @@
       ]
     },
     "webui": {
-      "latest": "0.1.11",
+      "latest": "0.1.12",
       "releases": [
+        {
+          "version": "0.1.12",
+          "date": "2026-08-23",
+          "notes": {
+            "added": {
+              "de": [
+                "Neuer Schalter fuer den Schutzbereich \"Player und Karten\".",
+                "Die maximale Upload-Groesse laesst sich unter Wartung einstellen.",
+                "Neuer Schalter, ob Playlists zufaellig oder der Reihe nach laufen."
+              ],
+              "en": [
+                "New switch for the \"Player and cards\" protected area.",
+                "The maximum upload size can be set under Maintenance.",
+                "New switch for whether playlists shuffle or play in order."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.11",
           "date": "2026-08-23",

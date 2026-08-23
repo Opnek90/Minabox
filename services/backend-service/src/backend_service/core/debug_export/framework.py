@@ -212,12 +212,14 @@ class Collector:
 REGISTRY: dict[str, Collector] = {}
 
 
-def register(name: str, block: str, *, timeout: float = 10.0, bulky: bool = False):
+def register(
+    name: str, block: str, *, timeout: float = 10.0, bulky: bool = False
+) -> Callable[[Callable[[ExportContext], Any]], Callable[[ExportContext], Any]]:
     """Register a collector under a fixed name (the allowlist)."""
 
     def decorator(fn: Callable[[ExportContext], Any]) -> Callable[[ExportContext], Any]:
         if name in REGISTRY:
-            raise ValueError(f"Collector {name} bereits registriert")
+            raise ValueError(f"Collector {name} is already registered")
         REGISTRY[name] = Collector(
             name=name, block=block, fn=fn, timeout=timeout, bulky=bulky
         )
@@ -273,7 +275,7 @@ async def _run_one(collector: Collector, ctx: ExportContext) -> CollectorOutcome
         ms = int((time.monotonic() - started) * 1000)
         logger.warning("debug_export_collector_timeout", collector=collector.name)
         return CollectorOutcome(
-            collector.name, "failed", ms, error="Zeitüberschreitung"
+            collector.name, "failed", ms, error="Timed out"
         )
     except Exception as e:  # a broken box is exactly when this runs
         ms = int((time.monotonic() - started) * 1000)
@@ -288,23 +290,24 @@ async def _run_one(collector: Collector, ctx: ExportContext) -> CollectorOutcome
     files = files or {}
     if not isinstance(files, dict):
         return CollectorOutcome(
-            collector.name, "failed", ms, error="Collector lieferte kein Dateiobjekt"
+            collector.name, "failed", ms, error="Collector returned no file mapping"
         )
     if not files:
         return CollectorOutcome(collector.name, "empty", ms)
 
     # A collector that caught its own exception and returned it as file content
-    # used to land in the manifest as "ok" - the triage then reported "kein
-    # Befund" while the data was in fact missing. Judged here, centrally, so a
+    # used to land in the manifest as "ok" - the triage then reported "nothing
+    # found" while the data was in fact missing. Judged here, centrally, so a
     # new collector cannot get this wrong again.
     errors = [_error_only_payload(payload) for payload in files.values()]
-    if all(error is not None for error in errors):
+    messages = [error for error in errors if error is not None]
+    if len(messages) == len(errors):
         return CollectorOutcome(
             collector.name,
             "failed",
             ms,
             files=files,
-            error="; ".join(dict.fromkeys(errors)),
+            error="; ".join(dict.fromkeys(messages)),
         )
 
     return CollectorOutcome(collector.name, "ok", ms, files=files)
@@ -410,7 +413,7 @@ def build_archive(
                             {
                                 "path": rel_path,
                                 "status": "dropped",
-                                "reason": "Größenbudget",
+                                "reason": "size budget",
                             }
                         )
                         continue
@@ -458,7 +461,7 @@ class SecretLeakUnresolved(RuntimeError):
     """A secret survived literal removal - the export is aborted."""
 
     def __init__(self, path: str, names: list[str]) -> None:
-        super().__init__(f"Geheimnis in {path} nicht entfernbar: {', '.join(names)}")
+        super().__init__(f"Secret in {path} could not be removed: {', '.join(names)}")
         self.path = path
         self.names = names
 

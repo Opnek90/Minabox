@@ -15,8 +15,8 @@ import signal
 import structlog
 
 from backend_service.app_factory import BackendService, setup_structlog
-from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 from backend_service.config import load_app_config
+from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 
 logger = structlog.get_logger(__name__)
 
@@ -24,9 +24,8 @@ logger = structlog.get_logger(__name__)
 async def main() -> None:
     """Main async entry point."""
     config = load_app_config()
-    # Der Ringpuffer haelt die letzten Warnungen und Fehler im Speicher, damit
-    # das Diagnose-Paket sie auch dann noch enthaelt, wenn die Container-Logs
-    # laengst rotiert sind.
+    # The ring buffer keeps the last warnings and errors in memory, so the
+    # debug export still contains them long after the container logs rotated.
     setup_structlog(
         config.env.log_level,
         silence_loggers=["alembic.runtime.migration", "sqlalchemy.engine"],
@@ -48,10 +47,7 @@ async def main() -> None:
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
-            loop.add_signal_handler(
-                sig,
-                lambda s=sig: signal_handler(s),
-            )
+            loop.add_signal_handler(sig, signal_handler, sig)
         except NotImplementedError:
             break
 

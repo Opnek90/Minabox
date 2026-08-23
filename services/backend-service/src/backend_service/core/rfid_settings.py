@@ -2,25 +2,12 @@
 
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
-
-
-def _read_general_settings() -> dict:
-    data_path = os.environ.get("DATA_PATH", "/data")
-    gs_path = Path(data_path) / "general_settings.json"
-    try:
-        if gs_path.exists():
-            return json.loads(gs_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
-        pass
-    return {}
+from backend_service.core.general_settings import read_general_settings
 
 
 def read_stop_playback_on_tag_remove() -> bool:
     """Return True if playback should stop when the RFID tag is removed."""
-    return bool(_read_general_settings().get("stop_playback_on_tag_remove", False))
+    return bool(read_general_settings().get("stop_playback_on_tag_remove", False))
 
 
 def read_resume_on_tag_rescan() -> bool:
@@ -29,7 +16,7 @@ def read_resume_on_tag_rescan() -> bool:
 
     Defaults to True so the feature is opt-out rather than opt-in.
     """
-    return bool(_read_general_settings().get("resume_on_tag_rescan", True))
+    return bool(read_general_settings().get("resume_on_tag_rescan", True))
 
 
 __all__ = [

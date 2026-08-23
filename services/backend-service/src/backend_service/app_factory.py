@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
+from typing import Any
 
 import structlog
 import uvicorn
@@ -34,7 +35,7 @@ from backend_service.api.routes_system import set_mqtt_client as set_system_mqtt
 from backend_service.api.websocket import websocket_endpoint, ws_manager
 from backend_service.config_schema import AppConfig
 from backend_service.core.api_errors import ApiError, api_error_handler
-from backend_service.core.db_manager import init_db
+from backend_service.core.db_manager import DatabaseManager, init_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.mqtt_handlers import MQTTHandlers
 from backend_service.core.podcast_fetcher import run_podcast_fetch_loop
@@ -57,7 +58,7 @@ class BackendService:
         self._mqtt_task: asyncio.Task | None = None
         self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
-        self._db = None
+        self._db: DatabaseManager | None = None
         self._podcast_fetch_task: asyncio.Task | None = None
         self._temperature_log_task: asyncio.Task | None = None
         self._update_check_task: asyncio.Task | None = None
@@ -68,17 +69,13 @@ class BackendService:
 
         # Initialize database
         logger.debug("initializing_database", path=self.config.database_path)
+        # init_db() brings the schema up to date itself - the ordering matters,
+        # because the column migrations that follow assume the tables exist.
         self._db = init_db(self.config.database_path)
 
-        try:
-            self._db.run_migrations()
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.warning("migration_failed", error=str(exc))
-
-        # Aeltere Fassung auf neuerer Datenbank: es wird trotzdem gestartet,
-        # damit die Box diagnostizierbar bleibt - aber der Hinweisbalken sagt
-        # es unuebersehbar, statt dass Daten stillschweigend als verschwunden
-        # gelten (docs/Versionierung.md).
+        # Older code on a newer database: it starts anyway, so the box stays
+        # diagnosable - but the notice bar says so unmissably rather than
+        # letting data quietly count as lost (docs/Versionierung.md).
         if self._db.schema_state.get("status") == "too_new":
             set_alert("db_schema_newer", "error", "alerts.db_schema_newer")
 
@@ -211,7 +208,9 @@ class BackendService:
             description="Central orchestration and data management for Minabox",
             version=__version__,
         )
-        app.add_exception_handler(ApiError, api_error_handler)
+        # Starlette types the handler against Exception; ours narrows to
+        # ApiError, which is exactly the point of registering it.
+        app.add_exception_handler(ApiError, api_error_handler)  # type: ignore[arg-type]
 
         # CORS middleware: origins are loaded from config to allow per-environment
         # restriction. Use CORS_ALLOWED_ORIGINS=['*'] in .env for local dev;
@@ -229,7 +228,7 @@ class BackendService:
 
         # Root-level health check (Framework standard: /health)
         @app.get("/health")
-        async def root_health_check():
+        async def root_health_check() -> dict[str, Any]:
             mqtt_connected = self._mqtt_client.is_connected if self._mqtt_client else False
             db_ok = self._db is not None
             # Startup/readiness: API is usable once DB is up; MQTT can lag behind.

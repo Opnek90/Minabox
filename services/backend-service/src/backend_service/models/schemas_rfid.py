@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -40,14 +40,14 @@ class TagScanEventResponse(BaseModel):
 
     id: int
     tag_id: str  # maps from DB column tag_uid
-    tag_name: Optional[str] = None
-    media_title: Optional[str] = None
-    media_type: Optional[str] = None
+    tag_name: str | None = None
+    media_title: str | None = None
+    media_type: str | None = None
     action: Literal["play", "blocked", "unassigned"]
     scanned_at: datetime
 
     @classmethod
-    def from_orm_event(cls, event: object) -> "TagScanEventResponse":
+    def from_orm_event(cls, event: object) -> TagScanEventResponse:
         """Map DB column tag_uid -> response field tag_id."""
         return cls(
             id=event.id,  # type: ignore[attr-defined]

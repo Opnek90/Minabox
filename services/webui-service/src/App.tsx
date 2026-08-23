@@ -226,14 +226,23 @@ const MainLayout: React.FC = () => {
             <Suspense fallback={<LoadingSpinner fullPage />}>
               <Routes>
                 <Route path="/" element={<Navigate to="/player" replace />} />
-                <Route path="/player" element={<PlayerPage />} />
+                <Route
+                  path="/player"
+                  element={
+                    <ProtectedRoute path="/player">
+                      <PlayerPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/rfid"
                   element={
-                    <RfidPage
-                      pendingTagId={pendingTagId}
-                      onPendingTagHandled={() => setPendingTagId(null)}
-                    />
+                    <ProtectedRoute path="/rfid">
+                      <RfidPage
+                        pendingTagId={pendingTagId}
+                        onPendingTagHandled={() => setPendingTagId(null)}
+                      />
+                    </ProtectedRoute>
                   }
                 />
                 <Route

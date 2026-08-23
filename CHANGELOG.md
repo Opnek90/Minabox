@@ -23,6 +23,41 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.0 - 2026-08-23
+
+#### Behoben
+- Das Loeschen eines Titels konnte in seltenen Faellen das Arbeitsverzeichnis
+  des Dienstes mitloeschen, wenn zu dem Titel keine Datei gespeichert war.
+- Ein nicht erreichbarer Podcast-Feed legte die Box fuer bis zu 30 Sekunden
+  je Feed lahm - Oberflaeche, Tasten und Karten reagierten in dieser Zeit
+  nicht.
+- Bei einer Neuinstallation schlugen die Datenbank-Migrationen bei jedem
+  Start fehl. Die Datenbank wird jetzt vollstaendig ueber die Migrationen
+  aufgebaut; bestehende Boxen bleiben unveraendert.
+- Ein fehlgeschlagener Upload hinterlaesst keinen unabspielbaren Eintrag
+  mehr in der Mediathek.
+- Beim Speichern der RFID-Einstellungen gingen andere Abschnitte derselben
+  Datei verloren.
+
+#### Neu
+- Neuer Schutzbereich "Player und Karten": schuetzt Wiedergabe, Karten-
+  verwaltung, Verlauf und die Live-Verbindung. Standardmaessig aus, damit
+  sich am bisherigen Verhalten nichts aendert.
+- Die maximale Upload-Groesse laesst sich jetzt einstellen und wirkt sofort.
+- Playlists lassen sich der Reihe nach abspielen statt zufaellig - passend
+  fuer Hoerspiele in Kapiteln.
+
+#### Verbessert
+- Nach fuenf falschen Passwoertern ist die Anmeldung fuer fuenf Minuten
+  gesperrt.
+- Einstellungen werden so gespeichert, dass ein Stromausfall mitten im
+  Schreiben keine beschaedigte Datei hinterlaesst.
+- Uploads sind begrenzt und laufen nicht mehr komplett durch den
+  Arbeitsspeicher; das gilt auch fuer Backup und Wiederherstellung.
+- Dashboard und Verlauf antworten auf gewachsenen Datenbestaenden spuerbar
+  schneller.
+- Das Image ist rund 38 MB kleiner.
+
 ### 0.1.12 - 2026-08-23
 
 ### 0.1.11 - 2026-08-23
@@ -120,6 +155,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.12 - 2026-08-23
+
+#### Neu
+- Neuer Schalter fuer den Schutzbereich "Player und Karten".
+- Die maximale Upload-Groesse laesst sich unter Wartung einstellen.
+- Neuer Schalter, ob Playlists zufaellig oder der Reihe nach laufen.
 
 ### 0.1.11 - 2026-08-23
 

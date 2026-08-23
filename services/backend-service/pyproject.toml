@@ -9,17 +9,21 @@ description = "Minabox Backend Service - Central orchestration and data manageme
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.126.0,<0.127.0",
-    "uvicorn[standard]>=0.34.0,<0.35.0",
+    "uvicorn>=0.34.0,<0.35.0",
+    "uvloop>=0.21.0,<0.23.0",
+    "httptools>=0.6.0,<0.9.0",
+    "websockets>=13.0,<18.0",
     "pydantic>=2.12.0,<2.13.0",
     "sqlalchemy>=2.0.46,<2.1.0",
     "alembic>=1.15.0,<2.0.0",
     "aiomqtt>=2.5.0,<2.6.0",
     "structlog>=25.4.0,<25.5.0",
-    "tenacity>=9.0.0,<10.0.0",
     "mutagen>=1.47.0,<2.0.0",
     "python-multipart>=0.0.18",
     "feedparser>=6.0.0,<7.0.0",
     "httpx>=0.28.0,<0.29.0",
+    "bcrypt>=4.1.0,<6.0.0",
+    "PyJWT>=2.8.0,<3.0.0",
     "minabox-shared @ file:../shared-lib",
 ]
 
@@ -48,9 +52,25 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.13"
 warn_unused_configs = true
+# Every function carries a signature. This one holds and is worth keeping: it
+# is what makes the rest of the checking possible at all.
 disallow_untyped_defs = true
-warn_return_any = true
 
+# warn_return_any is deliberately off. Almost everything this service reads is
+# untyped by nature - JSON settings files, MQTT payloads, proxied responses from
+# other services - so json.loads() and response.json() hand back Any and the
+# rule fires on roughly fifty honest functions. It produced noise, not findings,
+# and a rule that is always ignored is worse than one that is not set.
+warn_return_any = false
+
+# Third-party packages that ship no type information. Naming them here keeps
+# "this library is untyped" apart from "this import is broken".
 [[tool.mypy.overrides]]
-module = "alembic.*"
+module = ["alembic.*", "docker.*", "feedparser.*", "mutagen.*", "jose.*"]
+ignore_missing_imports = true
+
+# shared_lib has no py.typed marker yet. Adding one means touching shared-lib,
+# which makes every dependent service a changed service - see docs/Versionierung.md.
+[[tool.mypy.overrides]]
+module = "shared_lib.*"
 ignore_missing_imports = true

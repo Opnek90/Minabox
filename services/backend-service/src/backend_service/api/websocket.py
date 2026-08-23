@@ -7,7 +7,15 @@ from typing import Any
 import structlog
 from fastapi import WebSocket, WebSocketDisconnect
 
+from backend_service.core.auth import verify_session_token
+
 logger = structlog.get_logger(__name__)
+
+#: Close code for a policy violation (RFC 6455). Distinguishable from a normal
+#: disconnect, so the WebUI can tell "not allowed" from "connection dropped".
+WS_POLICY_VIOLATION = 1008
+
+COOKIE_NAME = "minabox_session"
 
 
 class WebSocketManager:
@@ -117,12 +125,35 @@ class WebSocketManager:
 ws_manager = WebSocketManager()
 
 
+def _may_connect(websocket: WebSocket) -> bool:
+    """Whether this client is allowed on the live feed.
+
+    The HTTP middleware never sees a WebSocket handshake, so the check has to
+    happen here. The feed carries what the `player` area guards - audio status,
+    scanned cards, button presses - so it follows that area. With the area off
+    (the default) this always allows the connection.
+    """
+    # Imported here rather than at module scope: middleware/auth.py imports
+    # routes_auth for the cookie name, and that chain leads back to this module.
+    from backend_service.middleware.auth import area_requires_session
+
+    if not area_requires_session("player"):
+        return True
+    token = websocket.cookies.get(COOKIE_NAME)
+    return bool(token and verify_session_token(token))
+
+
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time communication.
 
     Args:
         websocket: WebSocket connection
     """
+    if not _may_connect(websocket):
+        logger.warning("websocket_rejected_unauthenticated")
+        await websocket.close(code=WS_POLICY_VIOLATION)
+        return
+
     await ws_manager.connect(websocket)
 
     try:

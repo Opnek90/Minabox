@@ -132,23 +132,49 @@ def fetch_and_store_episodes(session: Session, podcast: Podcast) -> int:
     return added
 
 
-async def run_podcast_fetch_loop(db_manager: "DatabaseManager | None") -> None:
-    """Background task: fetch all podcast RSS feeds after initial delay, then every 24h."""
+def fetch_all_podcasts(db_manager: DatabaseManager) -> int:
+    """Fetch every feed once. Returns the number of new episodes.
+
+    Blocking from start to finish - both the HTTP request and the feed parsing
+    are synchronous - so it opens its own session and is only ever called
+    through a worker thread. See `run_podcast_fetch_loop`.
+    """
+    added = 0
+    session = db_manager.get_session()
+    try:
+        for podcast in session.query(Podcast).all():
+            try:
+                added += fetch_and_store_episodes(session, podcast)
+            except Exception as e:
+                logger.exception("podcast_fetch_error", podcast_id=podcast.id, error=str(e))
+    finally:
+        session.close()
+    return added
+
+
+async def run_podcast_fetch_loop(db_manager: DatabaseManager | None) -> None:
+    """Background task: fetch all podcast RSS feeds after an initial delay, then every 24h.
+
+    The work runs in a worker thread. It used to run directly on the event
+    loop, where a single unreachable feed blocked everything the service does
+    for the full 30 second timeout - no REST, no WebSocket, no MQTT dispatch.
+    With a handful of feeds that added up to minutes of a frozen box.
+    """
     if not db_manager:
         return
     await asyncio.sleep(60)  # first run 1 minute after start
     while True:
-        session = db_manager.get_session()
         try:
-            podcasts = session.query(Podcast).all()
-            for podcast in podcasts:
-                try:
-                    fetch_and_store_episodes(session, podcast)
-                except Exception as e:
-                    logger.exception("podcast_fetch_error", podcast_id=podcast.id, error=str(e))
-        finally:
-            session.close()
+            await asyncio.to_thread(fetch_all_podcasts, db_manager)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            # A failed round must not end the background task.
+            logger.warning("podcast_fetch_round_failed", error=str(e))
+
         try:
             await asyncio.sleep(FETCH_INTERVAL_SECONDS)
         except asyncio.CancelledError:
             break
+
+    logger.info("podcast_fetch_loop_stopped")

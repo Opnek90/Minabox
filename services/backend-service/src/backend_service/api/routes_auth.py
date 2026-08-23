@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import structlog
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
@@ -11,6 +13,7 @@ from backend_service.core.auth import (
     AUTH_SETTINGS_PATH,
     create_session_token,
     hash_password,
+    normalize_areas,
     read_auth_settings,
     verify_password,
     verify_session_token,
@@ -22,11 +25,67 @@ router = APIRouter()
 
 COOKIE_NAME = "minabox_session"
 COOKIE_MAX_AGE = 86400  # 24h
-AREA_TO_PATH = {"admin": "/admin", "media": "/media", "dashboard": "/dashboard"}
+
+# One area can guard more than one page: the card management screen is backed
+# by the same routes as the player, so protecting one without the other would
+# leave a page that loads and then fails with 401s.
+AREA_TO_PATHS: dict[str, list[str]] = {
+    "admin": ["/admin"],
+    "media": ["/media"],
+    "dashboard": ["/dashboard"],
+    "player": ["/player", "/rfid"],
+}
+
+# Brute force: bcrypt alone is not a rate limit, and the minimum password is
+# four characters. After this many failures from one address, that address has
+# to wait - long enough to make guessing pointless, short enough that a parent
+# who mistyped is not locked out for the evening.
+LOGIN_MAX_FAILURES = 5
+LOGIN_LOCKOUT_SECONDS = 300
+
+#: address -> (failure count, time of the last failure)
+_login_failures: dict[str, tuple[int, float]] = {}
 
 
 def _protected_paths(protected_areas: list[str]) -> list[str]:
-    return [AREA_TO_PATH[a] for a in protected_areas if a in AREA_TO_PATH]
+    paths: list[str] = []
+    for area in protected_areas:
+        paths.extend(AREA_TO_PATHS.get(area, []))
+    return paths
+
+
+def _client_address(request: Request) -> str:
+    """The peer address of the connection.
+
+    Deliberately not X-Forwarded-For: that header is set by the caller, so
+    trusting it would let an attacker reset their own lockout at will.
+    """
+    return request.client.host if request.client else "unknown"
+
+
+def _lockout_remaining(address: str) -> int:
+    """Seconds this address still has to wait, 0 when it may try."""
+    failures, last_seen = _login_failures.get(address, (0, 0.0))
+    if failures < LOGIN_MAX_FAILURES:
+        return 0
+    elapsed = time.monotonic() - last_seen
+    if elapsed >= LOGIN_LOCKOUT_SECONDS:
+        _login_failures.pop(address, None)
+        return 0
+    return int(LOGIN_LOCKOUT_SECONDS - elapsed)
+
+
+def _record_login_failure(address: str) -> None:
+    failures, _ = _login_failures.get(address, (0, 0.0))
+    _login_failures[address] = (failures + 1, time.monotonic())
+
+
+def reset_login_failures(address: str | None = None) -> None:
+    """Clear the failure counter - after a success, or wholesale in tests."""
+    if address is None:
+        _login_failures.clear()
+    else:
+        _login_failures.pop(address, None)
 
 
 class LoginBody(BaseModel):
@@ -66,7 +125,7 @@ async def get_auth_config() -> dict:
 
 
 @router.post("/login")
-async def login(body: LoginBody, response: Response) -> dict:
+async def login(body: LoginBody, request: Request, response: Response) -> dict:
     """Verify password and set session cookie. No auth required."""
     settings = read_auth_settings()
     hash_val = (settings.get("web_password_hash") or "").strip()
@@ -75,13 +134,28 @@ async def login(body: LoginBody, response: Response) -> dict:
     if not auth_enabled:
         return {"ok": True}
 
+    address = _client_address(request)
+    waiting = _lockout_remaining(address)
+    if waiting:
+        logger.warning("auth_login_locked_out", client=address, retry_after=waiting)
+        raise ApiError(
+            status_code=429,
+            code="login_locked_out",
+            detail=f"Too many failed attempts. Try again in {waiting} seconds.",
+            headers={"Retry-After": str(max(1, waiting))},
+            extra={"retry_after": waiting},
+        )
+
     password = (body.password or "").strip()
     if not password:
         raise ApiError(status_code=400, code="password_required", detail="Password required")
 
     if not verify_password(password, hash_val):
+        _record_login_failure(address)
+        logger.warning("auth_login_failed", client=address)
         raise ApiError(status_code=401, code="invalid_password", detail="Invalid password")
 
+    reset_login_failures(address)
     token = create_session_token()
     response.set_cookie(
         key=COOKIE_NAME,
@@ -172,6 +246,6 @@ async def update_auth_config(body: ConfigUpdateBody, request: Request) -> dict:
     if auth_enabled:
         _require_auth(request)
 
-    areas = [str(x).strip() for x in (body.protected_areas or []) if str(x).strip() in ("admin", "media", "dashboard")]
+    areas = normalize_areas(body.protected_areas)
     write_auth_settings({"web_password_hash": settings.get("web_password_hash") or "", "protected_areas": areas})
     return {"authEnabled": auth_enabled, "protectedPaths": _protected_paths(areas)}

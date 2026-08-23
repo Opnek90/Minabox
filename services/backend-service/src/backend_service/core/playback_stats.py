@@ -81,8 +81,10 @@ def get_live_listened_minutes(db: Session) -> float:
         .filter(PlaybackEvent.ended_at.is_(None))
         .all()
     )
-    return sum(
-        min(e.listened_ms / 60_000.0, MAX_MINUTES_PER_EVENT)
-        for e in events
-        if getattr(e, "listened_ms", None) is not None and e.listened_ms > 0
-    )
+    total = 0.0
+    for event in events:
+        listened_ms = event.listened_ms
+        if listened_ms is None or listened_ms <= 0:
+            continue
+        total += min(listened_ms / 60_000.0, MAX_MINUTES_PER_EVENT)
+    return total

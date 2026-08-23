@@ -15,6 +15,7 @@ from backend_service.core.handlers.utils import (
 from backend_service.core.playback_settings import read_loop_guard_minutes
 from backend_service.core.session_manager import (
     PlaybackSession,
+    RepeatMode,
     SessionTrack,
     session_manager,
 )
@@ -26,7 +27,7 @@ logger = structlog.get_logger(__name__)
 
 
 class ButtonHandler:
-    def __init__(self, dispatcher: "MQTTHandlers") -> None:
+    def __init__(self, dispatcher: MQTTHandlers) -> None:
         self.dispatcher = dispatcher
 
     async def handle_button_action(self, topic: str, data: dict[str, Any]) -> None:
@@ -231,7 +232,7 @@ class ButtonHandler:
 
     async def _handle_repeat_cycle(self) -> None:
         current = session_manager.get_repeat_mode()
-        next_mode = "all" if current == "none" else "none"
+        next_mode: RepeatMode = "all" if current == "none" else "none"
         session_manager.set_repeat_mode(next_mode)
         if self.dispatcher.websocket_manager:
             await self.dispatcher.websocket_manager.broadcast({

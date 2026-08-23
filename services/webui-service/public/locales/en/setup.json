@@ -35,6 +35,7 @@
     "area_admin": "Settings",
     "area_media": "Media library",
     "area_dashboard": "Parent dashboard",
+    "area_player": "Player and cards",
     "already_set": "A password is already set. This step can be skipped.",
     "skip_note": "Without a password the Minabox stays open to everyone on the network.",
     "saved": "Password saved."

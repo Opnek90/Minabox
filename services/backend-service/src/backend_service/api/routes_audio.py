@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
-import os
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
@@ -18,7 +15,12 @@ from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.core.mqtt_client import MQTTClient
 from backend_service.core.playback_stats import get_today_listened_minutes
-from backend_service.core.session_manager import SessionTrack, session_manager
+from backend_service.core.session_manager import (
+    RepeatMode,
+    SessionTrack,
+    session_manager,
+)
+from backend_service.core.usage_limits import read_daily_limit_settings
 from backend_service.models.database import (
     PlaybackEvent,
     Playlist,
@@ -56,24 +58,9 @@ def set_mqtt_handlers(handlers: MQTTHandlers) -> None:
     _mqtt_handlers = handlers
 
 
-def _read_daily_limit() -> tuple[bool, int]:
-    """Read daily_limit_enabled and daily_limit_minutes from general_settings.json."""
-    data_path = os.environ.get("DATA_PATH", "/data")
-    gs_path = Path(data_path) / "general_settings.json"
-    try:
-        if gs_path.exists():
-            data = json.loads(gs_path.read_text(encoding="utf-8"))
-            enabled = bool(data.get("daily_limit_enabled", False))
-            minutes = max(1, min(1440, int(data.get("daily_limit_minutes", 120))))
-            return (enabled, minutes)
-    except (OSError, ValueError, json.JSONDecodeError, TypeError):
-        pass
-    return (False, 120)
-
-
 def _check_daily_limit(db: Session) -> None:
     """Raise HTTPException 403 if daily limit is enabled and exceeded."""
-    enabled, limit_minutes = _read_daily_limit()
+    enabled, limit_minutes = read_daily_limit_settings()
     if not enabled:
         return
     today_min = get_today_listened_minutes(db)
@@ -223,9 +210,10 @@ async def play_audio(
         tracks = [pt.track for pt in pts]
         if not tracks:
             raise ApiError(status_code=400, code="playlist_empty", detail="Playlist is empty")
-        session_manager.create_session(tracks=tracks, playlist_id=playlist.id, shuffle=True)
-        sess = session_manager.session
-        first_track = sess.current_track
+        session = session_manager.create_session(tracks=tracks, playlist_id=playlist.id)
+        first_track = session.current_track
+        if first_track is None:  # pragma: no cover - tracks was checked above
+            raise ApiError(status_code=400, code="playlist_empty", detail="Playlist is empty")
         db.add(
             PlaybackEvent(
                 started_at=datetime.now(UTC),
@@ -239,19 +227,19 @@ async def play_audio(
         return {"status": "ok", "message": "Playlist playback started"}
 
     _check_daily_limit(db)
-    track = db.query(Track).filter(Track.id == command.track_id).first()
-    if not track:
+    db_track = db.query(Track).filter(Track.id == command.track_id).first()
+    if not db_track:
         raise ApiError(status_code=404, code="track_not_found", detail="Track not found")
-    session_manager.create_session(tracks=[track])
+    session_manager.create_session(tracks=[db_track])
     db.add(
         PlaybackEvent(
             started_at=datetime.now(UTC),
             content_type="track",
-            track_id=track.id,
+            track_id=db_track.id,
         )
     )
     db.commit()
-    payload = _build_play_payload(track, start_ms)
+    payload = _build_play_payload(db_track, start_ms)
     await _mqtt_client.publish_audio_command("play", payload)
     return {"status": "ok", "message": "Play command sent"}
 
@@ -400,7 +388,7 @@ async def cancel_sleep_timer() -> dict:
 
 
 class RepeatModeRequest(BaseModel):
-    mode: str = Field(..., pattern="^(none|all)$")
+    mode: RepeatMode
 
 
 @router.get("/session")
@@ -451,17 +439,17 @@ async def get_audio_devices(
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_devices_timeout")
-        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout") from None
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_devices_error", status=e.response.status_code)
         raise ApiError(
             status_code=502 if e.response.status_code >= 500 else 400,
             code="audio_service_error",
             detail=e.response.text or "Audio service error",
-        )
+        ) from e
     except Exception as e:
         logger.warning("audio_service_devices_failed", error=str(e))
-        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable") from e
 
 
 class SwitchDeviceRequest(BaseModel):
@@ -500,17 +488,17 @@ async def switch_audio_device(body: SwitchDeviceRequest) -> dict:
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_switch_device_timeout")
-        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout") from None
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_switch_device_error", status=e.response.status_code)
         raise ApiError(
             status_code=502 if e.response.status_code >= 500 else 400,
             code="audio_service_error",
             detail=e.response.text or "Audio service error",
-        )
+        ) from e
     except Exception as e:
         logger.warning("audio_service_switch_device_failed", error=str(e))
-        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable") from e
 
 
 class TestToneRequest(BaseModel):
@@ -530,8 +518,8 @@ async def play_test_tone(body: TestToneRequest | None = None) -> dict:
     played alongside any current playback, not instead of it.
     """
     payload = {"sink_name": body.sink_name if body else None}
-    # Der Zeitrahmen muss ueber der Tonlaenge plus Anlaufzeit liegen, sonst
-    # laeuft der Proxy ab, waehrend der Ton noch spielt.
+    # The budget has to exceed the tone plus its start-up time, or the proxy
+    # times out while the tone is still playing.
     timeout = AUDIO_SERVICE_TIMEOUT + 10.0
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -543,14 +531,14 @@ async def play_test_tone(body: TestToneRequest | None = None) -> dict:
             return r.json()
     except httpx.TimeoutException:
         logger.warning("audio_service_test_tone_timeout")
-        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout") from None
     except httpx.HTTPStatusError as e:
         logger.warning("audio_service_test_tone_error", status=e.response.status_code)
         raise ApiError(
             status_code=502 if e.response.status_code >= 500 else e.response.status_code,
             code="audio_service_error",
             detail=e.response.text or "Audio service error",
-        )
+        ) from e
     except Exception as e:
         logger.warning("audio_service_test_tone_failed", error=str(e))
-        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable")
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable") from e

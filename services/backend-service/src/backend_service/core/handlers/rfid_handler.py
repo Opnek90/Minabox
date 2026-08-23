@@ -69,7 +69,7 @@ def _record_scan_event(
 
 
 class RFIDHandler:
-    def __init__(self, dispatcher: "MQTTHandlers") -> None:
+    def __init__(self, dispatcher: MQTTHandlers) -> None:
         self.dispatcher = dispatcher
         self.tag_scan_cooldown_until: dict[str, float] = {}
         self.last_played_tag_id: str | None = None
@@ -214,6 +214,12 @@ class RFIDHandler:
             )
 
             tag_db_id = tag.id
+            if tag.content_id is None:
+                # An unassigned card: it exists, it is not blocked, but there is
+                # nothing to play. The scan is already recorded above.
+                logger.info("tag_without_content", tag_id=tag_id)
+                return
+
             if tag.content_type == "playlist":
                 await self._handle_playlist_playback(session, tag.content_id, tag_id=tag_db_id)
             elif tag.content_type == "track":
@@ -260,8 +266,11 @@ class RFIDHandler:
             return
 
         tracks = [pt.track for pt in playlist_tracks]
-        session_manager.create_session(tracks=tracks, playlist_id=playlist_id, shuffle=True)
-        first_track = session_manager.session.current_track if session_manager.session else tracks[0]
+        playback = session_manager.create_session(tracks=tracks, playlist_id=playlist_id)
+        first_track = playback.current_track
+        if first_track is None:  # pragma: no cover - the list was checked above
+            logger.warning("playlist_session_empty", playlist_id=playlist_id)
+            return
 
         event = PlaybackEvent(started_at=datetime.now(UTC), content_type="playlist", playlist_id=playlist_id, tag_id=tag_id)
         session.add(event)

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
+from backend_service.core.uploads import read_image_upload
 from backend_service.models.database import Stream, StreamFolder
 from backend_service.models.schemas import (
     StreamCreate,
@@ -76,7 +77,7 @@ def create_stream(
     db.commit()
     db.refresh(stream)
     logger.info("api_stream_created", stream_id=stream.id, title=stream.title)
-    return stream
+    return StreamResponse.model_validate(stream)
 
 
 @router.put("/{stream_id}", response_model=StreamResponse)
@@ -134,9 +135,9 @@ async def upload_stream_cover(
     stream = db.query(Stream).filter(Stream.id == stream_id).first()
     if not stream:
         raise ApiError(status_code=404, code="stream_not_found", detail=f"Stream {stream_id} not found")
+    content = await read_image_upload(file)
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"stream_{stream_id}.jpg"
-    content = await file.read()
     cover_path.write_bytes(content)
     stream.cover_art_url = f"/static/covers/stream_{stream_id}.jpg"
     db.commit()

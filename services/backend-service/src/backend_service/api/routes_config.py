@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 import httpx
 import structlog
@@ -16,11 +17,18 @@ from backend_service.api.websocket import ws_manager
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
 from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
+from backend_service.core.json_store import write_json_atomic
 from backend_service.core.playback_settings import (
     DEFAULT_END_BEHAVIOR,
     DEFAULT_LOOP_GUARD_MINUTES,
+    DEFAULT_PLAYLIST_SHUFFLE,
     clamp_end_behavior,
     clamp_loop_guard_minutes,
+)
+from backend_service.core.uploads import (
+    clamp_upload_size_mb,
+    max_upload_size_mb,
+    read_image_upload,
 )
 
 # Static files directory (shared with static mount in main.py)
@@ -32,7 +40,7 @@ router = APIRouter()
 _mqtt_client = None
 
 
-def set_mqtt_client(client) -> None:  # noqa: ANN001
+def set_mqtt_client(client: Any) -> None:
     """Inject MQTT client (called from main.py at startup)."""
     global _mqtt_client
     _mqtt_client = client
@@ -139,7 +147,11 @@ def _general_settings_read() -> dict:
     resume_on_tag_rescan = True
     playback_end_behavior = DEFAULT_END_BEHAVIOR
     playback_loop_guard_minutes = DEFAULT_LOOP_GUARD_MINUTES
+    playlist_shuffle = DEFAULT_PLAYLIST_SHUFFLE
     auto_update_check_enabled = False
+    # Read through the same helper the upload path uses, so the value shown in
+    # the WebUI is exactly the one that will be enforced.
+    upload_size_mb = max_upload_size_mb()
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -159,6 +171,9 @@ def _general_settings_read() -> dict:
                     data["playback_loop_guard_minutes"]
                 )
             auto_update_check_enabled = bool(data.get("auto_update_check_enabled", False))
+            playlist_shuffle = bool(data.get("playlist_shuffle", DEFAULT_PLAYLIST_SHUFFLE))
+            if "max_upload_size_mb" in data:
+                upload_size_mb = clamp_upload_size_mb(data["max_upload_size_mb"])
             raw_times = data.get("allowed_usage_times")
             if isinstance(raw_times, list):
                 allowed_usage_times = [
@@ -186,8 +201,10 @@ def _general_settings_read() -> dict:
         "resume_on_tag_rescan": resume_on_tag_rescan,
         "playback_end_behavior": playback_end_behavior,
         "playback_loop_guard_minutes": playback_loop_guard_minutes,
+        "playlist_shuffle": playlist_shuffle,
         "allowed_usage_times": allowed_usage_times,
         "auto_update_check_enabled": auto_update_check_enabled,
+        "max_upload_size_mb": upload_size_mb,
     }
 
 
@@ -225,11 +242,13 @@ async def update_general_config(body: dict) -> dict:
         "resume_on_tag_rescan",
         "playback_end_behavior",
         "playback_loop_guard_minutes",
+        "playlist_shuffle",
         "allowed_usage_times",
         "auto_update_check_enabled",
-        # Ersteinrichtungs-Assistent (docs/services/webui/Setup-Wizard.md).
-        # Fehlen die Schluessel hier, verwirft der Filter unten sie
-        # stillschweigend und der Assistent kaeme bei jedem Aufruf wieder.
+        "max_upload_size_mb",
+        # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
+        # keys the filter below drops them silently, and the wizard would come
+        # back on every visit.
         "setup_completed",
         "setup_version",
     }
@@ -271,8 +290,12 @@ async def update_general_config(body: dict) -> dict:
     if "allowed_usage_times" in data:
         raw = data["allowed_usage_times"]
         data["allowed_usage_times"] = _validate_allowed_usage_times(raw if isinstance(raw, list) else [])
+    if "playlist_shuffle" in data:
+        data["playlist_shuffle"] = bool(data["playlist_shuffle"])
     if "auto_update_check_enabled" in data:
         data["auto_update_check_enabled"] = bool(data["auto_update_check_enabled"])
+    if "max_upload_size_mb" in data:
+        data["max_upload_size_mb"] = clamp_upload_size_mb(data["max_upload_size_mb"])
     try:
         GENERAL_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
         # Merge with existing file so partial updates (e.g. from Child or Control tab) do not drop other keys
@@ -283,9 +306,7 @@ async def update_general_config(body: dict) -> dict:
             except (json.JSONDecodeError, OSError):
                 pass
         to_write.update(data)
-        GENERAL_SETTINGS_PATH.write_text(
-            json.dumps(to_write, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        write_json_atomic(GENERAL_SETTINGS_PATH, to_write)
     except OSError as e:
         logger.error("general_config_write_failed", error=str(e))
         raise ApiError(status_code=500, code="general_settings_write_failed", detail="Failed to write general settings") from e
@@ -295,8 +316,8 @@ async def update_general_config(body: dict) -> dict:
 
     # Live-update log level in this process and broadcast to other services
     if "log_level" in data:
-        # Ohne extra_processors wuerde der Ringpuffer des Diagnose-Pakets beim
-        # Umschalten des Log-Levels stillschweigend abgehaengt.
+        # Without extra_processors, switching the log level would silently
+        # detach the debug export's ring buffer.
         setup_structlog(
             data["log_level"],
             silence_loggers=["alembic.runtime.migration", "sqlalchemy.engine"],
@@ -319,6 +340,46 @@ CONFIG_FILES = {
     "rfid": ("rfid", "rfid.json"),
     "display": ("display", "display.json"),
 }
+
+
+# What each service config must structurally look like: the top-level key it
+# cannot do without, and its type.
+#
+# Deliberately not the Pydantic models in models/schemas_config.py - those
+# describe something else entirely (a `brightness` field for LEDs, for
+# instance, where the real file holds a list of LEDs with GPIO pins and
+# bindings). Validating against them would reject every legitimate save.
+#
+# A structural check is enough for what goes wrong in practice: a body that
+# lost its content on the way and would leave the other service with a config
+# it cannot start from.
+_CONFIG_SHAPE: dict[str, tuple[str, type]] = {
+    "leds": ("leds", list),
+    "buttons": ("buttons", list),
+    "display": ("elements", list),
+}
+
+
+def _validate_config_shape(service: str, body: dict) -> None:
+    """Reject a config body that would leave the service unable to start."""
+    expected = _CONFIG_SHAPE.get(service)
+    if expected is None:
+        return
+    key, kind = expected
+    value = body.get(key)
+    if not isinstance(value, kind):
+        logger.warning(
+            "config_rejected_bad_shape",
+            service=service,
+            expected_key=key,
+            expected_type=kind.__name__,
+            got=type(value).__name__,
+        )
+        raise ApiError(
+            status_code=422,
+            code="config_invalid",
+            detail=f"{service} config must contain '{key}' as a {kind.__name__}",
+        )
 
 
 def _config_path(service: str) -> Path | None:
@@ -364,14 +425,14 @@ async def update_audio_config(body: dict) -> dict:
             except (json.JSONDecodeError, OSError):
                 pass
         merged = {**current, **body}
-        path.write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomic(path, merged)
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("audio", "config/reload")
             await _mqtt_client.publish(topic, {})
             logger.info("audio_config_reload_published", topic=topic)
-        # Ohne diesen Push merkt eine offene Player-Seite nichts von neuen
-        # Lautstaerke-Grenzen und zeigt bis zum Reload den alten Regler-Bereich.
+        # Without this push an open player page never learns about new volume
+        # limits and keeps the old slider range until it is reloaded.
         await ws_manager.broadcast({"type": "audio_config", "data": merged})
         return merged
     except OSError as e:
@@ -404,9 +465,9 @@ async def update_leds_config(body: dict) -> dict:
     path = _config_path("leds")
     if not path or not path.exists():
         raise ApiError(status_code=503, code="led_config_unavailable", detail="LED config not available")
+    _validate_config_shape("leds", body)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomic(path, body)
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("led", "config/reload")
@@ -466,9 +527,9 @@ async def update_buttons_config(body: dict) -> dict:
     path = _config_path("buttons")
     if not path or not path.exists():
         raise ApiError(status_code=503, code="button_config_unavailable", detail="Button config not available")
+    _validate_config_shape("buttons", body)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomic(path, body)
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("button", "config/reload")
@@ -537,9 +598,9 @@ async def update_display_config(body: dict) -> dict:
     path = _config_path("display")
     if path is None:
         raise ApiError(status_code=503, code="display_config_unavailable", detail="Display config not available")
+    _validate_config_shape("display", body)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_json_atomic(path, body)
         if _mqtt_client is not None:
             config = get_config()
             topic = config.get_mqtt_topic("display", "config/reload")
@@ -611,9 +672,18 @@ async def update_rfid_config(body: dict) -> dict:
     if not path or not path.exists():
         raise ApiError(status_code=503, code="rfid_config_unavailable", detail="RFID config not available")
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        nested = _rfid_nest(body)
-        path.write_text(json.dumps(nested, indent=2, ensure_ascii=False), encoding="utf-8")
+        # Merge, do not replace: _rfid_nest only builds the `reader` block, and
+        # writing that alone used to drop the `modes` and `service` sections the
+        # RFID service also reads from this file.
+        current: dict = {}
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                current = loaded
+        except (json.JSONDecodeError, OSError):
+            pass
+        nested = {**current, **_rfid_nest(body)}
+        write_json_atomic(path, nested)
         return _rfid_flatten(nested)
     except OSError as e:
         logger.error("config_write_failed", service="rfid", error=str(e))
@@ -627,10 +697,10 @@ async def update_rfid_config(body: dict) -> dict:
 @router.post("/logo")
 async def upload_logo(file: UploadFile = File(...)) -> dict:
     """Upload a custom logo image (stored as /data/static/logo.png)."""
+    content = await read_image_upload(file)
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     logo_path = STATIC_DIR / "logo.png"
     try:
-        content = await file.read()
         logo_path.write_bytes(content)
         logger.info("logo_uploaded", size=len(content))
         return {"url": "/static/logo.png"}

@@ -6,9 +6,10 @@ Extracted from app_factory._create_app() for testability and clarity.
 
 from __future__ import annotations
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from collections.abc import Awaitable, Callable
+
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from backend_service.api.routes_auth import COOKIE_NAME
 from backend_service.core.auth import read_auth_settings, verify_session_token
@@ -24,6 +25,14 @@ _PROTECTED_PREFIXES: dict[str, str] = {
     "/api/v1/streams": "media",
     "/api/v1/podcasts": "media",
     "/api/v1/stats": "dashboard",
+    # The `player` area. These are off by default: the player is the everyday
+    # screen, and a box where a child cannot press play is not the default
+    # anyone wants. Switching the area on covers the live WebSocket too - see
+    # api/websocket.py - because it carries the same events these routes do.
+    "/api/v1/audio": "player",
+    "/api/v1/tags": "player",
+    "/api/v1/rfid": "player",
+    "/api/v1/scan-history": "player",
 }
 
 # Paths that are always publicly accessible (auth endpoints themselves).
@@ -43,7 +52,21 @@ _PUBLIC_PATHS: frozenset[str] = frozenset({
 })
 
 
-async def web_auth_middleware(request: Request, call_next):
+def area_requires_session(area: str) -> bool:
+    """True when this area is behind the password on this box.
+
+    Shared with the WebSocket endpoint, which sits outside the middleware and
+    would otherwise hand out the same events without a check.
+    """
+    settings = read_auth_settings()
+    if not (settings.get("web_password_hash") or "").strip():
+        return False
+    return area in set(settings.get("protected_areas") or [])
+
+
+async def web_auth_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """Require a valid session cookie for protected API paths.
 
     Short-circuits immediately for:

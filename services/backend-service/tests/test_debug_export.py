@@ -87,7 +87,7 @@ def test_tripwire_finds_and_removes_real_values():
 def test_tripwire_ignores_short_values():
     """Short values produce false positives and are not worth protecting."""
     tripwire = SecretTripwire({"env:PORT": "1883"})
-    assert tripwire.find("mqtt läuft auf 1883") == []
+    assert tripwire.find("mqtt runs on 1883") == []
 
 
 # ── Options ──────────────────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ async def test_collector_timeout_is_recorded_not_raised(clean_registry):
 
     outcomes = await fw.run_collectors(_context())
     assert outcomes[0].status == "failed"
-    assert "Zeit" in outcomes[0].error
+    assert "Timed out" in outcomes[0].error
 
 
 @pytest.mark.asyncio
@@ -260,7 +260,7 @@ async def test_manifest_carries_the_failed_status(clean_registry):
 async def test_deselected_blocks_are_reported_as_skipped(clean_registry):
     @fw.register("test.history", fw.BLOCK_HISTORY)
     def history(ctx):  # pragma: no cover - must not run
-        raise AssertionError("darf nicht laufen")
+        raise AssertionError("must not run")
 
     options = fw.ExportOptions.from_payload({"history": False})
     outcomes = await fw.run_collectors(_context(options=options))
@@ -325,7 +325,7 @@ def test_size_budget_truncates_logs_before_dropping_essentials(clean_registry):
 
     names = _read_archive(archive).namelist()
     assert "system/state.json" in names  # essentials survive
-    assert manifest["truncations"], "Kuerzung muss im Manifest stehen"
+    assert manifest["truncations"], "the truncation has to be recorded in the manifest"
     truncated = manifest["truncations"][0]
     assert truncated["path"] == "services/audio/logs.txt"
     assert truncated["status"] == "truncated"
@@ -377,9 +377,10 @@ def test_json_files_are_scrubbed_on_the_way_into_the_archive():
         ("fd00::1", True),
         ("8.8.8.8", False),
         ("93.184.216.34", False),
-        # Python zaehlt die Dokumentations- und Benchmark-Netze zu is_private,
-        # weil sie nicht routbar sind. Fuer die Frage "kommt der Aufruf aus dem
-        # Internet?" ist das richtig, auch wenn der Name anderes vermuten laesst.
+        # Python counts the documentation and benchmark ranges as private,
+        # because they are not routable. For the question this check asks -
+        # "did the call come from the internet?" - that is the right answer,
+        # even though the names suggest otherwise.
         ("203.0.113.7", True),
         ("kein-ip", False),
         (None, False),

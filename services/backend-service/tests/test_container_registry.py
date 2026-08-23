@@ -42,7 +42,7 @@ def _container(
         }
     return SimpleNamespace(
         name=name,
-        # Das SDK bietet beides an: .labels als Kurzweg und dieselben Werte
+        # The SDK offers both: .labels as a shortcut and the same values
         # unter attrs["Config"]["Labels"].
         labels=labels,
         attrs={
@@ -61,9 +61,9 @@ def _container(
     [
         ("running", "healthy", "online"),
         ("running", None, "online"),
-        # Waehrend der start_period laeuft der Container und tut das Richtige -
-        # ihn offline zu nennen wuerde jeden Neustart wie einen Ausfall aussehen
-        # lassen.
+        # During the start period the container is up and doing the right
+        # thing - calling it offline would make every restart look like a
+        # failure.
         ("running", "starting", "online"),
         ("running", "unhealthy", "error"),
         ("restarting", None, "error"),
@@ -129,20 +129,20 @@ def _raw_stats(memory: dict | None) -> dict:
 
 
 def test_parse_stats_computes_cpu_across_cores() -> None:
-    # 1e6 von 10e6 Systemticks auf 4 Kernen -> 40 %
+    # 1e6 of 10e6 system ticks across 4 cores -> 40 %
     assert cr.parse_stats(_raw_stats(None))["cpu_percent"] == 40.0
 
 
 def test_parse_stats_reports_memory_without_cgroup_as_unknown() -> None:
     """Raspberry Pi OS ohne cgroup_memory=1 liefert keinen usage-Wert.
 
-    Genau hier entstand die falsche Anzeige "0.0 MB": ein fehlender Messwert
-    sah aus wie ein gemessener Nullwert.
+    This is exactly where the misleading "0.0 MB" came from: a missing
+    reading looked like a measured zero.
     """
     stats = cr.parse_stats(_raw_stats({"stats": {"anon": 0, "file": 0}}))
     assert stats["memory_mb"] is None
     assert stats["memory_percent"] is None
-    # Die CPU bleibt messbar - der Ausfall betrifft nur den Speicher.
+    # The CPU stays measurable - only the memory reading is missing.
     assert stats["cpu_percent"] == 40.0
 
 
@@ -161,7 +161,7 @@ def test_parse_stats_subtracts_page_cache() -> None:
 
 
 def test_parse_stats_omits_percentage_without_limit() -> None:
-    """Ohne Speicherlimit gibt es keinen sinnvollen Prozentwert."""
+    """Without a memory limit there is no meaningful percentage."""
     stats = cr.parse_stats(
         _raw_stats({"usage": 50 * 1024 * 1024, "limit": 0, "stats": {}})
     )
@@ -171,9 +171,9 @@ def test_parse_stats_omits_percentage_without_limit() -> None:
 
 # ── Abgrenzung gegen fremde Container ────────────────────────────────────────
 #
-# Compose stempelt project und service in das *Image*. Ein von Hand
-# gestarteter Container aus einem Minabox-Image bringt diese Labels also mit
-# und wuerde sonst als zweiter "backend" in der Liste auftauchen.
+# Compose stamps project and service into the *image*. A container started by
+# hand from a Minabox image therefore carries those labels too, and would
+# otherwise turn up as a second "backend" in the list.
 
 
 def _labels(**extra: str) -> dict[str, str]:
@@ -188,12 +188,12 @@ def test_compose_service_recognised() -> None:
 
 
 def test_hand_started_container_is_not_a_service() -> None:
-    """Nur die Image-Labels vorhanden - das hat niemand ueber Compose gestartet."""
+    """Only the image labels present - nobody started this through Compose."""
     assert cr._is_compose_service(_container(labels=_labels())) is False
 
 
 def test_oneoff_container_is_not_a_service() -> None:
-    """`docker compose run` erzeugt Wegwerf-Container; die gehoeren nicht dazu."""
+    """`docker compose run` makes throwaway containers; they do not belong."""
     container = _container(
         labels=_labels(**{cr.CONTAINER_NUMBER_LABEL: "1", cr.ONEOFF_LABEL: "True"})
     )

@@ -51,6 +51,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'playback.end_repeat_while_tag',
           'playback.guard_enabled',
           'playback.guard_minutes',
+          'playback.playlist_shuffle',
         ],
       },
       {
@@ -154,6 +155,11 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         key: 'media_path',
         titleKey: 'general.media_path_title',
         searchKeys: ['general.media_path_current', 'general.media_path_new'],
+      },
+      {
+        key: 'upload_limit',
+        titleKey: 'general.upload_limit',
+        searchKeys: ['general.upload_limit', 'general.upload_limit_mb'],
       },
       {
         key: 'usb',

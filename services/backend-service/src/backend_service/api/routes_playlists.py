@@ -11,12 +11,14 @@ from sqlalchemy.orm import Session
 
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
+from backend_service.core.uploads import read_image_upload
 from backend_service.models.database import Playlist, PlaylistTrack, Track
 from backend_service.models.schemas import (
     PlaylistCreate,
     PlaylistDetailResponse,
     PlaylistResponse,
     PlaylistUpdate,
+    TrackResponse,
 )
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
@@ -68,7 +70,7 @@ def get_playlist(
         .all()
     )
 
-    tracks = [pt.track for pt in playlist_tracks]
+    tracks = [TrackResponse.model_validate(pt.track) for pt in playlist_tracks]
 
     return PlaylistDetailResponse(
         id=playlist.id,
@@ -123,7 +125,7 @@ def create_playlist(
     db.refresh(playlist)
 
     logger.info("api_playlist_created", playlist_id=playlist.id, name=playlist.name)
-    return playlist
+    return PlaylistResponse.model_validate(playlist)
 
 
 @router.put("/{playlist_id}", response_model=PlaylistResponse)
@@ -224,9 +226,9 @@ async def upload_playlist_cover(
     if not playlist:
         raise ApiError(status_code=404, code="playlist_not_found", detail=f"Playlist {playlist_id} not found")
 
+    content = await read_image_upload(file)
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"playlist_{playlist_id}.jpg"
-    content = await file.read()
     cover_path.write_bytes(content)
 
     playlist.cover_art_url = f"/static/covers/playlist_{playlist_id}.jpg"
