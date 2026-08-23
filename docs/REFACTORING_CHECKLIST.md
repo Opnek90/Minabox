@@ -23,7 +23,7 @@ Dieses Dokument bündelt potentielle Verbesserungen und identifizierte Inkonsist
 | Host-Helper | [services/host-helper/Architecture.md](services/host-helper/Architecture.md) | Abschnitt 8 |
 | Button | [services/button/Architecture.md](services/button/Architecture.md) | Abschnitt 9 |
 | LED | [services/led/Architecture.md](services/led/Architecture.md) | Abschnitt 10 |
-| RFID | [services/rfid/Architecture.md](services/rfid/Architecture.md) | Abschnitt 8 |
+| RFID | [services/rfid/Architecture.md](services/rfid/Architecture.md) | entfaellt (Dokument enthaelt keine Checkliste mehr) |
 | WebUI | [services/webui/Architecture.md](services/webui/Architecture.md) | Abschnitt 12 (siehe auch [services/webui/Redesign.md](services/webui/Redesign.md)) |
 
 ### 2.1 Kurzfassung der Service-Checklisten

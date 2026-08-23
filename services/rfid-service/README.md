@@ -21,6 +21,7 @@ Published events:
 - `.../rfid/tag-scanned` (payload: `{ tag_id, reader_id, timestamp }`)
 - `.../rfid/tag-scanned-learning` (payload: `{ tag_id, reader_id, timestamp }`)
 - `.../rfid/tag-removed` (payload: `{ tag_id, reader_id, timestamp }`)
+- `.../rfid/presence` (retained; payload: `{ tag_present, tag_id, reader_id, timestamp }`)
 - `.../rfid/status` (retained; payload includes `{ state, reader_id, error, timestamp }`)
 
 Commands (subscribe):
