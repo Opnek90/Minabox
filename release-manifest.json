@@ -3,8 +3,38 @@
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
-      "latest": "0.1.1",
+      "latest": "0.2.0",
       "releases": [
+        {
+          "version": "0.2.0",
+          "date": "2026-08-23",
+          "notes": {
+            "improved": {
+              "de": [
+                "Das Abbild des Dienstes ist von 940 auf 544 MB geschrumpft, dadurch laedt ein Update deutlich schneller."
+              ],
+              "en": [
+                "The service image shrank from 940 to 544 MB, so updates download noticeably faster."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Ein Druck auf den Lautstaerkeregler schaltet die Box jetzt wirklich stumm. Bisher wurde nur bis zur eingestellten Mindestlautstaerke heruntergeregelt, waehrend die Anzeige bereits \"stumm\" meldete.",
+                "Stuerzt der Dienst ab oder faellt der Strom aus, zeigen LED, Display und Oberflaeche nicht mehr endlos eine laufende Wiedergabe an.",
+                "Eine frisch eingerichtete Box startet mit der eingestellten Standardlautstaerke statt mit der Maximallautstaerke.",
+                "Nach dem Stoppen steht in der Oberflaeche kein Titel mehr, der gar nicht mehr spielt.",
+                "Das Umschalten des Ausgangs blockiert die Bedienung nicht mehr fuer mehrere Sekunden."
+              ],
+              "en": [
+                "Pressing the volume knob now really mutes the box. It previously only turned the volume down to the configured minimum while already reporting \"muted\".",
+                "If the service crashes or the power is cut, the LED, display and web interface no longer keep showing playback forever.",
+                "A freshly set up box now starts at the configured default volume instead of the maximum volume.",
+                "After stopping, the interface no longer shows a track that is not playing any more.",
+                "Switching the output no longer blocks the controls for several seconds."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.1",
           "date": "2026-08-23",

@@ -294,6 +294,18 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## audio
 
+### 0.2.0 - 2026-08-23
+
+#### Behoben
+- Ein Druck auf den Lautstaerkeregler schaltet die Box jetzt wirklich stumm. Bisher wurde nur bis zur eingestellten Mindestlautstaerke heruntergeregelt, waehrend die Anzeige bereits "stumm" meldete.
+- Stuerzt der Dienst ab oder faellt der Strom aus, zeigen LED, Display und Oberflaeche nicht mehr endlos eine laufende Wiedergabe an.
+- Eine frisch eingerichtete Box startet mit der eingestellten Standardlautstaerke statt mit der Maximallautstaerke.
+- Nach dem Stoppen steht in der Oberflaeche kein Titel mehr, der gar nicht mehr spielt.
+- Das Umschalten des Ausgangs blockiert die Bedienung nicht mehr fuer mehrere Sekunden.
+
+#### Verbessert
+- Das Abbild des Dienstes ist von 940 auf 544 MB geschrumpft, dadurch laedt ein Update deutlich schneller.
+
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20
