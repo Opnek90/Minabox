@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
+from backend_service.core.uploads import read_image_upload
 from backend_service.models.database import Podcast, PodcastEpisode, PodcastFolder
 from backend_service.models.schemas import (
     PodcastCreate,
@@ -201,9 +202,9 @@ async def upload_podcast_cover(
     podcast = db.query(Podcast).filter(Podcast.id == podcast_id).first()
     if not podcast:
         raise ApiError(status_code=404, code="podcast_not_found", detail=f"Podcast {podcast_id} not found")
+    content = await read_image_upload(file)
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"podcast_{podcast_id}.jpg"
-    content = await file.read()
     cover_path.write_bytes(content)
     podcast.cover_art_url = f"/static/covers/podcast_{podcast_id}.jpg"
     db.commit()

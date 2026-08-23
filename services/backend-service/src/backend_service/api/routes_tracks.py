@@ -19,6 +19,11 @@ from sqlalchemy.orm import Session
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
+from backend_service.core.uploads import (
+    copy_upload_limited,
+    max_audio_upload_bytes,
+    read_image_upload,
+)
 from backend_service.infrastructure.media_downloader_client import (
     MediaDownloaderClient,
     MediaDownloaderError,
@@ -111,17 +116,52 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
         return None
 
 
+def _stored_track_dir(track: Track) -> Path | None:
+    """Directory holding this track's audio file, or None when there is none.
+
+    Only a path that really lies below the configured audio storage counts.
+    `source_uri` is not always a stored file: a URL import keeps the source URL
+    there until the download finishes, and an upload that failed after the row
+    was written leaves the field empty. An empty value resolved to `Path(".")`,
+    whose parent is `"."` again - so deleting such a track removed the working
+    directory of the running service.
+    """
+    raw = (track.source_uri or "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    if not path.is_absolute():
+        return None
+
+    base = Path(get_config().audio_storage_path).resolve()
+    directory = path.parent.resolve()
+    if directory == base:
+        # A file directly in the storage root has no directory of its own that
+        # may be removed.
+        return None
+    try:
+        directory.relative_to(base)
+    except ValueError:
+        return None
+    return directory
+
+
 def _store_uploaded_track(
-    upload_stream: Any, track_dir: Path, file_path: Path, track_id: int
+    upload_stream: Any,
+    track_dir: Path,
+    file_path: Path,
+    track_id: int,
+    limit_bytes: int,
 ) -> tuple[Path, dict[str, Any]]:
     """Write the upload to disk and read its metadata.
 
     Blocking (disk write + tag parsing) - call via asyncio.to_thread. Returns
     the final path and the metadata the caller should apply to the DB row.
+    Raises `ApiError` 413 once the upload exceeds `limit_bytes`; the partial
+    file is removed before that error propagates.
     """
     track_dir.mkdir(parents=True, exist_ok=True)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(upload_stream, buffer)
+    copy_upload_limited(upload_stream, file_path, limit_bytes)
 
     metadata: dict[str, Any] = {
         "duration_ms": None,
@@ -426,6 +466,24 @@ async def create_track_from_url(
     )
 
 
+def _discard_incomplete_track(db: Session, track_id: int) -> None:
+    """Remove the placeholder row of an upload that never got its file.
+
+    Such a row carries an empty `source_uri`; leaving it behind shows a track in
+    the library that can never play.
+    """
+    db.rollback()
+    try:
+        orphan = db.query(Track).filter(Track.id == track_id).first()
+        if orphan is not None and not (orphan.source_uri or "").strip():
+            db.delete(orphan)
+            db.commit()
+            logger.info("api_upload_track_placeholder_removed", track_id=track_id)
+    except Exception as exc:  # pragma: no cover - cleanup must not mask the cause
+        db.rollback()
+        logger.warning("api_upload_track_cleanup_failed", track_id=track_id, error=str(exc))
+
+
 @router.post("/upload", response_model=TrackResponse, status_code=201)
 async def upload_track(
     file: UploadFile = File(...),
@@ -441,13 +499,20 @@ async def upload_track(
         folder = db.query(TrackFolder).filter(TrackFolder.id == folder_id).first()
         if not folder:
             raise ApiError(status_code=404, code="folder_not_found", detail=f"Folder {folder_id} not found")
-    try:
-        track = Track(title=title, artist=artist, album=album, source_type="file", source_uri="", folder_id=folder_id)
-        db.add(track)
-        db.commit()
-        db.refresh(track)
 
-        track_dir = Path(config.audio_storage_path) / str(track.id)
+    # The row is written first because the directory is named after its id. It
+    # therefore exists for a moment with an empty source_uri, and a rollback
+    # cannot take it back once committed - hence the explicit cleanup in the
+    # error paths below. Without it a half-created track stayed in the library
+    # and could not be deleted safely.
+    track = Track(title=title, artist=artist, album=album, source_type="file", source_uri="", folder_id=folder_id)
+    db.add(track)
+    db.commit()
+    db.refresh(track)
+    track_id = track.id
+
+    try:
+        track_dir = Path(config.audio_storage_path) / str(track_id)
         file_ext = Path(file.filename).suffix if file.filename else ".mp3"
         file_path = track_dir / f"original{file_ext}"
 
@@ -455,7 +520,12 @@ async def upload_track(
         # for a large audiobook. On the event loop that freezes every other
         # request including the player WebSocket, so it runs in a thread.
         file_path, metadata = await asyncio.to_thread(
-            _store_uploaded_track, file.file, track_dir, file_path, track.id
+            _store_uploaded_track,
+            file.file,
+            track_dir,
+            file_path,
+            track_id,
+            max_audio_upload_bytes(),
         )
 
         if metadata.get("duration_ms") is not None:
@@ -473,15 +543,19 @@ async def upload_track(
         logger.info("api_upload_track_completed", track_id=track.id, title=track.title)
         return track
 
+    except ApiError:
+        # Already a shaped error (e.g. the size limit) - only clean up.
+        _discard_incomplete_track(db, track_id)
+        raise
     except OSError as e:
         logger.error("api_upload_track_failed", error=str(e))
-        db.rollback()
+        _discard_incomplete_track(db, track_id)
         if e.errno == 13:
             raise ApiError(status_code=503, code="audio_storage_readonly", detail="Audio storage path is not writable.") from e
         raise ApiError(status_code=400, code="upload_failed", detail=f"Failed to upload track: {str(e)}") from e
     except Exception as e:
         logger.error("api_upload_track_failed", error=str(e))
-        db.rollback()
+        _discard_incomplete_track(db, track_id)
         raise ApiError(status_code=400, code="upload_failed", detail=f"Failed to upload track: {str(e)}") from e
 
 
@@ -490,9 +564,9 @@ async def upload_track_cover(track_id: int, file: UploadFile = File(...), db: Se
     track = db.query(Track).filter(Track.id == track_id).first()
     if not track:
         raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
+    content = await read_image_upload(file)
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"track_{track_id}.jpg"
-    content = await file.read()
     cover_path.write_bytes(content)
     track.cover_art_url = f"/static/covers/track_{track_id}.jpg"
     db.commit()
@@ -550,12 +624,15 @@ def delete_track(track_id: int, db: Session = Depends(get_db)) -> None:
         raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
 
     if track.source_type == "file":
-        try:
-            track_dir = Path(track.source_uri).parent
-            if track_dir.exists():
-                shutil.rmtree(track_dir)
-        except Exception as e:
-            logger.error("api_delete_track_file_removal_failed", track_id=track_id, error=str(e))
+        track_dir = _stored_track_dir(track)
+        if track_dir is None:
+            logger.info("api_delete_track_no_stored_directory", track_id=track_id)
+        else:
+            try:
+                if track_dir.exists():
+                    shutil.rmtree(track_dir)
+            except OSError as e:
+                logger.error("api_delete_track_file_removal_failed", track_id=track_id, error=str(e))
 
     # Clean up cover art
     for ext in (".jpg", ".png"):

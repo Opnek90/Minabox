@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
+from backend_service.core.uploads import read_image_upload
 from backend_service.models.database import Playlist, PlaylistTrack, Track
 from backend_service.models.schemas import (
     PlaylistCreate,
@@ -224,9 +225,9 @@ async def upload_playlist_cover(
     if not playlist:
         raise ApiError(status_code=404, code="playlist_not_found", detail=f"Playlist {playlist_id} not found")
 
+    content = await read_image_upload(file)
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     cover_path = COVERS_DIR / f"playlist_{playlist_id}.jpg"
-    content = await file.read()
     cover_path.write_bytes(content)
 
     playlist.cover_art_url = f"/static/covers/playlist_{playlist_id}.jpg"

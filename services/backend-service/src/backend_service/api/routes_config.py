@@ -22,6 +22,7 @@ from backend_service.core.playback_settings import (
     clamp_end_behavior,
     clamp_loop_guard_minutes,
 )
+from backend_service.core.uploads import read_image_upload
 
 # Static files directory (shared with static mount in main.py)
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
@@ -627,10 +628,10 @@ async def update_rfid_config(body: dict) -> dict:
 @router.post("/logo")
 async def upload_logo(file: UploadFile = File(...)) -> dict:
     """Upload a custom logo image (stored as /data/static/logo.png)."""
+    content = await read_image_upload(file)
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     logo_path = STATIC_DIR / "logo.png"
     try:
-        content = await file.read()
         logo_path.write_bytes(content)
         logger.info("logo_uploaded", size=len(content))
         return {"url": "/static/logo.png"}

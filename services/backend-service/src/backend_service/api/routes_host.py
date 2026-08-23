@@ -20,9 +20,10 @@ from typing import Any
 import httpx
 import structlog
 from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
@@ -34,6 +35,8 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 HOST_HELPER_TIMEOUT = 10.0
+#: Backups are large and live on an SD card, so they get their own budget.
+BACKUP_TIMEOUT = 60.0
 
 _NOT_CONFIGURED = "Host-Helper not configured (HOST_HELPER_API_KEY missing)"
 _NOT_CONFIGURED_SHORT = "Host-Helper not configured"
@@ -948,29 +951,51 @@ async def bluetooth_remove(body: BluetoothPairBody) -> dict:
 
 @router.get("/backup/download")
 async def backup_download() -> Response:
-    """Download backup ZIP (DB, configs, state). Proxied to Host-Helper."""
+    """Download backup ZIP (DB, configs, state). Proxied to Host-Helper.
+
+    Streamed rather than buffered. Reading `r.content` held the whole archive in
+    memory - and then again in the outgoing body - which a backup including
+    audio can easily exceed on a Pi. The response is closed by the background
+    task once the last chunk has left.
+    """
     api_key = _host_helper_api_key()
     if not api_key:
         raise ApiError(status_code=503, code="host_helper_not_configured", detail=_NOT_CONFIGURED)
+
+    client = _get_client()
+    request = client.build_request(
+        "GET",
+        f"{_host_helper_url()}/backup/download",
+        headers={"X-Api-Key": api_key},
+        timeout=BACKUP_TIMEOUT,
+    )
     try:
-        r = await _request("GET", "/backup/download", api_key, timeout=60.0)
+        upstream = await client.send(request, stream=True)
     except httpx.RequestError as e:
         logger.warning("host_helper_backup_download_failed", error=str(e))
         raise ApiError(status_code=503, code="host_helper_unreachable", detail=_UNREACHABLE) from e
 
-    if r.status_code == 401:
-        raise ApiError(status_code=503, code="host_helper_auth_failed", detail="Host-Helper authentication failed")
-    if r.status_code != 200:
+    if upstream.status_code != 200:
+        # The body is still unread at this point; read it so _extract_detail has
+        # something to work with, then release the connection.
+        await upstream.aread()
+        await upstream.aclose()
+        if upstream.status_code == 401:
+            raise ApiError(status_code=503, code="host_helper_auth_failed", detail="Host-Helper authentication failed")
         raise ApiError(
-            status_code=min(r.status_code, 502), code="backup_download_failed", detail="Backup download failed"
+            status_code=min(upstream.status_code, 502),
+            code="backup_download_failed",
+            detail=_extract_detail(upstream, "Backup download failed"),
         )
-    disposition = r.headers.get(
+
+    disposition = upstream.headers.get(
         "content-disposition", "attachment; filename=minabox-backup.zip"
     )
-    return Response(
-        content=r.content,
-        media_type=r.headers.get("content-type", "application/zip"),
+    return StreamingResponse(
+        upstream.aiter_bytes(),
+        media_type=upstream.headers.get("content-type", "application/zip"),
         headers={"Content-Disposition": disposition},
+        background=BackgroundTask(upstream.aclose),
     )
 
 
@@ -979,15 +1004,18 @@ async def backup_restore(file: UploadFile = File(...)) -> dict:
     """Upload backup ZIP and restore. Proxied to Host-Helper."""
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise ApiError(status_code=400, code="upload_must_be_zip", detail="Upload must be a .zip file")
+    # Hand the spooled upload straight to httpx instead of reading it into a
+    # bytes object first. Starlette has already put anything sizeable on disk,
+    # so this keeps a large backup out of the RAM entirely.
     try:
-        content = await file.read()
-    except Exception as e:
+        await file.seek(0)
+    except (OSError, ValueError) as e:
         raise ApiError(status_code=400, code="upload_read_failed", detail="Failed to read upload") from e
     return await _proxy(
         "POST",
         "/backup/restore",
         timeout=300.0,
-        files={"file": (file.filename or "backup.zip", content, "application/zip")},
+        files={"file": (file.filename or "backup.zip", file.file, "application/zip")},
         error_message="Restore failed",
         error_code="backup_restore_failed",
         log_event="host_helper_backup_restore_failed",
