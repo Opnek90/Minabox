@@ -12,10 +12,12 @@ memory in one piece, and no legitimate cover comes anywhere near it.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import IO, Any
 
 import structlog
+from shared_lib.config import load_general_settings
 
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
@@ -30,19 +32,60 @@ MAX_IMAGE_UPLOAD_BYTES: int = 5 * 1024 * 1024
 #: card, small enough that the peak allocation stays irrelevant.
 _CHUNK_BYTES: int = 1024 * 1024
 
-#: Fallback when the configuration cannot be loaded - an upload must not fail
+#: Fallback when no configuration can be read at all - an upload must not fail
 #: because of an unrelated config problem, but it must not become unbounded
 #: either.
-_DEFAULT_AUDIO_LIMIT_MB: int = 100
+DEFAULT_UPLOAD_SIZE_MB: int = 100
+
+#: A limit below this makes the feature unusable; above it, the spooled upload
+#: plus the stored copy stop fitting on a typical SD card.
+MIN_UPLOAD_SIZE_MB: int = 1
+MAX_UPLOAD_SIZE_MB: int = 2048
+
+
+def _general_settings_path() -> Path:
+    return Path(os.environ.get("DATA_PATH", "/data")) / "general_settings.json"
+
+
+def clamp_upload_size_mb(value: object) -> int:
+    """Normalize a raw value to a usable limit in MB."""
+    try:
+        megabytes = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return DEFAULT_UPLOAD_SIZE_MB
+    return max(MIN_UPLOAD_SIZE_MB, min(MAX_UPLOAD_SIZE_MB, megabytes))
+
+
+def _configured_default_mb() -> int:
+    """The default from ``config/backend.json``.
+
+    That file is mounted read-only, so it can only ever supply the value a
+    release ships with - never something the user changed.
+    """
+    try:
+        return clamp_upload_size_mb(get_config().backend.max_upload_size_mb)
+    except Exception as exc:  # pragma: no cover - config is validated elsewhere
+        logger.warning("upload_limit_config_unreadable", error=str(exc))
+        return DEFAULT_UPLOAD_SIZE_MB
+
+
+def max_upload_size_mb() -> int:
+    """The upload limit for audio files, in MB.
+
+    Read fresh from ``general_settings.json`` on every call, so a change in the
+    WebUI takes effect without a restart - the same contract the playback and
+    parental settings follow. Without an entry there, the value shipped in
+    ``config/backend.json`` applies.
+    """
+    settings = load_general_settings(_general_settings_path())
+    if "max_upload_size_mb" in settings:
+        return clamp_upload_size_mb(settings["max_upload_size_mb"])
+    return _configured_default_mb()
 
 
 def max_audio_upload_bytes() -> int:
-    """Upload limit for audio files, from ``max_upload_size_mb``."""
-    try:
-        return get_config().backend.max_upload_size_mb * 1024 * 1024
-    except Exception as exc:  # pragma: no cover - config is validated elsewhere
-        logger.warning("upload_limit_config_unreadable", error=str(exc))
-        return _DEFAULT_AUDIO_LIMIT_MB * 1024 * 1024
+    """The upload limit for audio files, in bytes."""
+    return max_upload_size_mb() * 1024 * 1024
 
 
 def upload_too_large(limit_bytes: int) -> ApiError:
@@ -108,9 +151,14 @@ def copy_upload_limited(source: IO[bytes], target: Path, limit_bytes: int) -> in
 
 
 __all__ = [
+    "DEFAULT_UPLOAD_SIZE_MB",
     "MAX_IMAGE_UPLOAD_BYTES",
+    "MAX_UPLOAD_SIZE_MB",
+    "MIN_UPLOAD_SIZE_MB",
+    "clamp_upload_size_mb",
     "copy_upload_limited",
     "max_audio_upload_bytes",
+    "max_upload_size_mb",
     "read_image_upload",
     "upload_too_large",
 ]

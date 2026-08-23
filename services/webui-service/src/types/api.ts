@@ -547,6 +547,8 @@ export interface GeneralConfig {
   setup_version?: number;
   /** Periodic background scan for updates; shows a header hint when one is ready. */
   auto_update_check_enabled?: boolean;
+  /** Largest audio upload accepted over the web UI, in MB. Applied without a restart. */
+  max_upload_size_mb?: number;
 }
 
 export interface SleepTimerStatus {

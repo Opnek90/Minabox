@@ -156,6 +156,11 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         searchKeys: ['general.media_path_current', 'general.media_path_new'],
       },
       {
+        key: 'upload_limit',
+        titleKey: 'general.upload_limit',
+        searchKeys: ['general.upload_limit', 'general.upload_limit_mb'],
+      },
+      {
         key: 'usb',
         titleKey: 'system.usb',
         searchKeys: ['system.usb_devices', 'system.usb_import'],

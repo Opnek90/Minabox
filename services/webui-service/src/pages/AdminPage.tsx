@@ -22,8 +22,8 @@ import { SystemMaintenanceSection } from '@/components/admin/SystemMaintenanceSe
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import { SettingsSection } from '@/components/admin/SettingsSection';
 import {
-  AdvancedSettingsForm, AudioConfigForm, DesignSettingsForm,
-  MediaPathForm, PlaybackSettingsForm, RFIDConfigForm, SleepTimerSettingsForm,
+  AdvancedSettingsForm, AudioConfigForm, DesignSettingsForm, MediaPathForm,
+  PlaybackSettingsForm, RFIDConfigForm, SleepTimerSettingsForm, UploadLimitForm,
 } from '@/components/admin/ConfigForm';
 import {
   SETTINGS_INDEX, SETTINGS_SECTIONS, sectionDomId,
@@ -59,6 +59,7 @@ const SECTION_CONTENT: Record<string, React.ReactNode> = {
   display: <DisplayConfigPanel />,
   network: <NetworkPanel />,
   media_path: <MediaPathForm />,
+  upload_limit: <UploadLimitForm />,
   usb: <UsbImportPanel />,
   maintenance: <SystemMaintenanceSection />,
   security: <SecurityPanel />,

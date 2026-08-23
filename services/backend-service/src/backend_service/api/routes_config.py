@@ -22,7 +22,11 @@ from backend_service.core.playback_settings import (
     clamp_end_behavior,
     clamp_loop_guard_minutes,
 )
-from backend_service.core.uploads import read_image_upload
+from backend_service.core.uploads import (
+    clamp_upload_size_mb,
+    max_upload_size_mb,
+    read_image_upload,
+)
 
 # Static files directory (shared with static mount in main.py)
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/data/static"))
@@ -141,6 +145,9 @@ def _general_settings_read() -> dict:
     playback_end_behavior = DEFAULT_END_BEHAVIOR
     playback_loop_guard_minutes = DEFAULT_LOOP_GUARD_MINUTES
     auto_update_check_enabled = False
+    # Read through the same helper the upload path uses, so the value shown in
+    # the WebUI is exactly the one that will be enforced.
+    upload_size_mb = max_upload_size_mb()
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -160,6 +167,8 @@ def _general_settings_read() -> dict:
                     data["playback_loop_guard_minutes"]
                 )
             auto_update_check_enabled = bool(data.get("auto_update_check_enabled", False))
+            if "max_upload_size_mb" in data:
+                upload_size_mb = clamp_upload_size_mb(data["max_upload_size_mb"])
             raw_times = data.get("allowed_usage_times")
             if isinstance(raw_times, list):
                 allowed_usage_times = [
@@ -189,6 +198,7 @@ def _general_settings_read() -> dict:
         "playback_loop_guard_minutes": playback_loop_guard_minutes,
         "allowed_usage_times": allowed_usage_times,
         "auto_update_check_enabled": auto_update_check_enabled,
+        "max_upload_size_mb": upload_size_mb,
     }
 
 
@@ -228,6 +238,7 @@ async def update_general_config(body: dict) -> dict:
         "playback_loop_guard_minutes",
         "allowed_usage_times",
         "auto_update_check_enabled",
+        "max_upload_size_mb",
         # Ersteinrichtungs-Assistent (docs/services/webui/Setup-Wizard.md).
         # Fehlen die Schluessel hier, verwirft der Filter unten sie
         # stillschweigend und der Assistent kaeme bei jedem Aufruf wieder.
@@ -274,6 +285,8 @@ async def update_general_config(body: dict) -> dict:
         data["allowed_usage_times"] = _validate_allowed_usage_times(raw if isinstance(raw, list) else [])
     if "auto_update_check_enabled" in data:
         data["auto_update_check_enabled"] = bool(data["auto_update_check_enabled"])
+    if "max_upload_size_mb" in data:
+        data["max_upload_size_mb"] = clamp_upload_size_mb(data["max_upload_size_mb"])
     try:
         GENERAL_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
         # Merge with existing file so partial updates (e.g. from Child or Control tab) do not drop other keys

@@ -259,6 +259,51 @@ def test_oversized_cover_upload_is_refused(client):
     assert response.json()["code"] == "upload_too_large"
 
 
+# --- The upload limit is a runtime setting ----------------------------------
+
+
+def test_general_settings_expose_the_upload_limit(client):
+    body = client.get("/api/v1/config/general").json()
+    assert body["max_upload_size_mb"] == 100  # default from config/backend.json
+
+
+def test_changing_the_limit_takes_effect_without_a_restart(client, env):
+    """The whole point of putting the value in general_settings.json.
+
+    No monkeypatching here: the setting is written through the API and the very
+    next upload has to honour it, because `max_upload_size_mb()` re-reads the
+    file on every call.
+    """
+    saved = client.put("/api/v1/config/general", json={"max_upload_size_mb": 1})
+    assert saved.status_code == 200
+    assert saved.json()["max_upload_size_mb"] == 1
+
+    too_big = client.post(
+        "/api/v1/tracks/upload",
+        files={"file": ("big.mp3", b"x" * (2 * 1024 * 1024), "audio/mpeg")},
+        data={"title": "Two megabytes"},
+    )
+    assert too_big.status_code == 413
+    assert too_big.json()["code"] == "upload_too_large"
+
+    small_enough = client.post(
+        "/api/v1/tracks/upload",
+        files={"file": ("ok.mp3", b"x" * 1024, "audio/mpeg")},
+        data={"title": "One kilobyte"},
+    )
+    assert small_enough.status_code == 201, small_enough.text
+
+
+@pytest.mark.parametrize(
+    ("sent", "stored"),
+    [(0, 1), (-5, 1), (250, 250), (999999, 2048), ("nonsense", 100)],
+)
+def test_the_upload_limit_is_clamped(client, sent, stored):
+    response = client.put("/api/v1/config/general", json={"max_upload_size_mb": sent})
+    assert response.status_code == 200
+    assert response.json()["max_upload_size_mb"] == stored
+
+
 # --- Auth middleware --------------------------------------------------------
 
 
