@@ -284,6 +284,18 @@ A version without a visible change may stay empty - the interface then says
 
 ## audio
 
+### 0.2.0 - 2026-08-23
+
+#### Fixed
+- Pressing the volume knob now really mutes the box. It previously only turned the volume down to the configured minimum while already reporting "muted".
+- If the service crashes or the power is cut, the LED, display and web interface no longer keep showing playback forever.
+- A freshly set up box now starts at the configured default volume instead of the maximum volume.
+- After stopping, the interface no longer shows a track that is not playing any more.
+- Switching the output no longer blocks the controls for several seconds.
+
+#### Improved
+- The service image shrank from 940 to 544 MB, so updates download noticeably faster.
+
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20

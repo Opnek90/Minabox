@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Final
 
 import structlog
-
 from shared_lib.config import load_env, load_json_config
 
 from .config_schema import AppConfig, AudioConfig, EnvConfig

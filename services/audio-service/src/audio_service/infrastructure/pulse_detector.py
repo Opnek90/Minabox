@@ -121,7 +121,9 @@ class PulseSinkDetector:
             return []
 
     def _parse_pactl_output(self, stdout: str) -> list[PulseSink]:
-        """Parse 'pactl list sinks' output: Sink blocks with Name, Description, and Properties (node.nick/alsa.card_name)."""
+        """Parse 'pactl list sinks': Sink blocks with Name, Description and
+        Properties (node.nick / alsa.card_name).
+        """
         sinks = []
         current_name: str | None = None
         current_desc: str | None = None
@@ -134,7 +136,8 @@ class PulseSinkDetector:
             nonlocal priority
             if current_name is None or not current_name:
                 return
-            # Prefer PipeWire/ALSA card name over generic Description so WM8960 etc. show correctly
+            # Prefer PipeWire/ALSA card name over the generic Description,
+            # so a WM8960 shows up under its real name
             display = current_nick or current_card_name or current_desc or current_name
             sinks.append(
                 PulseSink(
@@ -161,9 +164,13 @@ class PulseSinkDetector:
                 in_properties = True
             elif in_properties and current_name is not None:
                 if line_stripped.startswith("node.nick ="):
-                    current_nick = self._parse_property_value(line_stripped[len("node.nick ="):])
+                    current_nick = self._parse_property_value(
+                        line_stripped[len("node.nick ="):]
+                    )
                 elif line_stripped.startswith("alsa.card_name ="):
-                    current_card_name = self._parse_property_value(line_stripped[len("alsa.card_name ="):])
+                    current_card_name = self._parse_property_value(
+                        line_stripped[len("alsa.card_name ="):]
+                    )
 
         flush_sink()
         return sinks

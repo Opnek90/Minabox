@@ -79,7 +79,8 @@ class MQTTMessageHandler:
             on_config_update: Callback for config update commands
             on_config_reload: Callback for config reload commands
             on_config_get: Callback for config get requests
-            on_switch_device: Callback for switch-device (payload: alsa_device?, direction?)
+            on_switch_device: Callback for switch-device
+                (payload: alsa_device?, direction?)
         """
         self._config = config
         self._on_play = on_play
@@ -110,7 +111,8 @@ class MQTTMessageHandler:
         )
 
         try:
-            # General config (log_level) is on topic .../config/general, not under .../audio/...
+            # General config (log_level) lives on .../config/general,
+            # not under .../audio/...
             if topic.endswith("/config/general"):
                 await self._handle_config_general(payload)
                 return

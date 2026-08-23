@@ -21,7 +21,11 @@ class AudioState(BaseModel):
     last_source_uri: str | None = None
     last_position_ms: int = 0
     last_state: str = PlaybackState.STOPPED.value
-    last_volume: int = 40
+    # 0 means "nothing remembered yet", which is what the service checks for
+    # before falling back to default_volume. A non-zero default here would be
+    # mistaken for a remembered volume on a box that has never played anything,
+    # and default_volume would never apply.
+    last_volume: int = 0
 
 
 class StateManager:
@@ -33,16 +37,27 @@ class StateManager:
 
     def load(self) -> AudioState:
         if not self._state_file_path.exists():
-            logger.debug("state_file_not_found_using_default", path=str(self._state_file_path))
+            logger.debug(
+                "state_file_not_found_using_default",
+                path=str(self._state_file_path),
+            )
             return AudioState()
         try:
             with open(self._state_file_path, encoding="utf-8") as f:
                 data = json.load(f)
             self._state = AudioState(**data)
-            logger.debug("state_loaded", path=str(self._state_file_path), last_track_id=self._state.last_track_id)
+            logger.debug(
+                "state_loaded",
+                path=str(self._state_file_path),
+                last_track_id=self._state.last_track_id,
+            )
             return self._state
         except (json.JSONDecodeError, ValidationError) as e:
-            logger.warning("state_load_failed_using_default", path=str(self._state_file_path), error=str(e))
+            logger.warning(
+                "state_load_failed_using_default",
+                path=str(self._state_file_path),
+                error=str(e),
+            )
             return AudioState()
         except Exception as e:
             logger.error("state_load_error", error=str(e))

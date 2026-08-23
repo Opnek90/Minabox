@@ -9,8 +9,13 @@ from enum import Enum
 from pydantic import BaseModel
 
 
-class PlaybackState(str, Enum):
-    """Playback state enumeration."""
+class PlaybackState(str, Enum):  # noqa: UP042 - not StrEnum, see note below
+    """Playback state enumeration.
+
+    Deliberately not a StrEnum: this value goes over MQTT and into the status
+    fingerprint, so changing how it stringifies would ripple into other
+    services. Callers use .value explicitly where the wire format matters.
+    """
 
     STOPPED = "stopped"
     PLAYING = "playing"
@@ -64,7 +69,7 @@ class AudioBackend(ABC):
 
         Raises:
             PlaybackError: If playback fails
-            FileNotFoundError: If source file doesn't exist
+            AudioFileNotFoundError: If the source file does not exist
             StreamUnreachableError: If stream is unreachable
         """
         pass
