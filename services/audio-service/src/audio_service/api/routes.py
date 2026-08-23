@@ -30,9 +30,9 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-# Mitgelieferter Testton fuer den Ersteinrichtungs-Assistenten. Bewusst ein
-# eigenes Asset und kein Titel aus der Mediathek: auf einer frisch
-# aufgesetzten Box ist die leer.
+# Test tone bundled for the first-run setup wizard. Deliberately its own asset
+# rather than a track from the library: on a freshly set up box the library is
+# empty.
 TEST_TONE_PATH = Path(
     os.getenv("AUDIO_TEST_TONE_PATH", "/app/assets/test-tone.wav")
 )
@@ -53,7 +53,7 @@ def create_app(service: AudioService, config: AppConfig) -> FastAPI:
     app = FastAPI(
         title="Minabox Audio Service",
         description="VLC-based audio player with MQTT control",
-        version="0.1.0",
+        version=get_version(),
     )
 
     set_service(service)
@@ -79,7 +79,7 @@ def create_app(service: AudioService, config: AppConfig) -> FastAPI:
             )
         except Exception as e:
             logger.error("health_check_failed", error=str(e))
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     app.include_router(router, prefix="/api/v1")
     return app
@@ -105,12 +105,14 @@ async def get_status() -> StatusResponse:
 
     except Exception as e:
         logger.error("get_status_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/devices", response_model=DevicesResponse)
 async def get_devices(
-    enabled_only: bool = Query(False, description="Return only devices in enabled_output_devices"),
+    enabled_only: bool = Query(
+        False, description="Return only devices in enabled_output_devices"
+    ),
 ) -> DevicesResponse:
     """List detected Pulse sinks (refresh on each call)."""
     if _service is None:
@@ -126,7 +128,7 @@ async def get_devices(
         )
     except Exception as e:
         logger.error("get_devices_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/switch-device", response_model=StatusResponse)
@@ -150,10 +152,10 @@ async def switch_device(body: SwitchDeviceBody) -> StatusResponse:
             timestamp=datetime.now(UTC).isoformat(),
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error("switch_device_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/test-tone", response_model=TestToneResponse)
@@ -172,14 +174,14 @@ async def play_test_tone(body: TestToneBody) -> TestToneResponse:
         logger.error("test_tone_missing", path=str(TEST_TONE_PATH))
         raise HTTPException(status_code=503, detail="Test tone asset not found")
 
-    # Unbekannte Sinks muessen hier abgefangen werden. paplay meldet dafuer
-    # KEINEN Fehler, sondern faellt still auf den Standardausgang zurueck und
-    # beendet sich mit 0. Im Assistenten waere das die schlimmste Variante:
-    # der Nutzer waehlt Ausgang A, hoert Ton aus B und haelt A fuer geprueft.
+    # Unknown sinks have to be caught here. paplay does NOT report an error for
+    # them: it falls back to the default output silently and exits with 0. In
+    # the wizard that would be the worst outcome - the user picks output A,
+    # hears sound from B, and believes A is verified.
     if body.sink_name:
         try:
             known = await _service.get_audio_devices(force_refresh=True)
-        except Exception as e:  # noqa: BLE001 - Geraeteliste ist bestenfalls beratend
+        except Exception as e:  # noqa: BLE001 - device list is advisory at best
             logger.warning("test_tone_device_lookup_failed", error=str(e))
             known = []
         if known and not any(d.get("id") == body.sink_name for d in known):

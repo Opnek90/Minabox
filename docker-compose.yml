@@ -196,7 +196,12 @@ services:
     container_name: minabox-audio
     restart: unless-stopped
     ports:
-      - "8003:8003"
+      # Nur auf dem Loopback veroeffentlicht. Die REST-API kennt keine
+      # Authentifizierung, und /switch-device sowie /test-tone veraendern den
+      # Zustand bzw. machen Geraeusch - das muss nicht aus dem WLAN erreichbar
+      # sein. Das Backend spricht den Dienst ueber das Compose-Netz an
+      # (http://audio:8003), Diagnose per curl auf der Box bleibt moeglich.
+      - "127.0.0.1:8003:8003"
     environment:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
@@ -215,7 +220,6 @@ services:
       - ./services/audio-service/state:/app/state
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio:ro
       - /run/user/${HOST_UID:-1000}/pulse:/run/user/${HOST_UID:-1000}/pulse:ro
-      - ./.cursor:/cursor-debug
     networks:
       - minabox-network
     depends_on:

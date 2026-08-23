@@ -66,7 +66,8 @@ class SwitchDeviceBody(BaseModel):
         default=None, description="PulseAudio/PipeWire sink name to switch to"
     )
     alsa_device: str | None = Field(
-        default=None, description="Deprecated alias for sink_name; kept for backwards compatibility"
+        default=None,
+        description="Deprecated alias for sink_name; kept for compatibility",
     )
     direction: str | None = Field(
         default=None, description="'next' to cycle to next enabled device"

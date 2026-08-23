@@ -8,16 +8,19 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-
+from pydantic import BaseModel, Field, model_validator
 from shared_lib.config import EnvConfigBase
 
 
-class OutputDeviceType(str, Enum):
+class OutputDeviceType(str, Enum):  # noqa: UP042 - see note below
     """Audio output device types.
 
     The product runtime is Pulse/PipeWire-only. Legacy values remain as
     compatibility aliases so older configs can be migrated on load.
+
+    Deliberately not a StrEnum: str(OutputDeviceType.PULSEAUDIO) would then
+    yield "pulseaudio" instead of "OutputDeviceType.PULSEAUDIO", which changes
+    what already-shipped log lines print. Not worth the churn before go-live.
     """
 
     AUTO = "auto"
@@ -65,8 +68,8 @@ class AudioConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_volume_bounds(self) -> "AudioConfig":
-        """Ensure min_volume < max_volume and min_volume <= default_volume <= max_volume."""
+    def validate_volume_bounds(self) -> AudioConfig:
+        """Keep min < max and default inside [min_volume, max_volume]."""
         # Clamp min_volume below max_volume
         if self.min_volume >= self.max_volume:
             self.min_volume = max(0, self.max_volume - 1)

@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import signal
+
 import structlog
-from shared_lib.logging import setup_structlog
 import uvicorn
+from shared_lib.logging import setup_structlog
+
 from .api.routes import create_app
 from .config import load_app_config
 from .config_schema import AppConfig
@@ -30,6 +32,7 @@ class AudioServiceRunner:
         self._service = AudioService(config)
         self._shutdown_event = asyncio.Event()
         self._api_server: uvicorn.Server | None = None
+        self._api_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the audio service and API server."""
@@ -53,8 +56,22 @@ class AudioServiceRunner:
             log_config=None,
         )
         self._api_server = uvicorn.Server(uvicorn_config)
-        asyncio.create_task(self._api_server.serve())
+        # Keep the reference: a bare create_task() may be garbage collected,
+        # and a server that dies would otherwise do so unnoticed -- /health
+        # gone, MQTT still running, nothing in the log.
+        self._api_task = asyncio.create_task(self._api_server.serve())
+        self._api_task.add_done_callback(self._on_api_server_exit)
         logger.debug("api_server_started", port=self.config.env.audio_service_port)
+
+    def _on_api_server_exit(self, task: asyncio.Task) -> None:
+        """Log why the API server stopped, unless we asked it to."""
+        if task.cancelled() or self._shutdown_event.is_set():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error("api_server_crashed", error=str(exc), exc_info=exc)
+        else:
+            logger.warning("api_server_exited_unexpectedly")
 
     async def run(self) -> None:
         """Run the service until shutdown is requested."""
@@ -65,10 +82,17 @@ class AudioServiceRunner:
         """Stop the audio service gracefully."""
         logger.info("audio_service_stopping")
 
-        # Stop API server
+        # Stop API server and give it a moment to finish in-flight requests
         if self._api_server:
             self._api_server.should_exit = True
-            logger.debug("api_server_stopped")
+        if self._api_task is not None:
+            try:
+                await asyncio.wait_for(self._api_task, timeout=5.0)
+            except (TimeoutError, asyncio.CancelledError):
+                self._api_task.cancel()
+            except Exception as exc:
+                logger.warning("api_server_stop_failed", error=str(exc))
+        logger.debug("api_server_stopped")
 
         # Shutdown the audio service
         await self._service.shutdown()

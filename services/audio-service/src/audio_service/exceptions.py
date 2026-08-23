@@ -33,8 +33,13 @@ class VLCError(AudioError):
     pass
 
 
-class FileNotFoundError(AudioError):
-    """Raised when audio source file is not found."""
+class AudioFileNotFoundError(AudioError):
+    """Raised when an audio source file is not found.
+
+    Deliberately not named FileNotFoundError: that would shadow the builtin in
+    every module importing it, and both routes.py and pulse_detector.py rely on
+    catching the real builtin when a command is missing.
+    """
 
     pass
 

@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import structlog
-
 from shared_lib.config import JsonConfigManager
 from shared_lib.exceptions import ConfigError
 
@@ -28,7 +27,7 @@ class ConfigManager(JsonConfigManager):
         )
 
     def load_config(self) -> AudioConfig:
-        """Load from disk; create default if missing; migrate legacy values and persist if needed."""
+        """Load from disk, creating a default file and migrating legacy values."""
         if not self._config_path.exists():
             logger.warning(
                 "audio_config_not_found_creating_default",

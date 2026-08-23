@@ -47,7 +47,6 @@ audio_service/
 │   ├── __init__.py
 │   ├── vlc_backend.py       # libVLC playback engine, pipeline prewarm, Pulse sink selection
 │   ├── audio_backend.py     # Abstract AudioBackend interface (ABC) + AudioStatus / PlaybackState
-│   ├── audio_detector.py    # ALSA device detection via `aplay -L` — not wired into the service
 │   ├── pulse_detector.py    # Pulse/PipeWire sink detection via `pactl list sinks`, with TTL cache
 │   └── mqtt_client.py       # Thin subclass of the shared MQTT base client
 ├── api/
@@ -58,9 +57,11 @@ audio_service/
     └── schemas.py           # Pydantic request/response models for the REST API
 ```
 
-Tests live in `services/audio-service/tests/` and currently cover the Pulse sink
-detector (parsing plus cache behaviour) and the state manager (atomic writes,
-corrupt-file recovery).
+Tests live in `services/audio-service/tests/` and cover the Pulse sink detector
+(parsing plus cache behaviour), the state manager (atomic writes, corrupt-file
+recovery) and the go-live hardening (startup volume selection, status after
+stop, volume clamping, the last will). The VLC backend itself is only covered
+where it can run without libVLC.
 
 Connection handling, reconnect backoff, subscription replay and status replay
 are **not** implemented here — they come from `shared_lib.mqtt.BaseMQTTClient`.
@@ -119,6 +120,15 @@ status is published with `remember=True`, which makes the shared MQTT client
 replay it after a reconnect — otherwise a broker restart would leave the
 service connected but silent.
 
+The same topic carries a **last will**, registered before the first connect: a
+retained payload with `state: "stopped"` and no track. If the process dies
+without a clean disconnect — SIGKILL, OOM, power loss — the broker publishes it
+on the service's behalf. Without it the retained `playing` would outlive the
+service, and the LED ring, the OLED and the WebUI would all keep showing
+playback that stopped long ago. MQTT fixes the payload when the session opens,
+so its `timestamp` is the connection time; consumers must read `state`, never
+the age of the message.
+
 `audio/error` payload:
 
 ```json
@@ -169,8 +179,10 @@ from `last_source_uri` at `last_position_ms`.
 ### 3.2 REST
 
 Served by uvicorn on `AUDIO_SERVICE_PORT` (default 8003). Health sits at the
-root, everything else under `/api/v1`. There is no authentication — the service
-is meant to be reached only from inside the Docker network by the backend.
+root, everything else under `/api/v1`. There is no authentication, so the port
+is published on the loopback interface only (`127.0.0.1:8003`): the backend
+reaches the service over the Compose network as `http://audio:8003`, while
+`switch-device` and `test-tone` stay out of reach from the WLAN.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -247,8 +259,16 @@ back into the allowed range. Just swapping the config would leave the current
 volume above the new limit until the next `set_volume`, and the WebUI slider
 would sit outside its own scale.
 
-Mute stores the current volume, sets 0, and restores the stored value on the
-next toggle. The mute flag itself is not persisted across restarts.
+Mute goes through libVLC's own mute, not through the volume. Setting the
+volume to 0 would run into the same clamp and stop at `min_volume`: on a box
+with `min_volume = 15`, pressing the volume knob merely turned the music down
+to 15 while the status already reported `muted: true`. Because the volume is
+never touched, unmuting has nothing to restore.
+
+The mute flag lives in the service, not in the player, and is reapplied after
+a re-initialisation — a fresh player starts unmuted, so switching output while
+muted would otherwise bring the sound back unasked. It is not persisted across
+restarts: a box that reboots comes back audible.
 
 ### 4.3 Output device selection
 
@@ -299,16 +319,22 @@ temporary file in the same directory, `fsync`ed, and moved into place with
 `os.replace()`. A reader therefore only ever sees a complete file; a corrupt
 file falls back to defaults instead of taking the service down.
 
+`last_volume` is `0` when nothing has been remembered yet. That zero is what
+tells the service to fall back to `default_volume` on a box that has never
+played anything — a non-zero default here would read as a remembered volume,
+and a freshly set up box would start at `max_volume` instead.
+
 There is no automatic resume on startup. The service restores the last volume,
 but waits for a `play` command before producing sound.
 
 ### 4.6 Startup and shutdown
 
-Startup loads the state, initialises VLC, applies the initial volume (last
-volume if there is one, otherwise `default_volume`, both clamped), starts the
-status loop, and only then connects to MQTT — in the background, retrying
-forever. Startup does not depend on the broker being reachable; that dependency
-is what used to take the service down when the broker restarted.
+Startup loads the state, initialises VLC, applies the initial volume (the
+remembered one if there is one, otherwise `default_volume`, both clamped into
+`[min_volume, max_volume]`), starts the status loop, and only then connects to
+MQTT — in the background, retrying forever. Startup does not depend on the
+broker being reachable; that dependency is what used to take the service down
+when the broker restarted.
 
 Shutdown, triggered by SIGTERM or SIGINT, cancels a running playback task and
 the status loop, stops the MQTT client, reports the current position **before**
@@ -336,6 +362,12 @@ Tested outputs: WM8960 Audio HAT, HiFiBerry, IQaudio, USB sound cards, the
 - `pulseaudio-utils` — `pactl` (sink discovery), `pacat` (pipeline prewarm),
   `paplay` (test tone)
 - `curl` — container health check
+
+Explicitly **not** the `vlc` package: that is the desktop player and pulls in
+`vlc-plugin-qt`, which drags Qt5 and the whole Mesa stack — libLLVM, libgallium,
+libz3 — into the image. None of it is reachable from a headless service, and
+together it was roughly 400 MB, more than half the image. No ALSA tooling
+either, since `/dev/snd` is not mapped.
 
 ### Python
 

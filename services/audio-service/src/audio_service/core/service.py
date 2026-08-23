@@ -97,7 +97,6 @@ class AudioService:
         # Service state
         self._start_time = time()
         self._muted = False
-        self._volume_before_mute = 0
         self._status_publish_task: asyncio.Task | None = None
         self._mqtt_task: asyncio.Task | None = None
         self._running = False
@@ -186,7 +185,7 @@ class AudioService:
         if self._mqtt_task is not None:
             try:
                 await asyncio.wait_for(self._mqtt_task, timeout=5.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
+            except (TimeoutError, asyncio.CancelledError):
                 pass
 
         try:
@@ -389,6 +388,11 @@ class AudioService:
         """
         self._pulse_detector.invalidate()
         snapshot = await self._vlc_backend.reinitialize(config)
+        # reinitialize() creates a fresh player, which starts unmuted. Without
+        # this, switching output while muted would silently bring the sound
+        # back - at full volume, on the newly selected device.
+        if self._muted:
+            await self._vlc_backend.set_muted(True)
         if snapshot.get("source_uri") and snapshot.get("state") in (
             PlaybackState.PLAYING.value,
             PlaybackState.PAUSED.value,
@@ -441,7 +445,8 @@ class AudioService:
                             await self._vlc_backend.resume()
                         else:
                             state = self._state_manager.get_state()
-                            if state.last_source_uri and self._state_manager.can_resume():
+                            can_resume = self._state_manager.can_resume()
+                            if state.last_source_uri and can_resume:
                                 self._vlc_backend.set_track_metadata(
                                     track_id=state.last_track_id,
                                     source_type=state.last_source_type,
@@ -499,7 +504,10 @@ class AudioService:
         future use. A warning is logged so the unimplemented state is
         visible in logs (issue #34).
         """
-        logger.warning("next_command_not_implemented", hint="Feature pending, no action taken")
+        logger.warning(
+            "next_command_not_implemented",
+            hint="Feature pending, no action taken",
+        )
 
     async def _handle_prev(self) -> None:
         """Handle previous command (backend decides previous track).
@@ -508,7 +516,10 @@ class AudioService:
         future use. A warning is logged so the unimplemented state is
         visible in logs (issue #34).
         """
-        logger.warning("prev_command_not_implemented", hint="Feature pending, no action taken")
+        logger.warning(
+            "prev_command_not_implemented",
+            hint="Feature pending, no action taken",
+        )
 
     async def _handle_set_volume(self, command: VolumeCommand) -> None:
         """Handle set volume command."""
@@ -546,24 +557,21 @@ class AudioService:
             await self._publish_error("volume_error", str(exc))
 
     async def _handle_mute_toggle(self) -> None:
-        """Toggle between muted and unmuted."""
+        """Toggle between muted and unmuted.
+
+        Uses libVLC's own mute rather than setting the volume to 0: the volume
+        path clamps to min_volume, so on a box with min_volume=15 pressing the
+        knob only turned the music down to 15 while the UI already claimed to
+        be muted. The volume is left alone, so unmuting needs nothing restored.
+        """
         try:
-            if self._muted:
-                audio_cfg = self._get_audio_config()
-                min_vol = getattr(audio_cfg, "min_volume", 0)
-                volume = min(
-                    self._volume_before_mute,
-                    audio_cfg.max_volume,
-                )
-                volume = max(volume, min_vol)
-                await self._vlc_backend.set_volume(volume)
-                self._muted = False
-                logger.debug("mute_toggle_unmuted", volume=volume)
-            else:
-                self._volume_before_mute = await self._vlc_backend.get_volume()
-                await self._vlc_backend.set_volume(0)
-                self._muted = True
-                logger.debug("mute_toggle_muted", volume_before=self._volume_before_mute)
+            self._muted = not self._muted
+            await self._vlc_backend.set_muted(self._muted)
+            logger.debug(
+                "mute_toggled",
+                muted=self._muted,
+                volume=await self._vlc_backend.get_volume(),
+            )
             await self._publish_status()
         except Exception as exc:
             logger.error("mute_toggle_failed", error=str(exc))
@@ -609,11 +617,11 @@ class AudioService:
     async def _enforce_volume_limits(self, config: AudioConfig) -> None:
         """Pull the running volume back into [min_volume, max_volume].
 
-        update_config() nur auszutauschen reicht nicht: die Grenzen greifen
-        sonst erst beim naechsten set_volume(). Senken die Eltern das Limit von
-        40 auf 30, waehrend gerade auf 40 gespielt wird, bleibt es real bei 40
-        und der Regler in der WebUI steht ausserhalb seiner eigenen Skala.
-        Liegt die Lautstaerke bereits im erlaubten Bereich, passiert nichts.
+        Swapping the config via update_config() is not enough: the new bounds
+        would only take effect on the next set_volume(). If the parents lower
+        the limit from 40 to 30 while playback is running at 40, the real
+        volume stays at 40 and the WebUI slider sits outside its own scale.
+        Does nothing when the volume is already within the allowed range.
         """
         if not self._vlc_backend.is_initialized:
             return
@@ -730,7 +738,10 @@ class AudioService:
 
         if direction == "next":
             current = config.output_device_name
-            idx = next((i for i, d in enumerate(devices) if d["alsa_device"] == current), -1)
+            idx = next(
+                (i for i, d in enumerate(devices) if d["alsa_device"] == current),
+                -1,
+            )
             next_idx = (idx + 1) % len(devices)
             target = devices[next_idx]["alsa_device"]
         elif sink_name:
