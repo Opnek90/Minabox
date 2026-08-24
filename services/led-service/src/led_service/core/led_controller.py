@@ -11,12 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Dict
 
 import structlog
 
 from ..config_schema import LEDConfig, LEDPattern
-from ..exceptions import GPIOControlError, GPIOInitError, InvalidPatternError
+from ..exceptions import GPIOControlError, InvalidPatternError
 from .led_patterns import (
     run_blink_pattern,
     run_glow_pattern,
@@ -155,11 +154,7 @@ class LEDController:
             )
             return
 
-        if (
-            self._current_logical_state == logical_state
-            and self._current_task is not None
-            and not self._current_task.done()
-        ):
+        if self._is_already_showing(logical_state, pattern):
             logger.debug(
                 "pattern_skipped_idempotent",
                 led_id=self.config.id,
@@ -183,6 +178,21 @@ class LEDController:
             raise GPIOControlError(
                 f"Pattern execution failed for LED '{self.config.name}': {exc}"
             ) from exc
+
+    def _is_already_showing(self, logical_state: str, pattern: LEDPattern) -> bool:
+        """True when re-applying this state would not change anything visible.
+
+        A persistent pattern finishes its task the moment the LED is set, so
+        asking whether that task is still running answered "no" for exactly the
+        three pattern types the check was written for. Every repeated
+        audio/status message therefore restarted a solid pattern and logged an
+        INFO line, roughly once a second during playback.
+        """
+        if self._current_logical_state != logical_state:
+            return False
+        if pattern.pattern_type in _PERSISTENT_PATTERN_TYPES:
+            return True
+        return self._current_task is not None and not self._current_task.done()
 
     async def _run_blink_task(self, interval_ms: int, repeat: int) -> None:
         """Create and await a blink task, managing _current_task lifecycle (issue #27).
@@ -270,12 +280,23 @@ class LEDController:
                     f"Glow pattern for LED '{self.config.name}' requires PWMLED but "
                     f"LED was initialized without PWM. Re-initialize the controller."
                 )
+            # LEDPattern fills cycle_ms and both brightness bounds for glow, so
+            # these are never None by the time a pattern reaches us.
+            if (
+                pattern.cycle_ms is None
+                or pattern.min_brightness is None
+                or pattern.max_brightness is None
+            ):
+                raise InvalidPatternError(
+                    f"Glow pattern for LED '{self.config.name}' is missing its "
+                    f"cycle or brightness bounds"
+                )
             self._current_task = asyncio.create_task(
                 run_glow_pattern(
                     self._led,
-                    pattern.cycle_ms if pattern.cycle_ms is not None else 2000,
-                    pattern.min_brightness if pattern.min_brightness is not None else 0.0,
-                    pattern.max_brightness if pattern.max_brightness is not None else 1.0,
+                    pattern.cycle_ms,
+                    pattern.min_brightness,
+                    pattern.max_brightness,
                     pattern.repeat,
                     self.config.id,
                     self._cancel_event,
@@ -283,22 +304,43 @@ class LEDController:
             )
         else:
             raise InvalidPatternError(
-                f"Unknown pattern type '{pattern.pattern_type}' for LED '{self.config.name}'"
+                f"Unknown pattern type '{pattern.pattern_type}' "
+                f"for LED '{self.config.name}'"
             )
 
         _pattern_type = pattern.pattern_type
 
-        def _on_task_done(task: asyncio.Task) -> None:
-            if not task.cancelled() and task.exception() is None:
-                if _pattern_type not in _PERSISTENT_PATTERN_TYPES:
-                    self._current_logical_state = None
-                    self._current_task = None
-                logger.debug(
-                    "pattern_completed",
+        def _on_task_done(task: asyncio.Task[None]) -> None:
+            if task.cancelled():
+                return
+
+            # Calling exception() marks it as retrieved, so asyncio will not
+            # complain either. Without this branch a pattern that raised inside
+            # its task left a dark LED and no log line at all.
+            exc = task.exception()
+            if exc is not None:
+                self._current_logical_state = None
+                self._current_task = None
+                logger.error(
+                    "pattern_task_failed",
                     led_id=self.config.id,
+                    led_name=self.config.name,
                     logical_state=logical_state,
-                    persistent=_pattern_type in _PERSISTENT_PATTERN_TYPES,
+                    pattern_type=_pattern_type,
+                    error=str(exc),
+                    exc_info=exc,
                 )
+                return
+
+            if _pattern_type not in _PERSISTENT_PATTERN_TYPES:
+                self._current_logical_state = None
+                self._current_task = None
+            logger.debug(
+                "pattern_completed",
+                led_id=self.config.id,
+                logical_state=logical_state,
+                persistent=_pattern_type in _PERSISTENT_PATTERN_TYPES,
+            )
 
         self._current_task.add_done_callback(_on_task_done)
 
@@ -308,7 +350,7 @@ class LEDController:
             self._cancel_event.set()
             try:
                 await asyncio.wait_for(self._current_task, timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._current_task.cancel()
                 try:
                     await self._current_task
@@ -331,7 +373,9 @@ class LEDController:
                 try:
                     self._led.close()
                 except Exception:
-                    logger.warning("led_close_failed", led_id=self.config.id, exc_info=True)
+                    logger.warning(
+                        "led_close_failed", led_id=self.config.id, exc_info=True
+                    )
 
             try:
                 from gpiozero import Device
@@ -370,8 +414,9 @@ class LEDController:
             return False
 
         await self._cancel_current_pattern()
+        # repeat counts whole on/off blinks, so one blink costs two intervals.
         interval_ms = 500
-        repeat = max(1, int(duration_sec))
+        repeat = max(1, round(duration_sec * 1000 / (interval_ms * 2)))
         logger.debug(
             "test_blink_started",
             led_id=self.config.id,
@@ -391,7 +436,7 @@ class LEDManager:
 
     def __init__(self) -> None:
         """Initialize the LED manager."""
-        self._controllers: Dict[str, LEDController] = {}
+        self._controllers: dict[str, LEDController] = {}
         logger.debug("led_manager_initialized")
 
     async def initialize_leds(self, led_configs: list[LEDConfig]) -> None:
@@ -415,8 +460,9 @@ class LEDManager:
         disable_gpio = os.getenv("DISABLE_GPIO", "false").lower() == "true"
         if not disable_gpio:
             try:
-                from gpiozero.pins.lgpio import LGPIOFactory
                 from gpiozero import Device
+                from gpiozero.pins.lgpio import LGPIOFactory
+
                 Device.pin_factory = LGPIOFactory()
                 logger.debug("gpio_pin_factory_set", factory="LGPIOFactory")
             except Exception as exc:
