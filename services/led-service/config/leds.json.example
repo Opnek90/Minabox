@@ -5,7 +5,9 @@
       "name": "Blau",
       "gpio": 17,
       "bindings": {
-        "system_online": {"pattern_type": "solid", "duration_ms": 0}
+        "system_online": {
+          "pattern_type": "solid"
+        }
       },
       "enabled": false
     },
@@ -14,9 +16,21 @@
       "name": "Gelb",
       "gpio": 27,
       "bindings": {
-        "rfid_scanned": {"pattern_type": "blink", "duration_ms": 500, "interval_ms": 500, "repeat": 1},
-        "button_pressed": {"pattern_type": "blink", "duration_ms": 500, "interval_ms": 500, "repeat": 2},
-        "rfid_unknown_tag": {"pattern_type": "pulse", "duration_ms": 250, "repeat": 3}
+        "rfid_scanned": {
+          "pattern_type": "blink",
+          "interval_ms": 500,
+          "repeat": 1
+        },
+        "button_pressed": {
+          "pattern_type": "blink",
+          "interval_ms": 500,
+          "repeat": 1
+        },
+        "rfid_unknown_tag": {
+          "pattern_type": "pulse",
+          "duration_ms": 250,
+          "repeat": 3
+        }
       },
       "enabled": false
     },
@@ -25,9 +39,18 @@
       "name": "Rot",
       "gpio": 22,
       "bindings": {
-        "usage_denied": {"pattern_type": "pulse", "duration_ms": 250, "repeat": 5},
-        "backend_unreachable": {"pattern_type": "pulse", "duration_ms": 150},
-        "system_error": {"pattern_type": "solid", "duration_ms": 0}
+        "usage_denied": {
+          "pattern_type": "pulse",
+          "duration_ms": 250,
+          "repeat": 5
+        },
+        "backend_unreachable": {
+          "pattern_type": "pulse",
+          "duration_ms": 150
+        },
+        "system_error": {
+          "pattern_type": "solid"
+        }
       },
       "enabled": false
     },
@@ -36,9 +59,15 @@
       "name": "Gruen",
       "gpio": 4,
       "bindings": {
-        "audio_playing": {"pattern_type": "solid", "duration_ms": 0},
-        "audio_paused": {"pattern_type": "off", "duration_ms": 0},
-        "audio_stopped": {"pattern_type": "off", "duration_ms": 0}
+        "audio_playing": {
+          "pattern_type": "solid"
+        },
+        "audio_paused": {
+          "pattern_type": "off"
+        },
+        "audio_stopped": {
+          "pattern_type": "off"
+        }
       },
       "enabled": false
     },
@@ -47,8 +76,16 @@
       "name": "Ring",
       "gpio": 16,
       "bindings": {
-        "rfid_scanned": {"pattern_type": "solid", "duration_ms": 0},
-        "rfid_removed": {"pattern_type": "glow", "cycle_ms": 2000, "min_brightness": 0, "max_brightness": 1, "repeat": 0}
+        "rfid_scanned": {
+          "pattern_type": "solid"
+        },
+        "rfid_removed": {
+          "pattern_type": "glow",
+          "cycle_ms": 2000,
+          "min_brightness": 0,
+          "max_brightness": 1,
+          "repeat": 0
+        }
       },
       "enabled": false
     }
