@@ -33,25 +33,40 @@ Relevant path: `services/host-helper-service/`
 
 ```text
 host-helper-service/
-├── Dockerfile              # Two-stage build on python:3.13-slim
-├── requirements.txt        # FastAPI, uvicorn, pydantic, structlog, docker SDK
-├── VERSION                 # Own version number (docs/Versionierung.md)
+├── Dockerfile               # Two-stage build on python:3.13-slim
+├── requirements.txt         # FastAPI, uvicorn, pydantic, structlog, docker SDK
+├── VERSION                  # Own version number (docs/Versionierung.md)
 ├── tests/
-│   └── test_update_env.py  # Tag names, .env writing, update-log parsing
+│   └── test_update_env.py   # The pure helpers: allowlists, .env, log parsing
 └── src/host_helper/
-    ├── __init__.py         # Package init
-    ├── main.py             # Entry point: config, logging, FastAPI app, uvicorn
-    ├── config.py           # load_config() from environment, path allowlist check
+    ├── __init__.py
+    ├── main.py              # Entry point: config, logging, FastAPI app, uvicorn
+    ├── config.py            # Config dataclass, load_config(), path allowlist
     └── api/
         ├── __init__.py
-        └── routes.py       # All 48 endpoints plus their helpers
+        └── routes/
+            ├── __init__.py      # Assembles the router from the modules below
+            ├── deps.py          # Config, API key, host access, compose, Docker
+            ├── health.py        # Liveness
+            ├── media.py         # Audio path, move
+            ├── power.py         # Reboot, shutdown, restart
+            ├── network.py       # WiFi, hotspot, IPv4
+            ├── usb.py           # Devices, browse, import, eject
+            ├── backup.py        # Download, restore
+            ├── system.py        # Host status, syslog, clock, hostname, LEDs
+            ├── maintenance.py   # Password, SSH, prune, factory reset
+            ├── update.py        # Minabox update, version, OS update
+            ├── bluetooth.py     # Scan, pair, connect
+            └── diagnostics.py   # Container logs, host diagnostics
 ```
 
-`api/routes.py` is a single large module, organised into thematic blocks in
-this order: health, audio path, move, host power and restart, WiFi and hotspot,
-USB, backup and restore, host status, syslog, timezone, hostname, board LEDs,
-network, system password, docker prune, SSH toggle, factory reset, Minabox
-update, OS update, Bluetooth, container logs, host diagnostics.
+`deps.py` is the only module the others import from. It holds what every route
+needs — the loaded `Config`, the `X-Api-Key` check, the host root and host tool
+lookups, `nsenter`, the compose wrappers and the shared Docker client — and it
+imports nothing from its siblings, so there are no cycles. Two links cross
+between domains and are the exceptions: `maintenance` uses the hotspot from
+`network` for the factory reset, and `update` uses the archive builder from
+`backup` for the pre-update snapshot.
 
 ---
 
@@ -151,8 +166,8 @@ hardest to get right. It is recorded here as accepted, not overlooked.
 
 ## 4. HTTP API
 
-FastAPI, listening on port 8000. All routes below require `X-Api-Key` unless
-noted. Errors use FastAPI's `{"detail": "..."}` shape; the backend passes that
+FastAPI, listening on port 8000, 48 routes. All of them require `X-Api-Key`
+unless noted. Errors use FastAPI's `{"detail": "..."}` shape; the backend passes that
 `detail` through to the WebUI.
 
 ### Health
@@ -448,8 +463,9 @@ two calls no matter how many devices the box remembers, rather than one
 
 ## 5. Configuration
 
-Read once at startup by `load_config()`. Missing required values abort the
-process with exit code 1 rather than starting in a half-configured state.
+Read once at startup by `load_config()` into a frozen `Config` dataclass.
+Missing required values abort the process with exit code 1 rather than
+starting in a half-configured state.
 
 | Variable                | Required | Default              | Meaning                                     |
 | ----------------------- | -------- | -------------------- | --------------------------------------------- |

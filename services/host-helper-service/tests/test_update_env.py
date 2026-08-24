@@ -19,7 +19,7 @@ from fastapi import HTTPException
 # In the container the service runs with src/ on the path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from host_helper.api import routes  # noqa: E402
+from host_helper.api.routes import backup, deps, diagnostics, update, usb  # noqa: E402
 
 # ── Environment variable names ──────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ from host_helper.api import routes  # noqa: E402
     ],
 )
 def test_tag_var(service: str, expected: str) -> None:
-    assert routes._tag_var(service) == expected
+    assert update._tag_var(service) == expected
 
 
 # ── Reading and writing .env ────────────────────────────────────────────────
@@ -49,7 +49,7 @@ def test_write_env_tags_replaces_and_appends(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    routes._write_env_tags(env, {"backend": "0.1.4", "webui": "0.1.4"})
+    update._write_env_tags(env, {"backend": "0.1.4", "webui": "0.1.4"})
 
     lines = env.read_text(encoding="utf-8").splitlines()
     assert "MINABOX_BACKEND_TAG=0.1.4" in lines
@@ -64,19 +64,19 @@ def test_write_env_tags_replaces_and_appends(tmp_path: Path) -> None:
 
 def test_write_env_tags_creates_missing_file(tmp_path: Path) -> None:
     env = tmp_path / ".env"
-    routes._write_env_tags(env, {"audio": "0.2.0"})
+    update._write_env_tags(env, {"audio": "0.2.0"})
     assert env.read_text(encoding="utf-8").strip() == "MINABOX_AUDIO_TAG=0.2.0"
 
 
 def test_read_env_tags_ignores_comments(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(routes, "_service_names", lambda: ["backend", "webui"])
+    monkeypatch.setattr(update, "_service_names", lambda: ["backend", "webui"])
     env = tmp_path / ".env"
     env.write_text(
         "#MINABOX_BACKEND_TAG=0.0.1\nMINABOX_WEBUI_TAG=0.1.4\nMINABOX_AUDIO_TAG=9.9.9\n",
         encoding="utf-8",
     )
 
-    tags = routes._read_env_tags(env)
+    tags = update._read_env_tags(env)
 
     # A commented-out line does not count, and neither does a service that
     # does not exist.
@@ -95,7 +95,7 @@ def test_parse_update_log_reports_the_last_step() -> None:
             "=== MINABOX-STEP 3/5 pull",
         ]
     )
-    assert routes._parse_update_log(log) == {
+    assert update._parse_update_log(log) == {
         "step": 3,
         "step_count": 5,
         "step_key": "pull",
@@ -104,14 +104,14 @@ def test_parse_update_log_reports_the_last_step() -> None:
 
 
 def test_parse_update_log_reads_the_result() -> None:
-    parsed = routes._parse_update_log(
+    parsed = update._parse_update_log(
         "=== MINABOX-STEP 5/5 verify\n=== MINABOX-DONE 0\n"
     )
     assert parsed["exit_code"] == 0
 
 
 def test_parse_update_log_reads_a_failure() -> None:
-    parsed = routes._parse_update_log(
+    parsed = update._parse_update_log(
         "=== MINABOX-STEP 3/5 pull\nfailed\n=== MINABOX-DONE 1\n"
     )
     assert parsed["exit_code"] == 1
@@ -120,7 +120,7 @@ def test_parse_update_log_reads_a_failure() -> None:
 
 def test_parse_update_log_of_an_empty_run() -> None:
     """Before the first marker there is no step yet - but no crash either."""
-    parsed = routes._parse_update_log("")
+    parsed = update._parse_update_log("")
     assert parsed["step"] is None
     assert parsed["exit_code"] is None
 
@@ -142,7 +142,7 @@ def test_parse_update_log_of_an_empty_run() -> None:
     ],
 )
 def test_backup_allowed_path_accepts_the_backup_contents(name: str) -> None:
-    assert routes._backup_allowed_path(name, Path("/workspace")) is True
+    assert backup._backup_allowed_path(name, Path("/workspace")) is True
 
 
 @pytest.mark.parametrize(
@@ -160,14 +160,14 @@ def test_backup_allowed_path_accepts_the_backup_contents(name: str) -> None:
     ],
 )
 def test_backup_allowed_path_rejects_everything_else(name: str) -> None:
-    assert routes._backup_allowed_path(name, Path("/workspace")) is False
+    assert backup._backup_allowed_path(name, Path("/workspace")) is False
 
 
 def test_backup_allowed_path_rejects_windows_traversal() -> None:
     # Backslashes are normalised to forward slashes; without that,
     # "data\..\..\etc" would slip past the .. check.
     name = "data\\..\\..\\etc\\shadow"
-    assert routes._backup_allowed_path(name, Path("/workspace")) is False
+    assert backup._backup_allowed_path(name, Path("/workspace")) is False
 
 
 # ── The container name allowlist ────────────────────────────────────────────
@@ -177,7 +177,7 @@ def test_backup_allowed_path_rejects_windows_traversal() -> None:
     "name", ["minabox-backend", "minabox-audio", "minabox-host-helper"]
 )
 def test_container_name_allowlist_accepts_own_containers(name: str) -> None:
-    assert routes._is_allowed_container_name(name) is True
+    assert diagnostics._is_allowed_container_name(name) is True
 
 
 @pytest.mark.parametrize(
@@ -193,7 +193,7 @@ def test_container_name_allowlist_accepts_own_containers(name: str) -> None:
     ],
 )
 def test_container_name_allowlist_rejects_the_rest(name: str) -> None:
-    assert routes._is_allowed_container_name(name) is False
+    assert diagnostics._is_allowed_container_name(name) is False
 
 
 # ── Validating the uploaded archive ─────────────────────────────────────────
@@ -211,7 +211,7 @@ def test_validate_backup_archive_accepts_a_normal_backup(tmp_path: Path) -> None
     archive = _zip_with(
         tmp_path, {"data/minabox.db": b"sqlite", "data/static/a.jpg": b"x"}
     )
-    routes._validate_backup_archive(archive, Path("/workspace"))
+    backup._validate_backup_archive(archive, Path("/workspace"))
 
 
 def test_validate_backup_archive_rejects_a_path_outside_the_allowlist(
@@ -221,7 +221,7 @@ def test_validate_backup_archive_rejects_a_path_outside_the_allowlist(
         tmp_path, {"data/minabox.db": b"sqlite", "docker-compose.yml": b"x"}
     )
     with pytest.raises(HTTPException) as excinfo:
-        routes._validate_backup_archive(archive, Path("/workspace"))
+        backup._validate_backup_archive(archive, Path("/workspace"))
     assert excinfo.value.status_code == 400
 
 
@@ -230,10 +230,10 @@ def test_validate_backup_archive_rejects_a_zip_bomb(
 ) -> None:
     # A megabyte of zeroes compresses to a few bytes. Without a cap on the
     # unpacked size, a tiny upload takes the Pi down.
-    monkeypatch.setattr(routes, "RESTORE_MAX_UNPACKED_BYTES", 1024)
+    monkeypatch.setattr(backup, "RESTORE_MAX_UNPACKED_BYTES", 1024)
     archive = _zip_with(tmp_path, {"data/minabox.db": b"\0" * (1024 * 1024)})
     with pytest.raises(HTTPException) as excinfo:
-        routes._validate_backup_archive(archive, Path("/workspace"))
+        backup._validate_backup_archive(archive, Path("/workspace"))
     assert excinfo.value.status_code == 413
 
 
@@ -241,7 +241,7 @@ def test_validate_backup_archive_rejects_junk(tmp_path: Path) -> None:
     archive = tmp_path / "backup.zip"
     archive.write_bytes(b"this is not a zip file")
     with pytest.raises(HTTPException) as excinfo:
-        routes._validate_backup_archive(archive, Path("/workspace"))
+        backup._validate_backup_archive(archive, Path("/workspace"))
     assert excinfo.value.status_code == 400
 
 
@@ -256,10 +256,10 @@ def test_compose_on_others_leaves_the_host_helper_alone(monkeypatch) -> None:
         captured.append(args)
         return subprocess.CompletedProcess(args, 0, "", "")
 
-    monkeypatch.setattr(routes, "_host_workspace", lambda: "/home/pi/minabox")
-    monkeypatch.setattr(routes, "_run_on_host_via_nsenter", fake_nsenter)
+    monkeypatch.setattr(deps, "_host_workspace", lambda: "/home/pi/minabox")
+    monkeypatch.setattr(deps, "_run_on_host_via_nsenter", fake_nsenter)
 
-    routes._run_compose_on_others(["stop"], timeout=10)
+    deps._run_compose_on_others(["stop"], timeout=10)
 
     script = captured[0][-1]
     assert "grep -vx host-helper" in script
@@ -272,7 +272,7 @@ def test_compose_on_others_leaves_the_host_helper_alone(monkeypatch) -> None:
 
 @pytest.mark.parametrize("device_id", ["sda1", "sdb", "nvme0n1p2", "mmcblk0p1"])
 def test_device_id_accepts_block_device_names(device_id: str) -> None:
-    assert routes._validate_device_id(device_id) == device_id
+    assert usb._validate_device_id(device_id) == device_id
 
 
 @pytest.mark.parametrize(
@@ -283,7 +283,7 @@ def test_device_id_rejects_anything_else(device_id: str) -> None:
     # The value ends up in /dev/<id>. All three USB routes check it the same
     # way now - before, only one of them rejected a slash.
     with pytest.raises(HTTPException) as excinfo:
-        routes._validate_device_id(device_id)
+        usb._validate_device_id(device_id)
     assert excinfo.value.status_code == 400
 
 
@@ -296,14 +296,14 @@ def test_copytree_filter_drops_symlinks(tmp_path: Path) -> None:
     (stick / "album" / "song.mp3").write_bytes(b"audio")
     (stick / "album" / "secrets").symlink_to(tmp_path / "elsewhere")
 
-    ignored = routes._ignore_symlinks(str(stick / "album"), ["song.mp3", "secrets"])
+    ignored = usb._ignore_symlinks(str(stick / "album"), ["song.mp3", "secrets"])
 
     assert ignored == {"secrets"}
 
 
 def test_copytree_filter_keeps_ordinary_files(tmp_path: Path) -> None:
     (tmp_path / "a.mp3").write_bytes(b"x")
-    assert routes._ignore_symlinks(str(tmp_path), ["a.mp3"]) == set()
+    assert usb._ignore_symlinks(str(tmp_path), ["a.mp3"]) == set()
 
 
 # ── Restore allowlist: only what the backup actually produces ───────────────
@@ -327,7 +327,7 @@ def test_copytree_filter_keeps_ordinary_files(tmp_path: Path) -> None:
     ],
 )
 def test_backup_allowlist_rejects_runtime_state_and_code(name: str) -> None:
-    assert routes._backup_allowed_path(name, Path("/workspace")) is False
+    assert backup._backup_allowed_path(name, Path("/workspace")) is False
 
 
 def test_backup_allowlist_accepts_everything_a_backup_produces(tmp_path: Path) -> None:
@@ -348,8 +348,8 @@ def test_backup_allowlist_accepts_everything_a_backup_produces(tmp_path: Path) -
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("{}")
 
-    produced = [arc for _src, arc in routes._backup_members(workspace, data_path)]
+    produced = [arc for _src, arc in backup._backup_members(workspace, data_path)]
 
     assert produced  # otherwise this test asserts nothing
     for arcname in produced:
-        assert routes._backup_allowed_path(arcname, workspace) is True, arcname
+        assert backup._backup_allowed_path(arcname, workspace) is True, arcname
