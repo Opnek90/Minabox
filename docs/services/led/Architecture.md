@@ -33,6 +33,7 @@ led-service/
 ├── Dockerfile               # Two-stage build on python:3.13-slim, liblgpio from source
 ├── requirements.txt         # FastAPI, uvicorn, pydantic, aiomqtt, structlog, gpiozero, lgpio
 ├── VERSION                  # Own version number (docs/Versionierung.md)
+├── tests/                   # Patterns, schema, state derivation, subscriptions
 ├── config/
 │   ├── leds.json            # Live config (not in git, seeded from the example)
 │   └── leds.json.example    # Template used by scripts/setup-folders.sh
@@ -91,14 +92,15 @@ A topic without a rule is ignored and logged at debug level. A rule that raises
 — malformed JSON, for instance — is logged as an error; the message loop in the
 base client swallows it so the broker connection survives.
 
+Every topic in this table has to appear in the subscription list as well. It is
+easy to add one and forget the other, and the result is invisible: the WebUI
+offers the state, and nothing ever happens. `tests/test_mqtt_subscriptions.py`
+compares the two lists.
+
 `rfid/presence` is the recovery path. The RFID service publishes it *retained*,
 so the broker re-delivers the current tag state on every subscribe. Without it
 a config reload would leave a state-dependent LED (the ring, typically) showing
 whatever it happened to show before, until the next physical scan.
-
-> **Known gap:** `rfid/tag-blocked` has a derivation rule but is *not* in the
-> subscription list in `infrastructure/mqtt_client.py`, so a binding on
-> `rfid_tag_blocked` currently never fires even though the WebUI offers it.
 
 ---
 
@@ -157,7 +159,7 @@ The service runs a small FastAPI app on port 8000 inside the container
   `degraded` service stays a healthy container on purpose — a missing broker is
   not a reason to restart a working LED service.
 - `POST /test` – body `{"led_id": "led_2"}`. Runs a fixed test blink
-  (500 ms interval, 5 toggles ≈ 2.5 s) regardless of the LED's bindings.
+  (500 ms interval, five blinks, 5 s) regardless of the LED's bindings.
   Returns 404 if the id is unknown or the pin was never claimed. The WebUI
   reaches this through the backend, which proxies to `http://led:8000/test`.
 
@@ -216,11 +218,10 @@ untouched.
 - **`solid`** – on, and stays on until another pattern takes over. `duration_ms`
   has no meaning here and is stripped at parse time with a warning
   (`solid_pattern_duration_ignored`); leave it out of new configurations.
-- **`blink`** – toggles every `interval_ms`. `repeat` counts *toggles*, not
-  cycles, so one complete on/off blink is `repeat: 2`.
+- **`blink`** – on for `interval_ms`, off for `interval_ms`, repeated.
 - **`pulse`** – on for `duration_ms`, then off, then a gap of
-  `max(100 ms, duration_ms / 3)` before the next pulse. Here `repeat` counts
-  whole pulses.
+  `max(100 ms, duration_ms / 3)` before the next pulse. The last pulse has no
+  trailing gap.
 - **`off`** – switches the LED off immediately, without any visible flash. This
   is what frequently repeating states such as `audio_stopped` should use.
 - **`glow`** – a breathing effect over software PWM. Brightness follows a sine
@@ -229,12 +230,19 @@ untouched.
 
 | Field | Applies to | Meaning |
 | --- | --- | --- |
-| `interval_ms` | `blink` | Time between toggles. Required. |
-| `duration_ms` | `pulse` | On-time per pulse. Required. Ignored by every other pattern. |
-| `repeat` | `blink`, `pulse`, `glow` | `0` or omitted means run until another state overrides this LED. |
+| `interval_ms` | `blink` | On-time, and off-time, of one blink. Required. |
+| `duration_ms` | `pulse` | On-time per pulse. Required. Cleared on every other pattern type. |
+| `repeat` | `blink`, `pulse`, `glow` | Number of complete cycles — one blink is on *and* off again. `0` or omitted means run until another state overrides this LED. |
 | `cycle_ms` | `glow` | One full dark → bright → dark cycle. Minimum 500, default 2000, sensible range 1000–3000. |
 | `min_brightness` | `glow` | 0.0–1.0, default 0.0. Must be smaller than `max_brightness`. |
 | `max_brightness` | `glow` | 0.0–1.0, default 1.0. |
+
+The schema repairs a pattern it cannot run rather than rejecting it, and logs
+a warning saying so. A `pulse` without a usable `duration_ms` and a `glow` whose
+`min_brightness` is not below its `max_brightness` both used to reach the
+pattern coroutine, raise inside its task and leave the LED dark. Refusing the
+config instead is worse: an invalid `leds.json` stops the service from starting
+at all, and one binding on a default is cheaper than a box with no LEDs.
 
 > **Software PWM:** as soon as one binding of an LED uses `glow`, the controller
 > claims that pin as a `gpiozero.PWMLED` instead of a plain `LED`. This works on
@@ -265,8 +273,15 @@ Per state change:
    does not clear the LED's remembered state, because the light stays as it is.
    `blink` and `pulse` release the state when they finish.
 
+Re-applying the state an LED is already showing does nothing. That matters for
+`audio/status`, which repeats while a track plays: without the check every one
+of those messages restarted the solid pattern and logged a state change, about
+once a second.
+
 Every pattern coroutine turns the LED off in its `finally` block, so a cancelled
-blink or pulse never leaves the LED stuck on.
+blink or pulse never leaves the LED stuck on. If a pattern raises inside its
+task, the controller logs `pattern_task_failed` and forgets the state, so the
+next attempt is not suppressed as a repeat.
 
 There is no queue. States are applied as their MQTT messages arrive; ordering is
 whatever the event loop schedules.
@@ -335,7 +350,9 @@ The events worth grepping for:
 | --- | --- | --- |
 | `led_state_changed` | info | A pattern was started; carries `led_id`, `logical_state`, `pattern_type`. |
 | `gpio_unavailable_fallback` | warning | A pin could not be claimed; that LED stays dark for the rest of the process. |
+| `pattern_task_failed` | error | A pattern raised while running; that LED is dark until the next state. |
 | `solid_pattern_duration_ignored` | warning | A `solid` binding still carries `duration_ms`. |
+| `blink_interval_defaulted` / `pulse_duration_defaulted` / `glow_brightness_range_invalid` | warning | The schema repaired a binding the WebUI produced; fix it there to silence this. |
 | `config_update_failed` / `config_reload_failed` | error | A config operation failed; the previous configuration stays active. |
 | `state_derivation_failed` | error | A payload could not be parsed. |
 | `led_pin_pulldown_failed` | warning | Cleanup could not reset the pin; harmless at shutdown. |

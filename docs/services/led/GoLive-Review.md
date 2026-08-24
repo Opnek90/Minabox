@@ -8,13 +8,17 @@ Der Dienst laeuft heute stabil (32 h Uptime, `healthy`, 10 MB RSS). Nichts in
 dieser Liste ist ein Grund, den GoLive zu verschieben – aber die Punkte in
 Abschnitt 1 treten im Alltag auf und sollten vorher weg.
 
-Legende: **[H]** hoch · **[M]** mittel · **[N]** niedrig
+Legende: **[H]** hoch · **[M]** mittel · **[N]** niedrig ·
+`[x]` umgesetzt · `[ ]` offen
+
+Umgesetzt auf dem Branch `fix/led-go-live`: 1.1 bis 1.4, die `repeat`-Semantik
+und die Tests. Alles Weitere ist noch offen.
 
 ---
 
 ## 1. Funktionale Fehler
 
-### [H] 1.1 `rfid_tag_blocked` wird nie ausgeloest
+### [x] [H] 1.1 `rfid_tag_blocked` wird nie ausgeloest
 
 `core/state_manager.py:35` hat eine Ableitungsregel fuer
 `minabox/<id>/rfid/tag-blocked`, und die WebUI bietet den Zustand zur Bindung an
@@ -26,9 +30,11 @@ Der Backend-RFID-Handler publiziert es tatsaechlich
 "gesperrte Karte" bindet, bekommt also stillschweigend nichts. Ein gesperrter
 Tag sieht fuer das Kind aus wie ein defekter Tag.
 
-**Fix:** eine Zeile in der Subscription-Liste. Risiko: keins.
+**Erledigt:** Topic in der Subscription-Liste ergaenzt. Dazu ein Test, der
+alle Ableitungsregeln gegen alle Subscriptions haelt, damit die beiden Listen
+nicht wieder auseinanderlaufen (`tests/test_mqtt_subscriptions.py`).
 
-### [H] 1.2 Die Idempotenz-Pruefung greift bei `solid`, `off` und `glow` nie
+### [x] [H] 1.2 Die Idempotenz-Pruefung greift bei `solid`, `off` und `glow` nie
 
 `core/led_controller.py:158`:
 
@@ -67,11 +73,11 @@ Ebenfalls sichtbar: `led_5 rfid_scanned solid` zweimal im Abstand von 3 ms,
 weil `rfid/presence` (retained) und `rfid/tag-scanned` beide denselben Zustand
 liefern.
 
-**Fix:** die Pruefung fuer persistente Pattern von der Task-Lebensdauer
-entkoppeln – `_current_logical_state == logical_state` genuegt dort. Risiko:
-gering, betrifft nur den Fall "gleicher Zustand nochmal".
+**Erledigt:** die Pruefung steckt jetzt in `_is_already_showing()` und
+entkoppelt persistente Pattern von der Task-Lebensdauer. Gegengeprueft: mit der
+alten Bedingung fallen die beiden Idempotenz-Tests um.
 
-### [H] 1.3 Fehler in Pattern-Tasks werden vollstaendig verschluckt
+### [x] [H] 1.3 Fehler in Pattern-Tasks werden vollstaendig verschluckt
 
 `core/led_controller.py:291`:
 
@@ -89,9 +95,11 @@ hinterlaesst **keine einzige Logzeile** – die LED bleibt einfach dunkel.
 `apply_pattern()` hat zwar einen `try/except` um `_start_pattern()`, aber der
 sieht nur Fehler *beim Starten*, nicht im Task selbst.
 
-**Fix:** im `else`-Zweig `logger.error(...)`. Risiko: keins.
+**Erledigt:** der Fehlerzweig loggt `pattern_task_failed` mit LED, Zustand und
+Pattern-Typ und setzt den gemerkten Zustand zurueck – sonst haette 1.2 den
+naechsten Versuch als Wiederholung unterdrueckt.
 
-### [H] 1.4 Zwei Konfigurationen, die die LED still totlegen
+### [x] [H] 1.4 Zwei Konfigurationen, die die LED still totlegen
 
 Beide sind ueber die WebUI erreichbar und werden nirgends abgefangen:
 
@@ -104,12 +112,15 @@ Das Schema laesst beides zu (`duration_ms: NonNegativeInt`, und die beiden
 Helligkeiten werden nur einzeln gegen 0.0–1.0 geprueft, nie gegeneinander). Die
 WebUI setzt `inputProps={{ min: 0 }}` bzw. erlaubt `min = max = 1.0`.
 
-**Fix:** ein `model_validator` in `LEDPattern`, der die Kombination prueft, plus
-1.3 als Sicherheitsnetz. Risiko: gering – aber bestehende `leds.json` muessen
-die Validierung ueberleben, sonst startet der Dienst nicht mehr. Deshalb: nur
-die tatsaechlich kaputten Kombinationen ablehnen, alles andere durchlassen.
+**Erledigt:** `LEDPattern.normalise_for_pattern_type()` **repariert** statt
+abzulehnen und loggt eine Warning. Ablehnen waere schlimmer gewesen: eine
+`leds.json`, die die Validierung nicht besteht, laesst den Dienst gar nicht mehr
+starten. Ein `pulse` ohne brauchbare `duration_ms` bekommt 250 ms, ein `glow`
+mit unbrauchbarem Bereich bekommt 0.0–1.0, ein `blink` ohne `interval_ms`
+bekommt 500 ms. Die Coroutinen behalten ihre eigenen Pruefungen als letzte
+Instanz, und 1.3 macht sie jetzt sichtbar.
 
-### [M] 1.5 `config/update` schreibt auf ein Read-only-Mount und meldet trotzdem Erfolg
+### [ ] [M] 1.5 `config/update` schreibt auf ein Read-only-Mount und meldet trotzdem Erfolg
 
 `docker-compose.yml:330` mountet `config` als `:ro` (im laufenden Container
 verifiziert: `"RW": false`). `ConfigManager.update_config()` ruft
@@ -136,7 +147,7 @@ Doku) oder den Callback `async` machen und das Ergebnis abwarten. Ich empfehle
 Entfernen: das Besitzverhaeltnis "Backend schreibt, Service liest" ist sauber
 und wird durch das `:ro`-Mount bereits erzwungen.
 
-### [M] 1.6 Kein Schutz gegen gleichzeitige Zustandswechsel
+### [ ] [M] 1.6 Kein Schutz gegen gleichzeitige Zustandswechsel
 
 `main.py:154` startet fuer jede MQTT-Nachricht ein `asyncio.create_task(
 led_manager.apply_state(...))`. Zwei kurz aufeinanderfolgende Nachrichten
@@ -159,7 +170,7 @@ streuen. Das serialisiert die Verarbeitung und macht die FIFO-Zusage nachtraegli
 wahr. Risiko: mittel, weil die Reihenfolge sich messbar aendert. Vorher lokal
 mit `MINABOX_LED_TAG=local` gegen echte Hardware testen.
 
-### [M] 1.7 `LGPIOFactory` wird bei jedem Reload neu erzeugt, die alte nie geschlossen
+### [ ] [M] 1.7 `LGPIOFactory` wird bei jedem Reload neu erzeugt, die alte nie geschlossen
 
 `core/led_controller.py:420`:
 
@@ -177,22 +188,28 @@ das wollte ich am laufenden System nicht tun. Der Fix ist aber unabhaengig davon
 richtig: die Factory einmal beim Start setzen, nicht bei jedem Reload, oder die
 alte vorher schliessen.
 
-### [N] 1.8 Der "5-Sekunden-Testblink" dauert 2,5 Sekunden
+### [x] [N] 1.8 Der "5-Sekunden-Testblink" dauert 2,5 Sekunden
 
 `run_test_blink(duration_sec=5.0)` rechnet `repeat = max(1, int(5.0)) = 5` bei
 `interval_ms = 500`. `run_blink_pattern` zaehlt aber **Flanken**, nicht Zyklen –
 5 × 500 ms = 2,5 s. Docstring, API-Docstring und die alte Doku sagten 5 s.
 
-Nebenbei: dieselbe Flanken-Semantik gilt fuer jedes `blink`-Binding. In der
-ausgelieferten `leds.json` steht `button_pressed` mit `repeat: 2`, was genau ein
-vollstaendiges Blinken ergibt. Im neuen Architecture-Dokument ist das jetzt
-beschrieben; in der WebUI-Hilfe steht es noch nicht.
+**Erledigt:** `repeat` zaehlt jetzt ueberall ganze Zyklen – ein Blinken ist an
+*und* wieder aus. Damit dauert der Testblink die versprochenen 5 Sekunden, und
+`blink` verhaelt sich wie `pulse` und `glow`.
+
+Die mitgelieferte `leds.json.example` und die lokale `leds.json` wurden
+angepasst: `button_pressed` stand auf `repeat: 2`, was unter der alten Zaehlung
+genau ein Blinken war und unter der neuen zwei geworden waere. Ausserdem ist das
+wirkungslose `duration_ms` aus den `blink`-, `solid`- und `off`-Bindings raus.
+
+Offen bleibt die WebUI-Hilfe: dort steht die Bedeutung von `repeat` nirgends.
 
 ---
 
 ## 2. Robustheit und Betrieb
 
-### [H] 2.1 `/health` meldet `healthy`, obwohl keine einzige LED funktioniert
+### [ ] [H] 2.1 `/health` meldet `healthy`, obwohl keine einzige LED funktioniert
 
 `api/routes.py:69` zaehlt `len(led_manager._controllers)` – das sind die
 *konfigurierten*, nicht die *initialisierten* LEDs. Ein Controller, dessen Pin
@@ -209,7 +226,7 @@ ist. Der Docker-Healthcheck prueft nur, dass der Endpunkt antwortet – der
 Container wuerde also *nicht* neu starten, die WebUI koennte es aber anzeigen.
 Risiko: gering.
 
-### [H] 2.2 Keine Log-Rotation
+### [ ] [H] 2.2 Keine Log-Rotation
 
 `docker inspect` zeigt `{"Type":"json-file","Config":{}}` – Docker-Default,
 also unbegrenzt. In `docker-compose.yml` gibt es keinen einzigen
@@ -229,7 +246,7 @@ logging:
 
 Risiko: keins, wirkt beim naechsten Container-Neustart.
 
-### [M] 2.3 Port 8004 haengt ohne Authentifizierung auf allen Interfaces
+### [ ] [M] 2.3 Port 8004 haengt ohne Authentifizierung auf allen Interfaces
 
 `ss -tlnp` zeigt `0.0.0.0:8004` und `[::]:8004`. `POST /test` ist ungeschuetzt –
 jeder im WLAN kann die LEDs der Box blinken lassen. Das Backend braucht den
@@ -242,7 +259,7 @@ Compose-Kommentar (`docker-compose.yml:200`): `127.0.0.1:8003:8003`.
 moeglich. Risiko: keins fuer LED. (Gleiches gilt fuer button/display/rfid auf
 8005–8007.)
 
-### [M] 2.4 Eine deaktivierte LED belegt ihren Pin weiterhin
+### [ ] [M] 2.4 Eine deaktivierte LED belegt ihren Pin weiterhin
 
 `enabled` wird nur in `apply_pattern()` geprueft (`led_controller.py:133`).
 `LEDController.__init__` legt das `LED`/`PWMLED`-Objekt trotzdem an. Wer eine
@@ -251,7 +268,7 @@ nicht frei.
 
 **Fix:** die `enabled`-Pruefung nach vorn in `__init__` ziehen. Risiko: gering.
 
-### [M] 2.5 Keine Validierung von GPIO-Nummer, Doppelbelegung und doppelter ID
+### [ ] [M] 2.5 Keine Validierung von GPIO-Nummer, Doppelbelegung und doppelter ID
 
 `gpio: PositiveInt` akzeptiert `999`. Zwei LEDs auf demselben Pin sind erlaubt –
 die zweite scheitert dann mit `GPIOPinInUse`, was als `warning` untergeht (1.3
@@ -268,7 +285,7 @@ Validierung kann eine bestehende `leds.json` unbrauchbar machen, und
 `load_app_config()` laesst den Dienst dann nicht starten. Vorher gegen die
 echte Datei der Box testen.
 
-### [N] 2.6 Tasks ohne Referenz
+### [ ] [N] 2.6 Tasks ohne Referenz
 
 `main.py:154`, `:175`, `:192` starten Tasks mit `asyncio.create_task(...)`, ohne
 das Ergebnis irgendwo zu halten. Der Garbage Collector darf einen solchen Task
@@ -279,7 +296,7 @@ Fallstrick.
 
 ## 3. Code-Qualitaet
 
-### [M] 3.1 Deutsche Kommentare im Dockerfile
+### [ ] [M] 3.1 Deutsche Kommentare im Dockerfile
 
 `services/led-service/Dockerfile:64-67` – der Versions-Block ist noch deutsch,
 inklusive "ungueltig". Der Rest der Datei ist englisch. Der Host-Helper hat den
@@ -292,7 +309,7 @@ Auffaellig nur, dass die getrackte `leds.json.example` "Gruen" schreibt, die
 lokale `leds.json` aber "Grün" – die Umlaut-Regel des Projekts gilt fuer
 `.py`/`.sh`, insofern in Ordnung.
 
-### [M] 3.2 66 ruff-Befunde, 8 von 16 Dateien nicht formatiert
+### [~] [M] 3.2 66 ruff-Befunde, 8 von 16 Dateien nicht formatiert
 
 ```
 26 W293  Leerzeichen in Leerzeilen
@@ -313,54 +330,58 @@ lokale `leds.json` aber "Grün" – die Umlaut-Regel des Projekts gilt fuer
 `TYPE_CHECKING`-Block, der nur `LED` holt. Zur Laufzeit harmlos (`from __future__
 import annotations`), fuer mypy und jeden Leser aber falsch.
 
-44 der 66 sind mit `ruff check --fix` erledigt, der Rest ist Handarbeit.
-`ruff format` wuerde 8 Dateien anfassen – ein grosser, aber rein mechanischer
-Diff. Ich wuerde das in einen eigenen Commit legen, damit die inhaltlichen
-Fixes lesbar bleiben.
+**Erledigt auf `fix/led-go-live`:** `ruff check` laeuft sauber durch, `F821`
+inklusive. Offen bleibt `ruff format` – das wuerde 8 Dateien reflowen, ein
+grosser, rein mechanischer Diff. Der gehoert in einen eigenen Commit, damit die
+inhaltlichen Fixes lesbar bleiben.
 
-### [N] 3.3 Toter Code
+### [ ] [N] 3.3 Toter Code
 
 | Stelle | Befund |
 |---|---|
 | `src/led_service/models/` | `__init__.py` und `schemas.py` sind beide 0 Byte |
 | `requirements.txt:13`, `pyproject.toml:16` | `tenacity` wird nirgends importiert |
-| `exceptions.py` | `HardwareError`, `GPIOInitError`, `UnknownStateError` werden nie geworfen; `GPIOInitError` wird importiert und nicht benutzt |
+| `exceptions.py` | `HardwareError`, `GPIOInitError`, `UnknownStateError` werden nie geworfen (der ungenutzte Import ist raus) |
 | `mqtt_client.py:171` | `_handle_config_get()` bestaetigt nur, liefert die Config nie |
-| `core/__init__.py` | exportiert `run_*_pattern`, aber nicht `run_glow_pattern` – inkonsistent |
+| ~~`core/__init__.py`~~ | ~~exportiert `run_*_pattern`, aber nicht `run_glow_pattern`~~ – erledigt |
 
-### [N] 3.4 Drei verschiedene Versionsnummern
+### [ ] [N] 3.4 Drei verschiedene Versionsnummern
 
 `VERSION` sagt `0.1.1`, `pyproject.toml:7` sagt `0.1.0`, und
 `api/routes.py:45` traegt `version="0.1.0"` fest in die FastAPI-App ein –
 waehrend `/health` daneben korrekt `get_version()` aus den Build-Args liest.
 Die OpenAPI-Seite unter `/docs` zeigt damit dauerhaft eine falsche Version.
 
-**Fix:** `version=get_version()` in `create_app()`, und `pyproject.toml`
-entweder pflegen oder das Feld auf die VERSION-Datei zeigen lassen.
+**Erledigt auf `fix/led-go-live`:** `create_app()` nutzt jetzt
+`get_version()`. Offen bleibt `pyproject.toml` – entweder pflegen oder das Feld
+auf die VERSION-Datei zeigen lassen.
 
-### [N] 3.5 Kleinigkeiten mit Typ-Bezug
+### [ ] [N] 3.5 Kleinigkeiten mit Typ-Bezug
 
-- `state_manager.py:25`: `Dict[str, callable]` – `callable` ist die eingebaute
-  Funktion, kein Typ. Gemeint ist `Callable[[bytes], str]`.
 - `api/routes.py:69`: `led_manager._controllers` greift von aussen auf ein
   privates Attribut zu. Eine `led_count`-Property waere sauberer.
 - `led_controller.py:65` und `:415` lesen `DISABLE_GPIO` zweimal direkt per
   `os.getenv`, statt es einmal ueber `EnvConfig` zu fuehren wie alle anderen
   Einstellungen.
 
-### [H] 3.6 Null Tests
+### [x] [H] 3.6 Null Tests
 
 `services/led-service/` hat kein `tests/`-Verzeichnis. Zum Vergleich: backend 15
 Dateien, rfid 4, audio 3, display 1, host-helper 1.
 
-Das ist fuer den GoLive der wichtigste Punkt in diesem Abschnitt, weil jeder
-Fix aus Abschnitt 1 sonst ungeprueft auf die Box geht. Testbar ohne Hardware
-sind die Teile, in denen die Fehler stecken:
+**Erledigt:** 74 Tests in `services/led-service/tests/`, alle ohne Hardware.
 
-- `StateManager.derive_state()` – reine Funktion ueber Topic + Payload
-- `LEDPattern`-Validierung – die Faelle aus 1.4
-- die Pattern-Coroutinen gegen ein Fake-LED-Objekt (`led.on/off/value`)
-- `LEDController.apply_pattern()` mit `DISABLE_GPIO=true`
+| Datei | Deckt ab |
+|---|---|
+| `test_led_patterns.py` | die `repeat`-Semantik aller Pattern, Abbruch mittendrin, dass keine LED angeschaltet zurueckbleibt |
+| `test_config_schema.py` | die Reparaturen aus 1.4, und dass die ausgelieferte `leds.json.example` validiert |
+| `test_led_controller.py` | Idempotenz (1.2), das Logging fehlgeschlagener Tasks (1.3), die Dauer des Testblinks |
+| `test_led_state_manager.py` | jede Ableitungsregel, Audio-Zustaende, retained presence, kaputte Payloads |
+| `test_mqtt_subscriptions.py` | der Vertrag aus 1.1: keine Regel ohne Subscription |
+
+Die Pattern-Tests ersetzen `_sleep_or_cancel` durch einen Zaehler statt echt zu
+schlafen. Damit sind die Zeit-Zusagen exakt pruefbar – etwa dass der letzte Puls
+keine Pause mehr anhaengt – und die Suite laeuft in gut zwei Sekunden durch.
 
 ---
 
@@ -393,7 +414,7 @@ komprimiert. Aufteilung laut `docker history` und Messung im Container:
 | `httptools` | 2 | **nein** |
 | `gpiozero`, `fastapi`, `anyio`, Rest | ~8 | ja |
 
-### [M] 4.1 `uvicorn[standard]` → `uvicorn` (≈ 27 MB)
+### [ ] [M] 4.1 `uvicorn[standard]` → `uvicorn` (≈ 27 MB)
 
 Das `[standard]`-Extra zieht `uvloop`, `httptools`, `websockets`, `watchfiles`,
 `PyYAML` und `python-dotenv`. Keins davon wird benutzt:
@@ -412,7 +433,7 @@ Vor dem Release lokal bauen und starten:
 `./scripts/build-local.sh led && MINABOX_LED_TAG=local docker compose up -d led`,
 dann `curl` gegen `/health` und `/test`.
 
-### [M] 4.2 `pip` und `setuptools` nicht ins Runtime-Image kopieren (≈ 19 MB)
+### [ ] [M] 4.2 `pip` und `setuptools` nicht ins Runtime-Image kopieren (≈ 19 MB)
 
 `COPY --from=builder /usr/local/lib/python3.13/site-packages ...` nimmt die
 Build-Werkzeuge mit. Zur Laufzeit installiert niemand etwas nach.
@@ -427,7 +448,7 @@ Nebenbei landen ueber `COPY --from=builder /usr/local/bin` auch `rgpiod`, `rgs`,
 `idle`, `pydoc` und `pinout` im Image – zusammen nur ~200 kB, aber sie gehoeren
 da nicht hin.
 
-### [M] 4.3 `curl` durch einen Python-Healthcheck ersetzen (≈ 14,5 MB)
+### [ ] [M] 4.3 `curl` durch einen Python-Healthcheck ersetzen (≈ 14,5 MB)
 
 `curl` ist die einzige apt-Installation im Runtime-Stage und existiert nur fuer
 den Healthcheck. Python ist ohnehin da:
@@ -441,7 +462,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 `["CMD","curl",...]`. Beide Stellen muessen zusammen geaendert werden, sonst ist
 der Container dauerhaft `unhealthy`.
 
-### [H] 4.4 Die `lg`-Quelle ist unversioniert und ungeprueft
+### [ ] [H] 4.4 Die `lg`-Quelle ist unversioniert und ungeprueft
 
 ```dockerfile
 RUN wget -q https://github.com/joan2937/lg/archive/refs/heads/master.tar.gz ...
@@ -460,7 +481,7 @@ Wheel fuer cp39–cp312, **nicht fuer cp313**. Der Builder-Stage kann also nicht
 entfallen. (Der Button-Service macht dasselbe mit `git clone --depth 1` – dort
 gilt derselbe Befund.)
 
-### [N] 4.5 Kleinigkeiten im Dockerfile
+### [ ] [N] 4.5 Kleinigkeiten im Dockerfile
 
 - `PYTHONDONTWRITEBYTECODE=1` und `PYTHONUNBUFFERED=1` fehlen; der Host-Helper
   hat beide.
