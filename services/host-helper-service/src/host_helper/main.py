@@ -12,7 +12,7 @@ from shared_lib.exceptions import ConfigError
 from shared_lib.version import get_version as get_build_version
 
 from host_helper.api.routes import router, set_config
-from host_helper.config import load_config
+from host_helper.config import Config, load_config
 
 logger = structlog.get_logger(__name__)
 
@@ -37,7 +37,7 @@ def setup_logging(log_level: str) -> None:
     )
 
 
-def create_app(config: dict) -> FastAPI:
+def create_app(config: Config) -> FastAPI:
     """Build the app.
 
     The interactive docs are off unless LOG_LEVEL is DEBUG. /docs and
@@ -47,7 +47,7 @@ def create_app(config: dict) -> FastAPI:
     the compose network. Someone debugging the service can still turn them on
     the same way they turn on the readable log format.
     """
-    debug = config.get("log_level", "").upper() == "DEBUG"
+    debug = config.log_level == "DEBUG"
     app = FastAPI(
         title="Minabox Host-Helper",
         version=get_build_version(),
@@ -66,15 +66,15 @@ def run() -> None:
         print(f"Config error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    setup_logging(config["log_level"])
+    setup_logging(config.log_level)
     set_config(config)
 
-    logger.info("host_helper_starting", port=config["port"])
+    logger.info("host_helper_starting", port=config.port)
     app = create_app(config)
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=config["port"],
+        port=config.port,
         log_config=None,
     )
 

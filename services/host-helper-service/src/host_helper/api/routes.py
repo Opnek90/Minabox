@@ -27,13 +27,13 @@ from pydantic import BaseModel
 from shared_lib.version import get_version as get_build_version
 from starlette.background import BackgroundTask
 
-from host_helper.config import validate_path_under_allowed
+from host_helper.config import Config, validate_path_under_allowed
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-_config: dict | None = None
+_config: Config | None = None
 
 # Move job state for progress (idle | running | done | error)
 _move_state: dict = {"status": "idle", "total": 0, "current": 0, "error": None}
@@ -80,13 +80,13 @@ class MoveBody(BaseModel):
     destination: str
 
 
-def get_config() -> dict:
+def get_config() -> Config:
     if _config is None:
         raise RuntimeError("Config not loaded")
     return _config
 
 
-def set_config(cfg: dict) -> None:
+def set_config(cfg: Config) -> None:
     global _config
     _config = cfg
 
@@ -95,7 +95,7 @@ def _check_api_key(x_api_key: str | None = Header(None, alias="X-Api-Key")) -> N
     """Validate the shared secret. This is the only gate in front of a service
     that runs as root with the host filesystem mounted, so the comparison must
     not leak the key through its timing."""
-    expected = get_config()["api_key"].strip()
+    expected = get_config().api_key.strip()
     if not x_api_key or not expected:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
     if not secrets.compare_digest(x_api_key.strip(), expected):
@@ -147,7 +147,7 @@ async def health() -> dict:
 def get_audio_path(_: None = Depends(_check_api_key)) -> dict:
     """Read AUDIO_FILES_PATH from .env (saved value for next start)."""
     cfg = get_config()
-    env_path: Path = cfg["env_file_path"]
+    env_path = cfg.env_file_path
     if not env_path.exists():
         return {"audio_files_path": None}
     try:
@@ -172,8 +172,8 @@ def apply_audio_path(
     if not path_str:
         raise HTTPException(status_code=400, detail="audio_files_path required")
     cfg = get_config()
-    env_path: Path = cfg["env_file_path"]
-    allowed = cfg["allowed_base_paths"]
+    env_path = cfg.env_file_path
+    allowed = cfg.allowed_base_paths
     logger.info("apply_audio_path_requested", path=path_str)
 
     try:
@@ -324,8 +324,8 @@ def move(
     source_str = body.source.strip()
     dest_str = body.destination.strip()
     cfg = get_config()
-    allowed = cfg["allowed_base_paths"]
-    host_root = (cfg.get("host_root") or "").strip()
+    allowed = cfg.allowed_base_paths
+    host_root = cfg.host_root
 
     try:
         source = _validate_host_path_under_allowed(source_str, allowed, host_root)
@@ -384,7 +384,7 @@ def _host_root() -> Path:
     host tool path against a directory that does not exist, and fail with a
     confusing "not found on host" instead of an obvious one.
     """
-    configured = (get_config().get("host_root") or "/host").strip() or "/host"
+    configured = get_config().host_root or "/host"
     root = Path(configured).resolve()
     return root if root.exists() else Path("/host").resolve()
 
@@ -997,7 +997,7 @@ def usb_import(
     """Copy selected paths from USB to AUDIO_STORAGE_PATH."""
     device_id = _validate_device_id(body.device_id)
     cfg = get_config()
-    dest_base = Path(cfg.get("audio_storage_path", "/workspace/audio")).resolve()
+    dest_base = cfg.audio_storage_path.resolve()
     root_path = _host_root()
     devices = _run_lsblk()
     dev = next((d for d in devices if d.get("id") == device_id), None)
@@ -1157,8 +1157,8 @@ def _write_backup_zip(target: Path) -> None:
     finished archive is not something a Pi should be asked to do.
     """
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    workspace = cfg.workspace_path.resolve()
+    data_path = cfg.data_path.resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
         for source, arcname in _backup_members(workspace, data_path):
@@ -1169,8 +1169,7 @@ def _write_backup_zip(target: Path) -> None:
 def backup_download(_: None = Depends(_check_api_key)) -> Response:
     """Stream a ZIP of the database, settings, static files and service state."""
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    data_path = cfg.data_path.resolve()
     filename = f"minabox-backup-{datetime.now(UTC).strftime('%Y%m%d-%H%M')}.zip"
 
     data_path.mkdir(parents=True, exist_ok=True)
@@ -1301,8 +1300,8 @@ async def backup_restore(
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Upload must be a .zip file")
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    workspace = cfg.workspace_path.resolve()
+    data_path = cfg.data_path.resolve()
     if not (workspace / "docker-compose.yml").exists():
         raise HTTPException(status_code=500, detail="docker-compose.yml not found")
 
@@ -1349,20 +1348,20 @@ def backup_restore_status(_: None = Depends(_check_api_key)) -> dict:
         return dict(_restore_state)
 
 
-def _read_host_status(cfg: dict) -> dict:
+def _read_host_status(cfg: Config) -> dict:
     """Read host status from mounted /host/proc, /host/etc/hostname, etc."""
     out: dict = {
         "hostname": None,
-        "ip": cfg.get("host_ip"),
+        "ip": cfg.host_ip,
         "uptime_seconds": None,
         "memory": None,
         "cpu": None,
         "disk": None,
         "temperature_celsius": None,
     }
-    host_proc = cfg.get("host_proc", "/host/proc")
-    host_etc_hostname = cfg.get("host_etc_hostname", "/host/etc/hostname")
-    host_root = cfg.get("host_root")
+    host_proc = cfg.host_proc
+    host_etc_hostname = cfg.host_etc_hostname
+    host_root = cfg.host_root
 
     # Host uptime from /proc/uptime (seconds since boot)
     try:
@@ -1607,9 +1606,9 @@ class HostnameBody(BaseModel):
     hostname: str
 
 
-def _read_hostname(cfg: dict) -> str | None:
+def _read_hostname(cfg: Config) -> str | None:
     """Read current hostname from /host/etc/hostname."""
-    path = Path(cfg.get("host_etc_hostname", "/host/etc/hostname"))
+    path = cfg.host_etc_hostname
     if not path.exists():
         return None
     try:
@@ -1979,7 +1978,7 @@ def set_network(
 
 
 def _default_system_user() -> str:
-    return os.environ.get("DEFAULT_USER", "pi").strip() or "pi"
+    return get_config().default_user
 
 
 class PasswordBody(BaseModel):
@@ -2089,7 +2088,7 @@ def _run_host_systemctl(
     args: list[str], timeout: int = 15
 ) -> subprocess.CompletedProcess:
     """Run systemctl on the host via chroot. Requires pid=host."""
-    host_root = get_config().get("host_root") or "/host"
+    host_root = str(_host_root())
     systemctl_path = Path(host_root) / "usr" / "bin" / "systemctl"
     if not systemctl_path.exists():
         systemctl_path = Path(host_root) / "bin" / "systemctl"
@@ -2182,11 +2181,9 @@ def factory_reset(
 ) -> dict:
     """Reset DB, configs, optionally clear audio; start hotspot; restart containers."""
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
-    audio_storage_path = Path(
-        cfg.get("audio_storage_path", str(workspace / "audio"))
-    ).resolve()
+    workspace = cfg.workspace_path.resolve()
+    data_path = cfg.data_path.resolve()
+    audio_storage_path = Path(cfg.audio_storage_path).resolve()
     compose_file = workspace / "docker-compose.yml"
 
     # 1) Delete DB
@@ -2216,7 +2213,7 @@ def factory_reset(
 
     # 4) Optional: clear audio storage (only if under allowed base)
     if body and body.delete_audio and audio_storage_path.exists():
-        allowed_bases = [Path(b).resolve() for b in cfg.get("allowed_base_paths", [])]
+        allowed_bases = [Path(b).resolve() for b in cfg.allowed_base_paths]
         allowed_bases.append(workspace)
         try:
             for base in allowed_bases:
@@ -2433,8 +2430,7 @@ def _host_workspace() -> str:
 def _update_paths() -> tuple[Path, Path, Path, str]:
     """(log, script, state file) inside the container, plus the log path on the host."""
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    data_path = cfg.data_path.resolve()
     host_workspace = _host_workspace()
     return (
         data_path / "minabox-update.log",
@@ -2447,7 +2443,7 @@ def _update_paths() -> tuple[Path, Path, Path, str]:
 def _service_names() -> list[str]:
     """The services this project knows, derived from the VERSION files on disk."""
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
+    workspace = cfg.workspace_path.resolve()
     return sorted(
         p.parent.name.removesuffix("-service")
         for p in (workspace / "services").glob("*-service/VERSION")
@@ -2581,7 +2577,7 @@ def update_minabox(
     log_path, script_path, state_path, host_log = _update_paths()
     host_workspace = _host_workspace()
     cfg = get_config()
-    env_path: Path = cfg["env_file_path"]
+    env_path = cfg.env_file_path
 
     if _update_unit_active():
         raise HTTPException(status_code=409, detail="An update is already running")
@@ -2605,7 +2601,7 @@ def update_minabox(
     log_lines = ["=== MINABOX-STEP 1/5 backup"]
     if body is None or body.backup:
         try:
-            backup_dir = Path(cfg.get("data_path", str(Path(host_workspace) / "data")))
+            backup_dir = cfg.data_path
             backup_dir = backup_dir / "backups"
             backup_dir.mkdir(parents=True, exist_ok=True)
             stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
@@ -2744,7 +2740,7 @@ def get_version(_: None = Depends(_check_api_key)) -> dict:
     keeps the field only so its response shape stays stable.
     """
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
+    workspace = cfg.workspace_path.resolve()
     current_commit: str | None = None
     ref_file = workspace / ".git/refs/heads/main"
     if ref_file.exists():
@@ -2807,8 +2803,7 @@ def _os_update_wait_and_finish(
 def update_os(_: None = Depends(_check_api_key)) -> dict:
     """Start the host OS upgrade in the background and return immediately."""
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    data_path = cfg.data_path.resolve()
     log_path = data_path / "os-update.log"
     pid_path = data_path / "os-update.pid"
     # Two apt processes only ever fight over the dpkg lock, and the second one
@@ -2867,8 +2862,7 @@ def update_os(_: None = Depends(_check_api_key)) -> dict:
 def update_os_log(_: None = Depends(_check_api_key)) -> dict:
     """Return current OS update log and whether the process is still running."""
     cfg = get_config()
-    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    data_path = cfg.data_path.resolve()
     log_path = data_path / "os-update.log"
     pid_path = data_path / "os-update.pid"
     running = _os_update_running(pid_path)

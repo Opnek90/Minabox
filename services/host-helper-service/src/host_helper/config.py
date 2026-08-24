@@ -1,8 +1,9 @@
-"""Configuration for Host-Helper service."""
+"""Configuration for the host-helper service."""
 
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
@@ -18,43 +19,76 @@ def _get_required_env(key: str) -> str:
     return str(val).strip()
 
 
-def load_config() -> dict:
-    """Load config from environment. Returns a simple dict."""
-    log_level = _get_required_env("LOG_LEVEL").upper()
-    api_key = _get_required_env("HOST_HELPER_API_KEY")
-    port = int(os.environ.get("HOST_HELPER_PORT", "8000"))
-    env_file_path = os.environ.get("ENV_FILE_PATH", "/workspace/.env")
-    allowed_base = os.environ.get("ALLOWED_BASE_PATHS", "/media,/mnt,/home/pi")
-    allowed_base_paths = [p.strip() for p in allowed_base.split(",") if p.strip()]
-    host_proc = os.environ.get("HOST_PROC", "/host/proc")
-    host_etc_hostname = os.environ.get("HOST_ETC_HOSTNAME", "/host/etc/hostname")
-    host_root = os.environ.get("HOST_ROOT", "")
-    host_ip = os.environ.get("HOST_IP", "").strip() or None
-    workspace_path = os.environ.get("WORKSPACE_PATH", "/workspace")
-    data_path = os.environ.get("DATA_PATH", "").strip() or str(
-        Path(workspace_path) / "data"
+def _optional_env(key: str, default: str = "") -> str:
+    return os.environ.get(key, default).strip() or default
+
+
+@dataclass(frozen=True, slots=True)
+class Config:
+    """Everything the service reads from the environment, resolved once.
+
+    Frozen and fully populated on purpose. The previous shape was a plain dict,
+    which meant every call site repeated the default a second time
+    (`cfg.get("workspace_path", "/workspace")`) for a key that load_config()
+    always sets. Two places to change one default is one too many, and a typo
+    in a key silently produced the fallback instead of failing.
+    """
+
+    log_level: str
+    api_key: str
+    port: int
+    env_file_path: Path
+    allowed_base_paths: tuple[str, ...]
+    host_proc: Path
+    host_etc_hostname: Path
+    host_root: str
+    host_ip: str | None
+    workspace_path: Path
+    data_path: Path
+    audio_storage_path: Path
+    default_user: str
+
+
+def load_config() -> Config:
+    """Read the configuration from the environment.
+
+    Raises ConfigError for anything required and missing, so the process exits
+    instead of starting half-configured.
+    """
+    workspace_path = _optional_env("WORKSPACE_PATH", "/workspace")
+    return Config(
+        log_level=_get_required_env("LOG_LEVEL").upper(),
+        api_key=_get_required_env("HOST_HELPER_API_KEY"),
+        port=int(_optional_env("HOST_HELPER_PORT", "8000")),
+        env_file_path=Path(_optional_env("ENV_FILE_PATH", "/workspace/.env")),
+        allowed_base_paths=tuple(
+            p.strip()
+            for p in _optional_env("ALLOWED_BASE_PATHS", "/media,/mnt,/home/pi").split(
+                ","
+            )
+            if p.strip()
+        ),
+        host_proc=Path(_optional_env("HOST_PROC", "/host/proc")),
+        host_etc_hostname=Path(
+            _optional_env("HOST_ETC_HOSTNAME", "/host/etc/hostname")
+        ),
+        # Deliberately a plain string and allowed to be empty: an empty value
+        # means "no host mount", which the path translation treats differently
+        # from "/". _host_root() in the routes turns it into a usable Path.
+        host_root=os.environ.get("HOST_ROOT", "").strip(),
+        host_ip=os.environ.get("HOST_IP", "").strip() or None,
+        workspace_path=Path(workspace_path),
+        data_path=Path(_optional_env("DATA_PATH", str(Path(workspace_path) / "data"))),
+        audio_storage_path=Path(
+            _optional_env("AUDIO_STORAGE_PATH", str(Path(workspace_path) / "audio"))
+        ),
+        default_user=_optional_env("DEFAULT_USER", "pi"),
     )
-    audio_storage_path = os.environ.get("AUDIO_STORAGE_PATH", "").strip() or str(
-        Path(workspace_path) / "audio"
-    )
-
-    return {
-        "log_level": log_level,
-        "api_key": api_key,
-        "port": port,
-        "env_file_path": Path(env_file_path),
-        "allowed_base_paths": allowed_base_paths,
-        "host_proc": host_proc,
-        "host_etc_hostname": host_etc_hostname,
-        "host_root": host_root,
-        "host_ip": host_ip,
-        "workspace_path": workspace_path,
-        "data_path": data_path,
-        "audio_storage_path": audio_storage_path,
-    }
 
 
-def validate_path_under_allowed(path_str: str, allowed_base_paths: list[str]) -> Path:
+def validate_path_under_allowed(
+    path_str: str, allowed_base_paths: tuple[str, ...] | list[str]
+) -> Path:
     """Resolve a path and require it under an allowed base. Raises ValueError."""
     if not path_str or ".." in path_str:
         raise ValueError("Invalid path")
