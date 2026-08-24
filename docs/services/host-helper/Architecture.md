@@ -80,6 +80,10 @@ model is "whoever can reach this port owns the box".
 
 - **Not published.** The service has no `ports:` entry. It is reachable only
   from inside the `minabox-network` bridge, at `http://host-helper:8000`.
+- **No interactive docs.** `/docs`, `/redoc` and `/openapi.json` are disabled
+  unless `LOG_LEVEL=DEBUG`. They are the only routes that never asked for the
+  API key, and on a service with these privileges publishing the full route
+  and parameter list to the compose network is a gift nobody needs to give.
 - **Shared secret.** Every route except `GET /health` requires the header
   `X-Api-Key`, checked against `HOST_HELPER_API_KEY`. The comparison uses
   `secrets.compare_digest`, so a wrong key cannot be found by timing.
@@ -101,10 +105,25 @@ model is "whoever can reach this port owns the box".
   `VERSION` files on disk; versions must match
   `[0-9A-Za-z][0-9A-Za-z._-]{0,63}`. Both are checked before anything is
   written to `.env` or into the generated update script.
-- **Backup archives.** `_backup_allowed_path()` permits only entries under
-  `data/` or `services/*/state|config/`. Entries are extracted with
+- **Backup archives.** `_backup_allowed_path()` mirrors what the backup
+  builder produces: `data/minabox.db` and `data/general_settings.json` by
+  name, `data/static/**` by prefix, and `services/<name>-service/state|config/`
+  per service. The rest of `data/` is refused — the update log, the OS-update
+  PID file, the pre-update archives and `minabox-update.sh`, which the host
+  runs as root, all live there and are this service's own runtime state, not
+  something an upload gets to write. Entries are extracted with
   `zipfile.read()` and `Path.write_bytes()`, so an archive cannot create
   symlinks or escape the workspace.
+- **USB imports.** Requested entries are rejected if they are absolute or
+  contain `..`, and the resolved path must still sit under the mount point.
+  Symlinks are skipped rather than followed, both for a directly requested
+  entry and for anything inside a copied directory: the stick is mounted under
+  `/host`, so a link to `../../../etc/shadow` on a prepared device would
+  otherwise resolve to the host's file and copy its content into the audio
+  directory.
+- **Device names.** `_validate_device_id()` accepts an alphanumeric block
+  device name and nothing else. The value ends up in `/dev/<id>`, and the
+  device must additionally appear in the `lsblk` listing.
 - **Diagnostics.** `GET /diagnostics/host` takes no parameters at all. The
   three commands it may run are a hard-coded tuple.
 - **No shell interpolation of user input.** Subprocesses are invoked with
@@ -118,6 +137,15 @@ renderer when `LOG_LEVEL=DEBUG`. Every state-changing action logs an event
 (`move_requested`, `hostname_set`, `ssh_toggled`, `update_minabox_started`, …).
 Secrets are never logged: the system password is passed to `chpasswd` on stdin,
 and the WiFi PSK is not written to any log line.
+
+### 3.5 Known residual risk
+
+The WiFi PSK and the hotspot password are handed to `nmcli` as command-line
+arguments, so they are visible in the host's process list for the fraction of
+a second the call takes. Avoiding it means writing NetworkManager keyfiles
+directly instead of driving `nmcli`, which trades a narrow exposure on a
+single-user appliance for a rewrite of the part of this service that is
+hardest to get right. It is recorded here as accepted, not overlooked.
 
 ---
 
@@ -235,9 +263,10 @@ generated and returned in the response so the WebUI can display it.
 | POST   | `/usb/import`             | Body `{device_id, source_paths}`; copies to `AUDIO_STORAGE_PATH`. |
 | POST   | `/usb/eject`              | `udisksctl unmount` followed by `power-off`.                     |
 
-`device_id` is a bare device name such as `sda1`; anything containing `/` or
-`..` is rejected. Entries in `source_paths` are relative to the mount point and
-are skipped if they are absolute or contain `..`.
+`device_id` is a bare device name such as `sda1`; anything else is rejected.
+Entries in `source_paths` are relative to the mount point, and one that
+resolves outside it — or is a symlink — is skipped rather than copied. The
+response reports both `files_copied` and `skipped`.
 
 ### Backup and restore
 

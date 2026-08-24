@@ -725,6 +725,32 @@ def usb_devices(_: None = Depends(_check_api_key)) -> dict:
     return {"devices": devices}
 
 
+def _validate_device_id(device_id: str) -> str:
+    """A bare block device name such as sda1. Raises HTTPException otherwise.
+
+    The three USB routes each carried their own version of this check and only
+    one of them rejected a slash, so the same value was accepted in one place
+    and refused in another. The name ends up in /dev/<id>, so it has to be a
+    name and nothing else.
+    """
+    name = (device_id or "").strip()
+    if not name or len(name) > 32 or not all(c.isalnum() for c in name):
+        raise HTTPException(status_code=400, detail="Invalid device_id")
+    return name
+
+
+def _ignore_symlinks(directory: str, names: list[str]) -> set[str]:
+    """copytree filter: never follow a link off the stick.
+
+    The requested names are checked, but their targets come from the device. A
+    prepared stick with '../../../etc/shadow' behind a symlink would otherwise
+    have its content copied into the audio directory, because the stick is
+    mounted under /host and the link resolves against the host tree.
+    """
+    base = Path(directory)
+    return {name for name in names if (base / name).is_symlink()}
+
+
 class UsbImportBody(BaseModel):
     device_id: str
     source_paths: list[str]
@@ -740,8 +766,7 @@ def usb_files(
     _: None = Depends(_check_api_key),
 ) -> dict:
     """List files/dirs on a mounted USB device. device_id e.g. sda1."""
-    if not device_id or ".." in device_id or "/" in device_id:
-        raise HTTPException(status_code=400, detail="Invalid device_id")
+    device_id = _validate_device_id(device_id)
     host_root = get_config().get("host_root") or "/host"
     root_path = Path(host_root).resolve()
     if not root_path.exists():
@@ -794,9 +819,7 @@ def usb_import(
     _: None = Depends(_check_api_key),
 ) -> dict:
     """Copy selected paths from USB to AUDIO_STORAGE_PATH."""
-    device_id = (body.device_id or "").strip()
-    if not device_id or ".." in device_id:
-        raise HTTPException(status_code=400, detail="Invalid device_id")
+    device_id = _validate_device_id(body.device_id)
     cfg = get_config()
     dest_base = Path(cfg.get("audio_storage_path", "/workspace/audio")).resolve()
     host_root = cfg.get("host_root") or "/host"
@@ -811,24 +834,43 @@ def usb_import(
     base = root_path / mountpoint.lstrip("/") if mountpoint.startswith("/") else Path(mountpoint)
     if not base.exists():
         base = Path(mountpoint)
+    base_resolved = base.resolve()
     count = 0
+    skipped = 0
     for rel in body.source_paths or []:
         if not rel or ".." in rel or rel.startswith("/"):
+            skipped += 1
             continue
         src = base / rel
+        # Resolve before use and require the result to still sit on the stick.
+        # is_symlink() alone would miss a link somewhere along the path.
+        try:
+            src = src.resolve()
+            src.relative_to(base_resolved)
+        except (OSError, ValueError):
+            logger.warning("usb_import_outside_device", entry=rel)
+            skipped += 1
+            continue
         if not src.exists():
+            skipped += 1
             continue
         dst = dest_base / Path(rel).name
         try:
             if src.is_dir():
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-                count += sum(1 for _ in dst.rglob("*") if _.is_file())
+                shutil.copytree(src, dst, dirs_exist_ok=True, ignore=_ignore_symlinks)
+                count += sum(
+                    1 for f in src.rglob("*") if f.is_file() and not f.is_symlink()
+                )
             else:
                 shutil.copy2(src, dst)
                 count += 1
         except OSError as e:
             logger.warning("usb_import_copy_failed", src=str(src), error=str(e))
-    return {"ok": True, "files_copied": count}
+            skipped += 1
+    logger.info(
+        "usb_import_done", device=device_id, files_copied=count, skipped=skipped
+    )
+    return {"ok": True, "files_copied": count, "skipped": skipped}
 
 
 @router.post("/usb/eject")
@@ -837,9 +879,7 @@ def usb_eject(
     _: None = Depends(_check_api_key),
 ) -> dict:
     """Unmount and power-off USB device."""
-    device_id = (body.device_id or "").strip()
-    if not device_id or ".." in device_id:
-        raise HTTPException(status_code=400, detail="Invalid device_id")
+    device_id = _validate_device_id(body.device_id)
     host_root = get_config().get("host_root") or "/host"
     root_path = Path(host_root).resolve()
     udisks = root_path / "usr/bin/udisksctl"
@@ -863,17 +903,42 @@ def usb_eject(
 
 # ── Backup / Restore ───────────────────────────────────────────────────────
 
+# The only entries under data/ that a restore may write. Everything else that
+# lives there is runtime state this service owns - the update log, the OS
+# update PID file, the pre-update backups, and minabox-update.sh, which the
+# host executes as root. A blanket "anything under data/" let an uploaded
+# archive drop a file into all of them. Nothing exploitable today, because the
+# update script is rewritten before every run, but the allowlist should not be
+# what stands between an upload and a root-executed file.
+_BACKUP_DATA_FILES = frozenset({"data/minabox.db", "data/general_settings.json"})
+_BACKUP_DATA_TREES = ("data/static/",)
+
+
 def _backup_allowed_path(rel_path: str, workspace: Path) -> bool:
-    """Allow only paths under data/ or services/*/state/ or services/*/config/ (relative to workspace)."""
+    """Whether a restore may write this archive entry.
+
+    Mirrors what _backup_members() produces: the database and settings by name,
+    the static tree by prefix, and per-service state/config. The service
+    directories stay a prefix rule so a backup from a box with a different set
+    of services still restores.
+    """
     p = rel_path.strip().replace("\\", "/").lstrip("/")
     if not p or ".." in p or p.startswith("/"):
         return False
+    if p in _BACKUP_DATA_FILES:
+        return True
+    if any(
+        p.startswith(prefix) and len(p) > len(prefix)
+        for prefix in _BACKUP_DATA_TREES
+    ):
+        return True
     parts = p.split("/")
-    if parts[0] == "data":
-        return True
-    if parts[0] == "services" and len(parts) >= 3 and parts[2] in ("state", "config"):
-        return True
-    return False
+    return (
+        parts[0] == "services"
+        and len(parts) >= 4
+        and parts[1].endswith("-service")
+        and parts[2] in ("state", "config")
+    )
 
 
 def _backup_members(workspace: Path, data_path: Path) -> Iterator[tuple[Path, str]]:
@@ -930,7 +995,9 @@ def backup_download(_: None = Depends(_check_api_key)) -> Response:
     filename = f"minabox-backup-{datetime.now(UTC).strftime('%Y%m%d-%H%M')}.zip"
 
     data_path.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=str(data_path), prefix="download-", suffix=".zip")
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(data_path), prefix="download-", suffix=".zip"
+    )
     os.close(fd)
     archive = Path(tmp_name)
     try:

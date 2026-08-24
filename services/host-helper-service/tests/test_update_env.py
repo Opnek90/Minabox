@@ -254,3 +254,91 @@ def test_compose_on_others_leaves_the_host_helper_alone(monkeypatch) -> None:
     assert "grep -vx host-helper" in script
     assert "cd /home/pi/minabox" in script
     assert "docker compose stop $others" in script
+
+
+# ── Geraetenamen ────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("device_id", ["sda1", "sdb", "nvme0n1p2", "mmcblk0p1"])
+def test_device_id_accepts_block_device_names(device_id: str) -> None:
+    assert routes._validate_device_id(device_id) == device_id
+
+
+@pytest.mark.parametrize(
+    "device_id",
+    ["", "  ", "..", "../../etc", "sda1/../x", "sda 1", "sda;reboot", "-rf", "a" * 33],
+)
+def test_device_id_rejects_anything_else(device_id: str) -> None:
+    # Der Wert landet in /dev/<id>. Die drei USB-Routen pruefen ihn jetzt
+    # gleich - vorher lehnte nur eine von ihnen einen Schraegstrich ab.
+    with pytest.raises(HTTPException) as excinfo:
+        routes._validate_device_id(device_id)
+    assert excinfo.value.status_code == 400
+
+
+# ── Symlinks beim USB-Import ────────────────────────────────────────────────
+
+
+def test_copytree_filter_drops_symlinks(tmp_path: Path) -> None:
+    stick = tmp_path / "stick"
+    (stick / "album").mkdir(parents=True)
+    (stick / "album" / "song.mp3").write_bytes(b"audio")
+    (stick / "album" / "secrets").symlink_to(tmp_path / "elsewhere")
+
+    ignored = routes._ignore_symlinks(str(stick / "album"), ["song.mp3", "secrets"])
+
+    assert ignored == {"secrets"}
+
+
+def test_copytree_filter_keeps_ordinary_files(tmp_path: Path) -> None:
+    (tmp_path / "a.mp3").write_bytes(b"x")
+    assert routes._ignore_symlinks(str(tmp_path), ["a.mp3"]) == set()
+
+
+# ── Restore-Allowlist: nur das, was die Sicherung auch erzeugt ──────────────
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        # Laufzeitzustand dieses Dienstes. minabox-update.sh fuehrt der Host
+        # als root aus - ein Upload darf da nicht hinschreiben duerfen.
+        "data/minabox-update.sh",
+        "data/minabox-update.log",
+        "data/minabox-update-state.json",
+        "data/os-update.pid",
+        "data/os-update.log",
+        "data/backups/pre-update-20260823.zip",
+        "data/static",  # das Verzeichnis selbst, ohne Inhalt darunter
+        "services/audio-service/src/main.py",
+        "services/config/x.json",  # kein <name>-service
+        "services/audio-service/config",  # Verzeichnis ohne Datei darunter
+    ],
+)
+def test_backup_allowlist_rejects_runtime_state_and_code(name: str) -> None:
+    assert routes._backup_allowed_path(name, Path("/workspace")) is False
+
+
+def test_backup_allowlist_accepts_everything_a_backup_produces(tmp_path: Path) -> None:
+    """Die Allowlist und der Sicherungsbauer duerfen nie auseinanderlaufen."""
+    workspace = tmp_path
+    data_path = workspace / "data"
+    (data_path / "static" / "covers").mkdir(parents=True)
+    (data_path / "minabox.db").write_bytes(b"sqlite")
+    (data_path / "general_settings.json").write_text("{}")
+    (data_path / "static" / "covers" / "c.png").write_bytes(b"png")
+    for rel in (
+        "services/audio-service/state/audio_state.json",
+        "services/led-service/config/leds.json",
+        "services/button-service/config/buttons.json",
+        "services/display-service/config/display.json",
+    ):
+        target = workspace / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("{}")
+
+    produced = [arc for _src, arc in routes._backup_members(workspace, data_path)]
+
+    assert produced  # sonst prueft der Test nichts
+    for arcname in produced:
+        assert routes._backup_allowed_path(arcname, workspace) is True, arcname
