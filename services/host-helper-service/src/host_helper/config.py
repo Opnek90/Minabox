@@ -31,8 +31,12 @@ def load_config() -> dict:
     host_root = os.environ.get("HOST_ROOT", "")
     host_ip = os.environ.get("HOST_IP", "").strip() or None
     workspace_path = os.environ.get("WORKSPACE_PATH", "/workspace")
-    data_path = os.environ.get("DATA_PATH", "").strip() or str(Path(workspace_path) / "data")
-    audio_storage_path = os.environ.get("AUDIO_STORAGE_PATH", "").strip() or str(Path(workspace_path) / "audio")
+    data_path = os.environ.get("DATA_PATH", "").strip() or str(
+        Path(workspace_path) / "data"
+    )
+    audio_storage_path = os.environ.get("AUDIO_STORAGE_PATH", "").strip() or str(
+        Path(workspace_path) / "audio"
+    )
 
     return {
         "log_level": log_level,
@@ -51,7 +55,7 @@ def load_config() -> dict:
 
 
 def validate_path_under_allowed(path_str: str, allowed_base_paths: list[str]) -> Path:
-    """Resolve path and ensure it is under one of the allowed base paths. Raises ValueError if not."""
+    """Resolve a path and require it under an allowed base. Raises ValueError."""
     if not path_str or ".." in path_str:
         raise ValueError("Invalid path")
     p = Path(path_str).resolve()

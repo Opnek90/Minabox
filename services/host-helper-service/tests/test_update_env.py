@@ -173,14 +173,24 @@ def test_backup_allowed_path_rejects_windows_traversal() -> None:
 # ── The container name allowlist ────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("name", ["minabox-backend", "minabox-audio", "minabox-host-helper"])
+@pytest.mark.parametrize(
+    "name", ["minabox-backend", "minabox-audio", "minabox-host-helper"]
+)
 def test_container_name_allowlist_accepts_own_containers(name: str) -> None:
     assert routes._is_allowed_container_name(name) is True
 
 
 @pytest.mark.parametrize(
     "name",
-    ["", "postgres", "minabox_backend", "minabox-../etc", "minabox-a/b", "minabox-a\\b", "MINABOX-backend"],
+    [
+        "",
+        "postgres",
+        "minabox_backend",
+        "minabox-../etc",
+        "minabox-a/b",
+        "minabox-a\\b",
+        "MINABOX-backend",
+    ],
 )
 def test_container_name_allowlist_rejects_the_rest(name: str) -> None:
     assert routes._is_allowed_container_name(name) is False

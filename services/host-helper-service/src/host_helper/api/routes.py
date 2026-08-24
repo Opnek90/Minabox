@@ -1,4 +1,4 @@
-"""FastAPI routes for Host-Helper: health, apply-audio-path, move, host-status, reboot, backup."""
+"""FastAPI routes for the host-helper: every host-level operation the box offers."""
 
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def _check_api_key(x_api_key: str | None = Header(None, alias="X-Api-Key")) -> N
 
 
 def _host_path_to_container(path_str: str, host_root: str) -> Path:
-    """Convert host-absolute path to path inside container (host is mounted at host_root)."""
+    """Map a host-absolute path to its place inside the container."""
     p = path_str.strip()
     if not p.startswith("/"):
         return Path(p)
@@ -112,14 +112,19 @@ def _host_path_to_container(path_str: str, host_root: str) -> Path:
     return (Path(host_root) / p.lstrip("/")).resolve()
 
 
-def _validate_host_path_under_allowed(path_str: str, allowed_base_paths: list[str], host_root: str) -> Path:
-    """Resolve path (optionally under host_root) and ensure it is under one of the allowed base paths."""
+def _validate_host_path_under_allowed(
+    path_str: str, allowed_base_paths: list[str], host_root: str
+) -> Path:
+    """Resolve a host path and require it to sit under an allowed base path."""
     if not path_str or ".." in path_str:
         raise ValueError("Invalid path")
     container_path = _host_path_to_container(path_str, host_root)
     if not container_path.is_absolute():
         raise ValueError("Path must be absolute")
-    allowed = [Path(host_root) / b.lstrip("/") if host_root else Path(b) for b in allowed_base_paths]
+    allowed = [
+        Path(host_root) / b.lstrip("/") if host_root else Path(b)
+        for b in allowed_base_paths
+    ]
     for base in allowed:
         try:
             base_resolved = base.resolve()
@@ -174,7 +179,9 @@ def apply_audio_path(
     try:
         validate_path_under_allowed(path_str, allowed)
     except ValueError as e:
-        logger.warning("apply_audio_path_validation_failed", path=path_str, error=str(e))
+        logger.warning(
+            "apply_audio_path_validation_failed", path=path_str, error=str(e)
+        )
         raise HTTPException(status_code=400, detail="Invalid path") from e
 
     if not env_path.exists():
@@ -201,12 +208,16 @@ def apply_audio_path(
         lines.append(new_line)
 
     try:
-        env_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        env_path.write_text(
+            "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8"
+        )
     except OSError as e:
         logger.error("env_file_write_failed", path=str(env_path), error=str(e))
         raise HTTPException(status_code=500, detail="Failed to write env file") from e
 
-    logger.info("apply_audio_path_ok", audio_files_path=path_str, env_path=str(env_path))
+    logger.info(
+        "apply_audio_path_ok", audio_files_path=path_str, env_path=str(env_path)
+    )
     return {"ok": True, "audio_files_path": path_str}
 
 
@@ -269,7 +280,12 @@ def _run_move(source: Path, dest: Path) -> None:
                 # of where their files are; the count says how far it got.
                 with _move_lock:
                     _move_state.update(
-                        {"status": "error", "total": total, "current": i, "error": str(e)}
+                        {
+                            "status": "error",
+                            "total": total,
+                            "current": i,
+                            "error": str(e),
+                        }
                     )
                 logger.error(
                     "move_failed",
@@ -300,8 +316,10 @@ def move(
     body: MoveBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Start moving contents of source into destination (background). Returns 202; poll GET /move-status for progress.
-    Source and destination are host paths; when HOST_ROOT is set they are translated to container paths (/host/...).
+    """Start moving source into destination in the background; answers 202.
+
+    Both are host paths; with HOST_ROOT set they are translated to their
+    container equivalents under /host. Poll GET /move-status for progress.
     """
     source_str = body.source.strip()
     dest_str = body.destination.strip()
@@ -313,12 +331,25 @@ def move(
         source = _validate_host_path_under_allowed(source_str, allowed, host_root)
         dest = _validate_host_path_under_allowed(dest_str, allowed, host_root)
     except ValueError as e:
-        logger.warning("move_validation_failed", source=source_str, dest=dest_str, error=str(e))
+        logger.warning(
+            "move_validation_failed", source=source_str, dest=dest_str, error=str(e)
+        )
         raise HTTPException(status_code=400, detail="Invalid path") from e
 
-    logger.info("move_requested", source_str=source_str, dest_str=dest_str, container_source=str(source), container_dest=str(dest))
+    logger.info(
+        "move_requested",
+        source_str=source_str,
+        dest_str=dest_str,
+        container_source=str(source),
+        container_dest=str(dest),
+    )
     if not source.exists():
-        logger.warning("move_source_not_found", source_str=source_str, container_path=str(source), host_root=host_root)
+        logger.warning(
+            "move_source_not_found",
+            source_str=source_str,
+            container_path=str(source),
+            host_root=host_root,
+        )
         raise HTTPException(status_code=404, detail="Source not found")
 
     with _move_lock:
@@ -326,7 +357,9 @@ def move(
             raise HTTPException(status_code=409, detail="Move already in progress")
         # Claim the job in the same lock that checked it. Two separate blocks
         # let two requests both pass the check and both start a worker.
-        _move_state.update({"status": "running", "total": 0, "current": 0, "error": None})
+        _move_state.update(
+            {"status": "running", "total": 0, "current": 0, "error": None}
+        )
 
     threading.Thread(target=_run_move, args=(source, dest), daemon=True).start()
     return JSONResponse(
@@ -379,7 +412,9 @@ def _nsenter_bin() -> Path:
     raise FileNotFoundError("nsenter not available on host")
 
 
-def _run_on_host_via_nsenter(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
+def _run_on_host_via_nsenter(
+    args: list[str], timeout: int = 30
+) -> subprocess.CompletedProcess:
     """Run a command on the host via nsenter (host PID, network, mount)."""
     nsenter_bin = _nsenter_bin()
     cmd = [str(nsenter_bin), "-t", "1", "-n", "-m", "--"] + args
@@ -434,7 +469,9 @@ def reboot_host(_: None = Depends(_check_api_key)) -> dict:
             stderr=subprocess.DEVNULL,
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail="nsenter not available on host") from e
+        raise HTTPException(
+            status_code=503, detail="nsenter not available on host"
+        ) from e
     except Exception as e:
         logger.exception("reboot_failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -448,13 +485,25 @@ def shutdown_host(_: None = Depends(_check_api_key)) -> dict:
     try:
         nsenter_bin = _nsenter_bin()
         subprocess.Popen(
-            [str(nsenter_bin), "-t", "1", "-n", "-m", "--", "/sbin/shutdown", "-h", "now"],
+            [
+                str(nsenter_bin),
+                "-t",
+                "1",
+                "-n",
+                "-m",
+                "--",
+                "/sbin/shutdown",
+                "-h",
+                "now",
+            ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail="nsenter not available on host") from e
+        raise HTTPException(
+            status_code=503, detail="nsenter not available on host"
+        ) from e
     except Exception as e:
         logger.exception("shutdown_failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -464,14 +513,15 @@ def shutdown_host(_: None = Depends(_check_api_key)) -> dict:
 
 @router.post("/restart")
 def restart_services(_: None = Depends(_check_api_key)) -> dict:
-    """Restart Minabox containers. Runs on the host via nsenter (docker compose restart)."""
+    """Restart the Minabox containers via docker compose on the host."""
     try:
         nsenter_bin = _nsenter_bin()
-        # On the host: get compose project dir from a container label, then docker compose restart
+        # On the host: read the compose project directory from a container
+        # label, then restart from there.
         sh_cmd = (
             "WORKDIR=$(docker inspect minabox-backend --format "
             "'{{index .Config.Labels \"com.docker.compose.project.working_dir\"}}' 2>/dev/null); "
-            "[ -n \"$WORKDIR\" ] && cd \"$WORKDIR\" && docker compose restart"
+            '[ -n "$WORKDIR" ] && cd "$WORKDIR" && docker compose restart'
         )
         result = subprocess.run(
             [str(nsenter_bin), "-t", "1", "-n", "-m", "--", "/bin/sh", "-c", sh_cmd],
@@ -481,13 +531,17 @@ def restart_services(_: None = Depends(_check_api_key)) -> dict:
         )
         out = (result.stdout or "") + (result.stderr or "")
         if result.returncode != 0:
-            raise HTTPException(status_code=502, detail=(out or "Restart failed")[-1000:])
+            raise HTTPException(
+                status_code=502, detail=(out or "Restart failed")[-1000:]
+            )
         logger.info("restart_services_done")
         return {"ok": True, "message": "Services restart initiated"}
     except HTTPException:
         raise
     except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail="nsenter or docker not available on host") from e
+        raise HTTPException(
+            status_code=503, detail="nsenter or docker not available on host"
+        ) from e
     except subprocess.TimeoutExpired as e:
         raise HTTPException(status_code=504, detail="Restart timed out") from e
     except Exception as e:
@@ -497,15 +551,31 @@ def restart_services(_: None = Depends(_check_api_key)) -> dict:
 
 # ── WLAN & Hotspot ─────────────────────────────────────────────────────────
 
-def _run_nmcli_host_network(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
-    """Run nmcli in the host's network namespace so it sees wlan0 (requires pid=host)."""
+
+def _run_nmcli_host_network(
+    args: list[str], timeout: int = 30
+) -> subprocess.CompletedProcess:
+    """Run nmcli in the host network namespace so it sees wlan0. Needs pid=host."""
     root_path = _host_root()
     if _host_tool("usr/bin/nmcli") is None:
-        raise HTTPException(status_code=503, detail="nmcli not found on host (install NetworkManager)")
+        raise HTTPException(
+            status_code=503, detail="nmcli not found on host (install NetworkManager)"
+        )
     nsenter = _nsenter_bin()
     dbus_addr = "unix:path=/var/run/dbus/system_bus_socket"  # path inside chroot
-    # nsenter -t 1 -n: use host PID 1 (init) and host network namespace so wlan0 is visible
-    cmd = [str(nsenter), "-t", "1", "-n", "--", "chroot", str(root_path), "env", f"DBUS_SYSTEM_BUS_ADDRESS={dbus_addr}", "nmcli"] + args
+    # nsenter -t 1 -n: enter the network namespace of host PID 1, where wlan0 is.
+    cmd = [
+        str(nsenter),
+        "-t",
+        "1",
+        "-n",
+        "--",
+        "chroot",
+        str(root_path),
+        "env",
+        f"DBUS_SYSTEM_BUS_ADDRESS={dbus_addr}",
+        "nmcli",
+    ] + args
     return subprocess.run(
         cmd,
         capture_output=True,
@@ -526,13 +596,15 @@ class HotspotStartBody(BaseModel):
 
 @router.get("/wifi/scan")
 def wifi_scan(_: None = Depends(_check_api_key)) -> dict:
-    """List available WiFi networks (SSID, signal). Uses host network namespace so wlan0 is visible."""
+    """List the available WiFi networks with their signal strength."""
     try:
         _run_nmcli_host_network(["dev", "wifi", "rescan"], timeout=15)
     except (subprocess.TimeoutExpired, HTTPException, OSError):
         pass
     try:
-        r = _run_nmcli_host_network(["-t", "-f", "SSID,SIGNAL", "dev", "wifi", "list"], timeout=25)
+        r = _run_nmcli_host_network(
+            ["-t", "-f", "SSID,SIGNAL", "dev", "wifi", "list"], timeout=25
+        )
     except subprocess.TimeoutExpired as e:
         raise HTTPException(status_code=504, detail="WiFi scan timed out") from e
     except HTTPException:
@@ -540,23 +612,35 @@ def wifi_scan(_: None = Depends(_check_api_key)) -> dict:
     except OSError as e:
         raise HTTPException(status_code=503, detail=f"WiFi scan failed: {e}") from e
     if r.returncode != 0:
-        raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Scan failed")[:500])
+        raise HTTPException(
+            status_code=502, detail=(r.stderr or r.stdout or "Scan failed")[:500]
+        )
     networks: list[dict] = []
     for line in (r.stdout or "").strip().splitlines():
         parts = line.split(":", 1)
         if len(parts) >= 2:
-            networks.append({"ssid": parts[0].strip() or None, "signal": int(parts[1]) if parts[1].strip().isdigit() else 0})
+            networks.append(
+                {
+                    "ssid": parts[0].strip() or None,
+                    "signal": int(parts[1]) if parts[1].strip().isdigit() else 0,
+                }
+            )
     # Dedupe by SSID, keep max signal
     by_ssid: dict[str, int] = {}
     for n in networks:
         sid = n.get("ssid") or ""
         if sid and (sid not in by_ssid or (n.get("signal") or 0) > by_ssid[sid]):
             by_ssid[sid] = n.get("signal") or 0
-    return {"networks": [{"ssid": s, "signal": by_ssid[s]} for s in sorted(by_ssid.keys(), key=lambda x: -by_ssid[x])]}
+    return {
+        "networks": [
+            {"ssid": s, "signal": by_ssid[s]}
+            for s in sorted(by_ssid.keys(), key=lambda x: -by_ssid[x])
+        ]
+    }
 
 
 def _wifi_connection_name(ssid: str) -> str:
-    """Safe connection name for a WiFi profile (avoids 802-11-wireless-security.key-mgmt missing)."""
+    """A safe NetworkManager profile name for an SSID."""
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (ssid or ""))[:32]
     return f"Minabox-{safe}" if safe else "Minabox-WiFi"
 
@@ -566,7 +650,11 @@ def wifi_connect(
     body: WifiConnectBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Connect to WiFi by SSID and password. Uses explicit key-mgmt so NetworkManager does not fail with 'property is missing'."""
+    """Connect to a WiFi network by SSID and password.
+
+    key-mgmt is set explicitly; without it NetworkManager refuses the profile
+    with "property is missing".
+    """
     ssid = (body.ssid or "").strip()
     if not ssid:
         raise HTTPException(status_code=400, detail="SSID required")
@@ -578,12 +666,33 @@ def wifi_connect(
         except Exception:
             pass
         _run_nmcli_host_network(
-            ["con", "add", "type", "wifi", "ifname", "wlan0", "autoconnect", "yes", "con-name", con_name, "ssid", ssid],
+            [
+                "con",
+                "add",
+                "type",
+                "wifi",
+                "ifname",
+                "wlan0",
+                "autoconnect",
+                "yes",
+                "con-name",
+                con_name,
+                "ssid",
+                ssid,
+            ],
             timeout=10,
         )
         if password:
             _run_nmcli_host_network(
-                ["con", "modify", con_name, "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password],
+                [
+                    "con",
+                    "modify",
+                    con_name,
+                    "wifi-sec.key-mgmt",
+                    "wpa-psk",
+                    "wifi-sec.psk",
+                    password,
+                ],
                 timeout=5,
             )
         else:
@@ -597,7 +706,9 @@ def wifi_connect(
     except HTTPException:
         raise
     if r.returncode != 0:
-        raise HTTPException(status_code=400, detail=(r.stderr or r.stdout or "Connect failed")[:500])
+        raise HTTPException(
+            status_code=400, detail=(r.stderr or r.stdout or "Connect failed")[:500]
+        )
     return {"ok": True, "message": "Connected", "ssid": ssid}
 
 
@@ -614,22 +725,69 @@ def wifi_hotspot_start(
     password = (body.password if body else "").strip()
     if not password:
         import secrets
+
         password = secrets.token_hex(4)
     try:
         _run_nmcli_host_network(["con", "delete", HOTSPOT_CONN_ID], timeout=5)
     except Exception:
         pass
     try:
-        _run_nmcli_host_network(["con", "add", "type", "wifi", "ifname", "wlan0", "autoconnect", "no", "con-name", HOTSPOT_CONN_ID, "ssid", ssid], timeout=10)
+        _run_nmcli_host_network(
+            [
+                "con",
+                "add",
+                "type",
+                "wifi",
+                "ifname",
+                "wlan0",
+                "autoconnect",
+                "no",
+                "con-name",
+                HOTSPOT_CONN_ID,
+                "ssid",
+                ssid,
+            ],
+            timeout=10,
+        )
     except HTTPException:
         raise
-    _run_nmcli_host_network(["con", "modify", HOTSPOT_CONN_ID, "802-11-wireless.mode", "ap", "ipv4.method", "shared"], timeout=5)
-    _run_nmcli_host_network(["con", "modify", HOTSPOT_CONN_ID, "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password], timeout=5)
+    _run_nmcli_host_network(
+        [
+            "con",
+            "modify",
+            HOTSPOT_CONN_ID,
+            "802-11-wireless.mode",
+            "ap",
+            "ipv4.method",
+            "shared",
+        ],
+        timeout=5,
+    )
+    _run_nmcli_host_network(
+        [
+            "con",
+            "modify",
+            HOTSPOT_CONN_ID,
+            "wifi-sec.key-mgmt",
+            "wpa-psk",
+            "wifi-sec.psk",
+            password,
+        ],
+        timeout=5,
+    )
     r = _run_nmcli_host_network(["con", "up", HOTSPOT_CONN_ID], timeout=15)
     if r.returncode != 0:
-        raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Hotspot start failed")[:500])
+        raise HTTPException(
+            status_code=502,
+            detail=(r.stderr or r.stdout or "Hotspot start failed")[:500],
+        )
     logger.info("wifi_hotspot_started", ssid=ssid)
-    return {"ok": True, "ssid": ssid, "password": password, "message": "Hotspot started"}
+    return {
+        "ok": True,
+        "ssid": ssid,
+        "password": password,
+        "message": "Hotspot started",
+    }
 
 
 @router.post("/wifi/hotspot/stop")
@@ -647,7 +805,9 @@ def wifi_hotspot_stop(_: None = Depends(_check_api_key)) -> dict:
 def wifi_hotspot_status(_: None = Depends(_check_api_key)) -> dict:
     """Return whether the hotspot is currently active."""
     try:
-        r = _run_nmcli_host_network(["-t", "-f", "NAME,STATE", "con", "show", "--active"], timeout=5)
+        r = _run_nmcli_host_network(
+            ["-t", "-f", "NAME,STATE", "con", "show", "--active"], timeout=5
+        )
     except HTTPException:
         return {"active": False, "ssid": None}
     out = (r.stdout or "").strip()
@@ -657,6 +817,7 @@ def wifi_hotspot_status(_: None = Depends(_check_api_key)) -> dict:
 
 # ── USB ───────────────────────────────────────────────────────────────────
 
+
 def _run_lsblk() -> list[dict]:
     """Run lsblk on host (chroot) and return list of block devices (USB-relevant)."""
     root_path = _host_root()
@@ -665,7 +826,14 @@ def _run_lsblk() -> list[dict]:
         return []
     try:
         r = subprocess.run(
-            ["chroot", str(root_path), "lsblk", "-J", "-o", "NAME,SIZE,FSTYPE,MOUNTPOINT,LABEL,TRAN"],
+            [
+                "chroot",
+                str(root_path),
+                "lsblk",
+                "-J",
+                "-o",
+                "NAME,SIZE,FSTYPE,MOUNTPOINT,LABEL,TRAN",
+            ],
             capture_output=True,
             text=True,
             timeout=15,
@@ -676,6 +844,7 @@ def _run_lsblk() -> list[dict]:
         return []
     try:
         import json as _json
+
         data = _json.loads(r.stdout or "{}")
         blockdevices = data.get("blockdevices") or []
     except (ValueError, TypeError):
@@ -687,7 +856,7 @@ def _run_lsblk() -> list[dict]:
         if not name or name.startswith("loop"):
             return
         children = dev.get("children") or []
-        # If device has partitions, only list the partitions (e.g. sda1), not the raw disk (sda).
+        # With partitions, list those (sda1) rather than the raw disk (sda).
         if children:
             for child in children:
                 add_dev(child)
@@ -696,14 +865,16 @@ def _run_lsblk() -> list[dict]:
         fstype = dev.get("fstype") or ""
         mountpoint = dev.get("mountpoint") or ""
         label = dev.get("label") or ""
-        out.append({
-            "id": name,
-            "device": f"/dev/{name}",
-            "size": size,
-            "fstype": fstype,
-            "mountpoint": mountpoint if mountpoint else None,
-            "label": label or None,
-        })
+        out.append(
+            {
+                "id": name,
+                "device": f"/dev/{name}",
+                "size": size,
+                "fstype": fstype,
+                "mountpoint": mountpoint if mountpoint else None,
+                "label": label or None,
+            }
+        )
 
     for dev in blockdevices:
         if (dev.get("tran") or "").strip().lower() == "usb":
@@ -771,7 +942,14 @@ def usb_files(
         udisks = root_path / "usr/bin/udisksctl"
         if udisks.exists():
             r = subprocess.run(
-                ["chroot", str(root_path), "udisksctl", "mount", "-b", f"/dev/{device_id}"],
+                [
+                    "chroot",
+                    str(root_path),
+                    "udisksctl",
+                    "mount",
+                    "-b",
+                    f"/dev/{device_id}",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=15,
@@ -779,25 +957,33 @@ def usb_files(
             if r.returncode == 0:
                 for line in (r.stdout or "").splitlines():
                     if "mounted at" in line:
-                        mountpoint = line.split("mounted at", 1)[1].strip().rstrip(".").strip()
+                        mountpoint = (
+                            line.split("mounted at", 1)[1].strip().rstrip(".").strip()
+                        )
                         break
             devices = _run_lsblk()
             dev = next((d for d in devices if d.get("id") == device_id), None)
             mountpoint = dev.get("mountpoint") if dev else None
     if not mountpoint:
         raise HTTPException(status_code=400, detail="Device not mounted")
-    base = Path(mountpoint) if not str(mountpoint).startswith("/") else root_path / mountpoint.lstrip("/")
+    base = (
+        Path(mountpoint)
+        if not str(mountpoint).startswith("/")
+        else root_path / mountpoint.lstrip("/")
+    )
     if not base.exists():
         base = Path(mountpoint)
     entries: list[dict] = []
     try:
         for p in sorted(base.iterdir()):
             rel = p.name
-            entries.append({
-                "path": rel,
-                "name": rel,
-                "type": "dir" if p.is_dir() else "file",
-            })
+            entries.append(
+                {
+                    "path": rel,
+                    "name": rel,
+                    "type": "dir" if p.is_dir() else "file",
+                }
+            )
     except OSError as e:
         raise HTTPException(status_code=502, detail="Cannot list directory") from e
     return {"path": str(base), "entries": entries}
@@ -820,7 +1006,11 @@ def usb_import(
     mountpoint = dev.get("mountpoint")
     if not mountpoint:
         raise HTTPException(status_code=400, detail="Device not mounted")
-    base = root_path / mountpoint.lstrip("/") if mountpoint.startswith("/") else Path(mountpoint)
+    base = (
+        root_path / mountpoint.lstrip("/")
+        if mountpoint.startswith("/")
+        else Path(mountpoint)
+    )
     if not base.exists():
         base = Path(mountpoint)
     base_resolved = base.resolve()
@@ -880,7 +1070,9 @@ def usb_eject(
         timeout=15,
     )
     if r.returncode != 0 and "not mounted" not in (r.stderr or "").lower():
-        raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Unmount failed")[:500])
+        raise HTTPException(
+            status_code=502, detail=(r.stderr or r.stdout or "Unmount failed")[:500]
+        )
     subprocess.run(
         ["chroot", str(root_path), "udisksctl", "power-off", "-b", f"/dev/{device_id}"],
         capture_output=True,
@@ -916,8 +1108,7 @@ def _backup_allowed_path(rel_path: str, workspace: Path) -> bool:
     if p in _BACKUP_DATA_FILES:
         return True
     if any(
-        p.startswith(prefix) and len(p) > len(prefix)
-        for prefix in _BACKUP_DATA_TREES
+        p.startswith(prefix) and len(p) > len(prefix) for prefix in _BACKUP_DATA_TREES
     ):
         return True
     parts = p.split("/")
@@ -1196,7 +1387,9 @@ def _read_host_status(cfg: dict) -> dict:
         meminfo = Path(host_proc) / "meminfo"
         if meminfo.exists():
             total_kb = available_kb = None
-            for line in meminfo.read_text(encoding="utf-8", errors="replace").splitlines():
+            for line in meminfo.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines():
                 if line.startswith("MemTotal:"):
                     total_kb = int(line.split()[1])
                 elif line.startswith("MemAvailable:"):
@@ -1220,11 +1413,18 @@ def _read_host_status(cfg: dict) -> dict:
     try:
         loadavg = Path(host_proc) / "loadavg"
         if loadavg.exists():
-            parts = loadavg.read_text(encoding="utf-8", errors="replace").strip().split()
+            parts = (
+                loadavg.read_text(encoding="utf-8", errors="replace").strip().split()
+            )
             load_1m = float(parts[0]) if len(parts) >= 1 else 0.0
             load_5m = float(parts[1]) if len(parts) >= 2 else 0.0
             load_15m = float(parts[2]) if len(parts) >= 3 else 0.0
-            out["cpu"] = {"load_1m": load_1m, "load_5m": load_5m, "load_15m": load_15m, "percent_used": None}
+            out["cpu"] = {
+                "load_1m": load_1m,
+                "load_5m": load_5m,
+                "load_15m": load_15m,
+                "percent_used": None,
+            }
     except (OSError, ValueError):
         pass
 
@@ -1248,7 +1448,9 @@ def _read_host_status(cfg: dict) -> dict:
     # CPU/SoC temperature (e.g. Raspberry Pi thermal_zone0)
     try:
         if host_root:
-            temp_path = Path(host_root) / "sys" / "class" / "thermal" / "thermal_zone0" / "temp"
+            temp_path = (
+                Path(host_root) / "sys" / "class" / "thermal" / "thermal_zone0" / "temp"
+            )
         else:
             temp_path = Path("/sys/class/thermal/thermal_zone0/temp")
         if temp_path.exists():
@@ -1274,7 +1476,7 @@ def get_syslog(
     source: str = "kernel",  # kernel | docker
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Return last N lines of host kernel or docker unit logs via journalctl or /var/log.
+    """Return the last N lines of the host kernel or docker unit log.
 
     The cap is generous on purpose: the debug export filters container-network
     noise out of the kernel log *before* it truncates, so it has to be able to
@@ -1285,7 +1487,16 @@ def get_syslog(
     # Run journalctl in host context via chroot so it sees host's journal
     journalctl_path = _host_tool("usr/bin/journalctl")
     if journalctl_path is not None:
-        args = ["chroot", str(root_path), "journalctl", "-n", str(n), "--no-pager", "-o", "short-iso"]
+        args = [
+            "chroot",
+            str(root_path),
+            "journalctl",
+            "-n",
+            str(n),
+            "--no-pager",
+            "-o",
+            "short-iso",
+        ]
         if source == "docker":
             args.extend(["-u", "docker"])
         else:
@@ -1321,6 +1532,7 @@ def get_syslog(
 
 # ── Timezone & Time ───────────────────────────────────────────────────────
 
+
 class TimezoneBody(BaseModel):
     timezone: str
 
@@ -1348,7 +1560,9 @@ def set_timezone(
         if result.returncode != 0:
             raise HTTPException(
                 status_code=400,
-                detail=(result.stderr or result.stdout or "Failed to set timezone")[:500],
+                detail=(result.stderr or result.stdout or "Failed to set timezone")[
+                    :500
+                ],
             )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         logger.warning("set_timezone_failed", error=str(e))
@@ -1388,6 +1602,7 @@ def get_time_status(_: None = Depends(_check_api_key)) -> dict:
 
 # ── Hostname ───────────────────────────────────────────────────────────────
 
+
 class HostnameBody(BaseModel):
     hostname: str
 
@@ -1420,7 +1635,9 @@ def set_hostname(
     if not name or len(name) > 63:
         raise HTTPException(status_code=400, detail="Hostname must be 1-63 characters")
     if not all(c.isalnum() or c == "-" for c in name):
-        raise HTTPException(status_code=400, detail="Hostname may only contain a-z, 0-9, hyphen")
+        raise HTTPException(
+            status_code=400, detail="Hostname may only contain a-z, 0-9, hyphen"
+        )
     root_path = _host_root()
     hostnamectl = _host_tool("usr/bin/hostnamectl")
     if hostnamectl is None:
@@ -1434,7 +1651,9 @@ def set_hostname(
             timeout=10,
         )
         if r.returncode != 0:
-            raise HTTPException(status_code=400, detail=(r.stderr or r.stdout or "Failed")[:500])
+            raise HTTPException(
+                status_code=400, detail=(r.stderr or r.stdout or "Failed")[:500]
+            )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         logger.warning("set_hostname_failed", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to set hostname") from e
@@ -1447,7 +1666,12 @@ def set_hostname(
             replaced = False
             for line in lines:
                 parts = line.split()
-                if len(parts) >= 2 and parts[0] == "127.0.1.1" and old_name and parts[1] == old_name:
+                if (
+                    len(parts) >= 2
+                    and parts[0] == "127.0.1.1"
+                    and old_name
+                    and parts[1] == old_name
+                ):
                     new_lines.append("127.0.1.1\t" + name)
                     replaced = True
                 else:
@@ -1463,6 +1687,7 @@ def set_hostname(
 
 # ── Board LEDs (Stealth) ───────────────────────────────────────────────────
 
+
 def _boot_config_path(root_path: Path) -> Path | None:
     """Return host boot config.txt path for persistent LED/stealth settings."""
     for name in ("boot/firmware/config.txt", "boot/config.txt"):
@@ -1473,7 +1698,7 @@ def _boot_config_path(root_path: Path) -> Path | None:
 
 
 def _set_stealth_persistent(root_path: Path, stealth: bool) -> None:
-    """Write act_led_trigger and pwr_led_trigger to config.txt so stealth survives reboot."""
+    """Persist the LED triggers in config.txt so stealth survives a reboot."""
     config_path = _boot_config_path(root_path)
     if not config_path:
         return
@@ -1507,7 +1732,7 @@ def _set_stealth_persistent(root_path: Path, stealth: bool) -> None:
 
 
 def _board_led_paths(root_path: Path) -> tuple[Path | None, Path | None]:
-    """Return (power_led_brightness, activity_led_brightness) paths. Try PWR/ACT then led0/led1."""
+    """The (power, activity) brightness paths. Tries PWR/ACT, then led0/led1."""
     sys_leds = root_path / "sys/class/leds"
     if not sys_leds.exists():
         return (None, None)
@@ -1562,7 +1787,11 @@ def set_board_leds(
     body: BoardLedsBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Set board LEDs on or off (stealth mode). Writes to sysfs (immediate) and config.txt (persistent across reboot)."""
+    """Switch the board LEDs on or off (stealth mode).
+
+    Written twice: to sysfs for the immediate effect, and to config.txt so it
+    survives a reboot.
+    """
     root_path = _host_root()
     power_path, activity_path = _board_led_paths(root_path)
     val = "0" if body.stealth else "1"
@@ -1572,7 +1801,9 @@ def set_board_leds(
                 p.write_text(val, encoding="utf-8")
     except OSError as e:
         logger.warning("board_leds_write_failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Cannot write to LED brightness") from e
+        raise HTTPException(
+            status_code=500, detail="Cannot write to LED brightness"
+        ) from e
     _set_stealth_persistent(root_path, body.stealth)
     logger.info("board_leds_set", stealth=body.stealth)
     return {"ok": True, "stealth": body.stealth}
@@ -1580,10 +1811,13 @@ def set_board_leds(
 
 # ── Network (IP config: DHCP / static) ────────────────────────────────────
 
+
 def _get_active_connection_name() -> str | None:
-    """Return the first active connection name (excluding hotspot). Used for IP config."""
+    """The first active connection that is not the hotspot."""
     try:
-        r = _run_nmcli_host_network(["-t", "-f", "NAME", "con", "show", "--active"], timeout=10)
+        r = _run_nmcli_host_network(
+            ["-t", "-f", "NAME", "con", "show", "--active"], timeout=10
+        )
         if r.returncode != 0:
             return None
         for line in (r.stdout or "").strip().splitlines():
@@ -1615,14 +1849,27 @@ def _parse_ipv4_address(addr: str) -> tuple[str | None, str | None]:
 
 @router.get("/system/network")
 def get_network(_: None = Depends(_check_api_key)) -> dict:
-    """Return current IPv4 config (DHCP or manual, address, gateway, dns) for active connection."""
-    out = {"method": "dhcp", "address": None, "netmask": None, "gateway": None, "dns": None}
+    """The IPv4 configuration of the active connection."""
+    out = {
+        "method": "dhcp",
+        "address": None,
+        "netmask": None,
+        "gateway": None,
+        "dns": None,
+    }
     con_name = _get_active_connection_name()
     if not con_name:
         return out
     try:
         r = _run_nmcli_host_network(
-            ["-t", "-f", "ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns", "con", "show", con_name],
+            [
+                "-t",
+                "-f",
+                "ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns",
+                "con",
+                "show",
+                con_name,
+            ],
             timeout=10,
         )
         if r.returncode != 0:
@@ -1639,7 +1886,9 @@ def get_network(_: None = Depends(_check_api_key)) -> dict:
             a, nm = _parse_ipv4_address(addr_str)
             out["address"] = a
             out["netmask"] = nm
-        out["gateway"] = (fields.get("ipv4.gateway") or fields.get("IP4.GATEWAY") or "").strip() or None
+        out["gateway"] = (
+            fields.get("ipv4.gateway") or fields.get("IP4.GATEWAY") or ""
+        ).strip() or None
         dns = (fields.get("ipv4.dns") or fields.get("IP4.DNS") or "").strip()
         out["dns"] = dns.split(",")[0].strip() if dns else None
     except (HTTPException, subprocess.TimeoutExpired, OSError):
@@ -1663,38 +1912,60 @@ def set_network(
     """Set IPv4 config: DHCP or manual (address, netmask, gateway, dns)."""
     con_name = _get_active_connection_name()
     if not con_name:
-        raise HTTPException(status_code=503, detail="No active connection (use WLAN or connect Ethernet)")
+        raise HTTPException(
+            status_code=503,
+            detail="No active connection (use WLAN or connect Ethernet)",
+        )
     method = (body.method or "dhcp").strip().lower()
     if method not in ("dhcp", "manual"):
         raise HTTPException(status_code=400, detail="method must be 'dhcp' or 'manual'")
     try:
         # Bring connection down first so the old address/DHCP lease is released;
-        # otherwise we can end up with two addresses (static + old DHCP) on the interface.
+        # otherwise the interface keeps two addresses, the static and the old
+        # DHCP one.
         _run_nmcli_host_network(["con", "down", con_name], timeout=10)
         if method == "dhcp":
-            r = _run_nmcli_host_network(["con", "modify", con_name, "ipv4.method", "auto"], timeout=10)
+            r = _run_nmcli_host_network(
+                ["con", "modify", con_name, "ipv4.method", "auto"], timeout=10
+            )
             if r.returncode != 0:
-                raise HTTPException(status_code=400, detail=(r.stderr or r.stdout or "Failed")[:500])
+                raise HTTPException(
+                    status_code=400, detail=(r.stderr or r.stdout or "Failed")[:500]
+                )
         else:
             address = (body.address or "").strip()
             if not address:
-                raise HTTPException(status_code=400, detail="address required for manual config")
+                raise HTTPException(
+                    status_code=400, detail="address required for manual config"
+                )
             prefix = (body.netmask or "24").strip()
             if prefix.isdigit():
                 addr_spec = f"{address}/{prefix}"
             else:
                 addr_spec = address
-            args = ["con", "modify", con_name, "ipv4.method", "manual", "ipv4.addresses", addr_spec]
+            args = [
+                "con",
+                "modify",
+                con_name,
+                "ipv4.method",
+                "manual",
+                "ipv4.addresses",
+                addr_spec,
+            ]
             if (body.gateway or "").strip():
                 args += ["ipv4.gateway", body.gateway.strip()]
             if (body.dns or "").strip():
                 args += ["ipv4.dns", body.dns.strip()]
             r = _run_nmcli_host_network(args, timeout=10)
             if r.returncode != 0:
-                raise HTTPException(status_code=400, detail=(r.stderr or r.stdout or "Failed")[:500])
+                raise HTTPException(
+                    status_code=400, detail=(r.stderr or r.stdout or "Failed")[:500]
+                )
         r = _run_nmcli_host_network(["con", "up", con_name], timeout=15)
         if r.returncode != 0:
-            raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Apply failed")[:500])
+            raise HTTPException(
+                status_code=502, detail=(r.stderr or r.stdout or "Apply failed")[:500]
+            )
     except HTTPException:
         raise
     except (subprocess.TimeoutExpired, OSError) as e:
@@ -1705,6 +1976,7 @@ def set_network(
 
 
 # ── System password (chpasswd in chroot) ──────────────────────────────────
+
 
 def _default_system_user() -> str:
     return os.environ.get("DEFAULT_USER", "pi").strip() or "pi"
@@ -1720,14 +1992,18 @@ def set_system_password(
     body: PasswordBody,
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Change system user password via chpasswd in chroot (writes to host /etc/shadow)."""
+    """Change the system password with chpasswd, writing the host /etc/shadow."""
     username = (body.username or "").strip()
     allowed = _default_system_user()
     if username != allowed:
-        raise HTTPException(status_code=400, detail=f"Only user '{allowed}' can be changed")
+        raise HTTPException(
+            status_code=400, detail=f"Only user '{allowed}' can be changed"
+        )
     password = (body.new_password or "").strip()
     if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+        raise HTTPException(
+            status_code=400, detail="Password must be at least 8 characters"
+        )
     root_path = _host_root()
     chpasswd_path = _host_tool("usr/sbin/chpasswd")
     if chpasswd_path is None:
@@ -1741,7 +2017,9 @@ def set_system_password(
             timeout=10,
         )
         if proc.returncode != 0:
-            raise HTTPException(status_code=400, detail=(proc.stderr or proc.stdout or "Failed")[:500])
+            raise HTTPException(
+                status_code=400, detail=(proc.stderr or proc.stdout or "Failed")[:500]
+            )
     except (subprocess.TimeoutExpired, OSError) as e:
         logger.warning("set_password_failed", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to set password") from e
@@ -1751,17 +2029,28 @@ def set_system_password(
 
 # ── Docker prune (on host via nsenter) ───────────────────────────────────────
 
+
 @router.post("/system/docker-prune")
 def docker_prune(_: None = Depends(_check_api_key)) -> dict:
-    """Run docker system prune -f on the host (Raspberry Pi OS) via nsenter. Keeps tagged images and build cache."""
+    """Run docker system prune -f on the host. Keeps tagged images and cache."""
     try:
         nsenter_bin = _nsenter_bin()
     except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail="nsenter not available (run on host)") from e
-    # Run on host: /usr/bin/docker is the host's docker when we use -m (host mount namespace)
+        raise HTTPException(
+            status_code=503, detail="nsenter not available (run on host)"
+        ) from e
+    # With -m we are in the host mount namespace, so this is the host's docker.
     cmd = [
-        str(nsenter_bin), "-t", "1", "-n", "-m", "--",
-        "/usr/bin/docker", "system", "prune", "-f",
+        str(nsenter_bin),
+        "-t",
+        "1",
+        "-n",
+        "-m",
+        "--",
+        "/usr/bin/docker",
+        "system",
+        "prune",
+        "-f",
     ]
     try:
         result = subprocess.run(
@@ -1773,25 +2062,42 @@ def docker_prune(_: None = Depends(_check_api_key)) -> dict:
         out = (result.stdout or "") + (result.stderr or "")
         if result.returncode != 0:
             raise HTTPException(status_code=502, detail=(out or "Prune failed")[-1000:])
-        lines = [ln for ln in out.strip().splitlines() if "reclaimed" in ln.lower() or "freed" in ln.lower()]
+        lines = [
+            ln
+            for ln in out.strip().splitlines()
+            if "reclaimed" in ln.lower() or "freed" in ln.lower()
+        ]
         summary = lines[-1] if lines else out.strip()[-200:] or "Done"
         logger.info("docker_prune_done", summary=summary[:200])
-        return {"ok": True, "message": "Docker cleanup completed", "summary": summary[:500]}
+        return {
+            "ok": True,
+            "message": "Docker cleanup completed",
+            "summary": summary[:500],
+        }
     except subprocess.TimeoutExpired as e:
         raise HTTPException(status_code=504, detail="Docker prune timed out") from e
     except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail="Docker not available on host") from e
+        raise HTTPException(
+            status_code=503, detail="Docker not available on host"
+        ) from e
 
 
 # ── SSH Toggle (systemctl on host; host-helper runs with pid=host) ───────────
 
-def _run_host_systemctl(args: list[str], timeout: int = 15) -> subprocess.CompletedProcess:
-    """Run systemctl on the host via chroot. Requires host-helper to run with pid=host (docker-compose)."""
+
+def _run_host_systemctl(
+    args: list[str], timeout: int = 15
+) -> subprocess.CompletedProcess:
+    """Run systemctl on the host via chroot. Requires pid=host."""
     host_root = get_config().get("host_root") or "/host"
     systemctl_path = Path(host_root) / "usr" / "bin" / "systemctl"
     if not systemctl_path.exists():
         systemctl_path = Path(host_root) / "bin" / "systemctl"
-    path_in_chroot = ("/" + str(systemctl_path.relative_to(host_root))) if systemctl_path.exists() else "/usr/bin/systemctl"
+    path_in_chroot = (
+        ("/" + str(systemctl_path.relative_to(host_root)))
+        if systemctl_path.exists()
+        else "/usr/bin/systemctl"
+    )
     cmd = ["chroot", host_root, path_in_chroot] + args
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
@@ -1833,14 +2139,19 @@ def ssh_toggle(
             for args in (["enable", "ssh"], ["start", "ssh"]):
                 r = _run_host_systemctl(args, timeout=SSH_UNIT_TIMEOUT)
                 if r.returncode != 0:
-                    raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Failed")[:500])
+                    raise HTTPException(
+                        status_code=502, detail=(r.stderr or r.stdout or "Failed")[:500]
+                    )
         else:
-            # Stop/disable socket first so socket activation doesn't bring SSH back, then service
+            # The socket first: otherwise socket activation brings SSH back.
             for unit in ("ssh.socket", "ssh"):
                 for args in (["stop", unit], ["disable", unit]):
                     r = _run_host_systemctl(args, timeout=SSH_UNIT_TIMEOUT)
                     if r.returncode != 0 and unit == "ssh":
-                        raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Failed")[:500])
+                        raise HTTPException(
+                            status_code=502,
+                            detail=(r.stderr or r.stdout or "Failed")[:500],
+                        )
         r_en = _run_host_systemctl(["is-enabled", "ssh"], timeout=5)
         r_ac = _run_host_systemctl(["is-active", "ssh"], timeout=5)
         enabled_out = (r_en.stdout or "").strip().lower()
@@ -1859,6 +2170,7 @@ def ssh_toggle(
 
 # ── Factory Reset ──────────────────────────────────────────────────────────
 
+
 class FactoryResetBody(BaseModel):
     delete_audio: bool = False
 
@@ -1872,7 +2184,9 @@ def factory_reset(
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
     data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
-    audio_storage_path = Path(cfg.get("audio_storage_path", str(workspace / "audio"))).resolve()
+    audio_storage_path = Path(
+        cfg.get("audio_storage_path", str(workspace / "audio"))
+    ).resolve()
     compose_file = workspace / "docker-compose.yml"
 
     # 1) Delete DB
@@ -1920,7 +2234,11 @@ def factory_reset(
                     else:
                         shutil.rmtree(child, ignore_errors=True)
                 except OSError as e:
-                    logger.warning("factory_reset_audio_delete_failed", path=str(child), error=str(e))
+                    logger.warning(
+                        "factory_reset_audio_delete_failed",
+                        path=str(child),
+                        error=str(e),
+                    )
         except (ValueError, OSError) as e:
             logger.warning("factory_reset_audio_clear_skipped", error=str(e))
 
@@ -1935,13 +2253,49 @@ def factory_reset(
         pass
     try:
         import secrets
+
         hotspot_pwd = secrets.token_hex(4)
         _run_nmcli_host_network(
-            ["con", "add", "type", "wifi", "ifname", "wlan0", "autoconnect", "no", "con-name", HOTSPOT_CONN_ID, "ssid", "Minabox-Setup"],
+            [
+                "con",
+                "add",
+                "type",
+                "wifi",
+                "ifname",
+                "wlan0",
+                "autoconnect",
+                "no",
+                "con-name",
+                HOTSPOT_CONN_ID,
+                "ssid",
+                "Minabox-Setup",
+            ],
             timeout=10,
         )
-        _run_nmcli_host_network(["con", "modify", HOTSPOT_CONN_ID, "802-11-wireless.mode", "ap", "ipv4.method", "shared"], timeout=5)
-        _run_nmcli_host_network(["con", "modify", HOTSPOT_CONN_ID, "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", hotspot_pwd], timeout=5)
+        _run_nmcli_host_network(
+            [
+                "con",
+                "modify",
+                HOTSPOT_CONN_ID,
+                "802-11-wireless.mode",
+                "ap",
+                "ipv4.method",
+                "shared",
+            ],
+            timeout=5,
+        )
+        _run_nmcli_host_network(
+            [
+                "con",
+                "modify",
+                HOTSPOT_CONN_ID,
+                "wifi-sec.key-mgmt",
+                "wpa-psk",
+                "wifi-sec.psk",
+                hotspot_pwd,
+            ],
+            timeout=5,
+        )
         _run_nmcli_host_network(["con", "up", HOTSPOT_CONN_ID], timeout=15)
     except (HTTPException, subprocess.TimeoutExpired, OSError) as e:
         logger.warning("factory_reset_hotspot_failed", error=str(e))
@@ -1960,7 +2314,10 @@ def factory_reset(
             logger.warning("factory_reset_restart_failed", error=str(e))
 
     logger.info("factory_reset_done", delete_audio=body.delete_audio if body else False)
-    return {"ok": True, "message": "Factory reset complete. Reconnect via hotspot (Minabox-Setup)."}
+    return {
+        "ok": True,
+        "message": "Factory reset complete. Reconnect via hotspot (Minabox-Setup).",
+    }
 
 
 # ── Minabox Update & Version ──────────────────────────────────────────────
@@ -2259,9 +2616,7 @@ def update_minabox(
         except Exception as e:
             # No backup, no update. Without one the way back would be
             # nothing but hope.
-            raise HTTPException(
-                status_code=503, detail=f"Backup failed: {e}"
-            ) from e
+            raise HTTPException(status_code=503, detail=f"Backup failed: {e}") from e
     else:
         log_lines.append("  (skipped)")
 
@@ -2281,8 +2636,7 @@ def update_minabox(
         if pinned:
             _write_env_tags(env_path, pinned)
             log_lines.append(
-                "  Pinned: "
-                + ", ".join(f"{k}={v}" for k, v in sorted(pinned.items()))
+                "  Pinned: " + ", ".join(f"{k}={v}" for k, v in sorted(pinned.items()))
             )
         script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text(
@@ -2429,8 +2783,10 @@ def _os_update_running(pid_path: Path) -> bool:
     return True
 
 
-def _os_update_wait_and_finish(proc: subprocess.Popen, log_path: Path, pid_path: Path) -> None:
-    """Background thread: wait for apt process, append exit code to log, remove pid file."""
+def _os_update_wait_and_finish(
+    proc: subprocess.Popen, log_path: Path, pid_path: Path
+) -> None:
+    """Wait for apt, append its exit code to the log, drop the PID file."""
     try:
         proc.wait(timeout=3600)
         code = proc.returncode
@@ -2449,7 +2805,7 @@ def _os_update_wait_and_finish(proc: subprocess.Popen, log_path: Path, pid_path:
 
 @router.post("/system/update-os")
 def update_os(_: None = Depends(_check_api_key)) -> dict:
-    """Start apt-get update && apt-get upgrade -y on the host in background; return immediately."""
+    """Start the host OS upgrade in the background and return immediately."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
     data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
@@ -2464,11 +2820,19 @@ def update_os(_: None = Depends(_check_api_key)) -> dict:
     try:
         nsenter = _nsenter_bin()
     except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail="nsenter not available on host") from e
+        raise HTTPException(
+            status_code=503, detail="nsenter not available on host"
+        ) from e
     cmd = [
         # /bin/sh is resolved in the host's mount namespace, after nsenter.
-        str(nsenter), "-t", "1", "-n", "-m", "--",
-        "/bin/sh", "-c",
+        str(nsenter),
+        "-t",
+        "1",
+        "-n",
+        "-m",
+        "--",
+        "/bin/sh",
+        "-c",
         "export DEBIAN_FRONTEND=noninteractive PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; "
         "apt-get update -qq && apt-get upgrade -y",
     ]
@@ -2482,12 +2846,21 @@ def update_os(_: None = Depends(_check_api_key)) -> dict:
                 start_new_session=True,
             )
         pid_path.write_text(str(proc.pid), encoding="utf-8")
-        t = threading.Thread(target=_os_update_wait_and_finish, args=(proc, log_path, pid_path), daemon=True)
+        t = threading.Thread(
+            target=_os_update_wait_and_finish,
+            args=(proc, log_path, pid_path),
+            daemon=True,
+        )
         t.start()
         logger.info("update_os_started", pid=proc.pid)
-        return {"ok": True, "message": "OS update started in background (may take several minutes)"}
+        return {
+            "ok": True,
+            "message": "OS update started in background (may take several minutes)",
+        }
     except OSError as e:
-        raise HTTPException(status_code=503, detail=f"Host OS update failed: {e}") from e
+        raise HTTPException(
+            status_code=503, detail=f"Host OS update failed: {e}"
+        ) from e
 
 
 @router.get("/system/update-os/log")
@@ -2514,11 +2887,22 @@ def update_os_log(_: None = Depends(_check_api_key)) -> dict:
 
 # ── Bluetooth ─────────────────────────────────────────────────────────────
 
-def _run_bluetoothctl_on_host(args: list[str], timeout: int = 15) -> subprocess.CompletedProcess:
-    """Run bluetoothctl on the host via nsenter (host mount + network) so it can open the Bluetooth mgmt socket."""
+
+def _run_bluetoothctl_on_host(
+    args: list[str], timeout: int = 15
+) -> subprocess.CompletedProcess:
+    """Run bluetoothctl on the host, where the Bluetooth management socket is."""
     nsenter_bin = _nsenter_bin()
     # /usr/bin/bluetoothctl is resolved in the host's mount namespace after nsenter
-    cmd = [str(nsenter_bin), "-t", "1", "-m", "-n", "--", "/usr/bin/bluetoothctl"] + args
+    cmd = [
+        str(nsenter_bin),
+        "-t",
+        "1",
+        "-m",
+        "-n",
+        "--",
+        "/usr/bin/bluetoothctl",
+    ] + args
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
 
@@ -2528,17 +2912,19 @@ class BluetoothPairBody(BaseModel):
 
 @router.get("/bluetooth/scan")
 async def bluetooth_scan(_: None = Depends(_check_api_key)) -> dict:
-    """Scan for Bluetooth devices and return list (address, name). Runs on host via nsenter.
-    Keeps 'scan on' running in the background so BlueZ keeps discovering; after 12s we read
-    the device list and stop the scan. If we only ran scan on with a timeout, killing the client
-    would stop discovery before devices are listed.
+    """Scan for Bluetooth devices and return their address and name.
+
+    One bluetoothctl process is kept alive for the whole 12 seconds. On most
+    setups discovery stops the moment the client disconnects, so running
+    "scan on" with a timeout would end the scan before anything is listed.
     """
-    # Ensure adapter is on (avoids NotReady when user only uses WebUI and never ran bluetoothctl on the host)
+    # Power the adapter on first: a box driven only from the WebUI has never
+    # had bluetoothctl run on it, and BlueZ answers NotReady.
     try:
         _run_bluetoothctl_on_host(["power", "on"], timeout=5)
     except Exception:
         pass
-    # Keep one bluetoothctl process alive so discovery stays active (client disconnect stops discovery on many setups)
+    # Keep one client alive so discovery stays active for the full window.
     nsenter_bin = _nsenter_bin()
     cmd_bt = [str(nsenter_bin), "-t", "1", "-m", "-n", "--", "/usr/bin/bluetoothctl"]
     proc = None
@@ -2604,11 +2990,21 @@ def bluetooth_pair(
     except HTTPException:
         raise
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-        logger.warning("bluetooth_pair_error", address=addr, error=type(e).__name__, msg=str(e))
-        raise HTTPException(status_code=503, detail="Bluetooth pairing unavailable or timed out") from e
+        logger.warning(
+            "bluetooth_pair_error", address=addr, error=type(e).__name__, msg=str(e)
+        )
+        raise HTTPException(
+            status_code=503, detail="Bluetooth pairing unavailable or timed out"
+        ) from e
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "Pairing failed").strip()
-        logger.warning("bluetooth_pair_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
+        logger.warning(
+            "bluetooth_pair_failed",
+            address=addr,
+            returncode=r.returncode,
+            stderr=(r.stderr or "")[:300],
+            stdout=(r.stdout or "")[:300],
+        )
         raise HTTPException(status_code=400, detail=err[:500])
     # Trust so the device can connect automatically when in range
     try:
@@ -2658,7 +3054,11 @@ def bluetooth_paired(_: None = Depends(_check_api_key)) -> dict:
 
     return {
         "devices": [
-            {"address": address, "name": name, "connected": address in connected_addresses}
+            {
+                "address": address,
+                "name": name,
+                "connected": address in connected_addresses,
+            }
             for address, name in _parse_bluetooth_devices(paired.stdout).items()
         ]
     }
@@ -2681,11 +3081,21 @@ def bluetooth_connect(
     try:
         r = _run_bluetoothctl_on_host(["connect", addr], timeout=15)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-        logger.warning("bluetooth_connect_error", address=addr, error=type(e).__name__, msg=str(e))
-        raise HTTPException(status_code=503, detail="Bluetooth connect unavailable or timed out") from e
+        logger.warning(
+            "bluetooth_connect_error", address=addr, error=type(e).__name__, msg=str(e)
+        )
+        raise HTTPException(
+            status_code=503, detail="Bluetooth connect unavailable or timed out"
+        ) from e
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "Connect failed").strip()
-        logger.warning("bluetooth_connect_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
+        logger.warning(
+            "bluetooth_connect_failed",
+            address=addr,
+            returncode=r.returncode,
+            stderr=(r.stderr or "")[:300],
+            stdout=(r.stdout or "")[:300],
+        )
         raise HTTPException(status_code=400, detail=err[:500])
     logger.info("bluetooth_connect_ok", address=addr)
     return {"ok": True, "message": "Connected", "address": addr}
@@ -2704,11 +3114,24 @@ def bluetooth_disconnect(
     try:
         r = _run_bluetoothctl_on_host(["disconnect", addr], timeout=10)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-        logger.warning("bluetooth_disconnect_error", address=addr, error=type(e).__name__, msg=str(e))
-        raise HTTPException(status_code=503, detail="Bluetooth disconnect unavailable or timed out") from e
+        logger.warning(
+            "bluetooth_disconnect_error",
+            address=addr,
+            error=type(e).__name__,
+            msg=str(e),
+        )
+        raise HTTPException(
+            status_code=503, detail="Bluetooth disconnect unavailable or timed out"
+        ) from e
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "Disconnect failed").strip()
-        logger.warning("bluetooth_disconnect_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
+        logger.warning(
+            "bluetooth_disconnect_failed",
+            address=addr,
+            returncode=r.returncode,
+            stderr=(r.stderr or "")[:300],
+            stdout=(r.stdout or "")[:300],
+        )
         raise HTTPException(status_code=400, detail=err[:500])
     logger.info("bluetooth_disconnect_ok", address=addr)
     return {"ok": True, "message": "Disconnected", "address": addr}
@@ -2727,11 +3150,21 @@ def bluetooth_remove(
     try:
         r = _run_bluetoothctl_on_host(["remove", addr], timeout=10)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-        logger.warning("bluetooth_remove_error", address=addr, error=type(e).__name__, msg=str(e))
-        raise HTTPException(status_code=503, detail="Bluetooth remove unavailable or timed out") from e
+        logger.warning(
+            "bluetooth_remove_error", address=addr, error=type(e).__name__, msg=str(e)
+        )
+        raise HTTPException(
+            status_code=503, detail="Bluetooth remove unavailable or timed out"
+        ) from e
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "Remove failed").strip()
-        logger.warning("bluetooth_remove_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
+        logger.warning(
+            "bluetooth_remove_failed",
+            address=addr,
+            returncode=r.returncode,
+            stderr=(r.stderr or "")[:300],
+            stdout=(r.stdout or "")[:300],
+        )
         raise HTTPException(status_code=400, detail=err[:500])
     logger.info("bluetooth_remove_ok", address=addr)
     return {"ok": True, "message": "Removed", "address": addr}
@@ -2741,9 +3174,7 @@ def _is_allowed_container_name(name: str) -> bool:
     """Allow only Minabox container names (e.g. minabox-backend, minabox-audio)."""
     if not name or ".." in name or "/" in name or "\\" in name:
         return False
-    return name.startswith("minabox-") and all(
-        c.isalnum() or c == "-" for c in name
-    )
+    return name.startswith("minabox-") and all(c.isalnum() or c == "-" for c in name)
 
 
 def _read_container_logs(container_name: str, tail: int) -> dict:
@@ -2769,7 +3200,9 @@ async def container_logs(
         raise HTTPException(status_code=404, detail="Container not found") from None
     except DockerAPIError as e:
         # The daemon answered, so the client is fine - only the request failed.
-        raise HTTPException(status_code=502, detail=str(e.explanation or str(e))[:500]) from e
+        raise HTTPException(
+            status_code=502, detail=str(e.explanation or str(e))[:500]
+        ) from e
     except Exception as e:
         # Anything else is a transport problem; the cached client may be the
         # stale half of it, so drop it and let the next call rebuild.
