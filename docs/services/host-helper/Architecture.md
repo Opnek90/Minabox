@@ -161,6 +161,13 @@ walks the tree, moves file by file so progress can be reported, and finally
 removes the empty directories left behind. A second `POST` while a move is
 running is rejected with `409`.
 
+The walk itself is part of the background job, not of the request: on a large
+library counting the files takes long enough to be worth reporting on. Until
+the count is in, the status reads `total: 0`, which the WebUI shows as an
+indeterminate bar. A move that fails partway leaves what it already moved where
+it moved it — undoing it could fail halfway too — and `current` says how far it
+got.
+
 ### Host power and services
 
 | Method | Path        | Description                                                             |
@@ -244,7 +251,9 @@ The archive contains `data/minabox.db`, `data/general_settings.json`,
 `data/static/**`, `services/audio-service/state/audio_state.json` and the LED,
 button and display config files. The same builder is used for the automatic
 pre-update backup, so a snapshot that only ever existed as a download would be
-useless when an update goes wrong.
+useless when an update goes wrong. Members are streamed into the archive and
+the archive is written to a file, never assembled in memory — the cover art
+under `data/static/` is what grows here.
 
 Restore spools the upload to disk rather than into memory and rejects it before
 anything is touched if an entry falls outside the path allowlist, if the archive
@@ -375,12 +384,15 @@ update is aborted if that fails. The five most recent archives are kept.
 
 | Method | Path                     | Description                                                      |
 | ------ | ------------------------ | ------------------------------------------------------------------ |
-| POST   | `/system/update-os`      | Starts `apt-get update && apt-get upgrade -y` on the host, detached. |
+| POST   | `/system/update-os`      | Starts `apt-get update && apt-get upgrade -y` on the host, detached; `409` while one runs. |
 | GET    | `/system/update-os/log`  | `{running, log}`, log truncated to the last 2000 lines.              |
 
 The process is started with `nsenter` and `start_new_session=True`, its PID is
 recorded in `data/os-update.pid`, and a watcher thread appends the exit code to
-`data/os-update.log` when it finishes.
+`data/os-update.log` when it finishes. The container shares the host PID
+namespace, so that recorded PID can be checked with signal 0 — which is how
+both the log route reports `running` and the start route refuses a second run
+that would only fight the first over the dpkg lock.
 
 ### Bluetooth
 
@@ -397,8 +409,11 @@ recorded in `data/os-update.pid`, and a watcher thread appends the exit code to
 order to open the Bluetooth management socket. The scan keeps one interactive
 `bluetoothctl` process alive for the whole 12 seconds: on most setups discovery
 stops the moment the client disconnects, so a simple `scan on` with a timeout
-would return an empty list. `paired` filters the device list through
-`bluetoothctl info <addr>` and keeps only entries reporting `Paired: yes`.
+would return an empty list.
+
+`paired` asks BlueZ to filter, with `devices Paired` and `devices Connected` —
+two calls no matter how many devices the box remembers, rather than one
+`bluetoothctl info` per entry.
 
 ---
 

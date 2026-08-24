@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import json
 import os
 import re
@@ -14,6 +13,7 @@ import subprocess
 import tempfile
 import threading
 import zipfile
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,8 +21,9 @@ import docker
 import structlog
 from docker.errors import APIError as DockerAPIError, NotFound as DockerNotFound
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
+from starlette.background import BackgroundTask
 from shared_lib.version import get_version as get_build_version
 
 from host_helper.config import load_config, validate_path_under_allowed
@@ -36,6 +37,37 @@ _config: dict | None = None
 # Move job state for progress (idle | running | done | error)
 _move_state: dict = {"status": "idle", "total": 0, "current": 0, "error": None}
 _move_lock = threading.Lock()
+
+_docker_client: docker.DockerClient | None = None
+_docker_client_lock = threading.Lock()
+
+
+def _docker() -> docker.DockerClient:
+    """The shared Docker client.
+
+    docker.from_env() builds a fresh connection pool every time, and nothing
+    ever closed the old one; with the WebUI polling container logs those add
+    up. One client is enough - it opens a connection per call and is cheap to
+    keep - so it is cached here and dropped only when a call fails, which is
+    the one situation where a stale client would show.
+    """
+    global _docker_client
+    with _docker_client_lock:
+        if _docker_client is None:
+            _docker_client = docker.from_env()
+        return _docker_client
+
+
+def _drop_docker_client() -> None:
+    """Forget the cached client so the next caller builds a fresh one."""
+    global _docker_client
+    with _docker_client_lock:
+        client, _docker_client = _docker_client, None
+    if client is not None:
+        try:
+            client.close()
+        except Exception:  # noqa: BLE001 - closing must never be the failure
+            pass
 
 
 class ApplyAudioPathBody(BaseModel):
@@ -177,73 +209,88 @@ def apply_audio_path(
     return {"ok": True, "audio_files_path": path_str}
 
 
-def _run_move(source: Path, dest: Path, items: list[Path] | None = None) -> None:
-    """Background: move items (or source contents) into dest. When items is set, total is already in _move_state."""
-    global _move_state
+def _remove_empty_dirs(root: Path) -> None:
+    """Drop the directories a move emptied, deepest first.
+
+    One pass is enough: sorting by path depth guarantees a child is visited
+    before its parent, so a directory that only held other empty directories
+    is empty by the time it is reached.
+    """
     try:
-        if items is not None:
-            total = len(items)
-            for i, file_path in enumerate(items):
-                try:
-                    rel = file_path.relative_to(source)
-                    dest_file = dest / rel
-                    dest_file.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.move(str(file_path), str(dest_file))
-                except OSError as e:
-                    with _move_lock:
-                        _move_state = {"status": "error", "total": total, "current": i, "error": str(e)}
-                    logger.error("move_failed", source=str(source), dest=str(dest), error=str(e))
-                    return
-                with _move_lock:
-                    _move_state["current"] = i + 1
-            # Remove empty directories left in source (repeat until none left)
-            try:
-                while True:
-                    removed = False
-                    for p in sorted(source.rglob("*"), key=lambda x: -len(x.parts)):
-                        if p.is_dir() and not any(p.iterdir()):
-                            p.rmdir()
-                            removed = True
-                    if not removed:
-                        break
-            except OSError as e:
-                logger.warning("move_cleanup_dirs_failed", path=str(source), error=str(e))
-            with _move_lock:
-                _move_state["status"] = "done"
-            logger.info("move_ok", source=str(source), destination=str(dest), files_moved=total)
-            return
-        with _move_lock:
-            if _move_state.get("status") == "running":
-                return
-            _move_state = {"status": "running", "total": 0, "current": 0, "error": None}
+        directories = sorted(
+            (p for p in root.rglob("*") if p.is_dir()),
+            key=lambda p: -len(p.parts),
+        )
+    except OSError as e:
+        logger.warning("move_cleanup_dirs_failed", path=str(root), error=str(e))
+        return
+    for directory in directories:
+        try:
+            directory.rmdir()
+        except OSError:
+            continue  # still holds something - leave it alone
+
+
+def _run_move(source: Path, dest: Path) -> None:
+    """Background worker: move a file, or the contents of a directory, to dest.
+
+    Walking the tree happens here rather than in the request. On a large music
+    library the walk alone takes long enough to be worth reporting on, and
+    doing it before the reply would hold both the caller and a worker thread
+    for no reason. Until the count is in, progress stays at 0/0, which the
+    WebUI renders as an indeterminate bar.
+    """
+    try:
         if source.is_file():
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(source), str(dest))
             with _move_lock:
-                _move_state = {"status": "done", "total": 1, "current": 1, "error": None}
+                _move_state.update(
+                    {"status": "done", "total": 1, "current": 1, "error": None}
+                )
             logger.info("move_ok", source=str(source), destination=str(dest))
             return
+
+        files = sorted(f for f in source.rglob("*") if f.is_file())
+        total = len(files)
         dest.mkdir(parents=True, exist_ok=True)
-        dir_items = list(source.iterdir())
-        total = len(dir_items)
         with _move_lock:
             _move_state["total"] = total
-        for i, item in enumerate(dir_items):
+
+        for i, file_path in enumerate(files):
             try:
-                shutil.move(str(item), str(dest / item.name))
+                target = dest / file_path.relative_to(source)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(file_path), str(target))
             except OSError as e:
+                # Whatever was moved stays moved. Moving it back could fail
+                # halfway too, and would leave the caller with even less idea
+                # of where their files are; the count says how far it got.
                 with _move_lock:
-                    _move_state = {"status": "error", "total": total, "current": i, "error": str(e)}
-                logger.error("move_failed", source=str(source), dest=str(dest), error=str(e))
+                    _move_state.update(
+                        {"status": "error", "total": total, "current": i, "error": str(e)}
+                    )
+                logger.error(
+                    "move_failed",
+                    source=str(source),
+                    dest=str(dest),
+                    files_moved=i,
+                    files_total=total,
+                    error=str(e),
+                )
                 return
             with _move_lock:
                 _move_state["current"] = i + 1
+
+        _remove_empty_dirs(source)
         with _move_lock:
             _move_state["status"] = "done"
-        logger.info("move_ok", source=str(source), destination=str(dest))
+        logger.info(
+            "move_ok", source=str(source), destination=str(dest), files_moved=total
+        )
     except Exception as e:
         with _move_lock:
-            _move_state = {"status": "error", "total": 0, "current": 0, "error": str(e)}
+            _move_state.update({"status": "error", "error": str(e)})
         logger.exception("move_failed")
 
 
@@ -276,19 +323,11 @@ def move(
     with _move_lock:
         if _move_state.get("status") == "running":
             raise HTTPException(status_code=409, detail="Move already in progress")
+        # Claim the job in the same lock that checked it. Two separate blocks
+        # let two requests both pass the check and both start a worker.
+        _move_state.update({"status": "running", "total": 0, "current": 0, "error": None})
 
-    if source.is_dir():
-        files_list = sorted(f for f in source.rglob("*") if f.is_file())
-        total = len(files_list)
-        dest.mkdir(parents=True, exist_ok=True)
-        with _move_lock:
-            _move_state.update({"status": "running", "total": total, "current": 0, "error": None})
-        thread = threading.Thread(target=_run_move, args=(source, dest, files_list), daemon=True)
-    else:
-        with _move_lock:
-            _move_state.update({"status": "running", "total": 0, "current": 0, "error": None})
-        thread = threading.Thread(target=_run_move, args=(source, dest, None), daemon=True)
-    thread.start()
+    threading.Thread(target=_run_move, args=(source, dest), daemon=True).start()
     return JSONResponse(
         content={"ok": True, "status": "running", "message": "Move started"},
         status_code=202,
@@ -837,59 +876,74 @@ def _backup_allowed_path(rel_path: str, workspace: Path) -> bool:
     return False
 
 
-def _build_backup_zip() -> bytes:
-    """ZIP mit Datenbank, Einstellungen und Dienst-Zustaenden.
+def _backup_members(workspace: Path, data_path: Path) -> Iterator[tuple[Path, str]]:
+    """The files a backup consists of, as (source on disk, name in archive)."""
+    for name in ("minabox.db", "general_settings.json"):
+        candidate = data_path / name
+        if candidate.is_file():
+            yield candidate, f"data/{name}"
 
-    Herausgeloest, damit dieselbe Sicherung sowohl heruntergeladen als auch vor
-    einem Update auf die Platte gelegt werden kann - eine Sicherung, die nur
-    beim Herunterladen entsteht, hilft beim Update niemandem.
+    static_dir = data_path / "static"
+    if static_dir.is_dir():
+        for entry in sorted(static_dir.rglob("*")):
+            if entry.is_file():
+                yield entry, "data/static/" + entry.relative_to(static_dir).as_posix()
+
+    for rel in (
+        "services/audio-service/state/audio_state.json",
+        "services/led-service/config/leds.json",
+        "services/button-service/config/buttons.json",
+        "services/display-service/config/display.json",
+    ):
+        candidate = workspace / rel
+        if candidate.is_file():
+            yield candidate, rel
+
+
+def _write_backup_zip(target: Path) -> None:
+    """Write the backup archive - database, settings, static files, service state.
+
+    Extracted so that the same snapshot can be handed to a download and dropped
+    on disk before an update; a backup that only exists while someone downloads
+    it helps nobody when an update goes wrong.
+
+    Members are streamed with ZipFile.write() rather than read into memory
+    first, and the archive goes straight to a file. The cover art under
+    data/static/ is what grows here, and holding all of it plus a copy of the
+    finished archive is not something a Pi should be asked to do.
     """
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
     data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        # Database
-        db_file = data_path / "minabox.db"
-        if db_file.exists():
-            zf.writestr("data/minabox.db", db_file.read_bytes())
-        # General settings
-        gs_file = data_path / "general_settings.json"
-        if gs_file.exists():
-            zf.writestr("data/general_settings.json", gs_file.read_bytes())
-        # Static dir
-        static_dir = data_path / "static"
-        if static_dir.exists() and static_dir.is_dir():
-            for f in static_dir.rglob("*"):
-                if f.is_file():
-                    arcname = "data/static/" + str(f.relative_to(static_dir)).replace("\\", "/")
-                    zf.writestr(arcname, f.read_bytes())
-        # Audio service state
-        audio_state = workspace / "services/audio-service/state/audio_state.json"
-        if audio_state.exists():
-            zf.writestr("services/audio-service/state/audio_state.json", audio_state.read_bytes())
-        # LED, Button, Display config
-        for rel in (
-            "services/led-service/config/leds.json",
-            "services/button-service/config/buttons.json",
-            "services/display-service/config/display.json",
-        ):
-            p = workspace / rel
-            if p.exists() and p.is_file():
-                zf.writestr(rel, p.read_bytes())
-    buf.seek(0)
-    return buf.getvalue()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
+        for source, arcname in _backup_members(workspace, data_path):
+            zf.write(source, arcname)
 
 
 @router.get("/backup/download")
 def backup_download(_: None = Depends(_check_api_key)) -> Response:
-    """Create a ZIP of minabox.db, general_settings.json, static, and service state/config."""
-    date_str = datetime.now(UTC).strftime("%Y%m%d-%H%M")
-    filename = f"minabox-backup-{date_str}.zip"
-    return Response(
-        content=_build_backup_zip(),
+    """Stream a ZIP of the database, settings, static files and service state."""
+    cfg = get_config()
+    workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
+    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    filename = f"minabox-backup-{datetime.now(UTC).strftime('%Y%m%d-%H%M')}.zip"
+
+    data_path.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(data_path), prefix="download-", suffix=".zip")
+    os.close(fd)
+    archive = Path(tmp_name)
+    try:
+        _write_backup_zip(archive)
+    except BaseException:
+        archive.unlink(missing_ok=True)
+        raise
+    # Deleted once the response has been sent, whether or not it completed.
+    return FileResponse(
+        path=archive,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        filename=filename,
+        background=BackgroundTask(archive.unlink, missing_ok=True),
     )
 
 
@@ -1730,6 +1784,12 @@ def get_ssh_status(_: None = Depends(_check_api_key)) -> dict:
     return out
 
 
+# systemctl answers in well under a second on the box. The generous cap is for
+# a systemd that hangs, and it is deliberately small enough that four chained
+# calls cannot occupy a worker thread for minutes on end.
+SSH_UNIT_TIMEOUT = 30
+
+
 class SshToggleBody(BaseModel):
     enable: bool
 
@@ -1743,14 +1803,14 @@ def ssh_toggle(
     try:
         if body.enable:
             for args in (["enable", "ssh"], ["start", "ssh"]):
-                r = _run_host_systemctl(args, timeout=120)
+                r = _run_host_systemctl(args, timeout=SSH_UNIT_TIMEOUT)
                 if r.returncode != 0:
                     raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Failed")[:500])
         else:
             # Stop/disable socket first so socket activation doesn't bring SSH back, then service
             for unit in ("ssh.socket", "ssh"):
-                for action, args in (("stop", ["stop", unit]), ("disable", ["disable", unit])):
-                    r = _run_host_systemctl(args, timeout=120)
+                for args in (["stop", unit], ["disable", unit]):
+                    r = _run_host_systemctl(args, timeout=SSH_UNIT_TIMEOUT)
                     if r.returncode != 0 and unit == "ssh":
                         raise HTTPException(status_code=502, detail=(r.stderr or r.stdout or "Failed")[:500])
         r_en = _run_host_systemctl(["is-enabled", "ssh"], timeout=5)
@@ -1973,12 +2033,12 @@ def _host_workspace() -> str:
     if configured:
         return configured
     try:
-        client = docker.from_env()
-        own = client.containers.get(os.uname().nodename)
+        own = _docker().containers.get(os.uname().nodename)
         path = (own.labels or {}).get("com.docker.compose.project.working_dir")
         if path:
             return str(path)
     except Exception as e:
+        _drop_docker_client()
         logger.debug("host_workspace_lookup_failed", error=str(e))
     return "/home/pi/minabox"
 
@@ -2015,8 +2075,9 @@ def _running_versions() -> dict[str, str]:
     """Laufende Version je Dienst, aus dem Label des Containers."""
     versions: dict[str, str] = {}
     try:
-        client = docker.from_env()
+        client = _docker()
     except Exception as e:
+        _drop_docker_client()
         logger.debug("running_versions_unavailable", error=str(e))
         return versions
     for service in _service_names():
@@ -2162,7 +2223,7 @@ def update_minabox(
             backup_dir.mkdir(parents=True, exist_ok=True)
             stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
             backup_file = backup_dir / f"pre-update-{stamp}.zip"
-            backup_file.write_bytes(_build_backup_zip())
+            _write_backup_zip(backup_file)
             _prune_backups(backup_dir)
             log_lines.append(f"  Sicherung: data/backups/{backup_file.name}")
         except Exception as e:
@@ -2323,6 +2384,21 @@ def get_version(_: None = Depends(_check_api_key)) -> dict:
     }
 
 
+def _os_update_running(pid_path: Path) -> bool:
+    """True while the apt process from an earlier call is still alive.
+
+    The container shares the host PID namespace (pid: host in compose), so the
+    recorded PID is visible here and signal 0 is enough to ask about it.
+    """
+    if not pid_path.exists():
+        return False
+    try:
+        os.kill(int(pid_path.read_text(encoding="utf-8").strip()), 0)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
 def _os_update_wait_and_finish(proc: subprocess.Popen, log_path: Path, pid_path: Path) -> None:
     """Background thread: wait for apt process, append exit code to log, remove pid file."""
     try:
@@ -2349,6 +2425,10 @@ def update_os(_: None = Depends(_check_api_key)) -> dict:
     data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
     log_path = data_path / "os-update.log"
     pid_path = data_path / "os-update.pid"
+    # Two apt processes only ever fight over the dpkg lock, and the second one
+    # would overwrite the log the first is still writing.
+    if _os_update_running(pid_path):
+        raise HTTPException(status_code=409, detail="An OS update is already running")
     host_root = cfg.get("host_root") or "/host"
     root_path = Path(host_root).resolve()
     if not root_path.exists():
@@ -2394,15 +2474,8 @@ def update_os_log(_: None = Depends(_check_api_key)) -> dict:
     data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
     log_path = data_path / "os-update.log"
     pid_path = data_path / "os-update.pid"
-    running = False
+    running = _os_update_running(pid_path)
     log_text = ""
-    if pid_path.exists():
-        try:
-            pid = int(pid_path.read_text(encoding="utf-8").strip())
-            os.kill(pid, 0)
-            running = True
-        except (OSError, ValueError):
-            pass
     if log_path.exists():
         try:
             raw = log_path.read_text(encoding="utf-8", errors="replace")
@@ -2522,41 +2595,49 @@ def bluetooth_pair(
     return {"ok": True, "message": "Paired", "address": addr}
 
 
-@router.get("/bluetooth/paired")
-def bluetooth_paired(_: None = Depends(_check_api_key)) -> dict:
-    """Return list of paired Bluetooth devices only (address, name, connected). No scan.
-    Filters by bluetoothctl info <addr> Paired: yes so discovered-but-not-paired devices are excluded."""
-    try:
-        r = _run_bluetoothctl_on_host(["devices"], timeout=10)
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return {"devices": []}
-    candidates: list[tuple[str, str, bool]] = []
-    for line in (r.stdout or "").strip().splitlines():
+def _parse_bluetooth_devices(output: str) -> dict[str, str | None]:
+    """Turn `bluetoothctl devices` output into {address: name}."""
+    devices: dict[str, str | None] = {}
+    for line in (output or "").strip().splitlines():
         if not line.startswith("Device "):
             continue
-        rest = line[7:].strip()
-        parts = rest.split(" ", 1)
-        addr = parts[0] if parts else ""
-        if not addr:
-            continue
-        name_part = (parts[1].strip() if len(parts) > 1 else "").strip()
-        connected = "(connected)" in name_part
-        if connected:
-            name_part = name_part.replace("(connected)", "").strip()
-        name = name_part or None
-        candidates.append((addr, name or "", connected))
-    devices: list[dict] = []
-    for addr, name, connected in candidates:
-        try:
-            info_r = _run_bluetoothctl_on_host(["info", addr], timeout=5)
-            if info_r.returncode != 0:
-                continue
-            if "Paired: yes" not in (info_r.stdout or ""):
-                continue
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            continue
-        devices.append({"address": addr, "name": name or None, "connected": connected})
-    return {"devices": devices}
+        address, _, name = line[len("Device ") :].strip().partition(" ")
+        if address:
+            devices[address] = name.strip() or None
+    return devices
+
+
+@router.get("/bluetooth/paired")
+def bluetooth_paired(_: None = Depends(_check_api_key)) -> dict:
+    """Return the paired devices (address, name, connected). No scan.
+
+    Two fixed calls, not one per device. Asking `bluetoothctl info <addr>` for
+    every entry used to cost up to five seconds each, so a box with a handful
+    of remembered headphones answered slower than the WebUI was willing to
+    wait. BlueZ filters the list itself.
+    """
+    try:
+        paired = _run_bluetoothctl_on_host(["devices", "Paired"], timeout=10)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return {"devices": []}
+    if paired.returncode != 0:
+        return {"devices": []}
+
+    connected_addresses: set[str] = set()
+    try:
+        connected = _run_bluetoothctl_on_host(["devices", "Connected"], timeout=10)
+        if connected.returncode == 0:
+            connected_addresses = set(_parse_bluetooth_devices(connected.stdout))
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        # Knowing the pairs matters more than knowing which one is live.
+        pass
+
+    return {
+        "devices": [
+            {"address": address, "name": name, "connected": address in connected_addresses}
+            for address, name in _parse_bluetooth_devices(paired.stdout).items()
+        ]
+    }
 
 
 class BluetoothAddressBody(BaseModel):
@@ -2643,8 +2724,7 @@ def _is_allowed_container_name(name: str) -> bool:
 
 def _read_container_logs(container_name: str, tail: int) -> dict:
     """Blocking Docker SDK call - run via asyncio.to_thread."""
-    client = docker.from_env()
-    container = client.containers.get(container_name)
+    container = _docker().containers.get(container_name)
     out = container.logs(tail=tail, stdout=True, stderr=True)
     return {"lines": out.decode("utf-8", errors="replace").strip(), "tail": tail}
 
@@ -2664,8 +2744,12 @@ async def container_logs(
     except DockerNotFound:
         raise HTTPException(status_code=404, detail="Container not found") from None
     except DockerAPIError as e:
+        # The daemon answered, so the client is fine - only the request failed.
         raise HTTPException(status_code=502, detail=str(e.explanation or str(e))[:500]) from e
     except Exception as e:
+        # Anything else is a transport problem; the cached client may be the
+        # stale half of it, so drop it and let the next call rebuild.
+        _drop_docker_client()
         logger.exception("container_logs_failed")
         raise HTTPException(status_code=503, detail="Docker not available") from e
 
