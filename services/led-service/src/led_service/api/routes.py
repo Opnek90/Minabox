@@ -5,23 +5,20 @@ This module provides a minimal REST API with health check endpoint.
 
 from __future__ import annotations
 
-from typing import Dict
-
+import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import structlog
 from shared_lib.version import get_version
-
-
-class TestLEDRequest(BaseModel):
-    led_id: str
 
 from ..config_schema import AppConfig
 from ..core import LEDManager
 from ..infrastructure import MQTTClient
 
-
 logger = structlog.get_logger(__name__)
+
+
+class TestLEDRequest(BaseModel):
+    led_id: str
 
 
 def create_app(
@@ -30,23 +27,23 @@ def create_app(
     mqtt_client: MQTTClient,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
-    
+
     Args:
         config: Application configuration.
         led_manager: LED manager instance.
         mqtt_client: MQTT client instance.
-        
+
     Returns:
         Configured FastAPI application.
     """
     app = FastAPI(
         title="Minabox LED Service",
         description="GPIO-based LED control service for Minabox",
-        version="0.1.0",
+        version=get_version(),
     )
-    
+
     @app.post("/test")
-    async def test_led(body: TestLEDRequest) -> Dict[str, object]:
+    async def test_led(body: TestLEDRequest) -> dict[str, object]:
         """Run a fixed 5-second blink on the LED for testing.
 
         Returns 404 if the LED is not found or not available (e.g. no GPIO).
@@ -60,15 +57,15 @@ def create_app(
         return {"led_id": body.led_id, "tested": True}
 
     @app.get("/health")
-    async def health_check() -> Dict[str, object]:
+    async def health_check() -> dict[str, object]:
         """Health check endpoint.
-        
+
         Returns service status and basic statistics.
         """
         # Count configured LEDs
         current_config = led_manager._controllers
         leds_count = len(current_config)
-        
+
         # Live connection state, not "did startup succeed once".
         mqtt_connected = mqtt_client.is_connected
 
@@ -82,5 +79,5 @@ def create_app(
             "mqtt_broker": config.env.mqtt_broker,
             "mqtt_port": config.env.mqtt_port,
         }
-    
+
     return app

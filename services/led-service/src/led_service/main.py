@@ -12,7 +12,6 @@ This module:
 from __future__ import annotations
 
 import asyncio
-import logging
 import signal
 
 import structlog
@@ -33,7 +32,7 @@ class LEDService:
 
     def __init__(self, config: AppConfig) -> None:
         """Initialize the LED service.
-        
+
         Args:
             config: Application configuration.
         """
@@ -41,14 +40,14 @@ class LEDService:
         self.config_manager = ConfigManager()
         self.led_manager = LEDManager()
         self.state_manager = StateManager(config.env.minabox_device_id)
-        
+
         self.mqtt_client = MQTTClient(
             config=config,
             on_message_callback=self._handle_mqtt_message,
             on_config_update_callback=self._handle_config_update,
             on_config_reload_callback=self._handle_config_reload,
         )
-        
+
         self._shutdown_event = asyncio.Event()
         self._mqtt_task: asyncio.Task | None = None
         self._uvicorn_task: asyncio.Task | None = None
@@ -57,11 +56,11 @@ class LEDService:
     async def start(self) -> None:
         """Start the LED service."""
         logger.debug("led_service_starting")
-        
+
         # Load initial LED configuration
         led_config = self.config_manager.load_config()
         await self.led_manager.initialize_leds(led_config.leds)
-        
+
         # Start the supervised MQTT loop. It connects in the background and
         # retries forever, so an unreachable broker no longer fails startup.
         self._mqtt_task = await self.mqtt_client.start()
@@ -82,13 +81,13 @@ class LEDService:
 
         # Start FastAPI server
         await self._start_api_server()
-        
+
         logger.info("led_service_started")
 
     async def _start_api_server(self) -> None:
         """Start the FastAPI server."""
         app = create_app(self.config, self.led_manager, self.mqtt_client)
-        
+
         config = uvicorn.Config(
             app=app,
             host="0.0.0.0",
@@ -107,34 +106,34 @@ class LEDService:
     async def stop(self) -> None:
         """Stop the LED service gracefully."""
         logger.info("led_service_stopping")
-        
+
         # Stop API server and await its task
         if self._api_server:
             self._api_server.should_exit = True
         if self._uvicorn_task and not self._uvicorn_task.done():
             try:
                 await asyncio.wait_for(self._uvicorn_task, timeout=5.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
+            except (TimeoutError, asyncio.CancelledError):
                 pass
         logger.debug("api_server_stopped")
-        
+
         # Stop MQTT client
         await self.mqtt_client.stop()
-        
+
         # Wait for MQTT task to finish (with timeout)
         if self._mqtt_task and not self._mqtt_task.done():
             try:
                 await asyncio.wait_for(self._mqtt_task, timeout=5.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("mqtt_task_timeout")
                 self._mqtt_task.cancel()
-        
+
         # Disconnect MQTT
         await self.mqtt_client.disconnect()
-        
+
         # Clean up LEDs
         await self.led_manager.cleanup()
-        
+
         logger.info("led_service_stopped")
 
     def request_shutdown(self) -> None:
@@ -144,7 +143,7 @@ class LEDService:
 
     def _handle_mqtt_message(self, topic: str, payload: bytes) -> None:
         """Handle incoming MQTT messages.
-        
+
         Args:
             topic: The MQTT topic.
             payload: The message payload.
@@ -155,7 +154,7 @@ class LEDService:
 
     def _handle_config_update(self, new_config: LEDServiceConfig) -> None:
         """Handle LED configuration updates from MQTT.
-        
+
         Args:
             new_config: The new LED configuration.
         """
@@ -195,23 +194,23 @@ async def main() -> None:
     """Main async entry point."""
     config = load_app_config()
     setup_structlog(config.env.log_level)
-    
+
     logger.debug(
         "service_initializing",
         device_id=config.env.minabox_device_id,
         log_level=config.env.log_level,
     )
-    
+
     service = LEDService(config)
     loop = asyncio.get_running_loop()
-    
+
     def signal_handler(sig: signal.Signals) -> None:
         logger.debug("signal_received", signal=sig.name)
         service.request_shutdown()
-    
+
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, lambda s=sig: signal_handler(s))
-    
+
     try:
         await service.start()
         await service.run()

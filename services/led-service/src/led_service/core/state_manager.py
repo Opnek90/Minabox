@@ -7,7 +7,7 @@ service understands (e.g. 'audio_playing', 'system_error', 'rfid_scanned').
 from __future__ import annotations
 
 import json
-from typing import Dict
+from collections.abc import Callable
 
 import structlog
 
@@ -22,7 +22,7 @@ class StateManager:
         self.device_id = device_id
         self._state_derivation_rules = self._build_derivation_rules()
 
-    def _build_derivation_rules(self) -> Dict[str, callable]:
+    def _build_derivation_rules(self) -> dict[str, Callable[[bytes], str]]:
         prefix = f"minabox/{self.device_id}"
 
         return {
@@ -63,7 +63,9 @@ class StateManager:
                 error=str(exc),
                 exc_info=True,
             )
-            raise StateError(f"Failed to derive state from topic '{topic}': {exc}") from exc
+            raise StateError(
+                f"Failed to derive state from topic '{topic}': {exc}"
+            ) from exc
 
     def _derive_audio_state(self, payload: bytes) -> str:
         try:
