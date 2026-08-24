@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 import structlog
-
 from shared_lib.exceptions import ConfigError
 
 logger = structlog.get_logger(__name__)

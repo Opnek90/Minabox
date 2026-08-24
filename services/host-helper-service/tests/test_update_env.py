@@ -1,8 +1,9 @@
-"""Tests fuer das gezielte Update: Tag-Namen, .env-Schreiben, Log-Auswertung.
+"""Unit tests for the pure helpers of the host-helper service.
 
-Die Funktionen entscheiden, welche Version eine Box nach dem Update faehrt.
-Ein Fehler hier faellt erst auf, wenn ein Container mit dem falschen Abbild
-startet - deshalb sind sie einzeln abgesichert.
+These functions decide which version a box runs after an update, what an
+uploaded archive may write, and what a USB stick may hand over. A mistake in
+any of them surfaces late - a container on the wrong image, a file where it
+does not belong - so each one is pinned down on its own.
 """
 
 from __future__ import annotations
@@ -15,13 +16,12 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-# Der Dienst laeuft im Container mit src/ auf dem Pfad.
+# In the container the service runs with src/ on the path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from host_helper.api import routes  # noqa: E402
 
-
-# ── Namen der Umgebungsvariablen ────────────────────────────────────────────
+# ── Environment variable names ──────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -29,8 +29,8 @@ from host_helper.api import routes  # noqa: E402
     [
         ("backend", "MINABOX_BACKEND_TAG"),
         ("webui", "MINABOX_WEBUI_TAG"),
-        # Der Bindestrich muss zum Unterstrich werden, sonst entsteht ein
-        # Variablenname, den keine Shell und kein Compose je aufloest.
+        # The hyphen has to become an underscore, otherwise the result is a
+        # variable name that no shell and no compose will ever resolve.
         ("host-helper", "MINABOX_HOST_HELPER_TAG"),
         ("media-downloader", "MINABOX_MEDIA_DOWNLOADER_TAG"),
     ],
@@ -39,7 +39,7 @@ def test_tag_var(service: str, expected: str) -> None:
     assert routes._tag_var(service) == expected
 
 
-# ── .env schreiben und lesen ────────────────────────────────────────────────
+# ── Reading and writing .env ────────────────────────────────────────────────
 
 
 def test_write_env_tags_replaces_and_appends(tmp_path: Path) -> None:
@@ -54,10 +54,10 @@ def test_write_env_tags_replaces_and_appends(tmp_path: Path) -> None:
     lines = env.read_text(encoding="utf-8").splitlines()
     assert "MINABOX_BACKEND_TAG=0.1.4" in lines
     assert "MINABOX_WEBUI_TAG=0.1.4" in lines
-    # Nur ein Eintrag je Dienst - sonst gewinnt die letzte Zeile und der
-    # Zustand haengt von der Reihenfolge ab.
+    # One entry per service - otherwise the last line wins and the result
+    # depends on the order.
     assert sum(1 for line in lines if line.startswith("MINABOX_BACKEND_TAG=")) == 1
-    # Alles andere bleibt unangetastet.
+    # Everything else stays untouched.
     assert "MQTT_BROKER=mqtt" in lines
     assert "LOG_LEVEL=INFO" in lines
 
@@ -78,18 +78,19 @@ def test_read_env_tags_ignores_comments(tmp_path: Path, monkeypatch) -> None:
 
     tags = routes._read_env_tags(env)
 
-    # Auskommentiert zaehlt nicht, und ein Dienst, den es nicht gibt, auch nicht.
+    # A commented-out line does not count, and neither does a service that
+    # does not exist.
     assert tags == {"webui": "0.1.4"}
 
 
-# ── Fortschritt aus dem Log lesen ───────────────────────────────────────────
+# ── Reading progress from the log ───────────────────────────────────────────
 
 
 def test_parse_update_log_reports_the_last_step() -> None:
     log = "\n".join(
         [
             "=== MINABOX-STEP 1/5 backup",
-            "  Sicherung: data/backups/pre-update-20260821.zip",
+            "  Backup: data/backups/pre-update-20260821.zip",
             "=== MINABOX-STEP 2/5 repo",
             "=== MINABOX-STEP 3/5 pull",
         ]
@@ -111,23 +112,23 @@ def test_parse_update_log_reads_the_result() -> None:
 
 def test_parse_update_log_reads_a_failure() -> None:
     parsed = routes._parse_update_log(
-        "=== MINABOX-STEP 3/5 pull\nfehler\n=== MINABOX-DONE 1\n"
+        "=== MINABOX-STEP 3/5 pull\nfailed\n=== MINABOX-DONE 1\n"
     )
     assert parsed["exit_code"] == 1
     assert parsed["step_key"] == "pull"
 
 
 def test_parse_update_log_of_an_empty_run() -> None:
-    """Vor dem ersten Marker gibt es noch keinen Schritt - aber auch keinen Absturz."""
+    """Before the first marker there is no step yet - but no crash either."""
     parsed = routes._parse_update_log("")
     assert parsed["step"] is None
     assert parsed["exit_code"] is None
 
 
-# ── Pfad-Allowlist der Sicherung ────────────────────────────────────────────
+# ── The backup path allowlist ───────────────────────────────────────────────
 
-# Diese Funktion entscheidet, was ein hochgeladenes Archiv in den Arbeitsbaum
-# schreiben darf. Sie war bis zum Go-Live-Review ungetestet.
+# This function decides what an uploaded archive may write into the work tree.
+# It was untested until the go-live review.
 
 
 @pytest.mark.parametrize(
@@ -163,13 +164,13 @@ def test_backup_allowed_path_rejects_everything_else(name: str) -> None:
 
 
 def test_backup_allowed_path_rejects_windows_traversal() -> None:
-    # Backslashes werden zu Schraegstrichen normalisiert, sonst rutscht
-    # "data\..\..\etc" an der ..-Pruefung vorbei.
+    # Backslashes are normalised to forward slashes; without that,
+    # "data\..\..\etc" would slip past the .. check.
     name = "data\\..\\..\\etc\\shadow"
     assert routes._backup_allowed_path(name, Path("/workspace")) is False
 
 
-# ── Allowlist der Container-Namen ───────────────────────────────────────────
+# ── The container name allowlist ────────────────────────────────────────────
 
 
 @pytest.mark.parametrize("name", ["minabox-backend", "minabox-audio", "minabox-host-helper"])
@@ -185,7 +186,7 @@ def test_container_name_allowlist_rejects_the_rest(name: str) -> None:
     assert routes._is_allowed_container_name(name) is False
 
 
-# ── Pruefung des hochgeladenen Archivs ──────────────────────────────────────
+# ── Validating the uploaded archive ─────────────────────────────────────────
 
 
 def _zip_with(tmp_path: Path, entries: dict[str, bytes]) -> Path:
@@ -217,8 +218,8 @@ def test_validate_backup_archive_rejects_a_path_outside_the_allowlist(
 def test_validate_backup_archive_rejects_a_zip_bomb(
     tmp_path: Path, monkeypatch
 ) -> None:
-    # Ein Megabyte Nullen packt sich auf wenige Bytes. Ohne Obergrenze fuer die
-    # entpackte Groesse legt ein winziger Upload den Pi lahm.
+    # A megabyte of zeroes compresses to a few bytes. Without a cap on the
+    # unpacked size, a tiny upload takes the Pi down.
     monkeypatch.setattr(routes, "RESTORE_MAX_UNPACKED_BYTES", 1024)
     archive = _zip_with(tmp_path, {"data/minabox.db": b"\0" * (1024 * 1024)})
     with pytest.raises(HTTPException) as excinfo:
@@ -234,11 +235,11 @@ def test_validate_backup_archive_rejects_junk(tmp_path: Path) -> None:
     assert excinfo.value.status_code == 400
 
 
-# ── Compose auf dem Host ────────────────────────────────────────────────────
+# ── Compose on the host ─────────────────────────────────────────────────────
 
 
 def test_compose_on_others_leaves_the_host_helper_alone(monkeypatch) -> None:
-    """Sich selbst mitzustoppen wuerde den Vorgang abbrechen, der gerade laeuft."""
+    """Stopping ourselves along with the rest would abort the job in flight."""
     captured: list[list[str]] = []
 
     def fake_nsenter(args: list[str], timeout: int = 30):
@@ -256,7 +257,7 @@ def test_compose_on_others_leaves_the_host_helper_alone(monkeypatch) -> None:
     assert "docker compose stop $others" in script
 
 
-# ── Geraetenamen ────────────────────────────────────────────────────────────
+# ── Device names ────────────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize("device_id", ["sda1", "sdb", "nvme0n1p2", "mmcblk0p1"])
@@ -269,14 +270,14 @@ def test_device_id_accepts_block_device_names(device_id: str) -> None:
     ["", "  ", "..", "../../etc", "sda1/../x", "sda 1", "sda;reboot", "-rf", "a" * 33],
 )
 def test_device_id_rejects_anything_else(device_id: str) -> None:
-    # Der Wert landet in /dev/<id>. Die drei USB-Routen pruefen ihn jetzt
-    # gleich - vorher lehnte nur eine von ihnen einen Schraegstrich ab.
+    # The value ends up in /dev/<id>. All three USB routes check it the same
+    # way now - before, only one of them rejected a slash.
     with pytest.raises(HTTPException) as excinfo:
         routes._validate_device_id(device_id)
     assert excinfo.value.status_code == 400
 
 
-# ── Symlinks beim USB-Import ────────────────────────────────────────────────
+# ── Symlinks on USB import ──────────────────────────────────────────────────
 
 
 def test_copytree_filter_drops_symlinks(tmp_path: Path) -> None:
@@ -295,24 +296,24 @@ def test_copytree_filter_keeps_ordinary_files(tmp_path: Path) -> None:
     assert routes._ignore_symlinks(str(tmp_path), ["a.mp3"]) == set()
 
 
-# ── Restore-Allowlist: nur das, was die Sicherung auch erzeugt ──────────────
+# ── Restore allowlist: only what the backup actually produces ───────────────
 
 
 @pytest.mark.parametrize(
     "name",
     [
-        # Laufzeitzustand dieses Dienstes. minabox-update.sh fuehrt der Host
-        # als root aus - ein Upload darf da nicht hinschreiben duerfen.
+        # Runtime state of this service. The host executes minabox-update.sh
+        # as root, so an upload must not be able to write there.
         "data/minabox-update.sh",
         "data/minabox-update.log",
         "data/minabox-update-state.json",
         "data/os-update.pid",
         "data/os-update.log",
         "data/backups/pre-update-20260823.zip",
-        "data/static",  # das Verzeichnis selbst, ohne Inhalt darunter
+        "data/static",  # the directory itself, with nothing below it
         "services/audio-service/src/main.py",
-        "services/config/x.json",  # kein <name>-service
-        "services/audio-service/config",  # Verzeichnis ohne Datei darunter
+        "services/config/x.json",  # not a <name>-service directory
+        "services/audio-service/config",  # a directory with no file below it
     ],
 )
 def test_backup_allowlist_rejects_runtime_state_and_code(name: str) -> None:
@@ -320,7 +321,7 @@ def test_backup_allowlist_rejects_runtime_state_and_code(name: str) -> None:
 
 
 def test_backup_allowlist_accepts_everything_a_backup_produces(tmp_path: Path) -> None:
-    """Die Allowlist und der Sicherungsbauer duerfen nie auseinanderlaufen."""
+    """The allowlist and the backup builder must never drift apart."""
     workspace = tmp_path
     data_path = workspace / "data"
     (data_path / "static" / "covers").mkdir(parents=True)
@@ -339,6 +340,6 @@ def test_backup_allowlist_accepts_everything_a_backup_produces(tmp_path: Path) -
 
     produced = [arc for _src, arc in routes._backup_members(workspace, data_path)]
 
-    assert produced  # sonst prueft der Test nichts
+    assert produced  # otherwise this test asserts nothing
     for arcname in produced:
         assert routes._backup_allowed_path(arcname, workspace) is True, arcname

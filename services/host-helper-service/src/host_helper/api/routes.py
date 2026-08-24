@@ -19,14 +19,15 @@ from pathlib import Path
 
 import docker
 import structlog
-from docker.errors import APIError as DockerAPIError, NotFound as DockerNotFound
-from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
+from docker.errors import APIError as DockerAPIError
+from docker.errors import NotFound as DockerNotFound
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
-from starlette.background import BackgroundTask
 from shared_lib.version import get_version as get_build_version
+from starlette.background import BackgroundTask
 
-from host_helper.config import load_config, validate_path_under_allowed
+from host_helper.config import validate_path_under_allowed
 
 logger = structlog.get_logger(__name__)
 
@@ -342,19 +343,40 @@ def move_status(_: None = Depends(_check_api_key)) -> dict:
     return state
 
 
+def _host_root() -> Path:
+    """Where the host filesystem is mounted inside this container.
+
+    Configured as HOST_ROOT and in practice always /host, but the fallback
+    stays: a container started without the mount would otherwise resolve every
+    host tool path against a directory that does not exist, and fail with a
+    confusing "not found on host" instead of an obvious one.
+    """
+    configured = (get_config().get("host_root") or "/host").strip() or "/host"
+    root = Path(configured).resolve()
+    return root if root.exists() else Path("/host").resolve()
+
+
+def _host_tool(*relative: str) -> Path | None:
+    """The first of these host binaries that exists, or None.
+
+    Paths are relative to the host root, e.g. _host_tool("usr/bin/nmcli").
+    """
+    root = _host_root()
+    for rel in relative:
+        candidate = root / rel
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def _nsenter_bin() -> Path:
-    """Path to nsenter (host's binary via /host, or container's)."""
-    cfg = get_config()
-    host_root = cfg.get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    nsenter_bin = root_path / "usr/bin/nsenter"
-    if not nsenter_bin.exists():
-        nsenter_bin = Path("/usr/bin/nsenter")
-    if not nsenter_bin.exists():
-        raise FileNotFoundError("nsenter not available on host")
-    return nsenter_bin
+    """nsenter, preferably the host's copy, otherwise the container's."""
+    nsenter = _host_tool("usr/bin/nsenter")
+    if nsenter is not None:
+        return nsenter
+    if Path("/usr/bin/nsenter").exists():
+        return Path("/usr/bin/nsenter")
+    raise FileNotFoundError("nsenter not available on host")
 
 
 def _run_on_host_via_nsenter(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
@@ -411,8 +433,8 @@ def reboot_host(_: None = Depends(_check_api_key)) -> dict:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-    except FileNotFoundError:
-        raise HTTPException(status_code=503, detail="nsenter not available on host")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail="nsenter not available on host") from e
     except Exception as e:
         logger.exception("reboot_failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -431,8 +453,8 @@ def shutdown_host(_: None = Depends(_check_api_key)) -> dict:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-    except FileNotFoundError:
-        raise HTTPException(status_code=503, detail="nsenter not available on host")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail="nsenter not available on host") from e
     except Exception as e:
         logger.exception("shutdown_failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -464,10 +486,10 @@ def restart_services(_: None = Depends(_check_api_key)) -> dict:
         return {"ok": True, "message": "Services restart initiated"}
     except HTTPException:
         raise
-    except FileNotFoundError:
-        raise HTTPException(status_code=503, detail="nsenter or docker not available on host")
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Restart timed out")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail="nsenter or docker not available on host") from e
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(status_code=504, detail="Restart timed out") from e
     except Exception as e:
         logger.exception("restart_services_failed")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -475,38 +497,12 @@ def restart_services(_: None = Depends(_check_api_key)) -> dict:
 
 # ── WLAN & Hotspot ─────────────────────────────────────────────────────────
 
-def _run_nmcli(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
-    """Run nmcli on host via chroot (needs host D-Bus and NetworkManager)."""
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    nmcli = root_path / "usr/bin/nmcli"
-    if not nmcli.exists():
-        raise HTTPException(status_code=503, detail="nmcli not found on host (install NetworkManager)")
-    env = os.environ.copy()
-    env["DBUS_SYSTEM_BUS_ADDRESS"] = f"unix:path={root_path}/var/run/dbus/system_bus_socket"
-    return subprocess.run(
-        ["chroot", str(root_path), "nmcli"] + args,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=env,
-    )
-
-
 def _run_nmcli_host_network(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
     """Run nmcli in the host's network namespace so it sees wlan0 (requires pid=host)."""
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    nmcli = root_path / "usr/bin/nmcli"
-    if not nmcli.exists():
+    root_path = _host_root()
+    if _host_tool("usr/bin/nmcli") is None:
         raise HTTPException(status_code=503, detail="nmcli not found on host (install NetworkManager)")
-    nsenter = root_path / "usr/bin/nsenter"
-    if not nsenter.exists():
-        nsenter = Path("/usr/bin/nsenter")
+    nsenter = _nsenter_bin()
     dbus_addr = "unix:path=/var/run/dbus/system_bus_socket"  # path inside chroot
     # nsenter -t 1 -n: use host PID 1 (init) and host network namespace so wlan0 is visible
     cmd = [str(nsenter), "-t", "1", "-n", "--", "chroot", str(root_path), "env", f"DBUS_SYSTEM_BUS_ADDRESS={dbus_addr}", "nmcli"] + args
@@ -537,8 +533,8 @@ def wifi_scan(_: None = Depends(_check_api_key)) -> dict:
         pass
     try:
         r = _run_nmcli_host_network(["-t", "-f", "SSID,SIGNAL", "dev", "wifi", "list"], timeout=25)
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="WiFi scan timed out")
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(status_code=504, detail="WiFi scan timed out") from e
     except HTTPException:
         raise
     except OSError as e:
@@ -596,8 +592,8 @@ def wifi_connect(
                 timeout=5,
             )
         r = _run_nmcli_host_network(["con", "up", con_name], timeout=45)
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Connect timed out")
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(status_code=504, detail="Connect timed out") from e
     except HTTPException:
         raise
     if r.returncode != 0:
@@ -663,12 +659,9 @@ def wifi_hotspot_status(_: None = Depends(_check_api_key)) -> dict:
 
 def _run_lsblk() -> list[dict]:
     """Run lsblk on host (chroot) and return list of block devices (USB-relevant)."""
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    lsblk_path = root_path / "usr/bin/lsblk"
-    if not lsblk_path.exists():
+    root_path = _host_root()
+    lsblk_path = _host_tool("usr/bin/lsblk")
+    if lsblk_path is None:
         return []
     try:
         r = subprocess.run(
@@ -767,10 +760,7 @@ def usb_files(
 ) -> dict:
     """List files/dirs on a mounted USB device. device_id e.g. sda1."""
     device_id = _validate_device_id(device_id)
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
+    root_path = _host_root()
     devices = _run_lsblk()
     dev = next((d for d in devices if d.get("id") == device_id), None)
     if not dev:
@@ -808,8 +798,8 @@ def usb_files(
                 "name": rel,
                 "type": "dir" if p.is_dir() else "file",
             })
-    except OSError:
-        raise HTTPException(status_code=502, detail="Cannot list directory")
+    except OSError as e:
+        raise HTTPException(status_code=502, detail="Cannot list directory") from e
     return {"path": str(base), "entries": entries}
 
 
@@ -822,8 +812,7 @@ def usb_import(
     device_id = _validate_device_id(body.device_id)
     cfg = get_config()
     dest_base = Path(cfg.get("audio_storage_path", "/workspace/audio")).resolve()
-    host_root = cfg.get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
+    root_path = _host_root()
     devices = _run_lsblk()
     dev = next((d for d in devices if d.get("id") == device_id), None)
     if not dev:
@@ -880,8 +869,7 @@ def usb_eject(
 ) -> dict:
     """Unmount and power-off USB device."""
     device_id = _validate_device_id(body.device_id)
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
+    root_path = _host_root()
     udisks = root_path / "usr/bin/udisksctl"
     if not udisks.exists():
         raise HTTPException(status_code=503, detail="udisksctl not found on host")
@@ -1109,7 +1097,7 @@ def _restore_backup_archive(archive: Path, workspace: Path) -> None:
 
 @router.post("/backup/restore")
 async def backup_restore(
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008 - the FastAPI idiom for a required upload
     _: None = Depends(_check_api_key),
 ) -> dict:
     """Upload a backup ZIP and start the restore in the background.
@@ -1293,13 +1281,10 @@ def get_syslog(
     ask for a window wide enough to still contain the last boot.
     """
     n = max(1, min(int(n), 20000))
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
+    root_path = _host_root()
     # Run journalctl in host context via chroot so it sees host's journal
-    journalctl_path = root_path / "usr/bin/journalctl"
-    if journalctl_path.exists():
+    journalctl_path = _host_tool("usr/bin/journalctl")
+    if journalctl_path is not None:
         args = ["chroot", str(root_path), "journalctl", "-n", str(n), "--no-pager", "-o", "short-iso"]
         if source == "docker":
             args.extend(["-u", "docker"])
@@ -1349,10 +1334,7 @@ def set_timezone(
     tz = (body.timezone or "").strip()
     if not tz or ".." in tz or "/" not in tz:
         raise HTTPException(status_code=400, detail="Invalid timezone")
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
+    root_path = _host_root()
     timedatectl_path = root_path / "usr/bin/timedatectl"
     if not timedatectl_path.exists():
         raise HTTPException(status_code=503, detail="timedatectl not found on host")
@@ -1378,10 +1360,7 @@ def set_timezone(
 @router.get("/system/time-status")
 def get_time_status(_: None = Depends(_check_api_key)) -> dict:
     """Return host timezone, NTP sync status, and local time."""
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
+    root_path = _host_root()
     timedatectl_path = root_path / "usr/bin/timedatectl"
     out = {"timezone": None, "ntp_sync": False, "local_time": None}
     if not timedatectl_path.exists():
@@ -1442,12 +1421,9 @@ def set_hostname(
         raise HTTPException(status_code=400, detail="Hostname must be 1-63 characters")
     if not all(c.isalnum() or c == "-" for c in name):
         raise HTTPException(status_code=400, detail="Hostname may only contain a-z, 0-9, hyphen")
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    hostnamectl = root_path / "usr/bin/hostnamectl"
-    if not hostnamectl.exists():
+    root_path = _host_root()
+    hostnamectl = _host_tool("usr/bin/hostnamectl")
+    if hostnamectl is None:
         raise HTTPException(status_code=503, detail="hostnamectl not found on host")
     old_name = _read_hostname(get_config())
     try:
@@ -1561,10 +1537,7 @@ def _board_led_paths(root_path: Path) -> tuple[Path | None, Path | None]:
 @router.get("/system/board-leds")
 def get_board_leds(_: None = Depends(_check_api_key)) -> dict:
     """Return current board LED state (stealth on/off)."""
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
+    root_path = _host_root()
     power_path, activity_path = _board_led_paths(root_path)
     out = {"stealth": False, "power_led": "on", "activity_led": "on"}
     try:
@@ -1590,10 +1563,7 @@ def set_board_leds(
     _: None = Depends(_check_api_key),
 ) -> dict:
     """Set board LEDs on or off (stealth mode). Writes to sysfs (immediate) and config.txt (persistent across reboot)."""
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
+    root_path = _host_root()
     power_path, activity_path = _board_led_paths(root_path)
     val = "0" if body.stealth else "1"
     try:
@@ -1758,12 +1728,9 @@ def set_system_password(
     password = (body.new_password or "").strip()
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    host_root = get_config().get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    chpasswd_path = root_path / "usr/sbin/chpasswd"
-    if not chpasswd_path.exists():
+    root_path = _host_root()
+    chpasswd_path = _host_tool("usr/sbin/chpasswd")
+    if chpasswd_path is None:
         raise HTTPException(status_code=503, detail="chpasswd not found on host")
     try:
         proc = subprocess.run(
@@ -1787,16 +1754,10 @@ def set_system_password(
 @router.post("/system/docker-prune")
 def docker_prune(_: None = Depends(_check_api_key)) -> dict:
     """Run docker system prune -f on the host (Raspberry Pi OS) via nsenter. Keeps tagged images and build cache."""
-    cfg = get_config()
-    host_root = cfg.get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    nsenter_bin = root_path / "usr/bin/nsenter"
-    if not nsenter_bin.exists():
-        nsenter_bin = Path("/usr/bin/nsenter")
-    if not nsenter_bin.exists():
-        raise HTTPException(status_code=503, detail="nsenter not available (run on host)")
+    try:
+        nsenter_bin = _nsenter_bin()
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail="nsenter not available (run on host)") from e
     # Run on host: /usr/bin/docker is the host's docker when we use -m (host mount namespace)
     cmd = [
         str(nsenter_bin), "-t", "1", "-n", "-m", "--",
@@ -1816,8 +1777,8 @@ def docker_prune(_: None = Depends(_check_api_key)) -> dict:
         summary = lines[-1] if lines else out.strip()[-200:] or "Done"
         logger.info("docker_prune_done", summary=summary[:200])
         return {"ok": True, "message": "Docker cleanup completed", "summary": summary[:500]}
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Docker prune timed out")
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(status_code=504, detail="Docker prune timed out") from e
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail="Docker not available on host") from e
 
@@ -2004,31 +1965,32 @@ def factory_reset(
 
 # ── Minabox Update & Version ──────────────────────────────────────────────
 
-# Das Update laeuft als transiente systemd-Unit auf dem HOST, nicht als
-# Kindprozess dieses Containers. Zwei Gruende:
+# The update runs as a transient systemd unit on the HOST, not as a child of
+# this container. Two reasons:
 #
-#   1. "docker compose up -d" erzeugt den Host-Helper mit neu, sobald dessen
-#      Image sich geaendert hat. Ein Kindprozess dieses Containers wuerde dabei
-#      mitsterben - mitten im Update.
-#   2. Im Container gibt es gar keine docker-CLI. Der Weg ueber den Socket war
-#      der Grund, warum dieser Endpunkt bisher nur "Docker not available"
-#      geantwortet hat.
+#   1. "docker compose up -d" recreates the host-helper as soon as its own
+#      image has changed. A child process of this container would die with it,
+#      halfway through the update.
+#   2. There is no Docker CLI inside the container; the host has one.
 #
-# Der Fortschritt steht als Marker im Log; das ueberlebt jeden Neustart des
-# Host-Helpers, weil die Datei im Projektverzeichnis liegt.
+# Progress is written to the log as markers. That survives any restart of the
+# host-helper, because the file lives in the project directory.
+#
+# The step keys below are part of the contract: the WebUI translates them as
+# system.update_step_<key>. Do not rename them.
 UPDATE_UNIT = "minabox-update"
 UPDATE_STEPS = ("backup", "repo", "pull", "restart", "verify")
 
-# Wie viele Sicherungen vor Updates aufbewahrt werden. Fuenf reichen, um ein
-# missratenes Update zu ueberstehen, ohne die SD-Karte vollzuschreiben.
+# How many pre-update backups to keep. Five is enough to survive an update
+# that went wrong without filling up the SD card.
 BACKUP_KEEP = 5
 
 UPDATE_SCRIPT = """#!/bin/sh
-# Erzeugt vom Host-Helper (siehe host_helper/api/routes.py). Nicht von Hand
-# aendern - die Datei wird bei jedem Update ueberschrieben.
+# Generated by the host-helper (see host_helper/api/routes.py). Do not edit by
+# hand - this file is overwritten on every update.
 exec >>"{log}" 2>&1
 cd "{workspace}" || {{
-  echo "Arbeitsverzeichnis {workspace} nicht gefunden"
+  echo "Working directory {workspace} not found"
   echo "=== MINABOX-DONE 1"
   exit 1
 }}
@@ -2037,22 +1999,23 @@ rc=0
 SERVICES="{services}"
 
 echo "=== MINABOX-STEP 2/5 repo"
-# git laeuft als Eigentuemer des Projektordners, nicht als root. Sonst blieben
-# root-eigene Dateien in .git zurueck, und der Benutzer koennte hinterher in
-# seinem eigenen Arbeitsbaum nicht mehr arbeiten.
+# git runs as the owner of the project directory, not as root. Otherwise it
+# would leave root-owned files behind in .git and the user could no longer
+# work in their own tree.
 #
-# Bewusst nicht fatal: eine Box mit lokalen Aenderungen oder ohne Zugang zum
-# Git-Remote soll trotzdem ihre Images aktualisieren koennen.
+# Deliberately not fatal: a box with local changes, or without access to the
+# git remote, must still be able to update its images.
 OWNER="$(stat -c %U .)"
 if [ -n "$OWNER" ] && [ "$OWNER" != "UNKNOWN" ]; then
   runuser -u "$OWNER" -- git pull --ff-only \
-    || echo "(git pull nicht moeglich - Images werden trotzdem aktualisiert)"
+    || echo "(git pull not possible - updating the images anyway)"
 else
-  echo "(Eigentuemer des Projektordners nicht bestimmbar - git pull uebersprungen)"
+  echo "(cannot determine the owner of the project directory - skipping git pull)"
 fi
 
 echo "=== MINABOX-STEP 3/5 pull"
-# Ohne Dienstliste alle - das ist der Weg "alles auf den neuesten Stand".
+# An empty service list means all of them - that is the "everything to the
+# newest build" path.
 docker compose pull $SERVICES || rc=$?
 
 if [ "$rc" = "0" ]; then
@@ -2062,9 +2025,9 @@ fi
 
 if [ "$rc" = "0" ]; then
   echo "=== MINABOX-STEP 5/5 verify"
-  # Nicht nur "laeuft", sondern "laeuft in der gewuenschten Version": ein
-  # Container, den compose nicht neu erzeugt hat, sieht sonst gesund aus und
-  # fuehrt weiter den alten Stand aus.
+  # Not just "is running" but "is running the version we asked for": a
+  # container compose did not recreate looks healthy while still executing
+  # the old build.
   for entry in {expected}; do
     name="${{entry%%=*}}"
     want="${{entry#*=}}"
@@ -2072,7 +2035,7 @@ if [ "$rc" = "0" ]; then
     if [ "$got" = "$want" ]; then
       echo "  $name: $got"
     else
-      echo "  $name: erwartet $want, laeuft $got"
+      echo "  $name: expected $want, running $got"
       rc=1
     fi
   done
@@ -2083,18 +2046,18 @@ echo "=== MINABOX-DONE $rc"
 
 
 class UpdateTargetsBody(BaseModel):
-    """Zielversionen je Dienst. Leer bedeutet: alles auf den neuesten Stand."""
+    """Target version per service. Empty means: everything to the newest build."""
 
     targets: dict[str, str] | None = None
     backup: bool = True
 
 
 def _host_workspace() -> str:
-    """Projektpfad auf dem Host - nicht der Container-Pfad /workspace.
+    """The project path on the host - not the container path /workspace.
 
-    Compose schreibt ihn als Label auf jeden Container, den es anlegt. Ihn dort
-    abzulesen ist verlaesslicher als ihn zu konfigurieren: er stimmt per
-    Definition mit dem ueberein, womit die Box gestartet wurde.
+    Compose stamps it as a label onto every container it creates. Reading it
+    there is more reliable than configuring it: by definition it matches how
+    the box was actually started.
     """
     configured = os.environ.get("HOST_WORKSPACE_PATH")
     if configured:
@@ -2111,7 +2074,7 @@ def _host_workspace() -> str:
 
 
 def _update_paths() -> tuple[Path, Path, Path, str]:
-    """(Log, Skript, Zustandsdatei) im Container plus Log-Pfad auf dem Host."""
+    """(log, script, state file) inside the container, plus the log path on the host."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
     data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
@@ -2125,7 +2088,7 @@ def _update_paths() -> tuple[Path, Path, Path, str]:
 
 
 def _service_names() -> list[str]:
-    """Dienste, die dieses Projekt kennt - abgeleitet aus den VERSION-Dateien."""
+    """The services this project knows, derived from the VERSION files on disk."""
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
     return sorted(
@@ -2139,7 +2102,7 @@ def _tag_var(service: str) -> str:
 
 
 def _running_versions() -> dict[str, str]:
-    """Laufende Version je Dienst, aus dem Label des Containers."""
+    """The running version per service, read from the container label."""
     versions: dict[str, str] = {}
     try:
         client = _docker()
@@ -2159,7 +2122,7 @@ def _running_versions() -> dict[str, str]:
 
 
 def _read_env_tags(env_path: Path) -> dict[str, str]:
-    """Aktuell in der .env festgenagelte Tags je Dienst."""
+    """The image tags currently pinned in .env, per service."""
     tags: dict[str, str] = {}
     if not env_path.exists():
         return tags
@@ -2180,7 +2143,7 @@ def _read_env_tags(env_path: Path) -> dict[str, str]:
 
 
 def _write_env_tags(env_path: Path, tags: dict[str, str]) -> None:
-    """Tag-Zeilen in der .env setzen oder anlegen; alles andere bleibt stehen."""
+    """Set or append the tag lines in .env; everything else stays untouched."""
     content = (
         env_path.read_text(encoding="utf-8", errors="replace")
         if env_path.exists()
@@ -2222,7 +2185,7 @@ def _update_unit_active() -> bool:
 
 
 def _parse_update_log(text: str) -> dict:
-    """Schritt und Ergebnis aus den Markern im Log lesen."""
+    """Read the current step and the result from the markers in the log."""
     step: int | None = None
     step_count = len(UPDATE_STEPS)
     step_key: str | None = None
@@ -2251,12 +2214,12 @@ def update_minabox(
     body: UpdateTargetsBody | None = None,
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Update im Hintergrund starten.
+    """Start the update in the background.
 
-    Mit `targets` werden genau die genannten Dienste auf genau die genannten
-    Versionen gebracht; alle uebrigen werden dabei auf ihrer laufenden Version
-    festgenagelt, damit ein gezieltes Update nicht nebenbei etwas anderes
-    mitzieht. Ohne `targets` laeuft der alte Weg: alles auf den neuesten Stand.
+    With `targets`, exactly the named services go to exactly the named
+    versions, and every other service is pinned to the version it currently
+    runs so a targeted update cannot drag anything else along. Without
+    `targets`, everything goes to the newest published build.
     """
     log_path, script_path, state_path, host_log = _update_paths()
     host_workspace = _host_workspace()
@@ -2264,19 +2227,19 @@ def update_minabox(
     env_path: Path = cfg["env_file_path"]
 
     if _update_unit_active():
-        raise HTTPException(status_code=409, detail="Es laeuft bereits ein Update")
+        raise HTTPException(status_code=409, detail="An update is already running")
 
     targets = dict((body.targets or {}) if body else {})
     known = set(_service_names())
     unknown = sorted(set(targets) - known)
     if unknown:
         raise HTTPException(
-            status_code=400, detail=f"Unbekannte Dienste: {', '.join(unknown)}"
+            status_code=400, detail=f"Unknown services: {', '.join(unknown)}"
         )
     for service, version in targets.items():
         if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._-]{0,63}", version or ""):
             raise HTTPException(
-                status_code=400, detail=f"Ungueltige Version fuer {service}"
+                status_code=400, detail=f"Invalid version for {service}"
             )
 
     running = _running_versions()
@@ -2292,20 +2255,20 @@ def update_minabox(
             backup_file = backup_dir / f"pre-update-{stamp}.zip"
             _write_backup_zip(backup_file)
             _prune_backups(backup_dir)
-            log_lines.append(f"  Sicherung: data/backups/{backup_file.name}")
+            log_lines.append(f"  Backup: data/backups/{backup_file.name}")
         except Exception as e:
-            # Ohne Sicherung wird nicht aktualisiert - der Rueckweg waere sonst
-            # nur noch eine Hoffnung.
+            # No backup, no update. Without one the way back would be
+            # nothing but hope.
             raise HTTPException(
-                status_code=503, detail=f"Sicherung fehlgeschlagen: {e}"
+                status_code=503, detail=f"Backup failed: {e}"
             ) from e
     else:
-        log_lines.append("  (uebersprungen)")
+        log_lines.append("  (skipped)")
 
     if targets:
-        # Die uebrigen Dienste auf ihrem laufenden Stand festnageln. Ohne das
-        # wuerde "compose up -d" sie beim naechsten Lauf mit auf latest ziehen,
-        # und ein gezieltes Update waere keins.
+        # Pin every other service to what it currently runs. Without that,
+        # "compose up -d" would drag them all to latest on the next run and a
+        # targeted update would not be one.
         pinned = {**running, **targets}
         services = " ".join(sorted(targets))
         expected = {service: targets[service] for service in targets}
@@ -2318,7 +2281,7 @@ def update_minabox(
         if pinned:
             _write_env_tags(env_path, pinned)
             log_lines.append(
-                "  Festgelegt: "
+                "  Pinned: "
                 + ", ".join(f"{k}={v}" for k, v in sorted(pinned.items()))
             )
         script_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2346,7 +2309,7 @@ def update_minabox(
         )
     except OSError as e:
         raise HTTPException(
-            status_code=503, detail=f"Update konnte nicht vorbereitet werden: {e}"
+            status_code=503, detail=f"Could not prepare the update: {e}"
         ) from e
 
     host_script = f"{host_workspace}/data/minabox-update.sh"
@@ -2364,20 +2327,20 @@ def update_minabox(
         )
     except Exception as e:
         raise HTTPException(
-            status_code=503, detail=f"Update konnte nicht gestartet werden: {e}"
+            status_code=503, detail=f"Could not start the update: {e}"
         ) from e
 
     if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "systemd-run fehlgeschlagen")[-500:]
+        detail = (result.stderr or result.stdout or "systemd-run failed")[-500:]
         raise HTTPException(status_code=503, detail=detail)
 
-    logger.info("update_minabox_started", targets=targets or "alle")
-    return {"ok": True, "message": "Update gestartet", "steps": list(UPDATE_STEPS)}
+    logger.info("update_minabox_started", targets=targets or "all")
+    return {"ok": True, "message": "Update started", "steps": list(UPDATE_STEPS)}
 
 
 @router.get("/system/update-minabox/status")
 def update_minabox_status(_: None = Depends(_check_api_key)) -> dict:
-    """Fortschritt und Ausgabe des laufenden oder letzten Updates."""
+    """Progress and output of the running or last update."""
     log_path, _script, state_path, _host_log = _update_paths()
 
     log_text = ""
@@ -2391,9 +2354,9 @@ def update_minabox_status(_: None = Depends(_check_api_key)) -> dict:
             pass
 
     parsed = _parse_update_log(log_text)
-    # Die Unit ist die Wahrheit ueber "laeuft noch": ohne sie wuerde ein
-    # abgebrochener Lauf, der seinen Schluss-Marker nie geschrieben hat, fuer
-    # immer als laufend gelten.
+    # The unit is the truth about "still running". Without asking it, a run
+    # that was killed before writing its closing marker would count as running
+    # forever.
     running = parsed["exit_code"] is None and _update_unit_active()
 
     state: dict = {}
@@ -2403,10 +2366,10 @@ def update_minabox_status(_: None = Depends(_check_api_key)) -> dict:
         except (OSError, ValueError):
             state = {}
 
-    # "previous" bleibt in der Zustandsdatei stehen: fuer eine Supportanfrage
-    # ist "was lief vorher" die erste Frage. Als Aktion wird es nicht
-    # angeboten - ein Rueckschritt auf eine aeltere Fassung kann Daten
-    # zuruecklassen, die sie nicht lesen kann.
+    # "previous" stays in the state file: for a support request, "what was
+    # running before" is the first question. It is not offered as an action -
+    # stepping back to an older build can leave data behind that the older
+    # build cannot read.
     return {
         "running": running,
         "steps": list(UPDATE_STEPS),
@@ -2496,22 +2459,16 @@ def update_os(_: None = Depends(_check_api_key)) -> dict:
     # would overwrite the log the first is still writing.
     if _os_update_running(pid_path):
         raise HTTPException(status_code=409, detail="An OS update is already running")
-    host_root = cfg.get("host_root") or "/host"
-    root_path = Path(host_root).resolve()
-    if not root_path.exists():
-        root_path = Path("/host").resolve()
-    apt_get = root_path / "usr/bin/apt-get"
-    if not apt_get.exists():
+    if _host_tool("usr/bin/apt-get") is None:
         raise HTTPException(status_code=503, detail="apt-get not found on host")
-    nsenter = root_path / "usr/bin/nsenter"
-    if not nsenter.exists():
-        nsenter = Path("/usr/bin/nsenter")
-    shell = "/bin/sh" if Path("/bin/sh").exists() else "/usr/bin/bash"
-    if not Path(shell).exists():
-        shell = "/bin/bash"
+    try:
+        nsenter = _nsenter_bin()
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail="nsenter not available on host") from e
     cmd = [
+        # /bin/sh is resolved in the host's mount namespace, after nsenter.
         str(nsenter), "-t", "1", "-n", "-m", "--",
-        shell, "-c",
+        "/bin/sh", "-c",
         "export DEBIAN_FRONTEND=noninteractive PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; "
         "apt-get update -qq && apt-get upgrade -y",
     ]
@@ -2648,7 +2605,7 @@ def bluetooth_pair(
         raise
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         logger.warning("bluetooth_pair_error", address=addr, error=type(e).__name__, msg=str(e))
-        raise HTTPException(status_code=503, detail="Bluetooth pairing unavailable or timed out")
+        raise HTTPException(status_code=503, detail="Bluetooth pairing unavailable or timed out") from e
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "Pairing failed").strip()
         logger.warning("bluetooth_pair_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
@@ -2725,7 +2682,7 @@ def bluetooth_connect(
         r = _run_bluetoothctl_on_host(["connect", addr], timeout=15)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         logger.warning("bluetooth_connect_error", address=addr, error=type(e).__name__, msg=str(e))
-        raise HTTPException(status_code=503, detail="Bluetooth connect unavailable or timed out")
+        raise HTTPException(status_code=503, detail="Bluetooth connect unavailable or timed out") from e
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "Connect failed").strip()
         logger.warning("bluetooth_connect_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
@@ -2748,7 +2705,7 @@ def bluetooth_disconnect(
         r = _run_bluetoothctl_on_host(["disconnect", addr], timeout=10)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         logger.warning("bluetooth_disconnect_error", address=addr, error=type(e).__name__, msg=str(e))
-        raise HTTPException(status_code=503, detail="Bluetooth disconnect unavailable or timed out")
+        raise HTTPException(status_code=503, detail="Bluetooth disconnect unavailable or timed out") from e
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "Disconnect failed").strip()
         logger.warning("bluetooth_disconnect_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
@@ -2771,7 +2728,7 @@ def bluetooth_remove(
         r = _run_bluetoothctl_on_host(["remove", addr], timeout=10)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         logger.warning("bluetooth_remove_error", address=addr, error=type(e).__name__, msg=str(e))
-        raise HTTPException(status_code=503, detail="Bluetooth remove unavailable or timed out")
+        raise HTTPException(status_code=503, detail="Bluetooth remove unavailable or timed out") from e
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "Remove failed").strip()
         logger.warning("bluetooth_remove_failed", address=addr, returncode=r.returncode, stderr=(r.stderr or "")[:300], stdout=(r.stdout or "")[:300])
@@ -2821,7 +2778,7 @@ async def container_logs(
         raise HTTPException(status_code=503, detail="Docker not available") from e
 
 
-# ── Diagnostics (read-only, fuer den Debug-Export) ───────────────────
+# ── Diagnostics (read-only, for the debug export) ────────────────────
 
 # Fixed command list. This is the single route the debug export adds to a
 # service that runs as root with the host mounted, so it takes no parameters at

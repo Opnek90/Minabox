@@ -8,7 +8,6 @@ import sys
 import structlog
 import uvicorn
 from fastapi import FastAPI
-
 from shared_lib.exceptions import ConfigError
 from shared_lib.version import get_version as get_build_version
 
