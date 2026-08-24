@@ -1,209 +1,584 @@
-# Host-Helper-Service – Architecture
+# Host-Helper Service – Architecture
 
-## 1. Zweck & Verantwortung
+## 1. Purpose & Responsibility
 
-Der Host-Helper-Service kapselt systemnahe Aktionen auf dem Host (z.B. Dateien verschieben, später ggf. Mounts, Netz- oder Passwortänderungen). Er wird ausschließlich vom Backend per HTTP aufgerufen und ist nicht von außen erreichbar. Ziel ist, dass Endnutzer keine Linux- oder SSH-Kenntnisse benötigen; alle relevanten Aktionen werden über die WebUI ausgelöst und vom Host-Helper auf dem Host ausgeführt.
+The host-helper service is the only component of the Minabox stack that is
+allowed to act on the host itself. Everything a normal user would otherwise
+need a terminal and SSH for — reboot, WiFi, static IP, hostname, USB import,
+backup, OS update, Bluetooth pairing — is exposed here as a narrow, validated
+HTTP endpoint so that the WebUI can offer it as a button.
 
-Ziele:
+Goals:
 
-- Ausführung von erlaubten, systemnahen Aktionen nach strenger Validierung (z.B. Audio-Ordner verschieben)
-- Kein direkter Zugriff der WebUI auf den Host; alle Aufrufe laufen über das Backend
-- Einheitliche Stelle für Host-Operationen (Audit, Logging, Sicherheitsregeln)
+- Execute a fixed set of host operations after strict validation. There is no
+  generic "run this command" endpoint; every action is a named route with
+  typed parameters.
+- Keep host privileges in exactly one container. The backend stays unprivileged
+  and only proxies; the WebUI never talks to the host-helper directly.
+- Be the single place where host-level auditing and logging happens.
 
-Nicht-Ziele:
+Out of scope: no business logic, no database, no MQTT. The service holds no
+state of its own beyond three files under `data/` that track a running update
+or OS upgrade. It is a thin, privileged adapter — nothing more.
 
-- Kein direkter Zugriff von der WebUI auf den Host-Helper (nur Backend)
-- Keine Dienste oder Aktionen, die nicht explizit erlaubt und dokumentiert sind
-- Keine generische Shell-Ausführung; nur fest definierte, validierte Operationen
+Because the container runs as root with the host root filesystem mounted
+read-write, the shared secret in `X-Api-Key` is the only thing between a
+caller and full control of the box. Section 3 describes what that implies.
 
 ---
 
-## 2. Datei- und Ordnerstruktur
+## 2. File & Folder Structure
 
-Relevanter Pfad: `services/host-helper-service/src/host_helper/`
+Relevant path: `services/host-helper-service/`
 
 ```text
-host_helper/
-├── __init__.py       # Package-Init
-├── main.py           # Einstiegspunkt: Config, FastAPI-App mit Router-Mount, Uvicorn, Graceful Shutdown
-├── config.py         # Lädt Env (API-Key, erlaubte Pfade, etc.)
-├── api/
-│   ├── __init__.py
-│   └── routes.py     # Alle HTTP-Endpoints in einer Datei: Health, Audio-Pfad, Move, Reboot, Host-Status, Container-Logs, WiFi, USB, Backup, Zeit, Hostname, Board-LEDs, Netzwerk, Passwort, SSH, Syslog, Docker, Factory Reset, Update, Bluetooth
-└── core/
-    └── __init__.py   # (leer oder Re-Export)
+host-helper-service/
+├── Dockerfile               # Two-stage build on python:3.13-slim
+├── requirements.txt         # FastAPI, uvicorn, pydantic, structlog, docker SDK
+├── VERSION                  # Own version number (docs/Versionierung.md)
+├── tests/
+│   └── test_update_env.py   # The pure helpers: allowlists, .env, log parsing
+└── src/host_helper/
+    ├── __init__.py
+    ├── main.py              # Entry point: config, logging, FastAPI app, uvicorn
+    ├── config.py            # Config dataclass, load_config(), path allowlist
+    └── api/
+        ├── __init__.py
+        └── routes/
+            ├── __init__.py      # Assembles the router from the modules below
+            ├── deps.py          # Config, API key, host access, compose, Docker
+            ├── health.py        # Liveness
+            ├── media.py         # Audio path, move
+            ├── power.py         # Reboot, shutdown, restart
+            ├── network.py       # WiFi, hotspot, IPv4
+            ├── usb.py           # Devices, browse, import, eject
+            ├── backup.py        # Download, restore
+            ├── system.py        # Host status, syslog, clock, hostname, LEDs
+            ├── maintenance.py   # Password, SSH, prune, factory reset
+            ├── update.py        # Minabox update, version, OS update
+            ├── bluetooth.py     # Scan, pair, connect
+            └── diagnostics.py   # Container logs, host diagnostics
 ```
 
-**Thematische Blöcke in `api/routes.py`:** Health, Audio-Pfad (GET/POST), Move (POST, GET move-status), Host-System (reboot, shutdown, host-status, restart), Container-Logs, WiFi (scan, connect, hotspot start/stop/status), USB (devices, files, import, eject), Backup (download, restore), Zeit & Hostname (timezone, time-status, hostname GET/PUT), Board-LEDs (GET/PUT), Netzwerk (GET/PUT), Passwort & SSH (password, ssh-status, ssh-toggle), Syslog & Docker (syslog, docker-prune), Factory Reset & Update (factory-reset, update-minabox, version, update-os, update-os/log), Bluetooth (scan, pair, paired, connect, disconnect, remove).
+`deps.py` is the only module the others import from. It holds what every route
+needs — the loaded `Config`, the `X-Api-Key` check, the host root and host tool
+lookups, `nsenter`, the compose wrappers and the shared Docker client — and it
+imports nothing from its siblings, so there are no cycles. Two links cross
+between domains and are the exceptions: `maintenance` uses the hotspot from
+`network` for the factory reset, and `update` uses the archive builder from
+`backup` for the pre-update snapshot.
 
 ---
 
-## 3. Sicherheitsmodell
+## 3. Security Model
 
-- **Container mit erweiterten Rechten:** Der Service läuft mit `privileged: true` oder mit gezielten `cap_add` und notwendigen Volume-Mounts, um auf Host-Pfade zuzugreifen.
-- **Nur intern erreichbar:** Die HTTP-API des Host-Helpers wird **nicht** nach außen exponiert (kein `ports:` in docker-compose). Erreichbar nur innerhalb des Docker-Netzes (z.B. `http://host-helper:PORT`).
-- **Aufrufer:** Nur das Backend darf den Host-Helper aufrufen. Empfohlen: interner API-Key oder Token, der nur dem Backend bekannt ist und bei jedem Request mitgesendet wird (gleiches Netz reicht als erste Absicherung).
-- **Eingabevalidierung:**
-  - Erlaubte Pfade: Allowlist bzw. konfigurierbare Basis-Pfade; alle übergebenen Pfade müssen darunter liegen und gegen Path-Traversal abgesichert sein.
-  - Container-Logs: Nur erlaubte Container-Namen (Allowlist, z.B. `minabox-*`); keine beliebigen Namen oder Path-Traversal.
-  - Keine beliebigen Shell-Befehle; nur fest definierte Aktionen mit parametrisierten Argumenten.
-- **Logging:** Alle Aktionen werden protokolliert (Aufrufer, Zeitpunkt, Aktion, Parameter, Ergebnis). Ermöglicht Audit und Fehleranalyse.
+### 3.1 Privileges
+
+The container is defined in the root `docker-compose.yml` and runs with:
+
+| Setting                    | Reason                                                  |
+| -------------------------- | ------------------------------------------------------- |
+| `user: "0:0"`              | `chroot`, `nsenter` and writes to `/etc/shadow` need root |
+| `pid: "host"`              | `nsenter -t 1` needs the host's PID 1                    |
+| `cap_add: SYS_ADMIN`       | `chroot` into the mounted host root                      |
+| `cap_add: SYS_PTRACE`      | entering the host namespaces                             |
+| `/:/host:rw`               | the host filesystem, writable                            |
+| `.:/workspace:rw`          | the project directory (`.env`, `data/`, service configs) |
+| `/var/run/docker.sock`     | the Docker SDK, for container labels and logs           |
+| `group_add: ${DOCKER_GID}` | makes the socket readable; host-specific, default 984   |
+
+This is equivalent to root on the host. It is deliberate — the service exists
+precisely to do things a container normally cannot — but it means the threat
+model is "whoever can reach this port owns the box".
+
+### 3.2 Access control
+
+- **Not published.** The service has no `ports:` entry. It is reachable only
+  from inside the `minabox-network` bridge, at `http://host-helper:8000`.
+- **No interactive docs.** `/docs`, `/redoc` and `/openapi.json` are disabled
+  unless `LOG_LEVEL=DEBUG`. They are the only routes that never asked for the
+  API key, and on a service with these privileges publishing the full route
+  and parameter list to the compose network is a gift nobody needs to give.
+- **Shared secret.** Every route except `GET /health` requires the header
+  `X-Api-Key`, checked against `HOST_HELPER_API_KEY`. The comparison uses
+  `secrets.compare_digest`, so a wrong key cannot be found by timing.
+- **One legitimate caller.** Only the backend holds the key. The WebUI reaches
+  these functions through the backend's `/api/v1/system/*` and
+  `/api/v1/host/*` routes.
+
+### 3.3 Input validation
+
+- **Paths.** `validate_path_under_allowed()` (audio path) and
+  `_validate_host_path_under_allowed()` (move) reject anything containing
+  `..`, resolve the path, and require it to sit under one of
+  `ALLOWED_BASE_PATHS` (default `/media,/mnt,/home/pi`). When `HOST_ROOT` is
+  set, host paths are translated to their container equivalent under `/host`
+  before the check.
+- **Container names.** `_is_allowed_container_name()` accepts only names that
+  start with `minabox-` and contain nothing but letters, digits and hyphens.
+- **Update targets.** Service names must appear in the list derived from the
+  `VERSION` files on disk; versions must match
+  `[0-9A-Za-z][0-9A-Za-z._-]{0,63}`. Both are checked before anything is
+  written to `.env` or into the generated update script.
+- **Backup archives.** `_backup_allowed_path()` mirrors what the backup
+  builder produces: `data/minabox.db` and `data/general_settings.json` by
+  name, `data/static/**` by prefix, and `services/<name>-service/state|config/`
+  per service. The rest of `data/` is refused — the update log, the OS-update
+  PID file, the pre-update archives and `minabox-update.sh`, which the host
+  runs as root, all live there and are this service's own runtime state, not
+  something an upload gets to write. Entries are extracted with
+  `zipfile.read()` and `Path.write_bytes()`, so an archive cannot create
+  symlinks or escape the workspace.
+- **USB imports.** Requested entries are rejected if they are absolute or
+  contain `..`, and the resolved path must still sit under the mount point.
+  Symlinks are skipped rather than followed, both for a directly requested
+  entry and for anything inside a copied directory: the stick is mounted under
+  `/host`, so a link to `../../../etc/shadow` on a prepared device would
+  otherwise resolve to the host's file and copy its content into the audio
+  directory.
+- **Device names.** `_validate_device_id()` accepts an alphanumeric block
+  device name and nothing else. The value ends up in `/dev/<id>`, and the
+  device must additionally appear in the `lsblk` listing.
+- **Diagnostics.** `GET /diagnostics/host` takes no parameters at all. The
+  three commands it may run are a hard-coded tuple.
+- **No shell interpolation of user input.** Subprocesses are invoked with
+  argument lists. The two places that use `sh -c` (`/restart`,
+  `/system/update-os`) build their command from constants only.
+
+### 3.4 Logging
+
+Structured logging via `structlog` — JSON in normal operation, the console
+renderer when `LOG_LEVEL=DEBUG`. Every state-changing action logs an event
+(`move_requested`, `hostname_set`, `ssh_toggled`, `update_minabox_started`, …).
+Secrets are never logged: the system password is passed to `chpasswd` on stdin,
+and the WiFi PSK is not written to any log line.
+
+### 3.5 Known residual risk
+
+The WiFi PSK and the hotspot password are handed to `nmcli` as command-line
+arguments, so they are visible in the host's process list for the fraction of
+a second the call takes. Avoiding it means writing NetworkManager keyfiles
+directly instead of driving `nmcli`, which trades a narrow exposure on a
+single-user appliance for a rewrite of the part of this service that is
+hardest to get right. It is recorded here as accepted, not overlooked.
 
 ---
 
-## 4. Schnittstelle (HTTP-API)
+## 4. HTTP API
 
-Der Host-Helper stellt eine HTTP-API bereit (FastAPI). Alle Endpoints außer `GET /health` erfordern den Header `X-Api-Key` mit dem konfigurierten API-Key (nur Backend bekannt).
+FastAPI, listening on port 8000, 48 routes. All of them require `X-Api-Key`
+unless noted. Errors use FastAPI's `{"detail": "..."}` shape; the backend passes that
+`detail` through to the WebUI.
 
 ### Health
 
-- **`GET /health`** – Health-Check (ohne API-Key). Für Docker/Orchestrierung.
+| Method | Path      | Description                                                        |
+| ------ | --------- | ------------------------------------------------------------------ |
+| GET    | `/health` | Liveness. **No API key.** Returns status, service name and version. |
 
-### Audio-Pfad
+The Docker healthcheck polls this route. It is deliberately `async` and does no
+blocking work, so it stays answerable even while a long operation occupies the
+sync threadpool. Most routes are plain `def` and therefore run on that
+threadpool; only `/backup/restore`, `/bluetooth/scan` and `/container-logs` are
+`async` and push their blocking part into a worker thread explicitly.
 
-- **`GET /audio-path`** – Liest `AUDIO_FILES_PATH` aus der `.env`-Datei. Response: `{ "audio_files_path": "/mnt/audio" }` oder `null`, wenn nicht gesetzt.
-- **`POST /apply-audio-path`** – Audio-Pfad setzen. Request-Body: `{ "audio_files_path": "/media/usb0/music" }`. Validierung gegen Allowlist; Wert wird in der Host-`.env` geschrieben (für nächsten Start).
+### Audio path
 
-### Verschiebung (Move)
+| Method | Path                 | Description                                                                    |
+| ------ | -------------------- | ------------------------------------------------------------------------------ |
+| GET    | `/audio-path`        | Reads `AUDIO_FILES_PATH` from the host `.env`. `null` when unset.               |
+| POST   | `/apply-audio-path`  | Body `{audio_files_path}`. Validated against the allowlist, written to `.env`. |
 
-- **`POST /move`** – Dateien oder Ordner verschieben.
-  - Request: Quellpfad, Zielpfad (beide innerhalb erlaubter Basis-Pfade).
-  - Response: Erfolg/Fehler, ggf. Hinweis (z.B. Ziel existiert bereits).
-  - Validierung: Beide Pfade müssen unter der konfigurierten Allowlist liegen; keine relativen Pfade wie `../`.
-- **`GET /move-status`** – Status der laufenden oder letzten Verschiebung. Response: z.B. `{ "status": "running" | "idle", ... }` (ggf. Fortschritt, Fehlermeldung).
+The value takes effect on the next `docker compose up`, because it is the bind
+mount source for the audio volume.
 
-### Host-System
+### Move
 
-- **`POST /reboot`** – Host-Neustart (Raspberry Pi Reboot). Response: Bestätigung; Verbindung bricht danach ab.
-- **`GET /host-status`** – Host-Infos (Hostname, IP, RAM, CPU, Disk, Load, Temperatur). Liest von gemounteten Host-Pfaden (z.B. `/host/etc`, `/host/proc`). Response: JSON mit hostname, ip, memory, cpu, disk, load, **temperature_celsius** (in °C, gelesen aus `/host/sys/class/thermal/thermal_zone0/temp` bzw. `/sys/class/thermal/thermal_zone0/temp` wenn kein Host-Root-Mount; Wert in Milligrad, umgerechnet in °C; bei Fehler oder fehlender Datei `null`).
+| Method | Path           | Description                                                                    |
+| ------ | -------------- | ------------------------------------------------------------------------------ |
+| POST   | `/move`        | Body `{source, destination}`. Starts a background move, answers `202`.          |
+| GET    | `/move-status` | `{status: idle\|running\|done\|error, total, current, error}`.                 |
 
-### Container-Logs
+Both paths are host paths and must lie under the allowlist. A directory move
+walks the tree, moves file by file so progress can be reported, and finally
+removes the empty directories left behind. A second `POST` while a move is
+running is rejected with `409`.
 
-- **`GET /container-logs`** – Logs eines Docker-Containers abrufen. Query-Parameter: `container_name` (z.B. `minabox-audio`), `tail` (Anzahl Zeilen, Default 200, max 500). Response: `{ "lines": "<stdout/stderr als Text>", "tail": N }`.
-  - **Sicherheit:** Nur Container-Namen aus der Allowlist sind erlaubt (Präfix `minabox-`, alphanumerisch und Bindestriche). Path-Traversal und beliebige Namen werden abgelehnt (HTTP 400). API-Key erforderlich.
-  - Das Backend ruft diesen Endpoint für die Admin-Log-Anzeige auf (`GET /api/v1/system/logs?service=...`), da der Host-Helper Zugriff auf die Docker-API hat; das Backend muss keinen Docker-Socket mounten.
+The walk itself is part of the background job, not of the request: on a large
+library counting the files takes long enough to be worth reporting on. Until
+the count is in, the status reads `total: 0`, which the WebUI shows as an
+indeterminate bar. A move that fails partway leaves what it already moved where
+it moved it — undoing it could fail halfway too — and `current` says how far it
+got.
 
-### WiFi & Hotspot
+### Host power and services
 
-- **`GET /wifi/scan`** – Verfügbare WLAN-Netzwerke (SSID, Signal). Nutzt Host-Netzwerk-Namespace (nmcli) damit wlan0 sichtbar ist.
-- **`POST /wifi/connect`** – Verbindung zu WLAN (Body: `ssid`, `password`).
-- **`POST /wifi/hotspot/start`** – Hotspot starten (Body optional: `ssid`, `password`; Default SSID: Minabox-Setup).
-- **`POST /wifi/hotspot/stop`** – Hotspot stoppen.
-- **`GET /wifi/hotspot/status`** – Ob Hotspot aktiv ist.
+| Method | Path        | Description                                                             |
+| ------ | ----------- | ------------------------------------------------------------------------ |
+| POST   | `/reboot`   | `nsenter -t 1 -n -m -- /sbin/reboot`, started detached so the reply wins. |
+| POST   | `/shutdown` | Same, with `/sbin/shutdown -h now`.                                      |
+| POST   | `/restart`  | `docker compose restart` in the host's project directory, via `nsenter`.  |
+
+`/restart` finds the project directory from the
+`com.docker.compose.project.working_dir` label on the backend container rather
+than from configuration, so it always matches how the box was actually started.
+
+### Host status and logs
+
+| Method | Path                | Description                                                                       |
+| ------ | ------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/host-status`      | hostname, IP, uptime, memory, load, disk, SoC temperature.                            |
+| GET    | `/syslog`           | Query `n` (1–20000, default 200) and `source` (`kernel`\|`docker`).                 |
+| GET    | `/container-logs`   | Query `container_name` and `tail` (1–500, default 200).                              |
+| GET    | `/diagnostics/host` | Failed systemd units, journal errors (priority ≤ 3) and `timedatectl show`.          |
+
+`/host-status` reads the mounted host paths directly (`/host/proc/uptime`,
+`/host/proc/meminfo`, `/host/proc/loadavg`, `/host/etc/hostname`, `statvfs` on
+`/host`, `/host/sys/class/thermal/thermal_zone0/temp`); any part that cannot be
+read comes back as `null` instead of failing the request.
+
+`/syslog` prefers `journalctl` in a chroot into the host and falls back to
+reading `/var/log/syslog` or `/var/log/kern.log`. The upper bound of 20000
+lines is generous on purpose: the debug export filters container-network noise
+out of the kernel log *before* truncating, so it needs a window wide enough to
+still contain the last boot.
+
+`/container-logs` uses the Docker SDK over the mounted socket. It exists so the
+backend does not need the socket for its admin log view.
+
+`/diagnostics/host` is the debug export's only route into this service. It is
+read-only and parameterless by design; see `docs/DebugExport.md` section 4.3.
+
+### WiFi and hotspot
+
+| Method | Path                     | Description                                             |
+| ------ | ------------------------ | --------------------------------------------------------- |
+| GET    | `/wifi/scan`             | Rescan and list networks, deduplicated by SSID.            |
+| POST   | `/wifi/connect`          | Body `{ssid, password}`. Empty password means open network. |
+| POST   | `/wifi/hotspot/start`    | Body `{ssid, password}`, both optional.                    |
+| POST   | `/wifi/hotspot/stop`     | Brings `wlan0` back to client mode.                        |
+| GET    | `/wifi/hotspot/status`   | `{active, ssid}`.                                          |
+
+All of these drive `nmcli` on the host through
+`nsenter -t 1 -n -- chroot /host … nmcli`. The network namespace of PID 1 is
+required, otherwise `wlan0` is simply not visible from inside the container.
+
+Client profiles are named `Minabox-<sanitised SSID>` and are created with an
+explicit `wifi-sec.key-mgmt` (`wpa-psk` or `none`); without it NetworkManager
+refuses the connection with "property is missing". The hotspot profile is
+always called `Minabox-Setup`; when no password is given, a random one is
+generated and returned in the response so the WebUI can display it.
 
 ### USB
 
-- **`GET /usb/devices`** – USB-Blockgeräte auflisten (lsblk, TRAN=usb): id, device, size, fstype, mountpoint, label.
-- **`GET /usb/{device_id}/files`** – Dateien/Ordner auf gemountetem USB-Gerät (device_id z.B. sda1). Bei Bedarf wird per udisksctl gemountet.
-- **`POST /usb/import`** – Ausgewählte Pfade von USB nach AUDIO_STORAGE_PATH kopieren (Body: `device_id`, `source_paths`).
-- **`POST /usb/eject`** – USB-Gerät unmounten und power-off (udisksctl).
+| Method | Path                      | Description                                                   |
+| ------ | ------------------------- | --------------------------------------------------------------- |
+| GET    | `/usb/devices`            | Block devices with `TRAN=usb`; partitions rather than raw disks. |
+| GET    | `/usb/{device_id}/files`  | Top-level listing; mounts via `udisksctl` if necessary.          |
+| POST   | `/usb/import`             | Body `{device_id, source_paths}`; copies to `AUDIO_STORAGE_PATH`. |
+| POST   | `/usb/eject`              | `udisksctl unmount` followed by `power-off`.                     |
 
-### Backup & Restore
+`device_id` is a bare device name such as `sda1`; anything else is rejected.
+Entries in `source_paths` are relative to the mount point, and one that
+resolves outside it — or is a symlink — is skipped rather than copied. The
+response reports both `files_copied` and `skipped`.
 
-- **`GET /backup/download`** – ZIP erstellen: minabox.db, general_settings.json, static/, audio_state.json, LED/Button/Display-Config. Response: ZIP-Datei (Attachment).
-- **`POST /backup/restore`** – ZIP hochladen; Container stoppen, entpacken in Workspace, Container starten. Nur erlaubte Pfade (data/, services/*/state|config).
+### Backup and restore
 
-### Host-System (erweitert)
+| Method | Path                      | Description                                                |
+| ------ | ------------------------- | ------------------------------------------------------------ |
+| GET    | `/backup/download`        | Returns `minabox-backup-<YYYYMMDD-HHMM>.zip` as an attachment. |
+| POST   | `/backup/restore`         | Multipart upload; starts the restore, answers `202`.          |
+| GET    | `/backup/restore-status`  | `{status: idle\|running\|done\|error, error, finished_at}`.   |
 
-- **`GET /host-status`** – Host-Infos (hostname, ip, uptime_seconds, memory, cpu, disk, **temperature_celsius**) aus gemounteten Host-Pfaden (/host/proc, /host/etc/hostname, /host/sys/class/thermal/thermal_zone0/temp für CPU-Temperatur).
-- **`POST /reboot`** – Host-Neustart (nsenter, /sbin/reboot).
-- **`POST /shutdown`** – Host herunterfahren (nsenter, /sbin/shutdown -h now).
-- **`POST /restart`** – Minabox-Container neustarten (nsenter, docker compose restart im Projektverzeichnis).
+The archive contains `data/minabox.db`, `data/general_settings.json`,
+`data/static/**`, `services/audio-service/state/audio_state.json` and the LED,
+button and display config files. The same builder is used for the automatic
+pre-update backup, so a snapshot that only ever existed as a download would be
+useless when an update goes wrong. Members are streamed into the archive and
+the archive is written to a file, never assembled in memory — the cover art
+under `data/static/` is what grows here.
 
-### Zeit & Hostname
+Restore spools the upload to disk rather than into memory and rejects it before
+anything is touched if an entry falls outside the path allowlist, if the archive
+is not a ZIP, or if it would unpack beyond the size cap — a small archive can
+otherwise expand far enough to fill the SD card.
 
-- **`PUT /system/timezone`** – Zeitzone setzen (Body: `timezone`, z.B. Europe/Berlin; timedatectl im chroot).
-- **`GET /system/time-status`** – Zeitzone, NTP-Sync, lokale Zeit (timedatectl status).
-- **`GET /system/hostname`** – Aktueller Hostname (/host/etc/hostname).
-- **`PUT /system/hostname`** – Hostname setzen (hostnamectl), /etc/hosts anpassen.
+Only then does the work start, in a background thread:
 
-### Board-LEDs (Stealth)
+1. `docker compose stop` for every service **except this one**. The writers
+   have to be down; overwriting `minabox.db` under an open SQLite connection is
+   how a restore turns a working box into a broken one. Stopping the
+   host-helper too would kill the process that still has to finish the job.
+2. Extract into the workspace.
+3. `docker compose up -d` to bring everything back. If a step fails, the stack
+   is started again anyway — a half-restored box that is reachable beats one
+   that is merely consistent.
 
-- **`GET /system/board-leds`** – Status Power-/Activity-LED (stealth on/off).
-- **`PUT /system/board-leds`** – Stealth-Modus setzen (Body: `stealth`). Schreibt sysfs und config.txt für Persistenz nach Reboot.
+The endpoint answers `202` before step 1, and it has to: the restore stops the
+backend, and the backend is the caller. A synchronous reply would be cut off on
+its way out and a successful restore would look like a failure. The outcome is
+polled from `/backup/restore-status`.
 
-### Netzwerk (IP-Konfiguration)
+### Time and hostname
 
-- **`GET /system/network`** – Aktuelle IPv4-Konfiguration (DHCP/manual, address, gateway, dns) der aktiven Verbindung (nmcli).
-- **`PUT /system/network`** – IPv4 setzen (Body: `method` dhcp|manual, `address`, `netmask`, `gateway`, `dns`). Nutzt Host-Netzwerk-Namespace.
+| Method | Path                    | Description                                            |
+| ------ | ----------------------- | -------------------------------------------------------- |
+| PUT    | `/system/timezone`      | Body `{timezone}`, e.g. `Europe/Berlin`.                  |
+| GET    | `/system/time-status`   | Timezone, NTP sync state, local time.                     |
+| GET    | `/system/hostname`      | Current hostname.                                         |
+| PUT    | `/system/hostname`      | Body `{hostname}`; 1–63 chars, `a-z0-9-`.                 |
 
-### Passwort & SSH
+Setting the hostname runs `hostnamectl set-hostname` in the chroot and then
+rewrites the `127.0.1.1` line in the host's `/etc/hosts`. Note that the mDNS
+name of the box changes with it, so the WebUI URL changes too.
 
-- **`POST /system/password`** – System-User-Passwort ändern (chpasswd im chroot; nur konfigurierter User, z.B. pi).
-- **`GET /system/ssh-status`** – SSH enabled/active (systemctl is-enabled/is-active ssh).
-- **`POST /system/ssh-toggle`** – SSH ein-/ausschalten (Body: `enable`).
+### Board LEDs (stealth mode)
 
-### Syslog & Docker
+| Method | Path                  | Description                                    |
+| ------ | --------------------- | ------------------------------------------------ |
+| GET    | `/system/board-leds`  | `{stealth, power_led, activity_led}`.             |
+| PUT    | `/system/board-leds`  | Body `{stealth}`; switches both board LEDs off.  |
 
-- **`GET /syslog`** – Letzte N Zeilen Host-Syslog (journalctl -k oder -u docker) oder Fallback /var/log/syslog. Query: `n`, `source` (kernel|docker).
-- **`POST /system/docker-prune`** – Auf dem Host `docker system prune -f` ausführen (nsenter).
+Writes take effect twice: to `/sys/class/leds/*/brightness` for the immediate
+effect, and to `dtparam=act_led_trigger` / `dtparam=pwr_led_trigger` in the
+host's `config.txt` so the setting survives a reboot.
 
-### Factory Reset & Update
+### Network (IPv4)
 
-- **`POST /system/factory-reset`** – DB löschen, general_settings zurücksetzen, optional Audio-Storage leeren, Hotspot starten, Container neustarten. Body optional: `delete_audio`.
-- **`POST /system/update-minabox`** – docker compose pull && up -d im Workspace.
-- **`GET /system/version`** – Aktueller Commit (git), ob Update verfügbar (origin/main ahead).
-- **`POST /system/update-os`** – apt-get update && upgrade auf dem Host im Hintergrund starten.
-- **`GET /system/update-os/log`** – Log und Laufstatus des OS-Updates.
+| Method | Path               | Description                                                       |
+| ------ | ------------------ | ------------------------------------------------------------------- |
+| GET    | `/system/network`  | Method (`dhcp`/`manual`), address, netmask, gateway, DNS.            |
+| PUT    | `/system/network`  | Body `{method, address, netmask, gateway, dns}`.                     |
+
+The connection is brought down before it is modified, so the old DHCP lease is
+released and the interface does not end up with two addresses. The active
+connection is discovered through `nmcli`, excluding the hotspot profile.
+
+### System password and SSH
+
+| Method | Path                   | Description                                            |
+| ------ | ---------------------- | -------------------------------------------------------- |
+| POST   | `/system/password`     | Body `{username, new_password}`; minimum 8 characters.    |
+| GET    | `/system/ssh-status`   | `{enabled, active}` from `systemctl is-enabled/is-active`. |
+| POST   | `/system/ssh-toggle`   | Body `{enable}`.                                          |
+
+Only the user named by `DEFAULT_USER` (default `pi`) may be changed. The
+password is handed to `chpasswd` on stdin, never on the command line. Disabling
+SSH stops and disables `ssh.socket` first, otherwise socket activation would
+bring the daemon straight back.
+
+### Maintenance
+
+| Method | Path                     | Description                                                   |
+| ------ | ------------------------ | --------------------------------------------------------------- |
+| POST   | `/system/docker-prune`   | `docker system prune -f` on the host; keeps tagged images.       |
+| POST   | `/system/factory-reset`  | Body `{delete_audio}`. Resets DB and configs, starts the hotspot. |
+
+Factory reset deletes `minabox.db`, resets `general_settings.json` and
+`audio_state.json` to `{}`, optionally empties the audio storage directory
+(only when it lies under an allowed base path), brings up the `Minabox-Setup`
+hotspot so the box stays reachable, and restarts the containers.
+
+### Minabox update
+
+| Method | Path                             | Description                                            |
+| ------ | -------------------------------- | -------------------------------------------------------- |
+| POST   | `/system/update-minabox`         | Body `{targets, backup}`, both optional. Starts an update. |
+| GET    | `/system/update-minabox/status`  | Progress, parsed step, exit code and the full log.        |
+| GET    | `/system/version`                | The commit the project directory sits on.                 |
+
+The update does **not** run as a child process of this container. It is
+launched as a transient systemd unit (`systemd-run --unit=minabox-update`) on
+the host, for two reasons:
+
+1. `docker compose up -d` recreates the host-helper itself as soon as its image
+   changes. A child process of this container would be killed halfway through
+   the update.
+2. There is no Docker CLI inside the container; the host has one.
+
+Progress is written as markers (`=== MINABOX-STEP n/5 <key>`, then
+`=== MINABOX-DONE <rc>`) into `data/minabox-update.log`, which lives in the
+project directory and therefore survives a restart of the host-helper. The five
+steps are `backup`, `repo`, `pull`, `restart`, `verify`; the WebUI translates
+these keys, so they are part of the contract and must not be renamed.
+
+With `targets`, exactly the named services are moved to exactly the named
+versions and every other service is pinned to its currently running version in
+`.env` — without that pinning, `compose up -d` would drag everything else along
+and a targeted update would not be one. Without `targets`, everything goes to
+the newest published image.
+
+`/system/version` reports the commit only. Whether a newer *image* exists is a
+different question — a box can be git-current and still run last week's
+containers — and the backend answers it against the registry. The
+`update_available` field stays in the response for shape stability and is
+always `false`.
+
+The `verify` step does not just check that a container is running but compares
+its `org.opencontainers.image.version` label against the requested version. A
+container that compose never recreated looks healthy while still running the
+old build.
+
+Unless `backup: false` is passed, a pre-update backup is written to
+`data/backups/pre-update-<timestamp>.zip` before anything else happens, and the
+update is aborted if that fails. The five most recent archives are kept.
+
+### OS update
+
+| Method | Path                     | Description                                                      |
+| ------ | ------------------------ | ------------------------------------------------------------------ |
+| POST   | `/system/update-os`      | Starts `apt-get update && apt-get upgrade -y` on the host, detached; `409` while one runs. |
+| GET    | `/system/update-os/log`  | `{running, log}`, log truncated to the last 2000 lines.              |
+
+The process is started with `nsenter` and `start_new_session=True`, its PID is
+recorded in `data/os-update.pid`, and a watcher thread appends the exit code to
+`data/os-update.log` when it finishes. The container shares the host PID
+namespace, so that recorded PID can be checked with signal 0 — which is how
+both the log route reports `running` and the start route refuses a second run
+that would only fight the first over the dpkg lock.
 
 ### Bluetooth
 
-- **`GET /bluetooth/scan`** – Bluetooth-Geräte scannen (bluetoothctl auf Host via nsenter; Scan ~12s).
-- **`POST /bluetooth/pair`** – Gerät paaren (Body: `address`). Anschließend trust.
-- **`GET /bluetooth/paired`** – Nur gepaarte Geräte (address, name, connected).
-- **`POST /bluetooth/connect`** – Verbinden (Body: `address`).
-- **`POST /bluetooth/disconnect`** – Trennen (Body: `address`).
-- **`POST /bluetooth/remove`** – Gerät entfernen (unpair) (Body: `address`).
+| Method | Path                     | Description                                        |
+| ------ | ------------------------ | ---------------------------------------------------- |
+| GET    | `/bluetooth/scan`        | 12-second discovery, returns address and name.        |
+| POST   | `/bluetooth/pair`        | Body `{address}`; the device is trusted afterwards.   |
+| GET    | `/bluetooth/paired`      | Paired devices only, with their connection state.     |
+| POST   | `/bluetooth/connect`     | Body `{address}`.                                     |
+| POST   | `/bluetooth/disconnect`  | Body `{address}`.                                     |
+| POST   | `/bluetooth/remove`      | Body `{address}`; unpairs the device.                 |
 
-### Geplant (später, optional)
+`bluetoothctl` runs on the host via `nsenter -t 1 -m -n`, which it needs in
+order to open the Bluetooth management socket. The scan keeps one interactive
+`bluetoothctl` process alive for the whole 12 seconds: on most setups discovery
+stops the moment the client disconnects, so a simple `scan on` with a timeout
+would return an empty list.
 
-- Mounts auflisten (z.B. verfügbare Laufwerke/Partitionen) – teilweise durch USB-API abgedeckt
+`paired` asks BlueZ to filter, with `devices Paired` and `devices Connected` —
+two calls no matter how many devices the box remembers, rather than one
+`bluetoothctl info` per entry.
 
 ---
 
-## 5. Integration mit dem Backend
+## 5. Configuration
 
-- Das **Backend** ruft den Host-Helper über eine interne URL auf (z.B. `http://host-helper:8000`), nur aus dem gemeinsamen Docker-Netz.
-- Das Backend kann eigene REST-Endpoints bereitstellen (z.B. `POST /api/v1/system/move-audio`, `GET /api/v1/system/logs`, `GET /api/v1/system/host-status`), die von der WebUI aufgerufen werden. Nach Validierung der Parameter leitet das Backend die Anfrage an den Host-Helper weiter und gibt das Ergebnis an die WebUI zurück.
-- **Logs:** Für die Admin-Log-Anzeige ruft das Backend `GET /container-logs` beim Host-Helper auf (mit Service-zu-Container-Name-Mapping). Der Host-Helper hat Zugriff auf die Docker-API; das Backend muss keinen Docker-Socket mounten, wenn Host-Helper konfiguriert ist.
-- **Abhängigkeiten:** Der Host-Helper kann parallel zum Backend starten oder danach; das Backend muss fehlgeschlagene Aufrufe abfangen (z.B. Host-Helper nicht erreichbar, Timeout). In diesem Fall soll die WebUI eine klare Fehlermeldung erhalten, ohne Host-Details zu exponieren.
+Read once at startup by `load_config()` into a frozen `Config` dataclass.
+Missing required values abort the process with exit code 1 rather than
+starting in a half-configured state.
+
+| Variable                | Required | Default              | Meaning                                     |
+| ----------------------- | -------- | -------------------- | --------------------------------------------- |
+| `LOG_LEVEL`             | yes      | –                    | `DEBUG` selects the console renderer.          |
+| `HOST_HELPER_API_KEY`   | yes      | –                    | The shared secret; see section 3.2.            |
+| `HOST_HELPER_PORT`      | no       | `8000`               | Listening port.                                |
+| `ENV_FILE_PATH`         | no       | `/workspace/.env`    | The host `.env` that is read and written.      |
+| `ALLOWED_BASE_PATHS`    | no       | `/media,/mnt,/home/pi` | Path allowlist for audio path and move.      |
+| `HOST_ROOT`             | no       | *(empty)*            | Mount point of the host root, in practice `/host`. |
+| `HOST_PROC`             | no       | `/host/proc`         | Host `/proc` for the status readout.           |
+| `HOST_ETC_HOSTNAME`     | no       | `/host/etc/hostname` | Host hostname file.                            |
+| `HOST_IP`               | no       | *(empty)*            | Reported verbatim in `/host-status`.           |
+| `WORKSPACE_PATH`        | no       | `/workspace`         | Project directory inside the container.        |
+| `DATA_PATH`             | no       | `<workspace>/data`   | Database, settings, update logs, backups.      |
+| `AUDIO_STORAGE_PATH`    | no       | `<workspace>/audio`  | Target of the USB import.                      |
+| `HOST_WORKSPACE_PATH`   | no       | *(derived)*          | Project path **on the host**; read from the compose label when unset. |
+| `DEFAULT_USER`          | no       | `pi`                 | The only account `/system/password` may change. |
+
+`HOST_WORKSPACE_PATH` matters because the update script runs on the host and
+must therefore use host paths, not `/workspace`. Reading it from the
+`com.docker.compose.project.working_dir` label is more reliable than
+configuring it: by definition it matches how the box was started.
+
+---
+
+## 6. Integration with the Backend
+
+The backend is the only client. It reaches the service at
+`http://host-helper:8000` inside the compose network, adds the `X-Api-Key`
+header, and exposes its own validated routes to the WebUI:
+
+- `/api/v1/system/*` — logs, host status, update, maintenance
+- `/api/v1/host/*` — power, network, WiFi, USB, Bluetooth, backup
+
+The backend does not merely forward. It validates parameters itself, maps
+service names to container names, and translates transport failures into a
+stable error shape: `host_helper_not_configured` (no API key),
+`host_helper_unreachable` (connection refused or timeout),
+`host_helper_auth_failed` (401). The `detail` of any other error is taken from
+the host-helper response and passed on unchanged, which is why error strings in
+this service are user-visible.
+
+The backend must tolerate the host-helper being absent: it starts after the
+backend is healthy, and every proxy call is wrapped so that a missing helper
+produces a clear message in the WebUI instead of a stack trace.
 
 ```mermaid
 flowchart LR
-  subgraph user [User]
+  subgraph browser [Browser]
     WebUI[WebUI]
   end
-  subgraph stack [Minabox Stack]
+  subgraph stack [Minabox stack]
     Backend[Backend]
-    HostHelper[Host-Helper]
+    HostHelper[Host-Helper<br/>root, pid=host]
   end
-  subgraph host [Host]
-    FS[Dateisystem]
-    System[System]
+  subgraph host [Raspberry Pi host]
+    FS[Filesystem<br/>.env, data, audio]
+    NM[NetworkManager<br/>nmcli]
+    SD[systemd<br/>systemctl, systemd-run]
+    DK[Docker daemon]
   end
-  WebUI -->|REST| Backend
-  Backend -->|HTTP intern| HostHelper
-  HostHelper -->|mv, mount, etc.| FS
-  HostHelper -->|optional| System
+  WebUI -->|REST /api/v1| Backend
+  Backend -->|HTTP + X-Api-Key| HostHelper
+  HostHelper -->|/host, /workspace| FS
+  HostHelper -->|nsenter + chroot| NM
+  HostHelper -->|nsenter + chroot| SD
+  HostHelper -->|docker.sock| DK
 ```
 
 ---
 
-## 6. Einsatz im Stack
+## 7. Deployment
 
-- Der Host-Helper wird im zentralen **`docker-compose.yml`** im Root-Repository als Service (z.B. `host-helper`) eingetragen. Er gehört zum gleichen Docker-Netzwerk wie Backend und erhält die nötigen Volume-Mounts für die erlaubten Host-Pfade.
-- Keine Port-Freigabe nach außen; der Service ist nur für andere Container im Stack erreichbar.
+Defined in the root `docker-compose.yml` as the `host-helper` service. Image
+`ghcr.io/opnek90/minabox-host-helper:${MINABOX_HOST_HELPER_TAG}`; the service
+carries its own version number (`docs/Versionierung.md`).
+
+- No `ports:` entry — reachable only from within `minabox-network`.
+- `depends_on: backend (service_healthy)`, `restart: unless-stopped`.
+- Healthcheck: `curl -f http://localhost:8000/health` every 30 s, 10 s grace.
+- Mounts and capabilities as listed in section 3.1.
+
+The image is built from `services/host-helper-service/Dockerfile` with
+`./services` as the build context, so `shared-lib` can be installed from the
+same context. The build is two-stage: dependencies are installed in a builder
+stage and the resulting `site-packages` is copied into a fresh
+`python:3.13-slim` runtime.
 
 ---
 
-## 7. Scope und Erweiterbarkeit
+## 8. Errors & Logging
 
-- **Phase 1 (empfohlen für erste Implementierung):** Fokus auf **Audio-Ordner verschieben**. Ein klar begrenzter Use-Case: User wählt in der WebUI einen Zielpfad (aus erlaubten Optionen), Backend validiert und ruft Host-Helper auf; Host-Helper führt die Verschiebung aus, Backend kann danach ggf. Konfiguration/DB aktualisieren.
-- **Später erweiterbar:** Weitere Aktionen wie IP-Adresse ändern, Root-Passwort setzen, Volumes mounten können als weitere Endpoints ergänzt werden. Jede neue Aktion muss in dieser Architektur und im Sicherheitsmodell beschrieben und mit Allowlists/Validierung versehen werden.
+- **`401`** missing or wrong `X-Api-Key`.
+- **`400`** validation failed — path outside the allowlist, unknown service,
+  malformed version, invalid hostname, unknown device.
+- **`404`** the source path, container or device does not exist.
+- **`409`** an operation of that kind is already running (move, update).
+- **`502`** the host tool ran but reported failure; the message is the tail of
+  its stderr/stdout, truncated.
+- **`503`** the host tool is not available at all (`nmcli`, `hostnamectl`,
+  `udisksctl`, `apt-get`, `nsenter` missing) or the update could not be
+  prepared.
+- **`504`** a host tool exceeded its timeout.
 
----
+Read-only status routes take the opposite approach: `/host-status`,
+`/system/time-status`, `/system/board-leds` and `/diagnostics/host` never fail
+on a partial read. Whatever could not be determined is reported as `null` or
+as a per-command error object, so a single unreadable file does not blank the
+whole maintenance page.
 
-## 8. Refactoring-Checkliste
-
-- [ ] **api/routes.py aufteilen:** Die Datei enthält sehr viele Endpoints (Audio-Pfad, Move, Reboot, WiFi, USB, Backup, System, Bluetooth, Zeit, Hostname, etc.). Empfehlung: Aufteilung nach Domänen in mehrere Route-Module (z. B. `routes_system.py`, `routes_wifi.py`, `routes_usb.py`, `routes_backup.py`, `routes_bluetooth.py`) und in der FastAPI-App zusammenführen.
-- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.
+Logging is structured (`structlog`) and goes to stdout, where Docker collects
+it. Event names are snake_case and stable enough to grep for
+(`move_requested`, `move_ok`, `move_failed`, `apply_audio_path_ok`,
+`hostname_set`, `network_set`, `ssh_toggled`, `board_leds_set`,
+`password_changed`, `docker_prune_done`, `update_minabox_started`,
+`factory_reset_done`).

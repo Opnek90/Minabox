@@ -385,7 +385,7 @@
     "backup_restore": "Restore",
     "backup_restore_confirm": "Restore from backup? All containers will restart. The connection may drop.",
     "backup_restore_select": "Select ZIP file…",
-    "backup_restore_success": "Restore completed.",
+    "backup_restore_success": "Restore started. The box is restarting its services - this takes a moment.",
     "backup_title": "Backup",
     "bluetooth": "Bluetooth",
     "bluetooth_connect": "Connect",

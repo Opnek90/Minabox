@@ -57,8 +57,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.0",
+      "latest": "0.2.1",
       "releases": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-24",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Wiederherstellung einer Sicherung laeuft jetzt im Hintergrund, und ihr Stand laesst sich abfragen."
+              ],
+              "en": [
+                "Restoring a backup now runs in the background, and its progress can be queried."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "date": "2026-08-23",
@@ -360,8 +374,44 @@
       ]
     },
     "host-helper": {
-      "latest": "0.1.5",
+      "latest": "0.2.0",
       "releases": [
+        {
+          "version": "0.2.0",
+          "date": "2026-08-24",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst ist von 605 auf 290 MB geschrumpft - ein Update laedt weniger als die Haelfte der bisherigen Datenmenge.",
+                "Die Liste gekoppelter Bluetooth-Geraete kommt jetzt gleich schnell, unabhaengig davon wie viele Geraete die Box kennt.",
+                "Das Verschieben des Audio-Ordners meldet sich sofort, statt erst nachdem alle Dateien durchgezaehlt wurden.",
+                "Ein zweites System-Update laesst sich nicht mehr starten, solange noch eines laeuft.",
+                "Eine beschaedigte oder uebergrosse Sicherungsdatei wird abgewiesen, bevor sie etwas veraendert."
+              ],
+              "en": [
+                "The service shrank from 605 to 290 MB - an update downloads less than half of what it used to.",
+                "The list of paired Bluetooth devices now takes the same time no matter how many devices the box remembers.",
+                "Moving the audio folder answers immediately instead of waiting until every file has been counted.",
+                "A second system update can no longer be started while one is still running.",
+                "A damaged or oversized backup file is rejected before it changes anything."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Eine hochgeladene Sicherung wurde nicht wirklich eingespielt: die Dienste liefen dabei weiter, die Datenbank wurde unter ihnen ausgetauscht, und am Ende erschien trotzdem eine Fehlermeldung.",
+                "Das Zuruecksetzen auf Werkseinstellungen hat die Dienste danach nicht neu gestartet.",
+                "Beim Importieren von einem USB-Stick konnten ueber Verknuepfungen auf dem Stick auch Dateien von ausserhalb mitkopiert werden.",
+                "Ob ein Bluetooth-Geraet gerade verbunden ist, wurde immer als \"nicht verbunden\" angezeigt."
+              ],
+              "en": [
+                "An uploaded backup was not actually restored: the services kept running, the database was swapped out underneath them, and an error appeared anyway.",
+                "A factory reset did not restart the services afterwards.",
+                "Importing from a USB stick could copy files from outside the stick along with the rest, by way of links stored on it.",
+                "Whether a Bluetooth device was currently connected always showed as \"not connected\"."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.5",
           "date": "2026-08-23",
@@ -559,8 +609,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.12",
+      "latest": "0.1.13",
       "releases": [
+        {
+          "version": "0.1.13",
+          "date": "2026-08-24",
+          "notes": {
+            "improved": {
+              "de": [
+                "Nach dem Hochladen einer Sicherung steht jetzt \"Wiederherstellung gestartet\" statt \"abgeschlossen\" - die Box braucht danach noch einen Moment, bis alle Dienste wieder laufen."
+              ],
+              "en": [
+                "After uploading a backup the message now says \"restore started\" instead of \"completed\" - the box still needs a moment before every service is back."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.12",
           "date": "2026-08-23",

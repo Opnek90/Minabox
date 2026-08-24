@@ -1001,7 +1001,12 @@ async def backup_download() -> Response:
 
 @router.post("/backup/restore")
 async def backup_restore(file: UploadFile = File(...)) -> dict:
-    """Upload backup ZIP and restore. Proxied to Host-Helper."""
+    """Upload a backup ZIP and start the restore. Proxied to Host-Helper.
+
+    Answers as soon as the Host-Helper has accepted the archive (202). It
+    cannot wait for the outcome: the restore stops this very service, so the
+    reply would never reach the WebUI. Progress comes from /backup/restore-status.
+    """
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise ApiError(status_code=400, code="upload_must_be_zip", detail="Upload must be a .zip file")
     # Hand the spooled upload straight to httpx instead of reading it into a
@@ -1019,4 +1024,15 @@ async def backup_restore(file: UploadFile = File(...)) -> dict:
         error_message="Restore failed",
         error_code="backup_restore_failed",
         log_event="host_helper_backup_restore_failed",
+        ok_statuses=(200, 202),
+    )
+
+
+@router.get("/backup/restore-status")
+async def backup_restore_status() -> dict:
+    """State of the running or last restore. Proxied to Host-Helper."""
+    return await _proxy_optional(
+        "/backup/restore-status",
+        fallback={"status": "idle", "error": None, "finished_at": None},
+        log_event="host_helper_backup_restore_status_failed",
     )

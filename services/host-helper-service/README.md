@@ -1,6 +1,8 @@
-# Host-Helper-Service
+# Host-Helper Service
 
-Interner Service für systemnahe Aktionen auf dem Host (z. B. Dateien verschieben, Container-Logs). Wird ausschließlich vom Backend per HTTP aufgerufen, nicht von außen exponiert.
+Internal service for host-level actions (moving files, network and WiFi,
+backup, updates, container logs). Called over HTTP by the backend only and
+never exposed outside the compose network.
 
-- **Architektur:** [docs/services/host-helper/Architecture.md](../../docs/services/host-helper/Architecture.md)
-- **Stack:** Teil von `docker compose` im Repository-Root.
+- **Architecture:** [docs/services/host-helper/Architecture.md](../../docs/services/host-helper/Architecture.md)
+- **Stack:** part of `docker compose` in the repository root.
