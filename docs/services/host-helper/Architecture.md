@@ -44,7 +44,7 @@ host-helper-service/
     ├── config.py           # load_config() from environment, path allowlist check
     └── api/
         ├── __init__.py
-        └── routes.py       # All 47 endpoints plus their helpers
+        └── routes.py       # All 48 endpoints plus their helpers
 ```
 
 `api/routes.py` is a single large module, organised into thematic blocks in
@@ -234,10 +234,11 @@ are skipped if they are absolute or contain `..`.
 
 ### Backup and restore
 
-| Method | Path               | Description                                                     |
-| ------ | ------------------ | ----------------------------------------------------------------- |
-| GET    | `/backup/download` | Returns `minabox-backup-<YYYYMMDD-HHMM>.zip` as an attachment.     |
-| POST   | `/backup/restore`  | Multipart upload; stops the stack, extracts, starts it again.      |
+| Method | Path                      | Description                                                |
+| ------ | ------------------------- | ------------------------------------------------------------ |
+| GET    | `/backup/download`        | Returns `minabox-backup-<YYYYMMDD-HHMM>.zip` as an attachment. |
+| POST   | `/backup/restore`         | Multipart upload; starts the restore, answers `202`.          |
+| GET    | `/backup/restore-status`  | `{status: idle\|running\|done\|error, error, finished_at}`.   |
 
 The archive contains `data/minabox.db`, `data/general_settings.json`,
 `data/static/**`, `services/audio-service/state/audio_state.json` and the LED,
@@ -245,10 +246,26 @@ button and display config files. The same builder is used for the automatic
 pre-update backup, so a snapshot that only ever existed as a download would be
 useless when an update goes wrong.
 
-Restore validates every entry against the path allowlist before touching
-anything, then runs `docker compose down`, extracts, and runs
-`docker compose up -d`. The whole sequence blocks for minutes, so it runs in a
-worker thread rather than on the event loop.
+Restore spools the upload to disk rather than into memory and rejects it before
+anything is touched if an entry falls outside the path allowlist, if the archive
+is not a ZIP, or if it would unpack beyond the size cap — a small archive can
+otherwise expand far enough to fill the SD card.
+
+Only then does the work start, in a background thread:
+
+1. `docker compose stop` for every service **except this one**. The writers
+   have to be down; overwriting `minabox.db` under an open SQLite connection is
+   how a restore turns a working box into a broken one. Stopping the
+   host-helper too would kill the process that still has to finish the job.
+2. Extract into the workspace.
+3. `docker compose up -d` to bring everything back. If a step fails, the stack
+   is started again anyway — a half-restored box that is reachable beats one
+   that is merely consistent.
+
+The endpoint answers `202` before step 1, and it has to: the restore stops the
+backend, and the backend is the caller. A synchronous reply would be cut off on
+its way out and a successful restore would look like a failure. The outcome is
+polled from `/backup/restore-status`.
 
 ### Time and hostname
 
@@ -316,7 +333,7 @@ hotspot so the box stays reachable, and restarts the containers.
 | ------ | -------------------------------- | -------------------------------------------------------- |
 | POST   | `/system/update-minabox`         | Body `{targets, backup}`, both optional. Starts an update. |
 | GET    | `/system/update-minabox/status`  | Progress, parsed step, exit code and the full log.        |
-| GET    | `/system/version`                | Current commit and whether `origin/main` is ahead.        |
+| GET    | `/system/version`                | The commit the project directory sits on.                 |
 
 The update does **not** run as a child process of this container. It is
 launched as a transient systemd unit (`systemd-run --unit=minabox-update`) on
@@ -338,6 +355,12 @@ versions and every other service is pinned to its currently running version in
 `.env` — without that pinning, `compose up -d` would drag everything else along
 and a targeted update would not be one. Without `targets`, everything goes to
 the newest published image.
+
+`/system/version` reports the commit only. Whether a newer *image* exists is a
+different question — a box can be git-current and still run last week's
+containers — and the backend answers it against the registry. The
+`update_available` field stays in the response for shape stability and is
+always `false`.
 
 The `verify` step does not just check that a container is running but compares
 its `org.opencontainers.image.version` label against the requested version. A
