@@ -9,8 +9,9 @@ Connection lifecycle, reconnection and status replay come from
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import structlog
 from shared_lib.mqtt import BaseMQTTClient
@@ -59,6 +60,10 @@ class MQTTClient(BaseMQTTClient):
     def _build_subscription_topics(self) -> list[str]:
         """Build list of MQTT topics to subscribe to.
 
+        Must cover every topic StateManager knows a rule for -- a rule without
+        a subscription is a logical state the WebUI offers and that never
+        fires. tests/test_mqtt_subscriptions.py holds the two lists together.
+
         Returns:
             List of topic strings.
         """
@@ -73,6 +78,10 @@ class MQTTClient(BaseMQTTClient):
             f"{prefix}/rfid/tag-scanned",
             f"{prefix}/rfid/tag-removed",
             f"{prefix}/rfid/unknown-tag",
+            # A blocked tag was published by the backend and derived by the
+            # state manager, but never subscribed to -- so a binding on
+            # rfid_tag_blocked silently did nothing.
+            f"{prefix}/rfid/tag-blocked",
             # Retained presence topic: always reflects current tag state.
             # Re-subscribed after config reload to trigger broker re-delivery.
             f"{prefix}/rfid/presence",
@@ -190,7 +199,7 @@ class MQTTClient(BaseMQTTClient):
         payload = {
             "success": success,
             "error": error,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         await self.publish(topic, payload)
