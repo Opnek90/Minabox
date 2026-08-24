@@ -23,6 +23,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.1 - 2026-08-24
+
+#### Verbessert
+- Die Wiederherstellung einer Sicherung laeuft jetzt im Hintergrund, und ihr
+  Stand laesst sich abfragen.
+
 ### 0.2.0 - 2026-08-23
 
 #### Behoben
@@ -155,6 +161,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.13 - 2026-08-24
+
+#### Verbessert
+- Nach dem Hochladen einer Sicherung steht jetzt "Wiederherstellung
+  gestartet" statt "abgeschlossen" - die Box braucht danach noch einen Moment,
+  bis alle Dienste wieder laufen.
 
 ### 0.1.12 - 2026-08-23
 
@@ -289,6 +302,31 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.2.0 - 2026-08-24
+
+#### Behoben
+- Eine hochgeladene Sicherung wurde nicht wirklich eingespielt: die Dienste
+  liefen dabei weiter, die Datenbank wurde unter ihnen ausgetauscht, und am
+  Ende erschien trotzdem eine Fehlermeldung.
+- Das Zuruecksetzen auf Werkseinstellungen hat die Dienste danach nicht neu
+  gestartet.
+- Beim Importieren von einem USB-Stick konnten ueber Verknuepfungen auf dem
+  Stick auch Dateien von ausserhalb mitkopiert werden.
+- Ob ein Bluetooth-Geraet gerade verbunden ist, wurde immer als "nicht
+  verbunden" angezeigt.
+
+#### Verbessert
+- Der Dienst ist von 605 auf 290 MB geschrumpft - ein Update laedt weniger als
+  die Haelfte der bisherigen Datenmenge.
+- Die Liste gekoppelter Bluetooth-Geraete kommt jetzt gleich schnell,
+  unabhaengig davon wie viele Geraete die Box kennt.
+- Das Verschieben des Audio-Ordners meldet sich sofort, statt erst nachdem
+  alle Dateien durchgezaehlt wurden.
+- Ein zweites System-Update laesst sich nicht mehr starten, solange noch eines
+  laeuft.
+- Eine beschaedigte oder uebergrosse Sicherungsdatei wird abgewiesen, bevor
+  sie etwas veraendert.
 
 ### 0.1.5 - 2026-08-23
 

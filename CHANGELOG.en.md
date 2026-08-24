@@ -22,6 +22,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.1 - 2026-08-24
+
+#### Improved
+- Restoring a backup now runs in the background, and its progress can be
+  queried.
+
 ### 0.2.0 - 2026-08-23
 
 #### Fixed
@@ -148,6 +154,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.13 - 2026-08-24
+
+#### Improved
+- After uploading a backup the message now says "restore started" instead of
+  "completed" - the box still needs a moment before every service is back.
 
 ### 0.1.12 - 2026-08-23
 
@@ -276,6 +288,27 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.2.0 - 2026-08-24
+
+#### Fixed
+- An uploaded backup was not actually restored: the services kept running, the
+  database was swapped out underneath them, and an error appeared anyway.
+- A factory reset did not restart the services afterwards.
+- Importing from a USB stick could copy files from outside the stick along
+  with the rest, by way of links stored on it.
+- Whether a Bluetooth device was currently connected always showed as "not
+  connected".
+
+#### Improved
+- The service shrank from 605 to 290 MB - an update downloads less than half
+  of what it used to.
+- The list of paired Bluetooth devices now takes the same time no matter how
+  many devices the box remembers.
+- Moving the audio folder answers immediately instead of waiting until every
+  file has been counted.
+- A second system update can no longer be started while one is still running.
+- A damaged or oversized backup file is rejected before it changes anything.
 
 ### 0.1.5 - 2026-08-23
 
