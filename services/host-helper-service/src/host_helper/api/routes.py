@@ -8,8 +8,10 @@ import json
 import os
 import re
 import secrets
+import shlex
 import shutil
 import subprocess
+import tempfile
 import threading
 import zipfile
 from datetime import UTC, datetime
@@ -321,6 +323,41 @@ def _run_on_host_via_nsenter(args: list[str], timeout: int = 30) -> subprocess.C
     nsenter_bin = _nsenter_bin()
     cmd = [str(nsenter_bin), "-t", "1", "-n", "-m", "--"] + args
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
+# This container has no Docker CLI, and shipping one would only duplicate what
+# the host already runs. Every compose call therefore goes through the host's
+# namespaces - the same route the update takes, and the only one that works.
+SELF_SERVICE = "host-helper"
+
+
+def _run_compose_on_host(args: list[str], timeout: int) -> subprocess.CompletedProcess:
+    """Run `docker compose <args>` in the project directory on the host."""
+    workspace = _host_workspace()
+    argv = " ".join(shlex.quote(a) for a in args)
+    script = f"cd {shlex.quote(workspace)} || exit 1; docker compose {argv}"
+    return _run_on_host_via_nsenter(["/bin/sh", "-c", script], timeout=timeout)
+
+
+def _run_compose_on_others(
+    action: list[str], timeout: int
+) -> subprocess.CompletedProcess:
+    """Run `docker compose <action>` for every service except this one.
+
+    Stopping or restarting the host-helper along with the rest would kill the
+    process that still has to finish the job. Nothing a restore or a factory
+    reset writes belongs to this service, so leaving it running costs nothing.
+    """
+    workspace = _host_workspace()
+    verb = " ".join(shlex.quote(a) for a in action)
+    script = (
+        f"cd {shlex.quote(workspace)} || exit 1; "
+        f"others=$(docker compose ps --services "
+        f"| grep -vx {shlex.quote(SELF_SERVICE)} | tr '\\n' ' '); "
+        f'[ -n "$others" ] || exit 0; '
+        f"docker compose {verb} $others"
+    )
+    return _run_on_host_via_nsenter(["/bin/sh", "-c", script], timeout=timeout)
 
 
 @router.post("/reboot")
@@ -856,51 +893,97 @@ def backup_download(_: None = Depends(_check_api_key)) -> Response:
     )
 
 
-def _restore_backup_archive(content: bytes, workspace: Path, compose_file: Path) -> None:
-    """Validate, stop containers, extract the archive and start containers again.
+# An archive is a few megabytes today. The caps exist so that a corrupt or
+# hostile upload cannot fill the SD card or exhaust the RAM of a Pi: the file
+# itself is streamed to disk, but every member is read into memory to be
+# written, and a small ZIP can otherwise expand without bound.
+RESTORE_MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
+RESTORE_MAX_UNPACKED_BYTES = 2 * 1024 * 1024 * 1024
 
-    Blocking by nature - call via asyncio.to_thread.
-    """
+# Restore job state, same shape and lifecycle as the move job above.
+_restore_state: dict = {"status": "idle", "error": None, "finished_at": None}
+_restore_lock = threading.Lock()
+
+
+def _validate_backup_archive(archive: Path, workspace: Path) -> None:
+    """Reject anything that must not be unpacked. Raises HTTPException."""
     try:
-        with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
-            for name in zf.namelist():
-                if not _backup_allowed_path(name, workspace):
-                    raise HTTPException(status_code=400, detail=f"Invalid path in backup: {name}")
+        with zipfile.ZipFile(archive, "r") as zf:
+            unpacked = 0
+            for info in zf.infolist():
+                if not _backup_allowed_path(info.filename, workspace):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid path in backup: {info.filename}",
+                    )
+                unpacked += info.file_size
+                if unpacked > RESTORE_MAX_UNPACKED_BYTES:
+                    raise HTTPException(
+                        status_code=413, detail="Backup expands beyond the size limit"
+                    )
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="Invalid ZIP file") from None
 
-    try:
-        subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "down"],
-            cwd=str(workspace),
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        logger.warning("backup_restore_compose_down_failed", error=str(e))
 
-    with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
-        for name in zf.namelist():
-            if name.endswith("/"):
-                continue
-            target = workspace / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(zf.read(name))
+def _restore_backup_archive(archive: Path, workspace: Path) -> None:
+    """Stop the other services, extract the archive, start everything again.
 
+    The host-helper deliberately keeps running throughout. It holds none of the
+    restored files, and it is the process doing the work - taking it down with
+    the rest would abort the restore halfway through.
+
+    Blocking by nature: minutes of compose plus the extraction. Runs in its own
+    thread, started by the endpoint after it has already answered.
+    """
     try:
-        subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "up", "-d"],
-            cwd=str(workspace),
-            capture_output=True,
-            text=True,
-            timeout=300,
+        result = _run_compose_on_others(["stop"], timeout=180)
+        if result.returncode != 0:
+            # Without the writers stopped the database would be overwritten
+            # under an open SQLite connection, which is how a restore turns a
+            # working box into a broken one.
+            raise RuntimeError(
+                (result.stderr or result.stdout or "compose stop failed").strip()[-500:]
+            )
+
+        with zipfile.ZipFile(archive, "r") as zf:
+            for name in zf.namelist():
+                if name.endswith("/"):
+                    continue
+                target = workspace / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(zf.read(name))
+
+        result = _run_compose_on_host(["up", "-d"], timeout=300)
+        if result.returncode != 0:
+            raise RuntimeError(
+                (result.stderr or result.stdout or "compose up failed").strip()[-500:]
+            )
+    except Exception as e:
+        with _restore_lock:
+            _restore_state.update(
+                {
+                    "status": "error",
+                    "error": str(e)[:500],
+                    "finished_at": datetime.now(UTC).isoformat(),
+                }
+            )
+        logger.exception("backup_restore_failed")
+        # Leave the services running whatever state they are in rather than
+        # guessing; a half-restored box that is up can still be reached.
+        _run_compose_on_host(["up", "-d"], timeout=300)
+        return
+    finally:
+        archive.unlink(missing_ok=True)
+
+    with _restore_lock:
+        _restore_state.update(
+            {
+                "status": "done",
+                "error": None,
+                "finished_at": datetime.now(UTC).isoformat(),
+            }
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        logger.warning("backup_restore_compose_up_failed", error=str(e))
-        raise HTTPException(
-            status_code=500, detail="Failed to start containers after restore"
-        ) from e
+    logger.info("backup_restore_done")
 
 
 @router.post("/backup/restore")
@@ -908,20 +991,62 @@ async def backup_restore(
     file: UploadFile = File(...),
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Upload a backup ZIP, stop containers, extract to workspace, start containers."""
+    """Upload a backup ZIP and start the restore in the background.
+
+    Answers 202 before anything is stopped. It has to: the restore stops the
+    backend, and the backend is the caller - a synchronous reply would be cut
+    off on the way out and a successful restore would look like a failure.
+    Poll GET /backup/restore-status for the outcome.
+    """
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Upload must be a .zip file")
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
-    compose_file = workspace / "docker-compose.yml"
-    if not compose_file.exists():
+    data_path = Path(cfg.get("data_path", str(workspace / "data"))).resolve()
+    if not (workspace / "docker-compose.yml").exists():
         raise HTTPException(status_code=500, detail="docker-compose.yml not found")
-    content = await file.read()
-    # Everything below blocks for minutes (compose down/up plus extraction),
-    # so it must not run on the event loop.
-    await asyncio.to_thread(_restore_backup_archive, content, workspace, compose_file)
-    logger.info("backup_restore_done")
-    return {"ok": True, "message": "Restore completed"}
+
+    with _restore_lock:
+        if _restore_state.get("status") == "running":
+            raise HTTPException(status_code=409, detail="Restore already in progress")
+
+    # Spool to disk instead of reading the upload into a bytes object: a backup
+    # grows with the cover art, and the Pi has no memory to spare for a copy.
+    data_path.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(data_path), prefix="restore-", suffix=".zip"
+    )
+    archive = Path(tmp_name)
+    written = 0
+    try:
+        with os.fdopen(fd, "wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                written += len(chunk)
+                if written > RESTORE_MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="Backup too large")
+                out.write(chunk)
+        await asyncio.to_thread(_validate_backup_archive, archive, workspace)
+    except BaseException:
+        archive.unlink(missing_ok=True)
+        raise
+
+    with _restore_lock:
+        _restore_state.update({"status": "running", "error": None, "finished_at": None})
+    threading.Thread(
+        target=_restore_backup_archive, args=(archive, workspace), daemon=True
+    ).start()
+    logger.info("backup_restore_started", bytes=written)
+    return JSONResponse(
+        content={"ok": True, "status": "running", "message": "Restore started"},
+        status_code=202,
+    )
+
+
+@router.get("/backup/restore-status")
+def backup_restore_status(_: None = Depends(_check_api_key)) -> dict:
+    """State of the running or last restore (idle | running | done | error)."""
+    with _restore_lock:
+        return dict(_restore_state)
 
 
 def _read_host_status(cfg: dict) -> dict:
@@ -1733,17 +1858,17 @@ def factory_reset(
     except (HTTPException, subprocess.TimeoutExpired, OSError) as e:
         logger.warning("factory_reset_hotspot_failed", error=str(e))
 
-    # 6) Restart containers so DB/config are reloaded
+    # 6) Restart containers so DB/config are reloaded. Runs on the host and
+    #    skips this service: restarting ourselves would cut the reply off.
     if compose_file.exists():
         try:
-            subprocess.run(
-                ["docker", "compose", "-f", str(compose_file), "restart"],
-                cwd=str(workspace),
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            result = _run_compose_on_others(["restart"], timeout=180)
+            if result.returncode != 0:
+                logger.warning(
+                    "factory_reset_restart_failed",
+                    error=(result.stderr or result.stdout or "").strip()[-500:],
+                )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             logger.warning("factory_reset_restart_failed", error=str(e))
 
     logger.info("factory_reset_done", delete_audio=body.delete_audio if body else False)
@@ -2165,7 +2290,14 @@ def update_minabox_status(_: None = Depends(_check_api_key)) -> dict:
 
 @router.get("/system/version")
 def get_version(_: None = Depends(_check_api_key)) -> dict:
-    """Return current version (commit) and whether an update is available."""
+    """Return the commit the project directory sits on.
+
+    `update_available` is always False here. Whether a newer *image* exists is
+    a different question from whether the git worktree is behind origin/main -
+    a box can be git-current and still run last week's containers. The backend
+    answers it properly against the registry (core/update_check.py); this route
+    keeps the field only so its response shape stays stable.
+    """
     cfg = get_config()
     workspace = Path(cfg.get("workspace_path", "/workspace")).resolve()
     current_commit: str | None = None
@@ -2184,28 +2316,10 @@ def get_version(_: None = Depends(_check_api_key)) -> dict:
                     current_commit = ref_path.read_text(encoding="utf-8").strip()[:12]
         except OSError:
             pass
-    # Simple check: run git fetch and see if origin/main is ahead (optional; can be slow)
-    update_available = False
-    try:
-        subprocess.run(
-            ["git", "-C", str(workspace), "fetch", "origin", "--quiet"],
-            capture_output=True,
-            timeout=30,
-        )
-        r = subprocess.run(
-            ["git", "-C", str(workspace), "rev-list", "--count", "HEAD..origin/main"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if r.returncode == 0 and r.stdout and int(r.stdout.strip()) > 0:
-            update_available = True
-    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-        pass
     return {
         "current_version": current_commit or "unknown",
         "current_commit": current_commit,
-        "update_available": update_available,
+        "update_available": False,
     }
 
 

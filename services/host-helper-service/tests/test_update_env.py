@@ -7,10 +7,13 @@ startet - deshalb sind sie einzeln abgesichert.
 
 from __future__ import annotations
 
+import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 
 # Der Dienst laeuft im Container mit src/ auf dem Pfad.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -119,3 +122,135 @@ def test_parse_update_log_of_an_empty_run() -> None:
     parsed = routes._parse_update_log("")
     assert parsed["step"] is None
     assert parsed["exit_code"] is None
+
+
+# ── Pfad-Allowlist der Sicherung ────────────────────────────────────────────
+
+# Diese Funktion entscheidet, was ein hochgeladenes Archiv in den Arbeitsbaum
+# schreiben darf. Sie war bis zum Go-Live-Review ungetestet.
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "data/minabox.db",
+        "data/general_settings.json",
+        "data/static/cover.jpg",
+        "services/audio-service/state/audio_state.json",
+        "services/led-service/config/leds.json",
+    ],
+)
+def test_backup_allowed_path_accepts_the_backup_contents(name: str) -> None:
+    assert routes._backup_allowed_path(name, Path("/workspace")) is True
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "../.env",
+        "data/../../etc/shadow",
+        "/etc/shadow",
+        "docker-compose.yml",
+        ".env",
+        "services/backend-service/src/backend_service/main.py",
+        "services/backend-service/Dockerfile",
+        "",
+        "   ",
+    ],
+)
+def test_backup_allowed_path_rejects_everything_else(name: str) -> None:
+    assert routes._backup_allowed_path(name, Path("/workspace")) is False
+
+
+def test_backup_allowed_path_rejects_windows_traversal() -> None:
+    # Backslashes werden zu Schraegstrichen normalisiert, sonst rutscht
+    # "data\..\..\etc" an der ..-Pruefung vorbei.
+    name = "data\\..\\..\\etc\\shadow"
+    assert routes._backup_allowed_path(name, Path("/workspace")) is False
+
+
+# ── Allowlist der Container-Namen ───────────────────────────────────────────
+
+
+@pytest.mark.parametrize("name", ["minabox-backend", "minabox-audio", "minabox-host-helper"])
+def test_container_name_allowlist_accepts_own_containers(name: str) -> None:
+    assert routes._is_allowed_container_name(name) is True
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["", "postgres", "minabox_backend", "minabox-../etc", "minabox-a/b", "minabox-a\\b", "MINABOX-backend"],
+)
+def test_container_name_allowlist_rejects_the_rest(name: str) -> None:
+    assert routes._is_allowed_container_name(name) is False
+
+
+# ── Pruefung des hochgeladenen Archivs ──────────────────────────────────────
+
+
+def _zip_with(tmp_path: Path, entries: dict[str, bytes]) -> Path:
+    archive = tmp_path / "backup.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        for name, payload in entries.items():
+            zf.writestr(name, payload)
+    return archive
+
+
+def test_validate_backup_archive_accepts_a_normal_backup(tmp_path: Path) -> None:
+    archive = _zip_with(
+        tmp_path, {"data/minabox.db": b"sqlite", "data/static/a.jpg": b"x"}
+    )
+    routes._validate_backup_archive(archive, Path("/workspace"))
+
+
+def test_validate_backup_archive_rejects_a_path_outside_the_allowlist(
+    tmp_path: Path,
+) -> None:
+    archive = _zip_with(
+        tmp_path, {"data/minabox.db": b"sqlite", "docker-compose.yml": b"x"}
+    )
+    with pytest.raises(HTTPException) as excinfo:
+        routes._validate_backup_archive(archive, Path("/workspace"))
+    assert excinfo.value.status_code == 400
+
+
+def test_validate_backup_archive_rejects_a_zip_bomb(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # Ein Megabyte Nullen packt sich auf wenige Bytes. Ohne Obergrenze fuer die
+    # entpackte Groesse legt ein winziger Upload den Pi lahm.
+    monkeypatch.setattr(routes, "RESTORE_MAX_UNPACKED_BYTES", 1024)
+    archive = _zip_with(tmp_path, {"data/minabox.db": b"\0" * (1024 * 1024)})
+    with pytest.raises(HTTPException) as excinfo:
+        routes._validate_backup_archive(archive, Path("/workspace"))
+    assert excinfo.value.status_code == 413
+
+
+def test_validate_backup_archive_rejects_junk(tmp_path: Path) -> None:
+    archive = tmp_path / "backup.zip"
+    archive.write_bytes(b"this is not a zip file")
+    with pytest.raises(HTTPException) as excinfo:
+        routes._validate_backup_archive(archive, Path("/workspace"))
+    assert excinfo.value.status_code == 400
+
+
+# ── Compose auf dem Host ────────────────────────────────────────────────────
+
+
+def test_compose_on_others_leaves_the_host_helper_alone(monkeypatch) -> None:
+    """Sich selbst mitzustoppen wuerde den Vorgang abbrechen, der gerade laeuft."""
+    captured: list[list[str]] = []
+
+    def fake_nsenter(args: list[str], timeout: int = 30):
+        captured.append(args)
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(routes, "_host_workspace", lambda: "/home/pi/minabox")
+    monkeypatch.setattr(routes, "_run_on_host_via_nsenter", fake_nsenter)
+
+    routes._run_compose_on_others(["stop"], timeout=10)
+
+    script = captured[0][-1]
+    assert "grep -vx host-helper" in script
+    assert "cd /home/pi/minabox" in script
+    assert "docker compose stop $others" in script

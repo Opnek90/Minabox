@@ -385,7 +385,7 @@
     "backup_restore": "Wiederherstellen",
     "backup_restore_confirm": "Backup wiederherstellen? Alle Container werden neu gestartet. Die aktuelle Verbindung kann abbrechen.",
     "backup_restore_select": "ZIP-Datei wählen…",
-    "backup_restore_success": "Wiederherstellung abgeschlossen.",
+    "backup_restore_success": "Wiederherstellung gestartet. Die Box startet die Dienste jetzt neu - das dauert einen Moment.",
     "backup_title": "Sicherung",
     "bluetooth": "Bluetooth",
     "bluetooth_connect": "Verbinden",
