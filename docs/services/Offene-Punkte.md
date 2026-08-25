@@ -5,7 +5,8 @@ alle** Dienste betreffen. Sie stehen hier statt im Review des einzelnen
 Dienstes, weil sie dort nur zufaellig gefunden wurden und in einem eigenen
 Branch abgearbeitet gehoeren.
 
-Aufgenommen am 2026-08-25 aus dem [LED-Review](led/GoLive-Review.md).
+Aufgenommen am 2026-08-25 aus dem [LED-Review](led/GoLive-Review.md) und dem
+[Display-Review](display/GoLive-Review.md).
 Ergaenzung zu [ServiceReview.md](../ServiceReview.md), das die neun Dienste
 insgesamt behandelt.
 
@@ -95,6 +96,71 @@ docker inspect minabox-led --format '{{json .HostConfig.LogConfig}}'
 ```
 
 Erwartet: `{"Type":"json-file","Config":{"max-file":"3","max-size":"10m"}}`
+
+### [ ] [H] 1.4 Der Python-Healthcheck kostet 6 % eines Kerns je Dienst
+
+Aufgenommen am 2026-08-25 aus dem
+[Display-Review, Abschnitt 5](display/GoLive-Review.md).
+
+Das LED- und das Button-Review haben `curl -f http://…/health` ersetzt durch
+
+```
+python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(…).status==200 else 1)"
+```
+
+um 14,5 MB apt zu sparen. Gemessen kostet eine Pruefung in diesen Containern:
+
+| Pruefung | CPU je Durchlauf |
+| --- | --- |
+| `curl -sf …/health` | **0,052 s** |
+| `python -c "import urllib.request…"` | **2,13 s** |
+
+Bei `interval: 30s` sind das **7 % eines Kerns, dauerhaft**. Ueber 120 s aus der
+cgroup-Abrechnung, aufgeteilt nach Dienstprozess und Rest des Containers:
+
+| Dienst | Container gesamt | davon Dienst | davon Healthcheck |
+| --- | --- | --- | --- |
+| `display` (curl) | 2,26 % | 1,47 % | **0,80 %** |
+| `button` (Python) | 9,81 % | 3,74 % | **6,06 %** |
+
+Der Healthcheck ist damit in `button` und `led` der groesste einzelne
+Verbraucher – groesser als der Dienst selbst.
+
+**Ursache:** das offizielle `python:3.13-slim` liefert **keinen kompilierten
+Bytecode fuer die Standardbibliothek** aus:
+
+```
+docker exec minabox-display sh -c \
+  'find /usr/local/lib/python3.13 -name "*.pyc" -not -path "*/site-packages/*" | wc -l'
+→ 0
+```
+
+Und die Container laufen als Nicht-Root gegen root-eigene Verzeichnisse, koennen
+also auch kein `__pycache__` anlegen. Jede Pruefung uebersetzt `ssl`, `email`,
+`http.client` und `urllib.parse` neu. `python -X importtime` weist 1,90 s der
+2,13 s allein dem `urllib.request`-Importbaum zu.
+
+Gegenprobe in einem Wegwerf-Container: mit vorkompilierter stdlib faellt
+derselbe Import von 2,13 s auf **0,47 s** – Faktor 4,5 – zum Preis von 13 MB
+(stdlib waechst von 104 MB auf 117 MB).
+
+**Fix, eine der drei Varianten:**
+
+- `curl` zurueckholen (+15 MB je Image, −6 % eines Kerns),
+- `RUN python -m compileall -q /usr/local/lib/python3.13` in die Runtime-Stage
+  (+13 MB, −5 % eines Kerns) – das nimmt denselben Uebersetzungslauf auch aus
+  dem Dienststart heraus,
+- die Pruefung auf einen rohen Socket umstellen, sodass nur `socket` importiert
+  wird (gemessen 0,86 s – besser, aber immer noch Faktor 16 gegenueber `curl`).
+
+`interval` auf 60 s zu setzen halbiert es unabhaengig von der Wahl.
+
+**Betrifft:** `button` und `led`. Der Display-Service behaelt `curl` bewusst;
+die Begruendung steht in [seinem Review](display/GoLive-Review.md#5-runtime-cost--and-a-warning-about-the-health-check).
+
+**Risiko:** keins bei `compileall`. Beim Zurueckholen von `curl` ist es eine
+bewusste Ruecknahme zweier Review-Entscheidungen – deshalb hier und nicht
+stillschweigend im naechsten Branch.
 
 ---
 
@@ -195,12 +261,15 @@ wird, und genau dafuer baut man es.
 `*.example`-Vorlagen behalten. Betrifft `audio`, `button`, `display`, `led`,
 `rfid` gleichermassen – deshalb hier und nicht im LED-Review.
 
-### [ ] [M] 2.6 Button-Service: 10 % CPU im Leerlauf
+### [x] [M] 2.6 Button-Service: 10 % CPU im Leerlauf
 
 Gemessen im Vergleich (drei `docker stats`-Durchlaeufe): `button` 9,6–10,5 %,
 `led` und `rfid` je rund 3 %. Steht bereits als offener Punkt in
 [ServiceReview.md](../ServiceReview.md) und ist hier nur als Querverweis
 aufgenommen, damit die Messung nicht verlorengeht.
+
+**Erklaert.** Es ist nicht der Dienst, es ist sein Healthcheck – siehe 1.4. Von
+den gemessenen 9,81 % entfallen 6,06 % auf die Pruefung, 3,74 % auf den Dienst.
 
 ---
 
