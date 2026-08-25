@@ -15,19 +15,14 @@ import structlog
 from led_test_doubles import FakeClock, FakeLED, make_led
 
 from led_service.config_schema import LEDPattern
-from led_service.core import led_patterns
-from led_service.core.led_controller import LEDController
+from led_service.core import led_controller, led_patterns
+from led_service.core.led_controller import LEDController, LEDManager
 
 pytestmark = pytest.mark.asyncio
 
 SOLID = LEDPattern(pattern_type="solid")
 BLINK = LEDPattern(pattern_type="blink", interval_ms=100, repeat=1)
 OFF = LEDPattern(pattern_type="off")
-
-
-@pytest.fixture(autouse=True)
-def no_gpio(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DISABLE_GPIO", "true")
 
 
 @pytest.fixture
@@ -38,7 +33,7 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
 
 
 def controller_for(config, led: FakeLED | None = None) -> LEDController:
-    controller = LEDController(config)
+    controller = LEDController(config, disable_gpio=True)
     controller._led = led or FakeLED()
     controller._gpio_available = True
     return controller
@@ -120,7 +115,7 @@ async def test_a_state_without_a_binding_leaves_the_led_alone() -> None:
 
 
 async def test_an_led_without_hardware_does_nothing() -> None:
-    controller = LEDController(make_led(audio_playing=SOLID))
+    controller = LEDController(make_led(audio_playing=SOLID), disable_gpio=True)
 
     await apply(controller, "audio_playing")
 
@@ -165,7 +160,26 @@ async def test_the_test_blink_lasts_the_requested_five_seconds(
     controller = controller_for(make_led())
 
     assert await controller.run_test_blink(duration_sec=5.0) is True
+    await _settle()
+
     assert sum(clock.waits) == pytest.approx(5.0)
+
+
+async def test_the_test_blink_returns_before_it_has_finished() -> None:
+    """The backend proxies POST /test with a five second timeout.
+
+    Awaiting a five second blink here would race that timeout, so the call has
+    to come back as soon as the blink is running.
+    """
+    controller = controller_for(make_led())
+
+    started = await asyncio.wait_for(
+        controller.run_test_blink(duration_sec=5.0), timeout=0.5
+    )
+
+    assert started is True
+    assert controller._current_task is not None
+    await controller.cleanup()
 
 
 async def test_the_test_blink_ignores_the_bindings(clock: FakeClock) -> None:
@@ -173,12 +187,27 @@ async def test_the_test_blink_ignores_the_bindings(clock: FakeClock) -> None:
     controller = controller_for(make_led(), led)
 
     await controller.run_test_blink(duration_sec=2.0)
+    await _settle()
 
     assert led.transitions.count("on") == 2
 
 
+async def test_a_real_state_change_preempts_the_test_blink(
+    clock: FakeClock,
+) -> None:
+    """A card scanned during a test must win over the test."""
+    led = FakeLED()
+    controller = controller_for(make_led(audio_playing=SOLID), led)
+
+    await controller.run_test_blink(duration_sec=5.0)
+    await apply(controller, "audio_playing")
+
+    assert controller._current_logical_state == "audio_playing"
+    assert led.transitions[-1] == "on"
+
+
 async def test_the_test_blink_reports_missing_hardware() -> None:
-    controller = LEDController(make_led())
+    controller = LEDController(make_led(), disable_gpio=True)
 
     assert await controller.run_test_blink(duration_sec=1.0) is False
 
@@ -187,3 +216,113 @@ async def _settle() -> None:
     """Give the pattern task and its done-callback a turn on the loop."""
     for _ in range(3):
         await asyncio.sleep(0)
+
+
+# --- what a controller does before it ever runs a pattern --------------------
+
+
+async def test_a_disabled_led_never_claims_its_pin() -> None:
+    """Switching an LED off in the UI has to free the GPIO for something else."""
+    with structlog.testing.capture_logs() as logs:
+        controller = LEDController(
+            make_led(enabled=False, audio_playing=SOLID), disable_gpio=True
+        )
+
+    assert controller._led is None
+    assert controller.is_available is False
+    assert [entry["event"] for entry in logs] == ["led_disabled_pin_not_claimed"]
+
+
+async def test_the_pin_factory_is_created_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """gpiozero never closes the factory it replaces.
+
+    Re-assigning it on every config reload leaked an open /dev/gpiochip0
+    handle per save in the WebUI.
+    """
+    from gpiozero import Device
+
+    created = []
+    monkeypatch.setattr(Device, "pin_factory", Device.pin_factory, raising=False)
+    monkeypatch.setattr(led_controller, "_pin_factory_ready", False)
+    monkeypatch.setattr(
+        led_controller, "_make_pin_factory", lambda: created.append(1) or object()
+    )
+
+    led_controller._ensure_pin_factory()
+    led_controller._ensure_pin_factory()
+    led_controller._ensure_pin_factory()
+
+    assert len(created) == 1
+
+
+async def test_dev_mode_never_touches_the_pin_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+    monkeypatch.setattr(led_controller, "_ensure_pin_factory", lambda: calls.append(1))
+    manager = LEDManager(disable_gpio=True)
+
+    await manager.initialize_leds([make_led()])
+
+    assert calls == []
+
+
+async def test_the_manager_counts_configured_and_available_separately() -> None:
+    """/health has to tell 'five LEDs' apart from 'five LEDs that work'."""
+    manager = LEDManager(disable_gpio=True)
+
+    await manager.initialize_leds([make_led("led_1"), make_led("led_2", gpio=27)])
+
+    assert manager.led_count == 2
+    assert manager.available_count == 0
+
+
+async def test_leds_that_all_fail_to_claim_a_pin_are_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wrong GPIO group id after an update kills every LED at once.
+
+    The controller is stubbed rather than pointed at a bad pin number: this
+    suite must never reach real GPIO, not even to watch it fail.
+    """
+
+    class UnavailableController:
+        def __init__(self, config, *, disable_gpio: bool = False) -> None:
+            self.config = config
+            self.is_available = False
+
+        def close_sync(self) -> None:
+            pass
+
+    monkeypatch.setattr(led_controller, "_ensure_pin_factory", lambda: None)
+    monkeypatch.setattr(led_controller, "LEDController", UnavailableController)
+    manager = LEDManager()
+
+    with structlog.testing.capture_logs() as logs:
+        await manager.initialize_leds([make_led("led_1")])
+
+    assert any(entry["event"] == "no_leds_available" for entry in logs)
+
+
+async def test_working_leds_are_not_reported_as_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class WorkingController:
+        def __init__(self, config, *, disable_gpio: bool = False) -> None:
+            self.config = config
+            self.is_available = True
+
+        def close_sync(self) -> None:
+            pass
+
+    monkeypatch.setattr(led_controller, "_ensure_pin_factory", lambda: None)
+    monkeypatch.setattr(led_controller, "LEDController", WorkingController)
+    manager = LEDManager()
+
+    with structlog.testing.capture_logs() as logs:
+        await manager.initialize_leds([make_led("led_1")])
+
+    assert not any(entry["event"] == "no_leds_available" for entry in logs)
+    assert manager.available_count == 1

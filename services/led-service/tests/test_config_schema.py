@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
+import structlog
 from pydantic import ValidationError
 
 from led_service.config_schema import (
@@ -20,6 +21,7 @@ from led_service.config_schema import (
     DEFAULT_GLOW_MAX_BRIGHTNESS,
     DEFAULT_GLOW_MIN_BRIGHTNESS,
     DEFAULT_PULSE_DURATION_MS,
+    EnvConfig,
     LEDPattern,
     LEDServiceConfig,
 )
@@ -121,3 +123,99 @@ def test_the_shipped_example_config_validates() -> None:
         "led_4",
         "led_5",
     ]
+
+
+# --- collisions the service cannot resolve on its own ------------------------
+
+
+def test_two_leds_on_the_same_pin_are_reported() -> None:
+    """The second one cannot claim the pin and ends up inert."""
+    with structlog.testing.capture_logs() as logs:
+        LEDServiceConfig.model_validate(
+            {
+                "leds": [
+                    {"id": "led_1", "name": "A", "gpio": 17},
+                    {"id": "led_2", "name": "B", "gpio": 17},
+                ]
+            }
+        )
+
+    warnings = [e for e in logs if e["event"] == "duplicate_led_gpio"]
+    assert warnings and warnings[0]["gpio"] == [17]
+
+
+def test_a_disabled_led_does_not_count_as_a_pin_collision() -> None:
+    """It claims no pin, so sharing a number with an active LED is fine."""
+    with structlog.testing.capture_logs() as logs:
+        LEDServiceConfig.model_validate(
+            {
+                "leds": [
+                    {"id": "led_1", "name": "A", "gpio": 17},
+                    {"id": "led_2", "name": "B", "gpio": 17, "enabled": False},
+                ]
+            }
+        )
+
+    assert not [e for e in logs if e["event"] == "duplicate_led_gpio"]
+
+
+def test_two_leds_with_the_same_id_are_reported() -> None:
+    """The second overwrites the first in the controller map."""
+    with structlog.testing.capture_logs() as logs:
+        LEDServiceConfig.model_validate(
+            {
+                "leds": [
+                    {"id": "led_1", "name": "A", "gpio": 17},
+                    {"id": "led_1", "name": "B", "gpio": 27},
+                ]
+            }
+        )
+
+    warnings = [e for e in logs if e["event"] == "duplicate_led_id"]
+    assert warnings and warnings[0]["led_id"] == ["led_1"]
+
+
+def test_a_pin_outside_the_bcm_range_is_reported() -> None:
+    with structlog.testing.capture_logs() as logs:
+        LEDServiceConfig.model_validate(
+            {"leds": [{"id": "led_1", "name": "A", "gpio": 999}]}
+        )
+
+    assert any(e["event"] == "led_gpio_outside_bcm_range" for e in logs)
+
+
+def test_a_clean_config_warns_about_nothing() -> None:
+    with structlog.testing.capture_logs() as logs:
+        LEDServiceConfig.model_validate(
+            {
+                "leds": [
+                    {"id": "led_1", "name": "A", "gpio": 17},
+                    {"id": "led_2", "name": "B", "gpio": 27},
+                ]
+            }
+        )
+
+    assert logs == []
+
+
+# --- environment -------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("true", True), ("false", False), ("True", True), (None, False)],
+)
+def test_disable_gpio_comes_from_the_environment(
+    raw: str | None, expected: bool
+) -> None:
+    """It used to be read straight from os.getenv in two separate places."""
+    fields = {
+        "mqtt_broker": "mqtt",
+        "mqtt_port": 1883,
+        "minabox_device_id": "box",
+        "log_level": "INFO",
+    }
+    if raw is not None:
+        fields["disable_gpio"] = raw
+
+    assert EnvConfig(**fields).disable_gpio is expected

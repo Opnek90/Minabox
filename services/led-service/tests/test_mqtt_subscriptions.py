@@ -16,11 +16,16 @@ from led_service.infrastructure import MQTTClient
 
 @pytest.fixture
 def client() -> MQTTClient:
+    async def on_message(topic: str, payload: bytes) -> None:
+        return None
+
+    async def on_reload() -> None:
+        return None
+
     return MQTTClient(
         config=make_config(),
-        on_message_callback=lambda topic, payload: None,
-        on_config_update_callback=lambda config: None,
-        on_config_reload_callback=lambda: None,
+        on_message_callback=on_message,
+        on_config_reload_callback=on_reload,
     )
 
 
@@ -42,11 +47,18 @@ def test_the_config_api_is_subscribed(client: MQTTClient) -> None:
     subscribed = set(client._build_subscription_topics())
 
     assert {
-        f"{prefix}/led/config/update",
         f"{prefix}/led/config/reload",
-        f"{prefix}/led/config/get",
         f"{prefix}/config/general",
     } <= subscribed
+
+
+def test_the_dead_config_topics_are_gone(client: MQTTClient) -> None:
+    """Nothing ever published them, and config is mounted read-only anyway."""
+    prefix = f"minabox/{DEVICE_ID}"
+    subscribed = set(client._build_subscription_topics())
+
+    assert f"{prefix}/led/config/update" not in subscribed
+    assert f"{prefix}/led/config/get" not in subscribed
 
 
 def test_subscriptions_are_registered_before_the_first_connect(
