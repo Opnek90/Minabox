@@ -315,7 +315,13 @@ services:
       - /dev/gpiochip0:/dev/gpiochip0
       - /dev/gpiomem:/dev/gpiomem
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # Python, not curl: the image no longer ships curl, which was 14.5 MB of
+      # apt for one HTTP request that Python can make just as well.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=2).status==200 else 1)
       interval: 30s
       timeout: 5s
       retries: 3
