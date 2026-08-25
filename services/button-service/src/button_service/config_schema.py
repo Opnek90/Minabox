@@ -126,13 +126,25 @@ class EnvConfig(EnvConfigBase):
         le=65535,
         description="REST API port for the button service (issue #17).",
     )
+    disable_gpio: bool = Field(
+        default=False,
+        description=(
+            "Skip all hardware access. For development on a machine without "
+            "GPIO; the API and MQTT stay available."
+        ),
+    )
 
 
 class AppConfig(BaseModel):
-    """Combined configuration for the button service."""
+    """Combined configuration for the button service.
+
+    Holds the environment only. The button list is owned by the ConfigManager,
+    which reloads it at runtime -- keeping a second copy here meant startup
+    parsed the same file twice and then held a snapshot that went stale with
+    the first reload.
+    """
 
     env: EnvConfig
-    buttons: ButtonServiceConfig
 
     @property
     def mqtt_topic_prefix(self) -> str:

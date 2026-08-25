@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import structlog
 
 from .events import RawButtonEvent
-
 
 logger = structlog.get_logger(__name__)
 
@@ -31,6 +30,18 @@ class PressClassifier:
     _held_fired: bool = False
     _pending_short_timer: threading.Timer | None = None
     _possible_double: bool = False
+
+    def cancel_pending(self) -> None:
+        """Drop a short press that is still waiting out the double-press window.
+
+        Called when the devices are torn down. Without it the timer fires into
+        an event loop that may already be closed, or -- after a config reload --
+        emits an event for a button id the new configuration no longer knows.
+        """
+        if self._pending_short_timer is not None:
+            self._pending_short_timer.cancel()
+            self._pending_short_timer = None
+        self._possible_double = False
 
     def on_pressed(self) -> None:
         if self._pending_short_timer is not None:
@@ -96,6 +107,18 @@ class EncoderSwitchEmitter:
     source_id: str
     emit: Callable[[RawButtonEvent], None]
 
+    def cancel_pending(self) -> None:
+        """Drop a short press that is still waiting out the double-press window.
+
+        Called when the devices are torn down. Without it the timer fires into
+        an event loop that may already be closed, or -- after a config reload --
+        emits an event for a button id the new configuration no longer knows.
+        """
+        if self._pending_short_timer is not None:
+            self._pending_short_timer.cancel()
+            self._pending_short_timer = None
+        self._possible_double = False
+
     def on_pressed(self) -> None:
         event = RawButtonEvent(
             source_id=self.source_id,
@@ -129,5 +152,9 @@ class EncoderRotationEmitter:
             timestamp=RawButtonEvent.now_utc(),
         )
         self.emit(event)
-        logger.debug("encoder_rotation_emitted", source_id=self.source_id, event_type=event_type)
+        logger.debug(
+            "encoder_rotation_emitted",
+            source_id=self.source_id,
+            event_type=event_type,
+        )
 
