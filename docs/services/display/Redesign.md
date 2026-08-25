@@ -19,7 +19,8 @@ Two further facts shape every decision below:
   hang on `/dev/i2c-1` at 100 kHz. A full frame is 1024 bytes ≈ 92 ms, and for
   that time nothing else gets on the bus. Raising the clock to 400 kHz was tried
   on 2026-08-25 and **failed** — the PN532's clock stretching does not survive it
-  ([Offene-Punkte 1.4](../Offene-Punkte.md)). The bus stays at 100 kHz.
+  ([Offene-Punkte 1.4](../Offene-Punkte.md)). The bus stays at 100 kHz, and §8
+  reaches the same latency by sending less.
 - **The audience cannot read.** A four-year-old is the primary user. Text is for
   the parent and the older sibling.
 
@@ -41,8 +42,7 @@ small to read.
 
 ## 3. Screens
 
-Derived from state, never configured. Nothing here is new data: every field
-already arrives at the service today.
+Derived from state, never configured.
 
 | Screen | When | Dominant element | Source |
 | --- | --- | --- | --- |
@@ -69,20 +69,30 @@ Priority: HUD beats transient state (`unknown_tag`, `quota_over`) beats steady
 state. A HUD is never interrupted by a redraw underneath it — the mechanism the
 current service already uses for the test pattern generalises to all of them.
 
-### The data is already on the wire
+### What is already on the wire, and what is not
 
-The service polls `GET /api/v1/audio/session` today and reads exactly two fields
-from the answer, `repeat_mode` and `shuffle`. The same response carries `queue`,
-a list of `{track_id, title, artist, album, index, is_current}`. Together with
-`position_ms` / `duration_ms` from `audio/status` that is everything the screens
-above need. **No backend change is required to fill them.**
+The **screens** need no new data. The service polls `GET /api/v1/audio/session`
+today and reads two fields from the answer, `repeat_mode` and `shuffle`; the
+same response carries `queue`, a list of
+`{track_id, title, artist, album, index, is_current}`. Together with
+`position_ms` / `duration_ms` from `audio/status` that fills every screen above.
+
+The **volume HUD does need three new fields**, and §5 explains why. They are
+integers in an existing payload, not a new topic:
+
+| Field | Today | Needed because |
+| --- | --- | --- |
+| `min_volume` | in the audio config only | the raw volume is not a percentage |
+| `max_volume` | in the audio config only | same |
+| `volume_step` | a constant in the audio service | the HUD renders one block per detent |
 
 `rfid/presence` is retained, so the box knows whether a figure is on the reader
 even after a restart.
 
 ## 4. The three playing styles
 
-Configurable, because they serve different children.
+Configurable, because they serve different children — and the choice grows with
+the child rather than with taste.
 
 **`chapters` (default) — the wagon train.** One carriage per track, filled for
 played, the current one filling up. A child who cannot read understands "we are
@@ -97,23 +107,74 @@ children actually ask, but does not show what is playing.
 All three keep the same status strip and the same HUDs. They differ only in what
 fills the middle.
 
-## 5. Configuration
+## 5. The volume screen
 
-The old model let the user assemble a layout. The new one lets them choose
-between finished layouts — which is the whole point, so the config gets much
-smaller.
+This is the screen the box gets used for most, so it is specified rather than
+sketched.
+
+### The trap: `max_volume` is a clamp, not a scale
+
+`services/audio-service/src/audio_service/core/service.py` pulls the running
+volume into range with `min(max(current_volume, min_vol), config.max_volume)`.
+With `max_volume: 40`, `audio/status` therefore reports `volume: 40` when the
+knob is at its stop. A display showing "40 %" at maximum volume is worse than no
+display at all.
+
+The WebUI already gets this right — `PlayerPage.tsx` hands
+`minVolume` / `maxVolume` to `VolumeControl`, so its slider spans the *allowed*
+range. The display must do the same:
+
+```
+percent = (volume - min_volume) / (max_volume - min_volume) * 100
+```
+
+### One block per detent
+
+`VolumeStepCommand.step` is 5, and the button service publishes an empty payload
+so that default always applies. Over 0–40 that is **exactly 8 steps**. The HUD
+therefore draws a row of blocks, one per detent, filled up to the current value:
+
+```
+steps  = (max_volume - min_volume) / volume_step
+filled = (volume - min_volume) / volume_step
+```
+
+One click of the knob lights exactly one more block. It is countable from two
+metres without reading the number, which is the point — the number is for the
+parent, the blocks are for the child.
+
+**Fallback.** With `4 ≤ steps ≤ 16` the blocks are legible; outside that range
+(a box configured 0–100 at step 1 would want 100 of them) the same area renders
+as a continuous bar. The renderer decides this from the numbers, so no setting
+is needed.
+
+### Three cases that need their own answer
+
+| Case | What it shows | Why |
+| --- | --- | --- |
+| at maximum | all blocks filled + "MAX" | otherwise one keeps turning and wonders |
+| at minimum | "0" + empty blocks + "leise" | zero is not muted, and the difference has to be visible |
+| muted | crossed-out speaker, full screen | the mute HUD, on the same stage as the volume |
+
+Three digits do not fit next to the speaker glyph at 42 px, so the number's font
+size follows its value (42 px below 100, 32 px at 100).
+
+## 6. Configuration
+
+The old model let the user assemble a layout. Nine element types across three
+areas is a space in which most combinations look bad and none were ever
+reviewed — the service admits as much by logging `display_area_overcrowded`,
+which is a UI telling the user it allowed a state it dislikes.
+
+The layout is therefore not configurable any more. What remains is what someone
+actually revisits:
 
 ```json
 {
-  "version": 2,
   "enabled": true,
   "i2c_bus": 1,
   "i2c_address": 60,
-  "font": "sans",
   "playing_style": "chapters",
-  "idle_screen": "clock",
-  "hud_seconds": 1.5,
-  "status_icons": ["mute", "sleep", "bluetooth", "repeat"],
   "brightness": {
     "day": 255,
     "night": 40,
@@ -126,42 +187,30 @@ smaller.
 
 | Field | Values | Meaning |
 | --- | --- | --- |
+| `enabled` | bool | panel on or off |
+| `i2c_bus`, `i2c_address` | int | hardware; belongs in setup, not in settings |
 | `playing_style` | `chapters` \| `title` \| `remaining` | §4 |
-| `idle_screen` | `clock` \| `quota` \| `blank` | What stands there when nothing plays |
-| `hud_seconds` | 0.5–5.0 | 0 disables the transient overlays entirely |
-| `status_icons` | subset, order matters | Omitting one hides it |
-| `brightness` | see §8 | |
+| `brightness` | see §9 | the one thing that is genuinely readjusted |
 
-`font_size` disappears: each screen picks its own sizes, which is the point.
-`elements`, `area` and `order` disappear with the grid.
+Gone, with a fixed default in their place: `font`, `font_size`, `status_icons`,
+`hud_seconds`, `idle_screen`, and the whole `elements` / `area` / `order` grid.
+Every one of them was a layout nobody had tested plus a control somebody had to
+build.
 
-### Migration and downgrade
+**No migration path.** The box is in development and there is exactly one of
+them; the config file is replaced, not converted.
 
-`version` is absent in today's files, which identifies them as v1. The loader
-accepts both: from a v1 file it keeps `enabled`, `i2c_bus`, `i2c_address` and
-`font`, applies defaults for everything else, and logs `config_migrated_v1_v2`
-once. The mapping is deliberately dumb — a widget grid does not translate into
-screens, and pretending otherwise would produce surprises.
-
-The other direction was checked rather than assumed. A **v2 file read by
-today's service** validates cleanly: pydantic ignores the unknown keys and
-`elements` defaults to an empty list. The result is a blank panel, not a restart
-loop. That matters, because a blank panel after a downgrade is a nuisance while
-a restart loop is a dead box — the failure this service was just fixed for.
-
-## 6. What changes outside the display service
-
-This is the larger half of the work, and the reason the redesign is not a
-display-only change.
+## 7. What changes outside the display service
 
 | Where | What |
 | --- | --- |
-| `routes_config.py` | `_validate_display_config()` rewritten for v2; `_DISPLAY_ELEMENT_TYPES` and `GET /display/element-types` retired, replaced by the style lists |
-| `test_display_config_validation.py` | rewritten against the v2 schema, keeping the both-ends cross-check that holds backend and service together |
-| WebUI display panel | the widget/area editor is replaced by three selects, a brightness block and a checkbox row — substantially simpler than what it replaces |
+| `audio-service` | `min_volume`, `max_volume`, `volume_step` into the `audio/status` payload and into `_status_fingerprint`, so a config change republishes |
+| `routes_config.py` | `_validate_display_config()` rewritten for the small schema; `_DISPLAY_ELEMENT_TYPES` and `GET /display/element-types` retired |
+| `test_display_config_validation.py` | rewritten, keeping the both-ends cross-check that holds backend and service together |
+| WebUI display panel | the widget/area editor is replaced by one select, a brightness block and a checkbox — substantially less than what it replaces |
 | `Architecture.md` | rewritten for the screen model |
 
-## 7. Rendering: send less, not faster
+## 8. Rendering: send less, not faster
 
 The mistake in the earlier plan was trying to move 1024 bytes *faster*. The
 SSD1306 can address a window instead — one need not send the whole frame to
@@ -185,9 +234,10 @@ two devices on the bus.
 The working rule that follows:
 
 - **A screen change is a full frame.** Entering and leaving a HUD costs 92 ms
-  each. Twice per volume interaction is acceptable.
-- **A value change within a screen is a partial frame.** The volume bar moving,
-  the clock ticking over, a chapter filling: 23–35 ms each.
+  each. Twice per volume interaction is acceptable, and turning the knob and
+  placing a figure are mutually exclusive anyway.
+- **A value change within a screen is a partial frame.** The volume blocks
+  moving, the clock ticking over, a chapter filling: 23–35 ms each.
 - The existing fingerprint skip stays and becomes per-region: a region is pushed
   only when *its* content changed.
 
@@ -200,7 +250,7 @@ And item 2.1 of the [go-live review](GoLive-Review.md) becomes a prerequisite:
 with screens changing and HUDs appearing, the panel write has to move off the
 event loop (`asyncio.to_thread` plus a lock around the device).
 
-## 8. Brightness and night
+## 9. Brightness and night
 
 Found while checking the above: `device.contrast(0–255)` and `device.hide()` are
 public, and a contrast change is **two bytes** on the bus — free next to a frame.
@@ -213,7 +263,7 @@ panel off entirely (`off_at_night`) — a button press or a figure wakes it.
 This was not part of the original brief and is the cheapest item in this
 document.
 
-## 9. What this does not do
+## 10. What this does not do
 
 - **No scrolling text and no animated mascot.** Both need a continuously busy
   bus, and the bus belongs to the reader. Long titles wrap to two or three
@@ -221,8 +271,8 @@ document.
   of the go-live review.
 - **No cover art.** There is no image source, and 1-bit 128×64 would not carry
   it.
-- **No new MQTT topics and no new backend endpoints.** Everything the screens
-  need is already published.
+- **No new MQTT topics and no new endpoints.** The only addition anywhere is
+  three integers in a payload that is already published (§3).
 
 If full animation is ever wanted, the answer is not a faster bus but a
 **separate** one: the Pi 4 can expose further I²C buses (`dtoverlay=i2c3`…`i2c6`
@@ -230,18 +280,24 @@ or `i2c-gpio`). The display would get its own, the reader keeps `i2c-1`, and the
 contention disappears instead of being traded off. That costs two rewired
 jumpers and is out of scope here.
 
-## 10. Delivery
+## 11. Delivery
 
-1. **Render layer, headless.** Screens, status strip, HUDs, the three styles —
-   with tests against rendered 1-bit frames, no hardware needed. The mockup
-   renderer used for the proposal already does exactly this and becomes the test
-   fixture.
-2. **Partial updates**, with the capability probe and the full-frame fallback,
+The volume screen comes first, as a **vertical slice**: it is the one screen
+that is settled, and it exercises the whole architecture — screen precedence,
+HUD timing, partial update, drawing off the event loop. If it looks right on the
+real panel, everything else follows the same pattern.
+
+1. **Volume HUD, headless.** The renderer, the range arithmetic, the detent
+   blocks and the three edge cases of §5, with tests against rendered 1-bit
+   frames. No hardware needed.
+2. **The three fields** in `audio/status`, and the display consuming them.
+3. **On the panel.** HUD precedence and timing over the existing render loop,
+   still full-frame.
+4. **Partial updates**, with the capability probe and the full-frame fallback,
    plus moving the write off the event loop.
-3. **Schema v2 and migration** in the service; the panel keeps working from a v1
-   file throughout.
-4. **Backend and WebUI**, once the service can serve both schema versions.
-5. **Brightness and night**, independent of the rest and shippable on its own.
+5. **The remaining screens and the playing styles.**
+6. **Small schema, backend and WebUI.**
+7. **Brightness and night**, independent of the rest and shippable on its own.
 
-Steps 1 and 5 are safe to build and try on the box at any point. Step 2 is the
-one that wants careful testing on real hardware.
+Steps 1, 2 and 7 are safe to build and try at any point. Step 4 is the one that
+wants careful testing on real hardware.
