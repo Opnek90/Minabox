@@ -441,6 +441,28 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## led
 
+### 0.2.0 - 2026-08-25
+
+#### Behoben
+- Eine LED, die auf eine gesperrte Karte gebunden ist, reagiert jetzt auch
+  darauf - bisher passierte nichts.
+- Wiederholungen zaehlen ueberall ganze Zyklen: ein Blinken ist einmal an und
+  wieder aus.
+- Der LED-Test blinkt die vollen fuenf Sekunden, und die Oberflaeche wartet
+  nicht mehr darauf, sondern antwortet sofort.
+- Ein Muster mit unbrauchbaren Werten laesst die LED nicht mehr stumm dunkel,
+  sondern laeuft mit einem sinnvollen Standardwert weiter.
+- Eine abgeschaltete LED gibt ihren GPIO-Pin wieder frei.
+- Das Speichern der LED-Einstellungen hinterlaesst keine Fehlermeldungen mehr
+  im Protokoll.
+- Waehrend der Wiedergabe schreibt der Dienst nicht mehr im Sekundentakt
+  dieselbe Zeile ins Protokoll.
+
+#### Verbessert
+- Die Systemuebersicht unterscheidet jetzt, wie viele LEDs eingerichtet und wie
+  viele davon wirklich ansprechbar sind.
+- Das Abbild des Dienstes ist rund ein Viertel kleiner, Updates laden schneller.
+
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20

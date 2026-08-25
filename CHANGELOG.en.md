@@ -421,6 +421,25 @@ A version without a visible change may stay empty - the interface then says
 
 ## led
 
+### 0.2.0 - 2026-08-25
+
+#### Fixed
+- An LED bound to a blocked card now reacts to one; until now nothing happened.
+- Repeats count whole cycles everywhere: one blink is on and off again.
+- The LED test blinks for the full five seconds, and the interface no longer
+  waits for it but answers straight away.
+- A pattern with unusable values no longer leaves the LED silently dark; it
+  runs with a sensible default instead.
+- Switching an LED off releases its GPIO pin again.
+- Saving the LED settings no longer leaves error messages in the log.
+- During playback the service stops writing the same line to the log once a
+  second.
+
+#### Improved
+- The system overview now tells how many LEDs are configured apart from how
+  many are actually reachable.
+- The service image is about a quarter smaller, so updates download faster.
+
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20

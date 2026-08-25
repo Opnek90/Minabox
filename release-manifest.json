@@ -502,8 +502,44 @@
       ]
     },
     "led": {
-      "latest": "0.1.1",
+      "latest": "0.2.0",
       "releases": [
+        {
+          "version": "0.2.0",
+          "date": "2026-08-25",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Systemuebersicht unterscheidet jetzt, wie viele LEDs eingerichtet und wie viele davon wirklich ansprechbar sind.",
+                "Das Abbild des Dienstes ist rund ein Viertel kleiner, Updates laden schneller."
+              ],
+              "en": [
+                "The system overview now tells how many LEDs are configured apart from how many are actually reachable.",
+                "The service image is about a quarter smaller, so updates download faster."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Eine LED, die auf eine gesperrte Karte gebunden ist, reagiert jetzt auch darauf - bisher passierte nichts.",
+                "Wiederholungen zaehlen ueberall ganze Zyklen: ein Blinken ist einmal an und wieder aus.",
+                "Der LED-Test blinkt die vollen fuenf Sekunden, und die Oberflaeche wartet nicht mehr darauf, sondern antwortet sofort.",
+                "Ein Muster mit unbrauchbaren Werten laesst die LED nicht mehr stumm dunkel, sondern laeuft mit einem sinnvollen Standardwert weiter.",
+                "Eine abgeschaltete LED gibt ihren GPIO-Pin wieder frei.",
+                "Das Speichern der LED-Einstellungen hinterlaesst keine Fehlermeldungen mehr im Protokoll.",
+                "Waehrend der Wiedergabe schreibt der Dienst nicht mehr im Sekundentakt dieselbe Zeile ins Protokoll."
+              ],
+              "en": [
+                "An LED bound to a blocked card now reacts to one; until now nothing happened.",
+                "Repeats count whole cycles everywhere: one blink is on and off again.",
+                "The LED test blinks for the full five seconds, and the interface no longer waits for it but answers straight away.",
+                "A pattern with unusable values no longer leaves the LED silently dark; it runs with a sensible default instead.",
+                "Switching an LED off releases its GPIO pin again.",
+                "Saving the LED settings no longer leaves error messages in the log.",
+                "During playback the service stops writing the same line to the log once a second."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.1",
           "date": "2026-08-23",
