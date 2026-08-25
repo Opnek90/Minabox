@@ -5,7 +5,7 @@ normalised raw events, maps those to logical actions and publishes the result
 over MQTT. It never decides what an action *means* – `play_pause` is a name,
 and what happens next is the backend's and the audio service's business.
 
-Status: version 0.1.2. Known weaknesses and what to do about them:
+Known weaknesses and what has already been done about them:
 [GoLive-Review.md](GoLive-Review.md).
 
 ---
@@ -17,7 +17,7 @@ Path: `services/button-service/src/button_service/`
 ```text
 button_service/
 ├── main.py                    # Entry point: startup, shutdown, config callbacks
-├── config.py                  # Loads env vars + buttons.json into an AppConfig
+├── config.py                  # Loads the environment into an AppConfig
 ├── config_schema.py           # Pydantic models: ButtonConfig, EnvConfig, AppConfig
 ├── config_manager.py          # Thin wrapper around shared_lib.JsonConfigManager
 ├── exceptions.py              # Service-specific exception hierarchy
@@ -26,14 +26,15 @@ button_service/
 │   ├── state_machine.py       # Turns gpiozero callbacks into raw events
 │   ├── gpio_input_manager.py  # Owns the gpiozero devices, one per configured pin
 │   └── event_processor.py     # Debounce, mapping, MQTT dispatch
+├── models/
+│   └── schemas.py             # HealthState: what /health reports
 ├── infrastructure/
 │   └── mqtt_client.py         # Extends shared_lib.BaseMQTTClient
 └── api/
     └── routes.py              # FastAPI: GET /health
 ```
 
-`core/logic.py`, `models/__init__.py` and `models/schemas.py` exist but are
-empty and unused.
+`core/logic.py` exists but is empty and unused.
 
 ---
 
@@ -184,10 +185,10 @@ repository ever publishes `config/update` or `config/get`.
 | `MINABOX_DEVICE_ID` | yes | topic prefix |
 | `LOG_LEVEL` | yes | overridable at runtime via `config/general` |
 | `DISABLE_GPIO` | no | `true` starts the service without any hardware |
+| `API_PORT` | no | defaults to 8000 |
 
-`EnvConfig` declares an `api_port` field, but `load_env()` is called without
-optional defaults, so no environment variable ever reaches it. The API port is
-always 8000.
+`EXPOSE` and the container health check are fixed at 8000, so changing
+`API_PORT` also means changing the port mapping in `docker-compose.yml`.
 
 ### 5.2 `config/buttons.json`
 
@@ -256,16 +257,17 @@ Behaviour worth knowing:
 
 ### 5.3 Failure behaviour
 
-| Situation | What happens today |
+| Situation | What happens |
 |---|---|
-| File missing or invalid **at startup** | `ConfigError` propagates, the process exits, Docker restarts it – a restart loop |
-| File invalid on `config/reload` | The previous config stays active, `config/response` reports the failure (nobody listens) |
-| One GPIO pin unavailable | **All** buttons are dropped, and the pins already claimed stay claimed |
+| File missing or invalid **at startup** | Logged as `config_load_failed`, the service starts with zero buttons and reports `config_error` on `/health` |
+| File invalid on `config/reload` | The previous config stays active; `/health` reports `config_error`, because `config/response` has no subscriber |
+| One GPIO pin unavailable | That button is skipped, the others keep working; `buttons_available` drops below `buttons_configured` |
+| lgpio pin factory unusable | No hardware at all, but MQTT and the API stay up |
 | MQTT broker unreachable | Startup succeeds, `BaseMQTTClient` retries with backoff, publishes are dropped |
 
-The GPIO row is the dangerous one: the service logs a warning, sets its device
-manager to `None` without closing it, keeps holding the pins, and still reports
-`healthy`. Only a container restart recovers. See GoLive-Review 1.1 and 1.2.
+Nothing in this table takes the process down. That is deliberate: the WebUI is
+the only way to repair a bad configuration, and it needs the service to answer.
+Every one of these states is visible on `/health` instead.
 
 ---
 
@@ -281,15 +283,24 @@ health check, which only checks that the endpoint answers at all.
   "version": "0.1.2",
   "device_id": "box1",
   "buttons_configured": 3,
+  "buttons_available": 3,
+  "gpio_enabled": true,
+  "config_error": null,
   "mqtt_connected": true,
   "mqtt_broker": "mqtt",
   "mqtt_port": 1883
 }
 ```
 
-`status` is `degraded` only when the MQTT connection is down. `buttons_configured`
-counts entries in the JSON file, not devices that actually hold a pin – a
-service with no working GPIO at all still reports `healthy`.
+`status` is `degraded` when any of these hold:
+
+- the MQTT connection is down,
+- `buttons_available` is below `buttons_configured` – a pin could not be
+  claimed, usually because another service owns it,
+- `config_error` is set – buttons.json does not load.
+
+`gpio_enabled: false` (`DISABLE_GPIO=true`) is a setting, not a fault, and does
+not make the service `degraded`.
 
 ---
 
@@ -298,7 +309,9 @@ service with no working GPIO at all still reports `healthy`.
 - **Hardware:** `/dev/gpiochip0`, plus membership in the `gpio` group
   (`GPIO_GID` in `.env`). The pin factory is `lgpio`, set both by
   `GPIOZERO_PIN_FACTORY` and explicitly in `gpio_input_manager.py`.
-  `RPi.GPIO` is listed in `requirements.txt` but never imported.
+  lgpio's alert thread polls; the build sets its interval through the
+  `LG_ALERT_POLL_NS` build arg (2 ms, against upstream's 0.5 ms), which is what
+  keeps idle CPU near 3 % instead of 8 % on a Pi 4.
 - **MQTT broker:** Mosquitto, host and port from the root `.env`.
 - **Backend:** owns the button configuration and triggers `config/reload`;
   consumes `button/+` and `button/raw-event`.
@@ -316,8 +329,10 @@ structlog, JSON, level from `LOG_LEVEL` and changeable at runtime via
 
 | Event | Level | Meaning |
 |---|---|---|
-| `gpio_input_init_failed` | error | A pin could not be claimed – **all** buttons are then dropped |
-| `gpio_init_skipped` | warning | Running without button hardware |
+| `gpio_input_init_failed` | error | A pin could not be claimed; that button stays inactive, the others keep working |
+| `no_buttons_available` | warning | Not one configured pin could be claimed – check `GPIO_GID` and `/dev/gpiochip0` |
+| `gpio_init_skipped` | warning | Running without button hardware at all |
+| `config_load_failed` | error | buttons.json does not load; started with zero buttons |
 | `button_debounced` | debug | Event dropped by the cooldown |
 | `action_triggered` | debug | Action resolved and published |
 | `event_no_mapping` | debug | Event had no action for this event type |

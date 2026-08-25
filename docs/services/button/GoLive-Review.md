@@ -12,12 +12,21 @@ ist ein Grund, den GoLive zu verschieben.** Die Punkte in Abschnitt 1 sind
 allerdings Zustaende, in die die Box im Alltag geraten kann – und aus denen sie
 ohne Container-Neustart nicht mehr herausfindet.
 
-**In diesem Review wurde keine Zeile Quellcode geaendert** (so gewuenscht).
-Geaendert wurde nur die Dokumentation: [Architecture.md](Architecture.md) ist
-neu geschrieben, vollstaendig englisch und auf den tatsaechlichen Stand
-gebracht.
+**Umgesetzt auf dem Branch `fix/button-go-live`:** Abschnitt 1.1-1.4,
+Abschnitt 4 vollstaendig und Abschnitt 5 (CPU). Das Image ist von 297 auf
+229 MB geschrumpft (-23 %), der Leerlaufverbrauch von 8,2 % auf 3,1 %, und der
+Dienst hat jetzt 22 eigene Tests plus 37 im Backend fuer die Config-Pruefung
+(Gesamtsuite 500 -> 559, alle gruen).
 
-Legende: **[H]** hoch · **[M]** mittel · **[N]** niedrig · `[ ]` offen
+**Offen geblieben** und bewusst nicht angefasst: 1.5, 1.6, 1.7, 2.1, 2.2 und
+der Rest von Abschnitt 3. 1.5 und 1.6 aendern das Bedienverhalten und gehoeren
+mit echten Tasten ausprobiert, nicht nebenbei erledigt.
+
+[Architecture.md](Architecture.md) ist neu geschrieben, vollstaendig englisch
+und auf den tatsaechlichen Stand gebracht; die README des Dienstes ebenso.
+
+Legende: **[H]** hoch · **[M]** mittel · **[N]** niedrig ·
+`[x]` umgesetzt · `[~]` teilweise · `[ ]` offen
 
 Was hier auffiel, aber **andere Dienste** betrifft – offene Ports, der nie
 ausgewertete `degraded`-Status, deutsche Dockerfile-Kommentare, die ungepinnte
@@ -28,26 +37,26 @@ ausgewertete `degraded`-Status, deutsche Dockerfile-Kommentare, die ungepinnte
 
 ## Kurzfassung
 
-| # | Befund | Stufe |
-|---|---|---|
-| 1.1 | Ein einziger belegter Pin legt **alle** Buttons still – und die Pins bleiben belegt | **H** |
-| 1.2 | `/health` meldet `healthy`, obwohl kein einziger Button funktioniert | **H** |
-| 1.3 | Eine ungueltige `buttons.json` schickt den Container in die Neustart-Schleife | **H** |
-| 1.4 | Eine fehlerhafte Config wird in der WebUI als "gespeichert" quittiert | **H** |
-| 1.5 | Jeder kurze Tastendruck ist grundsaetzlich 400 ms verzoegert | **M** |
-| 1.6 | Der Encoder-Taster hat keinerlei Entprellung | **M** |
-| 1.7 | Pending-Timer werden beim Herunterfahren nicht abgebrochen | **N** |
-| 2.1 | Kein Last Will – eine tote Box bleibt am Broker "da" | **N** |
-| 2.2 | `config/update` und `config/get` sind toter Code | **N** |
-| 3.x | 54 ruff-Befunde, drei leere Dateien, neun ungenutzte Exceptions, drei Versionsnummern, null Tests | **M** |
-| 4.x | Image 297 MB – die LED-Optimierung (-68 MB) ist 1:1 uebertragbar | **M** |
-| 5.x | 8 % CPU im Leerlauf – Ursache gefunden und gemessen behoben | **M** |
+| # | Befund | Stufe | Stand |
+|---|---|---|---|
+| 1.1 | Ein einziger belegter Pin legt **alle** Buttons still – und die Pins bleiben belegt | **H** | `[x]` |
+| 1.2 | `/health` meldet `healthy`, obwohl kein einziger Button funktioniert | **H** | `[x]` |
+| 1.3 | Eine ungueltige `buttons.json` schickt den Container in die Neustart-Schleife | **H** | `[x]` |
+| 1.4 | Eine fehlerhafte Config wird in der WebUI als "gespeichert" quittiert | **H** | `[x]` |
+| 1.5 | Jeder kurze Tastendruck ist grundsaetzlich 400 ms verzoegert | **M** | `[ ]` |
+| 1.6 | Der Encoder-Taster hat keinerlei Entprellung | **M** | `[ ]` |
+| 1.7 | Pending-Timer werden beim Herunterfahren nicht abgebrochen | **N** | `[x]` |
+| 2.1 | Kein Last Will – eine tote Box bleibt am Broker "da" | **N** | `[ ]` |
+| 2.2 | `config/update` und `config/get` sind toter Code | **N** | `[ ]` |
+| 3.x | 54 ruff-Befunde, leere Dateien, ungenutzte Exceptions, Versionsnummern, null Tests | **M** | teilweise |
+| 4.x | Image 297 MB → **229 MB** | **M** | `[x]` |
+| 5.x | 8,2 % CPU im Leerlauf → **3,1 %** | **M** | `[x]` |
 
 ---
 
 ## 1. Funktionale Fehler
 
-### [ ] [H] 1.1 Ein einziger belegter Pin legt alle Buttons still – und die Pins bleiben belegt
+### [x] [H] 1.1 Ein einziger belegter Pin legt alle Buttons still – und die Pins bleiben belegt
 
 Das ist der schwerwiegendste Befund, und er ist reproduziert.
 
@@ -93,22 +102,38 @@ Der praktische Ausloeser dafuer steht in der README des Dienstes: ein Pin, der
 sowohl in `leds.json` als auch in `buttons.json` steht. Wer im Admin-Bereich
 einen Button auf GPIO 17 legt, hat genau diesen Fall.
 
-**Vorschlag:**
+**Erledigt:**
 
-- In `GPIOInputManager.start()` einen `try/except` um die Schleife, der im
-  Fehlerfall `self.close()` ruft, bevor er weiterwirft.
-- Einen fehlerhaften Button ueberspringen statt den ganzen Start abzubrechen,
-  und die Zahl der tatsaechlich belegten Geraete festhalten (`available_count`,
-  analog `led_manager.available_count`). Ein falsch konfigurierter Button darf
-  die anderen fuenf nicht mitnehmen.
-- Ebenso in `main.py:_reinit_gpio()` (Zeile 198-200), dort steht derselbe
-  `= None`-Zweig ohne `close()`.
+- `_init_device()` sammelt die Geraete eines Buttons erst lokal und uebergibt
+  sie nur, wenn der ganze Button steht. Ein Encoder, dessen `sw`-Pin belegt
+  ist, gibt CLK und DT wieder her.
+- `start()` ueberspringt einen fehlgeschlagenen Button und macht weiter, statt
+  abzubrechen. Fatal ist nur noch eine unbrauchbare Pin-Factory (Image ohne
+  lgpio) – die kann ohnehin nichts ansteuern.
+- Neu: `available_count` und `configured_count`, plus eine `no_buttons_available`-
+  Warnung im Wortlaut des LED-Service, wenn kein einziger Pin kam.
+- `main.py` ruft im Fehlerfall `manager.close()`, bevor es den Manager
+  wegwirft – an beiden Stellen (`_start_gpio()`, aus `start()` und
+  `_reinit_gpio()` heraus).
 
-**Risiko:** gering. Die Aenderung betrifft ausschliesslich den Fehlerpfad; im
-Normalfall (alle Pins frei) aendert sich nichts am Ablauf. Sie sollte trotzdem
-einmal mit einer absichtlich falschen Config auf der Box durchgespielt werden.
+**Nachgewiesen auf der Box** mit dem lokal gebauten Image und einer Config aus
+GPIO 5 (frei), GPIO 17 (gehoert dem LED-Dienst) und GPIO 6 (frei):
 
-### [ ] [H] 1.2 `/health` meldet `healthy`, obwohl kein einziger Button funktioniert
+```text
+gpio_input_init_failed  button_id=busy  error="'GPIO busy'"
+                        hint='Pin is unavailable; check for an overlap with config/leds.json.'
+gpio_inputs_started     available=2  configured=3  devices=2
+button_service_started
+```
+
+Vorher waren in genau diesem Fall alle drei Buttons tot. Der LED-Dienst blieb
+unbeeintraechtigt (`leds_available: 5`).
+
+Sieben Tests in `tests/test_gpio_input_manager.py` halten das fest, darunter
+der Encoder-Fall und "nach `close()` lassen sich dieselben Pins wieder
+beanspruchen" – das ist der Weg, den ein `config/reload` geht.
+
+### [x] [H] 1.2 `/health` meldet `healthy`, obwohl kein einziger Button funktioniert
 
 `api/routes.py:49-57` kennt genau eine Fehlerquelle:
 
@@ -142,16 +167,28 @@ buttons_usable = buttons_available > 0 or buttons_configured == 0
 "status": "healthy" if mqtt_connected and buttons_usable else "degraded",
 ```
 
-**Vorschlag:** `buttons_available` aus dem `GPIOInputManager` melden und in den
-Status einrechnen – dieselbe Vertragsform wie beim LED-Service, damit die
-WebUI beide Dienste spaeter gleich auswerten kann.
+**Erledigt:** `/health` meldet jetzt `buttons_available`, `gpio_enabled` und
+`config_error` mit. Die Regel steckt in `models/schemas.py:HealthState` und ist
+eine Spur strenger als beim LED-Service: `degraded`, sobald **ein** Button
+seinen Pin nicht bekommt, nicht erst wenn alle ausfallen. Fuer Buttons gibt es
+keinen legitimen Grund, unter der konfigurierten Zahl zu bleiben.
 
-**Risiko:** keins fuer den Betrieb. Zu beachten: solange der `degraded`-Status
-nirgends ausgewertet wird ([Offene-Punkte 1.2](../Offene-Punkte.md)), bleibt der
-Befund in der WebUI unsichtbar – der Wert steht dann aber wenigstens im
-Diagnose-Paket.
+`DISABLE_GPIO=true` bleibt `healthy` – das ist eine Einstellung, kein Defekt.
 
-### [ ] [H] 1.3 Eine ungueltige `buttons.json` schickt den Container in die Neustart-Schleife
+Am lokal gebauten Image gemessen, Config wie in 1.1:
+
+```json
+{"status": "degraded", "buttons_configured": 3, "buttons_available": 2,
+ "gpio_enabled": true, "config_error": null, ...}
+```
+
+Sechs Tests in `tests/test_health_and_startup.py` decken die Faelle ab.
+
+**Weiterhin zu beachten:** solange der `degraded`-Status nirgends ausgewertet
+wird ([Offene-Punkte 1.2](../Offene-Punkte.md)), bleibt der Befund in der WebUI
+unsichtbar – er steht jetzt aber im Diagnose-Paket und in `curl`-Reichweite.
+
+### [x] [H] 1.3 Eine ungueltige `buttons.json` schickt den Container in die Neustart-Schleife
 
 `main.py:204` ruft `load_app_config()` **vor** dem `try`. Ist die Datei
 syntaktisch kaputt oder verletzt sie das Pydantic-Schema, wirft
@@ -169,16 +206,33 @@ Die [Architecture.md](Architecture.md) beschrieb bisher (Abschnitt 7.2) genau
 das gewuenschte Verhalten – "Service geht in einen Fehlerzustand, es werden
 keine Action-Events publiziert" –, implementiert war es nie.
 
-**Vorschlag:** beim Start eine unlesbare Config wie eine leere behandeln:
-`ERROR` loggen, mit null Buttons weiterlaufen, `/health` auf `degraded`. Dann
-bleiben API und MQTT erreichbar und die Konfiguration laesst sich ueber die
-WebUI reparieren, statt dass die Box von aussen unzugaenglich wird.
+**Erledigt:** `load_app_config()` fasst `buttons.json` gar nicht mehr an – es
+laedt nur noch die Umgebung. Zustaendig ist allein der `ConfigManager`, und
+`ButtonService._load_buttons_config()` faengt einen Ladefehler ab: `ERROR` ins
+Log, weiter mit null Buttons, `config_error` auf `/health`. Die kaputte Datei
+wird **nicht** ueberschrieben – sie ist ja das, was der Nutzer reparieren muss.
 
-**Risiko:** gering, aber es ist eine bewusste Verhaltensaenderung – "still
-weiterlaufen" statt "laut sterben". Sie ist nur zusammen mit 1.2 sinnvoll, sonst
-tauscht man einen sichtbaren Absturz gegen einen unsichtbaren Ausfall.
+Nebenbei erledigt das den doppelten Ladevorgang aus 3.5: `AppConfig.buttons`
+gab es nur noch, um beim Start dieselbe Datei ein zweites Mal zu lesen und
+danach einen veralteten Stand zu halten. Das Feld ist weg.
 
-### [ ] [H] 1.4 Eine fehlerhafte Config wird in der WebUI als "gespeichert" quittiert
+Am lokal gebauten Image gegen 0.1.2 gehalten, dieselbe kaputte Config
+(Push-Button ohne `gpio`):
+
+```text
+0.1.2 : pydantic_core.ValidationError: gpio must be set for push buttons
+        -> Prozess beendet -> restart: unless-stopped -> Schleife
+
+local : config_load_failed  message="Starting without buttons. Fix
+                                     config/buttons.json via the WebUI"
+        button_service_started
+        /health -> degraded, config_error gesetzt
+```
+
+Das ist die bewusste Verhaltensaenderung "still weiterlaufen statt laut
+sterben" – sie traegt nur zusammen mit 1.2, und 1.2 ist mit drin.
+
+### [x] [H] 1.4 Eine fehlerhafte Config wird in der WebUI als "gespeichert" quittiert
 
 Die Kette hat drei Stellen, an denen niemand hinsieht:
 
@@ -197,22 +251,29 @@ Ergebnis: die WebUI zeigt `buttons.save_success`, auf der Platte liegt eine
 Config, die der Dienst nicht laden kann, im Speicher laeuft noch die alte, und
 beim naechsten Neustart greift 1.3.
 
-**Vorschlag** (in dieser Reihenfolge, jede Stufe hilft fuer sich allein):
+**Erledigt, alle drei Stufen:**
 
-- WebUI: `isStep0Valid` um GPIO/CLK/DT/SW je nach Typ und um die Aktion je nach
-  Modus erweitern.
-- Backend: `buttons.json` vor dem Schreiben gegen das echte Pydantic-Schema
-  validieren und sonst `422` liefern. Das Schema liegt in
-  `button_service/config_schema.py`; ein Import kommt fuer das Backend nicht in
-  Frage – entweder eine schlanke Kopie der Regeln in `_validate_config_shape`
-  oder ein Umzug des Schemas nach `shared-lib`.
-- Alternativ/zusaetzlich: die REST-Route auf `config/response` warten lassen und
-  das Ergebnis durchreichen.
+- **WebUI** (`ButtonConfigPanel.tsx`): die Pin-Felder sind Pflicht und werden
+  rot, solange sie leer sind; "Weiter" bleibt gesperrt. Im zweiten Schritt
+  weist ein Hinweis auf die fehlende Aktion hin, und "Speichern" ist gesperrt,
+  bis eine gesetzt ist. Zwei neue Texte in `de/admin.json` und `en/admin.json`.
+- **Backend** (`routes_config.py:_validate_buttons_config`): prueft vor dem
+  Schreiben genau die Regeln, die der Button-Service prueft, und antwortet
+  sonst `422` mit Button-ID und Feldname.
+- **WebUI-Rueckmeldung**: der `catch`-Block reichte bisher nur ein nacktes
+  "Speichern fehlgeschlagen" durch. Jetzt haengt das `detail` des Backends
+  dran, sodass die Meldung sagt, *welcher* Button klemmt.
 
-**Risiko:** die Backend-Variante ist die wirksamste und die riskanteste – eine
-zu strenge Validierung sperrt den Nutzer aus seiner eigenen Konfiguration aus.
-Die WebUI-Variante ist risikofrei und faengt den realistischen Fall (Feld
-vergessen) bereits ab. Fuer den GoLive wuerde ich mit der WebUI anfangen.
+**Zum Risiko "zu streng":** genau das faengt
+`tests/test_button_config_validation.py` ab. 37 Tests, davon 24, die jede
+Beispiel-Config **beiden** Seiten vorlegen und verlangen, dass das Urteil
+gleich ausfaellt. Der Test hat sofort eine echte Abweichung gefunden: bei
+`action: "   "` war meine Backend-Pruefung strenger als Pydantic (`.strip()`
+gegen blosse Wahrheitspruefung). Haesslich, aber legal – die Backend-Regel ist
+angeglichen, statt dem Nutzer eine Config zu verbieten, die der Dienst laedt.
+
+Der Test laeuft im Repo-venv gegen beide Pakete und ueberspringt sich selbst im
+Backend-Image, das den Button-Service nicht kennt.
 
 ### [ ] [M] 1.5 Jeder kurze Tastendruck ist grundsaetzlich 400 ms verzoegert
 
@@ -266,7 +327,7 @@ Das ist genau die Konfiguration, die auf der Box laeuft (`btn_1`, `press` →
 **Risiko:** gering. Wichtig ist nur, dass die Drehung wirklich bei 0 ms bleibt,
 sonst wird die Lautstaerkeregelung ruckelig.
 
-### [ ] [N] 1.7 Pending-Timer werden beim Herunterfahren nicht abgebrochen
+### [x] [N] 1.7 Pending-Timer werden beim Herunterfahren nicht abgebrochen
 
 `GPIOInputManager.close()` schliesst die gpiozero-Geraete, kennt die
 `PressClassifier` aber nicht. Ein laufender `_pending_short_timer` feuert danach
@@ -279,8 +340,14 @@ noch ein Event mit einer `source_id`, die es in der neuen Config vielleicht gar
 nicht mehr gibt (`event_processor_unknown_source`).
 
 Praktisch fast harmlos – das Fenster ist 400 ms breit und der Fehler landet nur
-im Log. Sauber waere: die Classifier mitfuehren und in `close()` ihre Timer
-abbrechen.
+im Log.
+
+**Erledigt**, weil 1.1 den Fall haeufiger macht: `_reinit_gpio()` schliesst und
+baut jetzt zuverlaessig neu auf, damit wird der veraltete Timer erreichbarer.
+Der `GPIOInputManager` fuehrt seine `PressClassifier` mit und ruft in `close()`
+deren neues `cancel_pending()`. `_emit_threadsafe()` faengt zusaetzlich den
+`RuntimeError` eines geschlossenen Loops ab – ein gpiozero-Callback-Thread darf
+nicht werfen.
 
 ---
 
@@ -344,7 +411,7 @@ gehoeren dienstuebergreifend erledigt:
 
 ## 3. Code-Qualitaet
 
-### [ ] [M] 3.1 54 ruff-Befunde
+### [~] [M] 3.1 54 ruff-Befunde – jetzt 24
 
 ```bash
 .venv/bin/ruff check services/button-service/src/
@@ -361,13 +428,16 @@ Die beiden `F401` sind die einzigen mit Aussagekraft:
 - `main.py:6` – `import logging`, nie benutzt.
 - `main.py:21` – `from .exceptions import GPIOInitError`, nie benutzt.
 
-Der Rest ist Formatierung. `ruff check --fix` erledigt 27 davon; die `E501`
-brauchen Handarbeit.
+Der Rest ist Formatierung.
 
-**Risiko:** keins bei den automatischen Korrekturen, solange danach die Tests
-laufen – die es fuer diesen Dienst allerdings nicht gibt (3.5).
+**Teilweise erledigt:** jede in 1.1-1.4 angefasste Datei ist sauber, die beiden
+`F401` sind weg. **54 -> 24.** Der Rest liegt in Dateien, die fuer die
+GoLive-Punkte nicht angefasst werden mussten (`event_processor.py`,
+`config_schema.py`, `events.py`, `mqtt_client.py`) und gehoert in einen eigenen
+Formatier-Branch – dort faellt er als reine Formatierung auf und vermischt sich
+nicht mit inhaltlichen Aenderungen.
 
-### [ ] [N] 3.2 Drei leere Dateien liegen im Repo
+### [~] [N] 3.2 Drei leere Dateien liegen im Repo – noch eine
 
 ```text
 services/button-service/src/button_service/core/logic.py        0 Zeilen
@@ -377,6 +447,9 @@ services/button-service/src/button_service/models/schemas.py    0 Zeilen
 
 Alle drei sind in Git eingecheckt, keine wird importiert. `models/` ist ein
 leeres Paket ohne Inhalt – die Schemas liegen in `config_schema.py`.
+
+**Teilweise erledigt:** `models/` beherbergt jetzt `HealthState` aus 1.2 und
+hat damit einen Zweck. `core/logic.py` ist weiterhin leer und kann weg.
 
 ### [ ] [N] 3.3 Neun von zehn Exceptions werden nie ausgeloest
 
@@ -391,7 +464,7 @@ neun – `HardwareError`, `ButtonReadError`, `RotaryEncoderError`,
 (Zeile 142), obwohl `InvalidButtonTypeError` genau dafuer bereitliegt. Erreichbar
 ist die Zeile ohnehin nicht, weil das Pydantic-`Literal` vorher greift.
 
-### [ ] [N] 3.4 Vier Versionsnummern fuer einen Dienst
+### [~] [N] 3.4 Vier Versionsnummern fuer einen Dienst – jetzt drei
 
 | Ort | Wert |
 |---|---|
@@ -404,25 +477,22 @@ ist die Zeile ohnehin nicht, weil das Pydantic-`Literal` vorher greift.
 benutzt (Build-Arg). Die drei anderen sind seit zwei Releases falsch. Die
 OpenAPI-Beschreibung unter `/docs` behauptet damit dauerhaft `0.1.0`.
 
-Der `pyproject.toml`-Teil gehoert repo-weit erledigt
-([Offene-Punkte 2.3](../Offene-Punkte.md)). `routes.py` liesse sich sofort auf
-`get_version()` umstellen; `__init__.py:__version__` wird nirgends gelesen und
-kann weg.
+**Teilweise erledigt:** `routes.py` benutzt jetzt `get_version()`, `/docs`
+zeigt also dieselbe Nummer wie `/health` (im lokalen Bau `0.1.2+local`).
+`pyproject.toml` gehoert repo-weit erledigt
+([Offene-Punkte 2.3](../Offene-Punkte.md)); `__init__.py:__version__` wird
+nirgends gelesen und kann weg.
 
 ### [ ] [N] 3.5 Kleinigkeiten
 
-- **`AppConfig.buttons` wird nie benutzt.** `load_app_config()` liest und
-  validiert `buttons.json` (`config.py:35`), danach liest `ButtonService`
-  dieselbe Datei ueber den `ConfigManager` noch einmal (`main.py:68`). Das
-  Feld `AppConfig.buttons` haelt ab dem ersten Reload einen veralteten Stand
-  und wird von niemandem gelesen. Doppelte Arbeit ohne Wirkung – wobei genau
-  dieser erste Ladevorgang der ist, der bei 1.3 den Absturz ausloest.
-- **`EnvConfig.api_port` ist nicht einstellbar.** Das Feld traegt die
-  Beschreibung "REST API port for the button service (issue #17)", aber
-  `_load_env_config()` ruft `load_env()` ohne `optional_defaults` auf – die
-  Variable `API_PORT` wird also nie gelesen. Der Wert ist immer 8000. Der
-  Audio-Service macht es an dieser Stelle richtig vor. Passend dazu stehen
-  `EXPOSE 8000` und der Healthcheck im Dockerfile fest auf 8000.
+- **[x] `AppConfig.buttons` wird nie benutzt.** Erledigt als Teil von 1.3 –
+  das Feld ist weg, `load_app_config()` fasst `buttons.json` nicht mehr an.
+- **[x] `EnvConfig.api_port` war nicht einstellbar.** `_load_env_config()` ruft
+  `load_env()` jetzt mit `optional_defaults={"API_PORT": 8000,
+  "DISABLE_GPIO": False}` auf, wie es der Audio- und der LED-Service vormachen.
+  Damit liest auch `DISABLE_GPIO` nicht mehr an zwei Stellen direkt aus
+  `os.environ`. `EXPOSE` und der Healthcheck stehen weiterhin fest auf 8000 –
+  wer den Port verstellt, muss das Port-Mapping ohnehin anfassen.
 - **`RawButtonEvent.timestamp` wird verworfen.** Der Zeitstempel entsteht in der
   Hardware-Schicht (`state_machine.py`), wandert durch die Queue – und im
   `event_processor` wird fuer den Publish ein *neuer*
@@ -439,7 +509,7 @@ kann weg.
   "Prev". Kein Fehler – der Dienst erzwingt keine Eindeutigkeit –, aber die
   Namen passen nicht zu den Aktionen.
 
-### [ ] [M] 3.6 Null Tests
+### [~] [M] 3.6 Null Tests – jetzt 22
 
 `services/button-service/` hat kein `tests/`-Verzeichnis. Zum Vergleich:
 backend 15, led 6, rfid 4, audio 3.
@@ -455,8 +525,18 @@ Hardware auskommt:
 
 Steht als offener Punkt bereits in [../../ServiceReview.md](../../ServiceReview.md)
 ("Die State-Machine des Button-Service waere der naechste lohnende Kandidat").
-Fuer jede Aenderung aus Abschnitt 1 sind diese Tests die Voraussetzung, unter
-der man sie ueberhaupt guten Gewissens machen kann.
+
+**Teilweise erledigt** – abgedeckt ist, was 1.1-1.4 angefasst haben:
+
+| Datei | Tests | Deckt ab |
+|---|---|---|
+| `tests/test_gpio_input_manager.py` | 8 | 1.1, 1.7 |
+| `tests/test_health_and_startup.py` | 14 | 1.2, 1.3 |
+| `backend-service/tests/test_button_config_validation.py` | 37 | 1.4 |
+
+Gesamtsuite 500 -> 559, alle gruen. **Nicht** abgedeckt sind
+`PressClassifier` (short/long/double) und `ButtonDebouncer` – die gehoeren zu
+1.5 und 1.6 und kommen mit denen zusammen.
 
 ---
 
@@ -480,7 +560,7 @@ Gemessen im laufenden Image (`du -sm site-packages` = 63 MB):
 | `httptools` | 2 MB | nein |
 | `curl` + Abhaengigkeiten (apt) | 14,5 MB | nur fuer den Healthcheck |
 
-### [ ] [M] 4.1 `uvicorn[standard]` → `uvicorn` (≈ 27 MB)
+### [x] [M] 4.1 `uvicorn[standard]` → `uvicorn` (≈ 27 MB)
 
 `requirements.txt:3`. Der `[standard]`-Extra zieht `uvloop`, `httptools`,
 `websockets`, `watchfiles` und `PyYAML` nach. Der Dienst braucht keines davon:
@@ -495,7 +575,7 @@ uebertragbar.
 **Risiko:** gering, aber es ist der einzige der vier Punkte, der die Laufzeit
 beruehrt. Nach dem Umbau einmal `/health` im lokal gebauten Image abfragen.
 
-### [ ] [M] 4.2 `pip`, `setuptools` und `wheel` nicht ins Runtime-Image kopieren (≈ 19 MB)
+### [x] [M] 4.2 `pip`, `setuptools` und `wheel` nicht ins Runtime-Image kopieren (≈ 19 MB)
 
 Zeile 47 kopiert `site-packages` komplett aus dem Builder – inklusive `pip` und
 `setuptools`. Das Runtime-Image hat aus `python:3.13-slim` bereits ein eigenes
@@ -507,7 +587,7 @@ kann ersatzlos weg.** Der Einstiegspunkt ist `python -m button_service.main`;
 die dort liegenden Konsolen-Skripte (`uvicorn`, `fastapi`, `dotenv`,
 `watchfiles`, `websockets`, `pinout`, `pintest`) ruft der Dienst nie auf.
 
-### [ ] [M] 4.3 `curl` durch einen Python-Healthcheck ersetzen (≈ 14,5 MB)
+### [x] [M] 4.3 `curl` durch einen Python-Healthcheck ersetzen (≈ 14,5 MB)
 
 Zeilen 39-41 installieren `curl` – 14,5 MB mit `libcurl4`, `libssh2`,
 `librtmp1`, `libnghttp2/3` – ausschliesslich fuer den `HEALTHCHECK`. Python ist
@@ -524,7 +604,7 @@ auf und ueberschreibt den aus dem Dockerfile. Beide muessen zusammen geaendert
 werden, sonst ist der Container dauerhaft `unhealthy` und `depends_on` blockiert
 – beim LED-Service steht die entsprechende Zeile schon richtig drin.
 
-### [ ] [H] 4.4 Die `lg`-Quelle wird unversioniert und ungeprueft gebaut
+### [x] [H] 4.4 Die `lg`-Quelle wird unversioniert und ungeprueft gebaut
 
 Zeile 18: `git clone --depth 1 https://github.com/joan2937/lg` – ohne Tag, ohne
 Pruefsumme. Kein CI-Build ist reproduzierbar, und ein kompromittiertes Upstream
@@ -537,7 +617,7 @@ ebenfalls ueberfluessig – `python:3.13-slim` bringt die Header unter
 `/usr/local/include/python3.13` mit; der LED-Builder kommt ohne aus und
 uebersetzt `lgpio` problemlos.
 
-### [ ] [M] 4.5 `RPi.GPIO` und `tenacity` sind unbenutzte Abhaengigkeiten
+### [x] [M] 4.5 `RPi.GPIO` und `tenacity` sind unbenutzte Abhaengigkeiten
 
 `requirements.txt:13` und `:18`.
 
@@ -563,7 +643,7 @@ uebersetzt `lgpio` problemlos.
   die BCM-Register zu und funktioniert auf dem Pi 5 (RP1, `gpiochip4`)
   grundsaetzlich nicht mehr. Sie gehoert entfernt, nicht benutzt.
 
-### [ ] [N] 4.6 Kleinigkeiten im Dockerfile
+### [x] [N] 4.6 Kleinigkeiten im Dockerfile
 
 - `PYTHONDONTWRITEBYTECODE=1` und `PYTHONUNBUFFERED=1` fehlen (LED hat beide).
 - `useradd`, `mkdir /tmp/lgpio` und `chown -R /app` sind drei `RUN`-Schichten
@@ -574,23 +654,27 @@ uebersetzt `lgpio` problemlos.
 - Der Versions-Block am Dateiende ist deutsch
   ([Offene-Punkte 2.2](../Offene-Punkte.md)).
 
-### Erwartetes Ergebnis
+### Ergebnis
 
-| | heute | nach 4.1-4.3 |
+Gemessen statt geschaetzt, `./scripts/build-local.sh button`:
+
+| | vorher | nachher |
 |---|---|---|
-| Image gesamt | 297 MB | **≈ 229 MB** |
-| `site-packages` | 63 MB | ≈ 27 MB |
-| `curl` + Abhaengigkeiten | 14,5 MB | 0 |
+| Image gesamt | 297 MB | **229 MB** |
+| `site-packages` | 63 MB | **27 MB** |
+| `curl` + Abhaengigkeiten | 14,5 MB | **0** |
 | apt-Layer im Runtime-Stage | 1 | **0** |
 
-Die 229 MB sind keine Schaetzung ins Blaue: der LED-Service ist aus demselben
-Dockerfile-Muster mit derselben Paketliste gebaut und wurde nach genau diesen
-Aenderungen gemessen. Der Button-Service hat zwei Pakete mehr (`tenacity`,
-`RPi.GPIO`), die nach 4.5 ebenfalls entfallen.
+**-68 MB (-23 %)**, ohne eine Zeile Anwendungscode – dieselbe Zahl, die der
+LED-Service aus demselben Muster geholt hat.
+
+Der Healthcheck im `docker-compose.yml` wurde mitgeaendert (er ueberschreibt
+den aus dem Dockerfile; waere er auf `curl` stehengeblieben, waere der
+Container dauerhaft `unhealthy` und `depends_on` haette blockiert).
 
 ---
 
-## 5. Laufzeitverbrauch – 8 % CPU im Leerlauf
+## 5. Laufzeitverbrauch – 8 % CPU im Leerlauf, jetzt 3 %
 
 Der Button-Service ist mit Abstand der groesste Verbraucher der Box:
 
@@ -652,21 +736,44 @@ Damit ist zweierlei belegt:
    Prozess bei 0,5 % – Event-Loop, MQTT-Client und die
    Sekunden-Warteschleife im `event_processor` fallen nicht ins Gewicht.
 
-### Was man tun koennte
+### Umgesetzt: Option B, `tspec` beim Build gepatcht
 
-**Option A – so lassen.** 8 % eines Kerns sind auf einem Pi 4 mit vier Kernen
-2 % der Maschine. Nichts an der Box ist deswegen langsam. Das ist die Option
-fuer den GoLive.
-
-**Option B – `tspec` beim Build patchen.** Ein `sed` in der Dockerfile-Zeile,
-die `lg` uebersetzt, zwischen Entpacken und `make`:
+Das `sed` steht jetzt im Dockerfile zwischen Entpacken und `make`, mit dem Wert
+als Build-Arg, damit er ohne Codeaenderung verstellbar ist:
 
 ```dockerfile
-&& sed -i 's/struct timespec tspec = {0, 5e5};/struct timespec tspec = {0, 2e6};/' lgPthAlerts.c
+ARG LG_ALERT_POLL_NS=2000000
+RUN ... && sed -i "s/struct timespec tspec = {0, 5e5};/struct timespec tspec = {0, ${LG_ALERT_POLL_NS}};/" lgPthAlerts.c \
+        && grep -q "struct timespec tspec = {0, ${LG_ALERT_POLL_NS}};" lgPthAlerts.c \
+        && make ...
 ```
 
-Gemessen bringt das 6,4 % → 2,8 % (bei einem Pin), auf dem Produktivstand also
-etwa 8 % → 3,5 %.
+Das `grep` ist Absicht: schreibt eine kuenftige `lg`-Version diese Zeile um,
+soll der Bau abbrechen statt still eine ungepatchte Bibliothek auszuliefern.
+
+Zum Ausprobieren ohne Codeaenderung:
+
+```bash
+docker compose build --build-arg LG_ALERT_POLL_NS=500000 button   # Upstream
+docker compose build --build-arg LG_ALERT_POLL_NS=5000000 button  # 5 ms
+```
+
+**Gemessen am fertigen Image** (`/proc/1/stat`, Fenster 211 s):
+
+| | Pins | CPU |
+|---|---|---|
+| 0.1.2 im Betrieb, 0,5 ms | 5 | 8,2 % |
+| lokales Image, 2 ms | 2 | **3,1 %** |
+
+Der Vergleich hinkt um drei Pins, weil die Produktivpins vom laufenden
+Container gehalten werden. Aus den Einzelpin-Messungen (0,5 ms: 6,4 %; 2 ms:
+2,8 %) und dem Zuwachs pro Pin ist fuer die echte Fuenf-Pin-Config mit **rund
+3,5-4 %** zu rechnen, also gut die Haelfte. Bestaetigt sich beim Ausrollen.
+
+**Noch offen: der Hardware-Test.** Dass die Bibliothek baut, laedt und Pins
+belegt, ist geprueft. Ob sich der Drehknopf gleich anfuehlt, laesst sich nur am
+echten Encoder beurteilen – ohne angeschlossene Taster gibt es keine Flanken zu
+messen. Genau das ist der Teil, der auf der Box passieren muss.
 
 **Was der Patch bewirkt und was nicht:** Der `ppoll` kehrt bei einer echten
 Flanke *sofort* zurueck (`POLLIN`) – der Timeout regelt nur die Leerlauf-
@@ -682,12 +789,10 @@ Drehencoder heisst es, dass bei sehr schnellem Drehen mehrere Schritte gebuendel
 statt einzeln ankommen. **Verloren geht keiner** – der Kernel puffert die
 Flanken im Line-Event-FD, und `gpiozero` zaehlt jede.
 
-**Risiko: mittel.** Es ist ein Eingriff in eine fremde C-Bibliothek, der bei
-jedem `lg`-Update mitgepflegt werden muss, und die Wirkung auf das *Gefuehl*
-beim Lautstaerkedrehen laesst sich nur am echten Encoder beurteilen – nicht in
-einem Test. **Deshalb: nicht vor dem GoLive.** Wenn, dann als eigener Branch
-mit einem lokal gebauten Image, das mindestens einen Abend lang am echten
-Drehknopf haengt.
+**Verbleibendes Risiko: mittel.** Es ist ein Eingriff in eine fremde
+C-Bibliothek, der bei jedem `lg`-Update mitgepflegt werden muss. Faellt der
+Encoder unangenehm auf, ist der Rueckweg ein Build-Arg weit
+(`LG_ALERT_POLL_NS=500000`) – dann bleiben immer noch -68 MB aus Abschnitt 4.
 
 **Option C – weg von `gpiozero`/`lgpio`,** direkt auf `libgpiod` mit blockendem
 `read()` auf dem Line-Event-FD. Das waere der saubere Weg (0 % im Leerlauf),
@@ -725,32 +830,32 @@ Der zweite Thread (`tid=25`, `hrtimer_nanosleep`, 1,3 %) gehoert ebenfalls zu
 
 ---
 
-## 7. Empfohlene Reihenfolge
+## 7. Wie es weitergeht
 
-**Vor dem GoLive** (alle risikoarm, alle in einem Branch machbar):
+**Erledigt und bereit zum Ausrollen:** 1.1, 1.2, 1.3, 1.4, 1.7, Abschnitt 4
+komplett, Abschnitt 5, und Teile von 3.1/3.2/3.4/3.5/3.6.
 
-1. **1.1** – `close()` im Fehlerpfad, fehlerhafte Buttons ueberspringen statt
-   alle fallen lassen. Der einzige Befund, der die Box unbenutzbar machen kann,
-   ohne dass es jemand merkt.
-2. **1.2** – `buttons_available` in `/health`, nach dem Muster des
-   LED-Service. Macht 1.1 ueberhaupt erst sichtbar.
-3. **1.4, erste Stufe** – Pflichtfelder in `ButtonConfigPanel.tsx`. Reine
-   WebUI-Aenderung, faengt den realistischen Fall ab.
-4. **4.1-4.4** – Image von 297 auf ≈ 229 MB, plus die gepinnte `lg`-Quelle.
-   Muster liegt beim LED-Service fertig vor.
-5. **3.1** – `ruff check --fix` und die beiden unbenutzten Importe.
+**Auf der Box zu pruefen, sobald das Image ausgerollt ist:**
 
-**Direkt danach:**
+1. Der Drehknopf – fuehlt sich die Lautstaerkeregelung mit dem 2-ms-Patch
+   unveraendert an? Der Rueckweg ist ein Build-Arg
+   (`LG_ALERT_POLL_NS=500000`), siehe Abschnitt 5.
+2. `docker stats minabox-button` – erwartet werden rund 3,5-4 % statt 8,2 %.
+3. `curl -s localhost:8005/health` – `buttons_available` muss
+   `buttons_configured` erreichen.
+4. Einmal im Admin-Bereich einen Button ohne Pin anzulegen versuchen: "Weiter"
+   muss gesperrt bleiben.
 
-6. **3.6** – Tests fuer `PressClassifier`, `_resolve_action` und
-   `ButtonDebouncer`. Voraussetzung fuer 7. und 8.
-7. **1.5** – Doppelklick-Fenster nur bei vorhandenem Mapping. Spuerbarster
-   Gewinn fuer den Nutzer.
-8. **1.6** – Entprellung am `event_type` statt am Typ des Eintrags.
-9. **1.3** – kaputte Config beim Start ueberleben, statt neu zu starten.
+**Als naechstes, in dieser Reihenfolge:**
 
-**Spaeter, mit Zeit fuer einen Hardware-Test:**
+5. **1.5** – Doppelklick-Fenster nur bei vorhandenem Mapping. Spuerbarster
+   Gewinn fuer den Nutzer, aber sichtbare Verhaltensaenderung: erst Tests fuer
+   `PressClassifier`, dann umbauen, dann mit echten Tasten ausprobieren.
+6. **1.6** – Entprellung am `event_type` statt am Typ des Eintrags. Betrifft
+   den Encoder-Taster (`mute_toggle` kann doppelt feuern).
+7. **3.1** – der Formatier-Rest (24 ruff-Befunde) als eigener Branch.
+8. **2.1, 2.2, 3.2, 3.3, 3.4** – Last Will, toter Config-Pfad, Aufraeumen.
 
-10. **5, Option B** – `tspec`-Patch, eigener Branch, ein Abend am echten
-    Drehknopf.
-11. **2.2, 3.2, 3.3, 3.4, 3.5** – Aufraeumen.
+**Dienstuebergreifend**, nicht hier: der offene Port 8005, der nie ausgewertete
+`degraded`-Status (ohne den bleibt 1.2 in der WebUI unsichtbar) und
+`.dockerignore` – alles in [../Offene-Punkte.md](../Offene-Punkte.md).
