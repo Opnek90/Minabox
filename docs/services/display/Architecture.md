@@ -35,7 +35,15 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/
+├── tests/                      # 123 tests, no hardware needed
+│   ├── display_test_doubles.py # FakePanel and the element builder
+│   ├── conftest.py             # A service wired to neither panel nor broker
+│   ├── test_build_areas.py
+│   ├── test_config_reload.py   # Device lifetime and the render loop
+│   ├── test_display_config_schema.py
+│   ├── test_display_health_endpoint.py
+│   ├── test_display_state_manager.py
+│   ├── test_element_renderers.py
 │   └── test_render_fingerprint.py   # The redraw decision
 ├── config/
 │   ├── display.json            # Live config (not in git, seeded from the example)
@@ -43,7 +51,7 @@ display-service/
 └── src/display_service/
     ├── __init__.py
     ├── main.py                 # Entry point, element renderers, render loop, backend polls
-    ├── config.py               # Loads env + display.json into one AppConfig
+    ├── config.py               # Loads the environment into AppConfig
     ├── config_schema.py        # Pydantic: DisplayElement, DisplayServiceConfig, EnvConfig
     ├── config_manager.py       # Thin subclass of shared_lib JsonConfigManager (load/reload)
     ├── exceptions.py           # Service-specific exception hierarchy
@@ -145,13 +153,18 @@ schema literal; the layout code is not touched.
 | `play_state` | play / pause / stop icon | MQTT `audio/status` | no |
 | `mute` | mute icon | MQTT `audio/status` | only while muted |
 | `bluetooth` | Bluetooth icon | MQTT `audio/status` | only when a BT sink exists *and* more than one output device is enabled |
-| `error_state` | exclamation icon | MQTT `audio/error`, `system/service-error` | only while the error flag is set |
+| `error_state` | exclamation icon | MQTT `audio/error`, `system/service-error` | for 5 minutes after the last error |
 | `sleep_timer` | moon icon + remaining minutes | backend poll | only while the timer is active |
 | `repeat` | repeat icon | backend poll | only while `repeat_mode == "all"` |
 | `shuffle` | shuffle icon | backend poll | only while shuffle is on |
 
 Remaining minutes are rounded **up** (`(remaining_ms + 59999) // 60000`), so a
 timer never reads `0m` while it is still running.
+
+The error indicator expires after `ERROR_STATE_TIMEOUT` (5 minutes). It is also
+cleared by any incoming `audio/status` — but the audio service only publishes
+that when the status actually changed, so on an otherwise idle box the timeout
+is the only thing that takes the icon down again.
 
 ---
 
@@ -160,14 +173,16 @@ timer never reads `0m` while it is still running.
 `main.py` starts five things and then waits for a signal:
 
 1. **Display init.** `display_init(bus, address)` opens the SSD1306 over I2C. A
-   failure is a warning, not an error — the service keeps running and the render
-   loop simply finds `is_available()` false.
+   failure is a warning, not an error — the service keeps running, and the render
+   loop retries every `DISPLAY_INIT_RETRY_INTERVAL` (30 s) for as long as the
+   display is enabled and no panel answers. Those retries log at debug level, so
+   a box that simply has no panel does not write a warning twice a minute.
 2. **MQTT loop.** Started in the background; an unreachable broker no longer
    fails startup. `system/service-started` is published with `remember=True`, so
    it is republished after every reconnect.
 3. **Render loop**, 1 Hz.
 4. **Sleep timer poll**, every 5 s.
-5. **Session poll**, every 5 s.
+5. **Session poll**, every 15 s.
 6. **API server** (uvicorn, inside the already running event loop).
 
 ### The render loop
@@ -189,6 +204,8 @@ Two things override the skip:
 - **Forced redraw** every 60 s, so a panel that glitched heals itself.
 - **Display re-appearance.** When `is_available()` goes from false to true the
   remembered fingerprint is discarded, because the panel's content is unknown.
+  This is what makes the init retry above visible: the panel comes back mid-run
+  and is redrawn even though nothing about the content changed.
 
 The test pattern holds the loop off for `TEST_PATTERN_SECONDS` (6 s) via a
 deadline that is set *before* drawing, so the loop cannot slip between the draw
@@ -205,6 +222,11 @@ also keeps the connection alive.
 `ConnectError` and `TimeoutException` are swallowed silently: a backend that is
 still starting is the normal case, not an incident.
 
+The two intervals differ on purpose. The sleep timer counts down and is drawn to
+the minute, so it is polled every 5 s. Repeat and shuffle only change when
+somebody presses a button and are drawn as a single icon, so 15 s is enough — at
+a measured 12 ms of CPU per request that is worth the difference.
+
 ---
 
 ## 6. Public Interfaces
@@ -220,7 +242,7 @@ reconnect.
 | `audio/status` | Updates the cached audio state (`state`, `volume`, `muted`, `multiple_output_devices`, `bluetooth_sink_available`) and clears the error flag. |
 | `audio/error` | Sets the error flag. |
 | `system/service-error` | Sets the error flag. |
-| `display/config/reload` | Reloads `config/display.json` and redraws immediately. |
+| `display/config/reload` | Reloads `config/display.json`, applies any hardware change, and redraws immediately. |
 | `config/general` | Applies the log level, handled by `BaseMQTTClient.apply_general_config()`. |
 
 ### 6.2 MQTT — published
@@ -251,7 +273,15 @@ The API listens on `0.0.0.0:8000` inside the container (`API_PORT`, default
 ```
 
 `status` is `degraded` while the broker connection is down — the value is the
-live socket state, not "did startup succeed once".
+live socket state, not "did startup succeed once" — and also while the display
+is enabled but no panel answered. Configured is not the same as usable, and a
+blank panel reporting `healthy` is the one thing somebody looking at it would be
+asking about. A display switched off in the config stays `healthy`: that is a
+choice, not a fault.
+
+The HTTP status is 200 either way. The container health check only asks whether
+the endpoint answers at all — a restart would fix neither a dead broker nor a
+missing panel.
 
 **`POST /test`** — draws `Minabox` / `Display OK` for six seconds so the setup
 wizard can confirm the panel is wired correctly. Returns `{"tested": true}`, or
@@ -302,9 +332,19 @@ Element:
 | `order` | int ≥ 0 | Position within the area; lower comes first (left in the header, higher in a column). |
 | `area` | `0` \| `1` \| `2` | Header, left column, right column. |
 
+A reload does not only redraw. If `i2c_bus` or `i2c_address` changed, the device
+is closed and reopened on the new address; if `enabled` went false the panel is
+blanked; if it went true on a box that started with the display off, the device
+is opened. Otherwise a changed setting would sit in the file until the next
+container restart while the WebUI reported success.
+
 **Environment:** `MQTT_BROKER`, `MQTT_PORT`, `MINABOX_DEVICE_ID`, `LOG_LEVEL`
 (all required), plus `BACKEND_URL` (default `http://backend:8080`), `API_PORT`
-(default 8000) and `TZ`.
+(default 8000, set from `DISPLAY_API_PORT` in compose) and `TZ`.
+
+Only the environment is read into `AppConfig`. `display.json` belongs to
+`ConfigManager`, which is the copy that can be reloaded — a second parse at
+startup would go stale the first time the file changed.
 
 The backend exposes `GET /api/v1/config/display/element-types` so the admin UI
 can offer the available types without hardcoding them.
@@ -339,19 +379,30 @@ so a box without a panel simply never starts it.
 | `devices` | `/dev/i2c-1` | The only host access this container gets. |
 | `user` | `${HOST_UID}:${I2C_GID}` | Runs unprivileged; the i2c group is what grants bus access. |
 | `volumes` | `config:ro` | The backend writes the file, the service only reads it. |
-| `ports` | `8006:8000` | Health and test endpoint. |
+| `ports` | `8006:${DISPLAY_API_PORT:-8000}` | Health and test endpoint. The container port, the published port and the health check all read the same variable, so they cannot disagree. |
 | `logging` | `json-file`, 10 MB × 3 | The driver default is unlimited growth, and the box runs from an SD card. |
 | `depends_on` | `mqtt` + `backend` healthy | The polls would otherwise fail for the first minute. |
 | `environment` | `TZ` | The clock element renders container-local time. |
 
-The image is a two-stage build on `python:3.13-slim`. Every dependency resolves
-to a prebuilt `aarch64` wheel, and Pillow ships its own copies of freetype,
-libjpeg and libpng under `PIL/../pillow.libs`. The runtime stage adds
-`fonts-dejavu-core` for the `sans` and `mono` families.
+The image is a two-stage build on `python:3.13-slim`, 285 MB. Every dependency
+resolves to a prebuilt `aarch64` wheel — pip is called with `--only-binary=:all:`
+so that stays true — and the builder therefore needs no compiler. Pillow ships
+its own copies of freetype, libjpeg and libpng under `PIL/../pillow.libs`, so the
+runtime stage adds only `fonts-dejavu-core`, for the `sans` and `mono` families,
+and `curl`.
+
+`curl` is there for the health check, deliberately. Replacing it with a Python
+probe, as the LED and button images did, saves 14.5 MB but costs 6 % of a CPU
+core: `python:3.13-slim` ships no compiled bytecode for the standard library and
+this container runs unprivileged against root-owned directories, so every probe
+recompiles `ssl`, `email` and `http.client` from source — 2.13 s of CPU against
+0.052 s, every 30 seconds. See
+[Offene-Punkte 1.4](../Offene-Punkte.md) and the go-live review.
 
 Shutdown is handled on `SIGTERM`/`SIGINT`: the API server stops, the MQTT loop
 and the three background loops are cancelled and awaited, then the panel is
-cleared — so nothing stays on screen after `docker compose down`.
+blanked and the I2C handle closed — so nothing stays on screen after
+`docker compose down`, and nothing holds the bus the RFID reader shares.
 
 ---
 
@@ -363,7 +414,10 @@ readable at `DEBUG`, JSON from `INFO` upwards.
 | Event | Level | Meaning |
 | --- | --- | --- |
 | `display_initialized` | info | The panel answered on the configured bus and address. |
-| `display_init_failed` | warning | No panel. The service runs on without one; nothing retries. |
+| `display_init_failed` | warning | No panel on that bus and address. The render loop keeps retrying every 30 s, at debug level. |
+| `display_address_changed` | info | A reload changed the bus or address; the device is being reopened. |
+| `display_shutdown` | info | The device was closed — at shutdown, or before reopening on a new address. |
+| `error_state_expired` | debug | The error indicator timed out and came off the panel. |
 | `display_area_overcrowded` | warning | More elements are enabled in an area than it can hold; the surplus will be dropped. |
 | `display_area_item_dropped` | warning | The surplus was dropped for this frame. |
 | `unknown_element_type` | warning | The config names a type with no renderer. |
@@ -377,10 +431,16 @@ readable at `DEBUG`, JSON from `INFO` upwards.
 
 Behaviour on failure:
 
-- **No panel at startup:** logged as a warning, the service keeps running,
-  `/health` reports `display_available: false`.
-- **Invalid config file at startup:** `load_app_config()` raises and the process
-  exits, so the container restarts.
+- **No panel at startup:** logged as a warning, the service keeps running and
+  retries every 30 s, and `/health` reports `degraded` with
+  `display_available: false` until one answers.
+- **Invalid config file at startup:** loading raises and the process exits, so
+  the container restarts — and keeps restarting. That is why the backend
+  validates a display config against the same rules before writing it
+  (`_validate_display_config`, held to this schema by
+  `test_display_config_validation.py`). Logging is configured before the config
+  is read, so the failure comes out as a JSON log line rather than a bare
+  traceback.
 - **Failed reload:** the previous configuration stays active and the failure is
   logged; the panel keeps showing what it showed.
 - **Broker unreachable:** startup continues. The base client retries forever and

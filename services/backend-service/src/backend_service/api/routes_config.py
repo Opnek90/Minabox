@@ -445,6 +445,94 @@ def _validate_buttons_config(body: dict) -> None:
         )
 
 
+# The rules display_service/config_schema.py enforces, mirrored -- same reasoning
+# as _validate_buttons_config above, and the same failure it prevents.
+#
+# Only the shape check ran here before: "elements must be a list", contents
+# unexamined. So the WebUI could save an element with a type the display service
+# has no renderer for, or an area outside 0-2, and report success. The running
+# container survived it -- the reload handler catches the ValidationError and
+# keeps the old config -- but the next container start died on the file and went
+# into a restart loop. The box looked fine until the next reboot.
+#
+# Kept as a copy on purpose, like the button rules: the backend does not import
+# from another service's package. If the schema there moves, it moves here too --
+# test_display_config_validation.py holds both ends together.
+_DISPLAY_FONT_SIZES = ("small", "medium", "large")
+_DISPLAY_FONTS = (
+    "default",
+    "sans",
+    "mono",
+    "roboto",
+    "ubuntu",
+    "noto",
+    "liberation",
+    "terminus",
+)
+
+
+def _validate_display_config(body: dict) -> None:
+    """Reject a display config the display service would refuse to load."""
+    errors: list[str] = []
+
+    font_size = body.get("font_size")
+    if font_size is not None and font_size not in _DISPLAY_FONT_SIZES:
+        errors.append(
+            f"'font_size' must be one of {', '.join(_DISPLAY_FONT_SIZES)}"
+        )
+
+    font = body.get("font")
+    if font is not None and font not in _DISPLAY_FONTS:
+        errors.append(f"'font' must be one of {', '.join(_DISPLAY_FONTS)}")
+
+    bus = body.get("i2c_bus")
+    if bus is not None and (not isinstance(bus, int) or bus < 1):
+        errors.append("'i2c_bus' must be a positive integer")
+
+    address = body.get("i2c_address")
+    if address is not None and (not isinstance(address, int) or address < 0):
+        errors.append("'i2c_address' must be a non-negative integer")
+
+    for index, element in enumerate(body.get("elements", [])):
+        where = f"elements[{index}]"
+        if not isinstance(element, dict):
+            errors.append(f"{where} must be an object")
+            continue
+
+        where = f"elements[{index}] ({element.get('id') or 'no id'})"
+
+        # No .strip(): the display service checks `min_length=1`, so a
+        # blank-but-not-empty string is legal there and must stay legal here.
+        element_id = element.get("id")
+        if not isinstance(element_id, str) or not element_id:
+            errors.append(f"{where}: 'id' must not be empty")
+
+        element_type = element.get("type")
+        if element_type not in _DISPLAY_ELEMENT_TYPES:
+            errors.append(
+                f"{where}: 'type' must be one of "
+                f"{', '.join(_DISPLAY_ELEMENT_TYPES)}"
+            )
+
+        area = element.get("area")
+        if area is not None and area not in (0, 1, 2):
+            errors.append(
+                f"{where}: 'area' must be 0 (header), 1 (left) or 2 (right)"
+            )
+
+        order = element.get("order")
+        if order is not None and (not isinstance(order, int) or order < 0):
+            errors.append(f"{where}: 'order' must be a non-negative integer")
+
+    if errors:
+        logger.warning("display_config_rejected", errors=errors)
+        raise ApiError(
+            status_code=422,
+            code="display_config_invalid",
+            detail="; ".join(errors),
+        )
+
+
 def _config_path(service: str) -> Path | None:
     if service not in CONFIG_FILES:
         return None
@@ -663,6 +751,7 @@ async def update_display_config(body: dict) -> dict:
     if path is None:
         raise ApiError(status_code=503, code="display_config_unavailable", detail="Display config not available")
     _validate_config_shape("display", body)
+    _validate_display_config(body)
     try:
         write_json_atomic(path, body)
         if _mqtt_client is not None:

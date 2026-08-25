@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 import signal
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 import structlog
@@ -23,17 +23,25 @@ from .core import StateManager
 from .infrastructure import (
     MQTTClient,
     clear,
-    init as display_init,
     is_available,
     show_areas,
     show_lines,
+)
+from .infrastructure import (
+    init as display_init,
+)
+from .infrastructure import (
+    shutdown as display_shutdown,
 )
 
 logger = structlog.get_logger(__name__)
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8080")
 SLEEP_TIMER_POLL_INTERVAL = 5.0
-SESSION_POLL_INTERVAL = 5.0
+# Repeat and shuffle change when somebody presses a button, and the panel shows
+# them as a single icon. One request every 5 seconds bought a latency nobody can
+# perceive at a measured 12 ms of CPU per request.
+SESSION_POLL_INTERVAL = 15.0
 RENDER_INTERVAL = 1.0
 # The render loop ticks every second, but the OLED shares /dev/i2c-1 with the
 # PN532 RFID reader. Redrawing identical content just adds bus contention on the
@@ -42,15 +50,18 @@ RENDER_INTERVAL = 1.0
 # when the rendered content actually changed, with a periodic forced redraw so a
 # glitched display still heals itself.
 FORCE_REDRAW_INTERVAL = 60.0
-# Anzeigedauer des Testbilds aus dem Ersteinrichtungs-Assistenten.
+# How often the render loop retries opening the panel while there is none.
+#
+# init() used to be called exactly once, at startup. If the panel was not ready
+# then - this container starts while the rest of the stack is still settling,
+# and it shares the bus with the RFID reader - it stayed dark for the life of
+# the process, and the "display re-appeared" branch below could never fire.
+DISPLAY_INIT_RETRY_INTERVAL = 30.0
+# How long the setup wizard's test pattern is held on the panel.
 TEST_PATTERN_SECONDS = 6.0
 
 _HEADER_MAX_ITEMS = 6
 _BODY_MAX_ITEMS = 3
-
-_CONDITIONAL_TYPES = frozenset({
-    "sleep_timer", "mute", "error_state", "repeat", "shuffle", "bluetooth",
-})
 
 # ---------------------------------------------------------------------------
 # Registry-Pattern for display element renderers (issue #26)
@@ -62,6 +73,7 @@ _CONDITIONAL_TYPES = frozenset({
 # Adding a new type only requires a new entry here — _build_areas() is
 # never touched.
 # ---------------------------------------------------------------------------
+
 
 def _render_volume(
     audio: dict, sleep_timer: dict, session: dict, state_manager: Any
@@ -92,7 +104,12 @@ def _render_play_state(
     audio: dict, sleep_timer: dict, session: dict, state_manager: Any
 ) -> dict | None:
     state = audio.get("state", "stopped")
-    icon_val = "play" if state == "playing" else "pause" if state == "paused" else "stop"
+    if state == "playing":
+        icon_val = "play"
+    elif state == "paused":
+        icon_val = "pause"
+    else:
+        icon_val = "stop"
     return {"type": "icon", "value": icon_val}
 
 
@@ -134,6 +151,7 @@ def _render_bluetooth(
     return None
 
 
+# fmt: off
 _ELEMENT_RENDERERS: dict[
     str,
     Callable[[dict, dict, dict, Any], dict | None],
@@ -148,6 +166,7 @@ _ELEMENT_RENDERERS: dict[
     "shuffle":     _render_shuffle,
     "bluetooth":   _render_bluetooth,
 }
+# fmt: on
 
 
 async def _cancel_task(task: asyncio.Task | None, timeout: float = 5.0) -> None:
@@ -180,7 +199,7 @@ class DisplayService:
         self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._display_config: DisplayServiceConfig | None = None
-        # Deadline, bis zu der der Render-Loop das Testbild stehen laesst.
+        # Deadline up to which the render loop leaves the test pattern alone.
         self._test_pattern_until: float = 0.0
 
     async def start(self) -> None:
@@ -188,17 +207,10 @@ class DisplayService:
         logger.info("display_service_starting")
         self._display_config = self.config_manager.load_config()
         if self._display_config.enabled:
-            try:
-                display_init(
-                    self._display_config.i2c_bus,
-                    self._display_config.i2c_address,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "display_init_failed",
-                    error=str(exc),
-                    hint="Display disabled. Check I2C bus configuration.",
-                )
+            display_init(
+                self._display_config.i2c_bus,
+                self._display_config.i2c_address,
+            )
         self._warn_overcrowded_areas(self._display_config)
         # Connects in the background and retries forever, so an unreachable
         # broker no longer fails startup.
@@ -244,8 +256,9 @@ class DisplayService:
         await _cancel_task(self._session_poll_task)
         await _cancel_task(self._mqtt_task)
         await self.mqtt_client.disconnect()
-        if is_available():
-            clear()
+        # Blanks the panel and closes the I2C handle; a plain clear() left the
+        # handle open until the process died.
+        display_shutdown()
         logger.info("display_service_stopped")
 
     def request_shutdown(self) -> None:
@@ -259,20 +272,67 @@ class DisplayService:
 
     def _handle_config_reload(self) -> None:
         try:
+            previous = self._display_config
             self._display_config = self.config_manager.reload_config()
             logger.info("config_reload_success")
             self._warn_overcrowded_areas(self._display_config)
-            if is_available() and self._display_config and self._display_config.enabled:
-                cfg = self._display_config
-                areas = self._build_areas()
-                if any(areas):
-                    show_areas(
-                        areas,
-                        font_size=cfg.font_size,
-                        font=cfg.font,
-                    )
+            self._apply_hardware_config(previous, self._display_config)
+            self._redraw_now()
         except Exception as exc:
             logger.error("config_reload_failed", error=str(exc), exc_info=True)
+
+    @staticmethod
+    def _apply_hardware_config(
+        previous: DisplayServiceConfig | None,
+        current: DisplayServiceConfig,
+    ) -> None:
+        """Bring the device in line with a freshly loaded config.
+
+        A reload used to only redraw. So changing the I2C address in the WebUI
+        kept talking to the old one, switching the display off left the last
+        frame standing on the panel, and switching it on for a box that started
+        with it off did nothing at all - all three until the next restart.
+        """
+        address_changed = previous is not None and (
+            previous.i2c_bus != current.i2c_bus
+            or previous.i2c_address != current.i2c_address
+        )
+
+        if address_changed and is_available():
+            logger.info(
+                "display_address_changed",
+                bus=current.i2c_bus,
+                address=current.i2c_address,
+            )
+            display_shutdown()
+
+        if not current.enabled:
+            if is_available():
+                # Leaving the last frame up is the one outcome the user reads
+                # as "the setting did not work".
+                clear()
+            return
+
+        if not is_available():
+            display_init(current.i2c_bus, current.i2c_address)
+
+    def _redraw_now(self) -> None:
+        """Push a frame immediately, unless the test pattern still owns the panel."""
+        cfg = self._display_config
+        if not is_available() or not cfg or not cfg.enabled:
+            return
+        if self._test_pattern_deadline_active():
+            return
+        areas = self._build_areas()
+        if any(areas):
+            show_areas(areas, font_size=cfg.font_size, font=cfg.font)
+
+    def _test_pattern_deadline_active(self) -> bool:
+        try:
+            now = asyncio.get_running_loop().time()
+        except RuntimeError:  # pragma: no cover - no loop, so no render loop either
+            return False
+        return now < self._test_pattern_until
 
     @staticmethod
     def _warn_overcrowded_areas(cfg: DisplayServiceConfig | None) -> None:
@@ -292,8 +352,8 @@ class DisplayService:
                     limit=limit,
                     elements=types,
                     hint=(
-                        f"Area {area_idx} has {len(enabled_in_area)} enabled elements but "
-                        f"the renderer supports at most {limit}. "
+                        f"Area {area_idx} has {len(enabled_in_area)} enabled "
+                        f"elements but the renderer supports at most {limit}. "
                         "Items beyond the limit will be dropped at render time."
                     ),
                 )
@@ -379,6 +439,7 @@ class DisplayService:
                 data.get("active", False),
                 data.get("remaining_ms"),
             )
+
         await self._poll_backend(
             endpoint="/api/v1/audio/sleep-timer",
             interval=SLEEP_TIMER_POLL_INTERVAL,
@@ -392,6 +453,7 @@ class DisplayService:
                 data.get("repeat_mode", "none"),
                 data.get("shuffle", False),
             )
+
         await self._poll_backend(
             endpoint="/api/v1/audio/session",
             interval=SESSION_POLL_INTERVAL,
@@ -416,8 +478,8 @@ class DisplayService:
         if not cfg or not cfg.enabled:
             return False
 
-        # Erst die Sperre setzen, dann zeichnen - sonst kann der Render-Loop
-        # zwischen Zeichnen und Sperren dazwischenfunken.
+        # Take the lock before drawing - otherwise the render loop can slip in
+        # between the draw and the lock.
         self._test_pattern_until = (
             asyncio.get_running_loop().time() + TEST_PATTERN_SECONDS
         )
@@ -433,27 +495,40 @@ class DisplayService:
     async def _render_loop(self) -> None:
         last_fingerprint: str | None = None
         last_forced = 0.0
+        last_init_retry = 0.0
         was_available = False
 
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(RENDER_INTERVAL)
-                available = is_available()
-                if not available:
+                now = asyncio.get_running_loop().time()
+                cfg = self._display_config
+
+                if not is_available():
                     was_available = False
+                    if (
+                        cfg
+                        and cfg.enabled
+                        and (now - last_init_retry) >= DISPLAY_INIT_RETRY_INTERVAL
+                    ):
+                        last_init_retry = now
+                        # Quietly: the first failure was already reported at
+                        # startup, and a box that simply has no panel must not
+                        # write a warning every 30 seconds for years.
+                        display_init(cfg.i2c_bus, cfg.i2c_address, log_failure=False)
                     continue
+
                 if not was_available:
                     # Display (re-)appeared - the panel content is unknown, redraw.
                     last_fingerprint = None
                     was_available = True
 
-                # Das Testbild wuerde sonst nach spaetestens einer Sekunde
-                # vom normalen Frame ueberschrieben und waere nicht ablesbar.
-                if asyncio.get_running_loop().time() < self._test_pattern_until:
+                # Otherwise the test pattern would be overwritten by the normal
+                # frame within a second and could not be read.
+                if now < self._test_pattern_until:
                     last_fingerprint = None
                     continue
 
-                cfg = self._display_config
                 if not cfg or not cfg.enabled:
                     continue
                 areas = self._build_areas()
@@ -461,7 +536,6 @@ class DisplayService:
                     continue
 
                 fingerprint = self._render_fingerprint(areas, cfg.font_size, cfg.font)
-                now = asyncio.get_running_loop().time()
                 forced = (now - last_forced) >= FORCE_REDRAW_INTERVAL
                 if fingerprint == last_fingerprint and not forced:
                     continue
@@ -481,7 +555,14 @@ class DisplayService:
 
 
 async def main() -> None:
-    config = load_app_config()
+    # Logging first: the most consequential error this service can hit is an
+    # unloadable config, and it used to be reported by an unconfigured logger.
+    setup_structlog(os.environ.get("LOG_LEVEL", "INFO"))
+    try:
+        config = load_app_config()
+    except Exception as exc:
+        logger.error("config_load_failed", error=str(exc))
+        raise
     setup_structlog(config.env.log_level)
     logger.info(
         "service_initializing",

@@ -1,26 +1,70 @@
 # Display Service
 
-I2C OLED (SSD1306 128x64) status display service for Minabox. Layout: **header** (full width) for clock and error indicator, then **two columns** (left | right) for volume, play state, mute, sleep timer, etc.
+I2C OLED (SSD1306 128×64) status display for Minabox. Layout: a **header**
+across the full width, then **two columns** below it. What appears where is
+configuration.
 
-## Features
+Full documentation: [docs/services/display/Architecture.md](../../docs/services/display/Architecture.md).
 
-- **Layout**: Area 0 = header (full width), area 1 = left column, area 2 = right column.
-- **Element types**: volume, sleep_timer, mute, play_state (as play/pause/stop icons), clock, error_state (exclamation when error).
-- **MQTT**: Subscribes to `audio/status`, `audio/error`, `system/service-error`, and `display/config/reload`.
-- **Sleep timer**: Moon icon + remaining minutes; data from backend `GET /api/v1/audio/sleep-timer`.
-- **Error state**: Shows exclamation icon in header when `audio/error` or `system/service-error` is received; cleared on next `audio/status`.
-- **Icons**: PNGs in `src/display_service/assets/icons/` (icon_mute.png, icon_moon.png, icon_play.png, icon_pause.png, icon_stop.png, icon_error.png). Replace 16×16 images to customize.
+## What it shows
+
+Nine element types, each placeable in any of the three areas:
+
+| Type | Shows | Appears |
+| --- | --- | --- |
+| `clock` | `HH:MM` | always |
+| `volume` | `NN%` | always |
+| `play_state` | play / pause / stop icon | always |
+| `mute` | mute icon | while muted |
+| `bluetooth` | Bluetooth icon | when a BT sink exists and more than one output is enabled |
+| `error_state` | exclamation icon | for 5 minutes after an error |
+| `sleep_timer` | moon icon + remaining minutes | while the timer runs |
+| `repeat` | repeat icon | while repeat-all is on |
+| `shuffle` | shuffle icon | while shuffle is on |
+
+Icons are drawn as vectors by `IconRenderer`, not loaded from files — there is
+nothing to replace on disk.
+
+## Where the data comes from
+
+- **MQTT:** `audio/status`, `audio/error`, `system/service-error`,
+  `display/config/reload`, `config/general`.
+- **Backend REST:** `GET /api/v1/audio/sleep-timer` (every 5 s) and
+  `GET /api/v1/audio/session` (every 15 s).
+
+The render loop ticks once a second but only pushes a frame when the content
+actually changed — the panel shares `/dev/i2c-1` with the RFID reader, so an
+identical redraw is pure bus contention.
 
 ## Config
 
-`config/display.json`:
+`config/display.json`, written by the backend and mounted read-only:
 
-- `enabled`: global on/off
-- `i2c_bus`, `i2c_address`: hardware (default 1, 60)
-- `elements`: `[{ id, type, enabled, order, area }]` — `area`: 0 = header, 1 = left, 2 = right. Only enabled elements are shown, in order.
+- `enabled` — global on/off
+- `i2c_bus`, `i2c_address` — hardware (default `1`, `60` = 0x3C)
+- `font_size` — `small` | `medium` | `large`
+- `font` — `default` | `sans` | `mono` | `roboto` | `ubuntu` | `noto` |
+  `liberation` | `terminus` (only DejaVu ships in the image; the rest fall back)
+- `elements` — `[{ id, type, enabled, order, area }]`, `area`: 0 = header,
+  1 = left, 2 = right
+
+Changes take effect on `display/config/reload` without a restart, including a
+changed I2C address or switching the display off.
+
+## API
+
+- `GET /health` — reports `degraded` when the broker is away, or when the
+  display is enabled but no panel answered.
+- `POST /test` — six-second test pattern for the setup wizard; 404 when there is
+  no panel.
 
 ## Run
 
-Part of the Minabox stack via `docker compose up`. Requires I2C enabled (`raspi-config` → Interface Options → I2C).
+Part of the Minabox stack, under the `display` compose profile. Requires I2C
+enabled (`raspi-config` → Interface Options → I2C).
 
-**Scripts:** `scripts/generate_icon_assets.py` – generates or updates icon assets from a source (run from service root if needed).
+## Tests
+
+```bash
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest services/display-service/tests -q
+```

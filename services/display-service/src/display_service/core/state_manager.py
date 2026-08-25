@@ -3,18 +3,37 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
 
+# How long the error indicator stays up after the last error event.
+#
+# The flag used to be cleared by exactly one thing: an incoming audio/status.
+# But the audio service only publishes that when the status actually changed,
+# so an error on an otherwise idle box - the backend's temperature warning is
+# the reachable case - left the icon on the panel until somebody pressed play.
+#
+# A corner of a 128x64 panel can honestly express "something went wrong
+# recently"; it cannot express "and it is still wrong", because nothing tells
+# us that. So the indicator expires on its own.
+ERROR_STATE_TIMEOUT = 300.0
+
 
 class StateManager:
-    """Caches audio status (from MQTT) and sleep timer (from backend poll) for display."""
+    """Caches audio status (MQTT) and sleep timer (backend poll) for display."""
 
-    def __init__(self, device_id: str) -> None:
+    def __init__(
+        self,
+        device_id: str,
+        *,
+        error_timeout: float = ERROR_STATE_TIMEOUT,
+    ) -> None:
         self._device_id = device_id
+        self._error_timeout = error_timeout
         self._audio: dict[str, Any] = {
             "state": "stopped",
             "volume": 0,
@@ -24,30 +43,40 @@ class StateManager:
         }
         self._sleep_timer: dict[str, Any] = {"active": False, "remaining_ms": None}
         self._session: dict[str, Any] = {"repeat_mode": "none", "shuffle": False}
-        self._has_error: bool = False
+        self._error_since: float | None = None
 
     def update_audio(self, topic: str, payload: bytes) -> None:
-        """Update cached audio state from MQTT audio/status. Clears error on new status."""
+        """Update cached audio state from audio/status. Clears error on new status."""
         if not topic.endswith("/audio/status"):
             return
-        self._has_error = False
+        self._error_since = None
         try:
             data = json.loads(payload.decode("utf-8"))
             self._audio["state"] = data.get("state", "stopped")
             self._audio["volume"] = int(data.get("volume", 0))
             self._audio["muted"] = bool(data.get("muted", False))
-            self._audio["multiple_output_devices"] = data.get("multiple_output_devices", False)
-            self._audio["bluetooth_sink_available"] = data.get("bluetooth_sink_available", False)
+            self._audio["multiple_output_devices"] = data.get(
+                "multiple_output_devices", False
+            )
+            self._audio["bluetooth_sink_available"] = data.get(
+                "bluetooth_sink_available", False
+            )
         except (json.JSONDecodeError, UnicodeDecodeError, TypeError) as exc:
             logger.warning("audio_status_parse_failed", error=str(exc))
 
     def set_error(self) -> None:
         """Set error state (called on audio/error or system/service-error)."""
-        self._has_error = True
+        self._error_since = time.monotonic()
 
     def has_error(self) -> bool:
-        """Return True if an error was reported (audio/error or system/service-error)."""
-        return self._has_error
+        """True while an error was reported recently enough to still show it."""
+        if self._error_since is None:
+            return False
+        if time.monotonic() - self._error_since >= self._error_timeout:
+            self._error_since = None
+            logger.debug("error_state_expired", after_seconds=self._error_timeout)
+            return False
+        return True
 
     def update_sleep_timer(self, active: bool, remaining_ms: int | None) -> None:
         """Update sleep timer state (from backend API poll)."""

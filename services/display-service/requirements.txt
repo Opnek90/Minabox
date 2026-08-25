@@ -1,6 +1,10 @@
 # Core Framework
 fastapi>=0.126.0,<0.127.0
-uvicorn[standard]>=0.34.0,<0.35.0
+# Plain uvicorn, not [standard]: that extra pulls uvloop, httptools,
+# websockets, watchfiles and PyYAML - 27 MB of which nothing is used here.
+# uvloop never even activates, because main.py runs the server inside a loop it
+# started itself, so uvicorn's setup_event_loop() is never called.
+uvicorn>=0.34.0,<0.35.0
 pydantic>=2.12.0,<2.13.0
 
 # MQTT Client
@@ -9,12 +13,11 @@ aiomqtt>=2.5.0,<2.6.0
 # Logging
 structlog>=25.4.0,<25.5.0
 
-# Retry & Error Handling
-tenacity>=9.0.0,<10.0.0
-
-# HTTP client (backend sleep-timer poll)
+# HTTP client (backend sleep-timer and session polls)
 httpx>=0.28.0,<0.29.0
 
-# OLED Display (SSD1306 I2C)
+# OLED Display (SSD1306 I2C). luma.oled pulls in luma.core and smbus2;
+# Pillow does the drawing and ships its own freetype, libjpeg and libpng,
+# so the runtime image needs none of those from apt.
 luma.oled>=3.13.0,<3.15.0
 Pillow>=11.0.0,<12.0.0

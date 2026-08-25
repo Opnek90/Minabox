@@ -18,41 +18,101 @@ somebody else's hands.
 `ghcr.io/opnek90/minabox-display:0.1.1`). Where a number appears, it was
 measured rather than estimated, and the command is given so it can be repeated.
 
-**Status:** every item is open — no source changes have been made. Only this
-document and `Architecture.md` were written.
+**Status:** 19 of 21 items are done, 2 partly, and 4 are deliberately left open
+(1.7, 2.1, 2.2, 2.3). See *Result* below.
 
-Legend: `[ ]` open · `[x]` done · **[H]** high · **[M]** medium · **[N]** low
+Legend: `[ ]` open · `[~]` partly · `[x]` done · **[H]** high · **[M]** medium ·
+**[N]** low
 
 ---
 
 ## Summary
 
-The one item that should not ship as it stands is **1.1**: the WebUI can save a
-display configuration that the display service refuses to load, and the next
-container start then fails permanently. Both halves are reproduced below. It is
-the same defect that was fixed for the button service in
+The one item that could not have shipped as it was is **1.1**: the WebUI could
+save a display configuration that the display service refuses to load, and the
+next container start then failed permanently. Both halves are reproduced below.
+It is the same defect that was fixed for the button service in
 [#126](https://github.com/Opnek90/Minabox/pull/126), and the fix has the same
 shape.
 
-After that come four medium items that all share a theme — the service is
-honest with its logs but not with its interfaces. A dead panel reports
-`healthy`, a panel that was not ready at boot is never picked up again, a
-changed I2C address needs a container restart, and a one-off error can leave the
-error icon on screen indefinitely.
+After that came four medium items that all share a theme — the service was
+honest with its logs but not with its interfaces. A dead panel reported
+`healthy`, a panel that was not ready at boot was never picked up again, a
+changed I2C address needed a container restart, and a one-off error could leave
+the error icon on screen indefinitely.
 
-On the Docker side there is a clean **≈ 42 MB** to take out of a 327 MB image at
+On the Docker side there was a clean **≈ 42 MB** to take out of a 327 MB image at
 low risk. There is also a **warning**: the `curl` → Python health-check swap that
 saved 14.5 MB in the LED and button images costs **6 % of a CPU core, per
 service, permanently**. That is measured, it is the largest single consumer in
-both of those containers, and the display service should not copy it. Details in
+both of those containers, and the display service does not copy it. Details in
 section 5 — it is the most useful thing this review found, and it applies to two
 services other than this one.
 
 ---
 
+## Result
+
+Everything in section 1 is fixed, plus the whole of section 4. What was measured
+afterwards, on the box:
+
+| | Before | After |
+| --- | --- | --- |
+| Image | 327 MB | **285 MB** |
+| Container CPU, idle | 2.26 % | **1.99 %** |
+| ...of which the service | 1.47 % | **1.22 %** |
+| ruff findings | 51 | **0** |
+| Unformatted files | 7 of 17 | **0 of 24** |
+| Tests, display service | 9 | **135** |
+| Tests, backend display config | 0 | **62** |
+
+The fixes were verified against the real panel with a locally built image, which
+is the only way to check the ones that touch device lifetime:
+
+* a reload with no change redraws and leaves the device alone,
+* `enabled: false` blanks the panel, `true` brings it back,
+* changing `i2c_address` to 61 logs `display_address_changed`, closes the device,
+  fails to open the new address, and `/health` turns `degraded` —
+  putting it back to 60 reopens the panel and returns `healthy`,
+* `POST /test` shows the pattern, and a reload during those six seconds no
+  longer wipes it.
+
+The box was returned to the published image afterwards; nothing was rolled out.
+
+The tests were checked by breaking each fix on purpose and confirming the suite
+caught it. The first pass found a gap that way: mutating the `/health` change
+produced no failure, because there was no test for the endpoint at all. That is
+what `test_display_health_endpoint.py` is.
+
+### Deliberately still open
+
+* **1.7 (character-count truncation)** — it is a layout question, and a visual
+  redesign of the panel is being considered. Fixing the truncation against
+  measured pixel width now would be work done twice.
+* **2.1 (the frame blocks the event loop)** — real, but it changes the
+  concurrency model around the device and needs an `asyncio.Lock` plus testing
+  on hardware under load. It does not belong in the same change as everything
+  above, and it is the natural companion to a redesign that touches the render
+  path anyway.
+* **2.2 (port 8006 on all interfaces)** — tracked fleet-wide as
+  [Offene-Punkte 1.1](../Offene-Punkte.md); moving only this service to
+  `127.0.0.1:` would leave the fleet half-converted.
+* **2.3 (no last will)** — nothing subscribes to a display liveness topic, so it
+  would be a topic added on spec.
+
+### Not this service
+
+The health-check measurement in section 5 became
+[Offene-Punkte 1.4](../Offene-Punkte.md). It affects `button` and `led`, where it
+costs 6 % of a core each, and it explains
+[Offene-Punkte 2.6](../Offene-Punkte.md), which was recorded there as
+unexplained.
+
+---
+
 ## 1. Functional defects
 
-### [ ] [H] 1.1 An invalid `display.json` puts the container into a restart loop — and the backend hands one out
+### [x] [H] 1.1 An invalid `display.json` puts the container into a restart loop — and the backend hands one out
 
 Two halves, both reproduced.
 
@@ -114,7 +174,7 @@ who finds the broken box are separated by a reboot.
 
 ---
 
-### [ ] [M] 1.2 `/health` reports `healthy` when there is no panel
+### [x] [M] 1.2 `/health` reports `healthy` when there is no panel
 
 `routes.py` derives `status` from the broker connection alone:
 
@@ -140,7 +200,7 @@ and still invisible until that is addressed. Worth doing anyway; it is what
 
 ---
 
-### [ ] [M] 1.3 A panel that is not ready at boot is never picked up again
+### [x] [M] 1.3 A panel that is not ready at boot is never picked up again
 
 `display_init()` is called once, in `start()`. If it fails, the warning is
 logged and nothing ever retries. `is_available()` can never become true again
@@ -171,7 +231,7 @@ nothing at all.
 
 ---
 
-### [ ] [M] 1.4 Changing the I2C address, or switching the display off, needs a container restart
+### [x] [M] 1.4 Changing the I2C address, or switching the display off, needs a container restart
 
 `_handle_config_reload()` reloads the file and redraws. It does not look at what
 changed. Three consequences:
@@ -197,7 +257,7 @@ than what gets drawn.
 
 ---
 
-### [ ] [M] 1.5 The error icon can stay on the panel indefinitely
+### [x] [M] 1.5 The error icon can stay on the panel indefinitely
 
 The error flag is set by `audio/error` and `system/service-error`. It is cleared
 in exactly one place:
@@ -228,7 +288,7 @@ need a new topic.
 
 ---
 
-### [ ] [N] 1.6 A config reload can wipe the test pattern
+### [x] [N] 1.6 A config reload can wipe the test pattern
 
 `show_test_pattern()` sets `_test_pattern_until` before drawing, and the render
 loop honours it. `_handle_config_reload()` does not — it calls `show_areas()`
@@ -315,7 +375,7 @@ Low value on its own — nothing currently subscribes to a display liveness topi
 
 ---
 
-### [ ] [N] 2.4 Two poll loops, 34,560 backend requests a day
+### [x] [N] 2.4 Two poll loops, 34,560 backend requests a day
 
 `sleep-timer` and `session` are each polled every 5 s. Measured cost of one
 request in the container: **12 ms CPU**, 16 ms wall. Two loops at 5 s is
@@ -334,7 +394,7 @@ would take a third off this number for a latency nobody can perceive on a
 
 ---
 
-### [ ] [N] 2.5 The health check port is hardcoded
+### [x] [N] 2.5 The health check port is hardcoded
 
 `API_PORT` is configurable and validated (1024–65535), but `EXPOSE` and the
 Dockerfile `HEALTHCHECK` both hardcode 8000, as does the compose health check.
@@ -347,7 +407,7 @@ breaks the container when turned is worse than no knob.
 
 ## 3. Code quality
 
-### [ ] [M] 3.1 51 ruff findings, 7 of 17 files unformatted
+### [x] [M] 3.1 51 ruff findings, 7 of 17 files unformatted
 
 ```
 .venv/bin/ruff check services/display-service/ --statistics
@@ -380,7 +440,7 @@ than discover it in the diff.
 
 ---
 
-### [ ] [N] 3.2 Dead code
+### [x] [N] 3.2 Dead code
 
 | What | Where | Note |
 | --- | --- | --- |
@@ -395,7 +455,7 @@ source of truth for the same file. The rest is housekeeping.
 
 ---
 
-### [ ] [N] 3.3 German comments in an otherwise English codebase
+### [x] [N] 3.3 German comments in an otherwise English codebase
 
 `main.py:45`, `183`, `419–420`, `450–451`; `routes.py:18`; and the version block
 in the `Dockerfile` (the last is tracked fleet-wide as
@@ -407,7 +467,7 @@ comments in the render loop — is already English. These are the leftovers.
 
 ---
 
-### [ ] [N] 3.4 Three version numbers for one service
+### [~] [N] 3.4 Three version numbers for one service
 
 `VERSION` says `0.1.1`, `pyproject.toml` says `0.1.0`, and `routes.py` passes
 `version="0.1.0"` to `FastAPI(...)` — which is what OpenAPI reports, while
@@ -417,7 +477,7 @@ specific to this service and should use `get_version()`.
 
 ---
 
-### [ ] [M] 3.5 Nine tests, all on one static method
+### [x] [M] 3.5 Nine tests, all on one static method
 
 `test_render_fingerprint.py` is good — it pins the redraw decision from both
 sides and it caught the right things. But it is the only test, and
@@ -440,7 +500,7 @@ button service to 22 tests; this is the same job.
 
 ---
 
-### [ ] [N] 3.6 The README describes a rendering path that no longer exists
+### [x] [N] 3.6 The README describes a rendering path that no longer exists
 
 `services/display-service/README.md`:
 
@@ -456,7 +516,7 @@ serve as the source for a shorter README.
 
 ---
 
-### [ ] [N] 3.7 Small things
+### [~] [N] 3.7 Small things
 
 - `DisplayRenderer.render()` re-imports PIL on every frame and `clear()` /
   `show_lines()` re-import `luma.core.render` on every call. `sys.modules` makes
@@ -496,7 +556,7 @@ Layer breakdown:
   5 MB   ca-certificates, netbase, tzdata
 ```
 
-### [ ] [M] 4.1 `uvicorn[standard]` → `uvicorn` (≈ 27 MB)
+### [x] [M] 4.1 `uvicorn[standard]` → `uvicorn` (≈ 27 MB)
 
 Measured inside the container:
 
@@ -519,7 +579,7 @@ comment from `button-service/requirements.txt` transfers verbatim.
 **Risk:** low, and it is the change with the most precedent — two services have
 been running on plain `uvicorn` since their reviews.
 
-### [ ] [M] 4.2 Do not copy `pip` into the runtime image (≈ 12 MB)
+### [x] [M] 4.2 Do not copy `pip` into the runtime image (≈ 12 MB)
 
 The runtime image keeps the `pip` that `python:3.13-slim` ships in its own base
 layer either way. But `COPY --from=builder … site-packages` lays a **second**
@@ -534,11 +594,11 @@ packages this service never invokes.
 
 **Risk:** low. Nothing in the container installs packages at runtime.
 
-### [ ] [N] 4.3 `tenacity` is an unused dependency (≈ 1 MB)
+### [x] [N] 4.3 `tenacity` is an unused dependency (≈ 1 MB)
 
 See 3.2. Same finding as `button` 4.5.
 
-### [ ] [N] 4.4 `libjpeg62-turbo` and `libfreetype6` are not used (≈ 2 MB)
+### [x] [N] 4.4 `libjpeg62-turbo` and `libfreetype6` are not used (≈ 2 MB)
 
 Pillow's `aarch64` wheel bundles its own copies. Verified with `ldd`:
 
@@ -556,7 +616,7 @@ already, so listing it is a no-op. The runtime apt line reduces to
 `POST /test` on the real panel rather than trust to `ldd`, because the failure
 mode is "text renders as blank".
 
-### [ ] [N] 4.5 The builder installs a toolchain it never uses
+### [x] [N] 4.5 The builder installs a toolchain it never uses
 
 `gcc`, `libjpeg-dev`, `zlib1g-dev`, `libfreetype6-dev` — every single dependency
 resolves to a prebuilt wheel. Checked across all 31 installed packages:
@@ -580,7 +640,7 @@ Pillow release that drops the `aarch64` wheel would silently start building from
 source and fail on the missing toolchain — which is a much better failure than
 succeeding slowly, but only if the error message says so.
 
-### [ ] [N] 4.6 Small things in the Dockerfile
+### [x] [N] 4.6 Small things in the Dockerfile
 
 - `RUN useradd` and `RUN chown` are two layers for one operation.
 - `USER 1000:988` hardcodes the numeric i2c group. `led` and `button` use

@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from .display_controller import clear, init, is_available, show_areas, show_lines
+from .display_controller import (
+    clear,
+    init,
+    is_available,
+    show_areas,
+    show_lines,
+    shutdown,
+)
 from .mqtt_client import MQTTClient
 
 __all__ = [
@@ -10,5 +17,5 @@ __all__ = [
     "is_available",
     "show_areas",
     "show_lines",
+    "shutdown",
 ]
-

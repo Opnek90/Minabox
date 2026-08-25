@@ -192,14 +192,14 @@ Wheel fuer cp39–cp312, **nicht fuer cp313**.
 Fuer den LED-Teil steht das auch im
 [LED-Review, Abschnitt 4.4](led/GoLive-Review.md).
 
-### [ ] [M] 2.2 Deutsche Kommentare in fuenf Dockerfiles
+### [ ] [M] 2.2 Deutsche Kommentare in vier Dockerfiles
 
 Der Versions-Block am Dateiende ist noch deutsch in:
 
-`button`, `audio`, `media-downloader`, `webui`, `display`
+`button`, `audio`, `media-downloader`, `webui`
 
-`host-helper` und `led` sind bereits uebersetzt – der Wortlaut kann von dort
-uebernommen werden. Reine Textaenderung, kein Risiko, aber sie invalidiert die
+`host-helper`, `led` und `display` sind bereits uebersetzt – der Wortlaut kann
+von dort uebernommen werden. Reine Textaenderung, kein Risiko, aber sie invalidiert die
 letzten Metadaten-Layer und loest damit einen Rebuild aus.
 
 ### [ ] [N] 2.3 Die Version in `pyproject.toml` ist repo-weit veraltet

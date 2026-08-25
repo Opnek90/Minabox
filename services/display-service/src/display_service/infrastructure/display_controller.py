@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import structlog
 
@@ -15,6 +15,11 @@ logger = structlog.get_logger(__name__)
 # Theme – single source of truth for all layout & visual constants
 # ---------------------------------------------------------------------------
 
+
+# fmt: off
+# Aligned on purpose: the trailing comments form a second column that explains
+# each constant, and the geometry only makes sense read as a block. Reformatting
+# it costs more than it gains.
 @dataclass(frozen=True)
 class Theme:
     # Display dimensions
@@ -42,7 +47,7 @@ class Theme:
     sleep_icon_text_gap: int = 3
 
     # Font sizes (TTF pixel height)
-    font_sizes: Dict[str, int] = field(default_factory=lambda: {
+    font_sizes: dict[str, int] = field(default_factory=lambda: {
         "small": 9,
         "medium": 12,
         "large": 14,
@@ -50,8 +55,9 @@ class Theme:
 
     # TTF/bitmap font search paths, tried in order per font name.
     # Install on Raspberry Pi OS:
-    #   sudo apt install fonts-roboto fonts-ubuntu fonts-noto fonts-liberation fonts-terminus
-    font_paths: Dict[str, List[str]] = field(default_factory=lambda: {
+    #   sudo apt install fonts-roboto fonts-ubuntu fonts-noto fonts-liberation \
+    #                    fonts-terminus
+    font_paths: dict[str, list[str]] = field(default_factory=lambda: {
         "sans": [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/TTF/DejaVuSans.ttf",
@@ -86,6 +92,8 @@ class Theme:
         ],
     })
 
+    # fmt: on
+
     @property
     def sep_y(self) -> int:
         return self.header_h + self.sep_padding_top
@@ -116,7 +124,7 @@ class IconRenderer:
     def __init__(self, size: int) -> None:
         self._size = size
 
-    def render(self, name: str) -> Optional[Any]:
+    def render(self, name: str) -> Any | None:
         """Return a mode-'1' PIL Image for *name*, or None if unknown."""
         fn = getattr(self, f"_icon_{name}", None)
         if fn is None:
@@ -141,11 +149,13 @@ class IconRenderer:
         return round(v * (size - 1))
 
     @classmethod
-    def _xy(cls, x: float, y: float, size: int) -> Tuple[int, int]:
+    def _xy(cls, x: float, y: float, size: int) -> tuple[int, int]:
         return cls._s(x, size), cls._s(y, size)
 
     @classmethod
-    def _box(cls, x0: float, y0: float, x1: float, y1: float, size: int) -> Tuple[int, int, int, int]:
+    def _box(
+        cls, x0: float, y0: float, x1: float, y1: float, size: int
+    ) -> tuple[int, int, int, int]:
         return cls._s(x0, size), cls._s(y0, size), cls._s(x1, size), cls._s(y1, size)
 
     # ------------------------------------------------------------------
@@ -204,8 +214,9 @@ class IconRenderer:
     @classmethod
     def _icon_repeat(cls, img: Any, draw: Any, s: int) -> None:
         lw = max(1, s // 8)
-        draw.arc(cls._box(0.10, 0.15, 0.90, 0.85, s), start=200, end=340, fill=1, width=lw)
-        draw.arc(cls._box(0.10, 0.15, 0.90, 0.85, s), start=20, end=160, fill=1, width=lw)
+        box = cls._box(0.10, 0.15, 0.90, 0.85, s)
+        draw.arc(box, start=200, end=340, fill=1, width=lw)
+        draw.arc(box, start=20, end=160, fill=1, width=lw)
         draw.polygon([
             cls._xy(0.82, 0.15, s),
             cls._xy(0.95, 0.28, s),
@@ -259,8 +270,8 @@ class DisplayRenderer:
     def __init__(self, device: Any, theme: Theme = _DEFAULT_THEME) -> None:
         self._device = device
         self._theme = theme
-        self._font_cache: Dict[str, Any] = {}
-        self._icon_cache: Dict[str, Any] = {}
+        self._font_cache: dict[str, Any] = {}
+        self._icon_cache: dict[str, Any] = {}
         self._icon_renderer = IconRenderer(theme.icon_size)
 
     # ------------------------------------------------------------------
@@ -275,7 +286,11 @@ class DisplayRenderer:
         except Exception as exc:
             logger.warning("display_clear_failed", error=str(exc))
 
-    def show_lines(self, lines: List[str]) -> None:
+    def close(self) -> None:
+        """Blank the panel and close the underlying I2C handle."""
+        self._device.cleanup()
+
+    def show_lines(self, lines: list[str]) -> None:
         """Legacy single-column text renderer (up to 4 lines)."""
         try:
             from luma.core.render import canvas
@@ -289,11 +304,11 @@ class DisplayRenderer:
 
     def render(
         self,
-        areas: List[List[dict]],
+        areas: list[list[dict]],
         font_size: str = "medium",
         font: str = "default",
     ) -> None:
-        """Render header (areas[0]) + left column (areas[1]) + right column (areas[2])."""
+        """Render header (areas[0]) + left (areas[1]) + right column (areas[2])."""
         pil_font = self._get_font(font_size, font)
         t = self._theme
 
@@ -321,7 +336,7 @@ class DisplayRenderer:
     # ------------------------------------------------------------------
 
     def _render_header(
-        self, img: Any, draw: Any, items: List[dict], pil_font: Any
+        self, img: Any, draw: Any, items: list[dict], pil_font: Any
     ) -> None:
         t = self._theme
         items = [i for i in items if isinstance(i, dict)]
@@ -353,7 +368,7 @@ class DisplayRenderer:
         self,
         img: Any,
         draw: Any,
-        items: List[dict],
+        items: list[dict],
         col_x: int,
         pil_font: Any,
     ) -> None:
@@ -391,11 +406,17 @@ class DisplayRenderer:
     ) -> None:
         t = item.get("type", "")
         if t == "icon":
-            self._render_icon(img, draw, item.get("value", ""), x, y, slot_w, slot_h, pil_font)
+            self._render_icon(
+                img, draw, item.get("value", ""), x, y, slot_w, slot_h, pil_font
+            )
         elif t == "sleep_timer":
-            self._render_sleep_timer(img, draw, item.get("minutes", 0), x, y, slot_w, slot_h, pil_font)
+            self._render_sleep_timer(
+                img, draw, item.get("minutes", 0), x, y, slot_w, slot_h, pil_font
+            )
         elif t == "text":
-            self._render_text(draw, item.get("value", ""), x, y, slot_w, slot_h, pil_font)
+            self._render_text(
+                draw, item.get("value", ""), x, y, slot_w, slot_h, pil_font
+            )
 
     # ------------------------------------------------------------------
     # Item renderers
@@ -412,7 +433,9 @@ class DisplayRenderer:
         if icon_img is not None:
             img.paste(icon_img, (x + (slot_w - sz) // 2, y + (slot_h - sz) // 2))
         else:
-            self._render_text(draw, icon_name[:3].upper(), x, y, slot_w, slot_h, pil_font)
+            self._render_text(
+                draw, icon_name[:3].upper(), x, y, slot_w, slot_h, pil_font
+            )
 
     def _render_sleep_timer(
         self,
@@ -460,7 +483,7 @@ class DisplayRenderer:
     # Font helpers
     # ------------------------------------------------------------------
 
-    def _measure_text(self, draw: Any, text: str, font: Any) -> Tuple[int, int]:
+    def _measure_text(self, draw: Any, text: str, font: Any) -> tuple[int, int]:
         if not text:
             return 0, 0
         if font is None:
@@ -514,15 +537,20 @@ class DisplayRenderer:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_renderer: Optional[DisplayRenderer] = None
+_renderer: DisplayRenderer | None = None
 
 
 # ---------------------------------------------------------------------------
 # Public API – identical to original free-function interface
 # ---------------------------------------------------------------------------
 
-def init(i2c_bus: int, i2c_address: int) -> bool:
-    """Initialize SSD1306 device. Returns True if successful."""
+def init(i2c_bus: int, i2c_address: int, *, log_failure: bool = True) -> bool:
+    """Initialize SSD1306 device. Returns True if successful.
+
+    ``log_failure`` is what lets the render loop retry every 30 seconds without
+    filling the log: the first failure is reported at startup, every retry
+    after that is a debug line.
+    """
     global _renderer
     if _renderer is not None:
         return True
@@ -536,8 +564,37 @@ def init(i2c_bus: int, i2c_address: int) -> bool:
         logger.info("display_initialized", bus=i2c_bus, address=i2c_address)
         return True
     except Exception as exc:
-        logger.warning("display_init_failed", bus=i2c_bus, address=i2c_address, error=str(exc))
+        log = logger.warning if log_failure else logger.debug
+        log(
+            "display_init_failed",
+            bus=i2c_bus,
+            address=i2c_address,
+            error=str(exc),
+            hint="Display disabled. Check the I2C bus and address in display.json.",
+        )
         return False
+
+
+def shutdown() -> None:
+    """Release the device so a later init() can open a different address.
+
+    Without this there is no way back out of init(): the module-level renderer
+    was only ever assigned, so changing i2c_bus or i2c_address in the config
+    kept talking to the old address until the container was restarted.
+
+    luma's own ``cleanup()`` blanks the panel, puts it into low-power mode and
+    closes the I2C handle. Failure here is not worth propagating - the renderer
+    is dropped either way, and the caller's next init() is what matters.
+    """
+    global _renderer
+    renderer, _renderer = _renderer, None
+    if renderer is None:
+        return
+    try:
+        renderer.close()
+        logger.info("display_shutdown")
+    except Exception as exc:
+        logger.warning("display_shutdown_failed", error=str(exc))
 
 
 def clear() -> None:
@@ -545,14 +602,14 @@ def clear() -> None:
         _renderer.clear()
 
 
-def show_lines(lines: List[str]) -> None:
+def show_lines(lines: list[str]) -> None:
     """Legacy single-column text renderer. No-op if display unavailable."""
     if _renderer is not None:
         _renderer.show_lines(lines)
 
 
 def show_areas(
-    areas: List[List[dict]],
+    areas: list[list[dict]],
     font_size: str = "medium",
     font: str = "default",
 ) -> None:

@@ -389,14 +389,19 @@ services:
     container_name: minabox-display
     logging: *default-logging
     restart: unless-stopped
+    # DISPLAY_API_PORT feeds the container port, the published port and the
+    # health check from one place. The service validates API_PORT (1024-65535)
+    # and binds it, so the three could previously disagree: setting it left the
+    # container permanently unhealthy against a hardcoded 8000.
     ports:
-      - "8006:8000"
+      - "8006:${DISPLAY_API_PORT:-8000}"
     environment:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
       - MINABOX_DEVICE_ID=${MINABOX_DEVICE_ID:?MINABOX_DEVICE_ID must be set in .env}
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
       - BACKEND_URL=http://backend:8080
+      - API_PORT=${DISPLAY_API_PORT:-8000}
       - TZ=${TZ:-Europe/Berlin}
     volumes:
       - ./services/display-service/config:/app/config:ro
@@ -411,7 +416,11 @@ services:
       - /dev/i2c-1:/dev/i2c-1
     user: "${HOST_UID:-1000}:${I2C_GID:-988}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # curl, not Python: replacing it would save 14.5 MB of image but cost 6 %
+      # of a CPU core, because python:3.13-slim ships no compiled bytecode for
+      # the standard library and this container runs unprivileged, so every
+      # probe recompiles it (docs/services/display/GoLive-Review.md, section 5).
+      test: ["CMD-SHELL", "curl -f http://localhost:${DISPLAY_API_PORT:-8000}/health"]
       interval: 30s
       timeout: 5s
       retries: 3

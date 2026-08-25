@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
-
 from shared_lib.config import EnvConfigBase
 
 DisplayElementType = Literal[
@@ -21,6 +20,9 @@ DisplayElementType = Literal[
 ]
 DisplayArea = Literal[0, 1, 2]  # 0=header (full width), 1=left column, 2=right column
 DisplayFontSize = Literal["small", "medium", "large"]
+# fmt: off
+# Aligned on purpose: this is a table of font name -> where it comes from, and
+# the formatter would collapse the second column into ragged trailing comments.
 DisplayFont = Literal[
     "default",      # PIL built-in bitmap font, always available
     "sans",         # DejaVu Sans (apt: fonts-dejavu-core, usually pre-installed)
@@ -31,6 +33,7 @@ DisplayFont = Literal[
     "liberation",   # Liberation Sans     (apt: fonts-liberation, often pre-installed)
     "terminus",     # Terminus TTF        (apt: fonts-terminus)
 ]
+# fmt: on
 
 
 class DisplayElement(BaseModel):
@@ -38,7 +41,10 @@ class DisplayElement(BaseModel):
 
     id: str = Field(min_length=1, description="Unique identifier (e.g. 'vol', 'time').")
     type: DisplayElementType = Field(
-        description="Element type: volume, sleep_timer, mute, play_state, clock, error_state, repeat, shuffle, bluetooth.",
+        description=(
+            "Element type: volume, sleep_timer, mute, play_state, clock, "
+            "error_state, repeat, shuffle, bluetooth."
+        ),
     )
     enabled: bool = Field(default=True, description="Whether this element is shown.")
     order: NonNegativeInt = Field(
@@ -55,12 +61,15 @@ class DisplayServiceConfig(BaseModel):
     """Top-level display configuration loaded from config/display.json."""
 
     enabled: bool = Field(default=True, description="Display global on/off.")
-    i2c_bus: PositiveInt = Field(default=1, description="I2C bus number (e.g. 1 for /dev/i2c-1).")
+    i2c_bus: PositiveInt = Field(
+        default=1,
+        description="I2C bus number (e.g. 1 for /dev/i2c-1).",
+    )
     i2c_address: NonNegativeInt = Field(
         default=60,
         description="I2C device address (60 = 0x3C for SSD1306).",
     )
-    elements: List[DisplayElement] = Field(
+    elements: list[DisplayElement] = Field(
         default_factory=list,
         description="List of display elements (order = screen order).",
     )
@@ -90,7 +99,10 @@ class EnvConfig(EnvConfigBase):
 
 
 class AppConfig(BaseModel):
-    """Combined configuration for the display service."""
+    """Environment configuration for the display service.
+
+    The display config itself is owned by ConfigManager, which can reload it;
+    keeping a second copy here meant keeping a stale one.
+    """
 
     env: EnvConfig
-    display: DisplayServiceConfig
