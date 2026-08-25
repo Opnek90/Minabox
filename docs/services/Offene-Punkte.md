@@ -176,7 +176,26 @@ Dasselbe gilt fuer `0` = unendlich, was man dem Feld ebenfalls nicht ansieht.
 
 **Fix:** `helperText` an den drei Stellen, analog zu `leds.fields.gpio_hint`.
 
-### [ ] [M] 2.5 Button-Service: 10 % CPU im Leerlauf
+### [ ] [N] 2.5 Lokale Builds backen die Config der Box mit ins Image
+
+`services/.dockerignore` schliesst die Laufzeit-Configs nicht aus. In der CI
+faellt das nicht auf, weil dort aus einem Git-Checkout gebaut wird und
+`config/leds.json` & Co. gitignored sind – das veroeffentlichte Image enthaelt
+sie also nicht. `./scripts/build-local.sh` baut dagegen aus dem Arbeitsbaum und
+nimmt sie mit.
+
+Aufgefallen beim A/B-Vergleich zweier Images: der lokale Bau startete ohne
+Mount, der veroeffentlichte brach mit `Configuration file not found` ab.
+
+Folgenlos im Betrieb – Compose mountet `config/` ohnehin darueber. Aber ein
+lokal gebautes Image verhaelt sich damit nicht wie das, was spaeter ausgeliefert
+wird, und genau dafuer baut man es.
+
+**Fix:** in `services/.dockerignore` die Laufzeit-Configs ausschliessen, die
+`*.example`-Vorlagen behalten. Betrifft `audio`, `button`, `display`, `led`,
+`rfid` gleichermassen – deshalb hier und nicht im LED-Review.
+
+### [ ] [M] 2.6 Button-Service: 10 % CPU im Leerlauf
 
 Gemessen im Vergleich (drei `docker stats`-Durchlaeufe): `button` 9,6–10,5 %,
 `led` und `rfid` je rund 3 %. Steht bereits als offener Punkt in

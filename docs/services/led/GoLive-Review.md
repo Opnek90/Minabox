@@ -11,8 +11,9 @@ Abschnitt 1 treten im Alltag auf und sollten vorher weg.
 Legende: **[H]** hoch · **[M]** mittel · **[N]** niedrig ·
 `[x]` umgesetzt · `[ ]` offen
 
-Umgesetzt auf dem Branch `fix/led-go-live`: Abschnitte 1 bis 3 vollstaendig.
-Offen ist nur noch Abschnitt 4 (Image-Groesse).
+Umgesetzt auf dem Branch `fix/led-go-live`: **alle vier Abschnitte**.
+Das Image ist von 297 auf 229 MB geschrumpft (-23 %), gebaut und auf der Box
+unter `MINABOX_LED_TAG=local` verifiziert.
 
 Was bei diesem Review aufgefallen ist, aber **andere Dienste** betrifft – offene
 Ports, der nie ausgewertete `degraded`-Status, deutsche Dockerfile-Kommentare,
@@ -474,7 +475,7 @@ komprimiert. Aufteilung laut `docker history` und Messung im Container:
 | `httptools` | 2 | **nein** |
 | `gpiozero`, `fastapi`, `anyio`, Rest | ~8 | ja |
 
-### [ ] [M] 4.1 `uvicorn[standard]` → `uvicorn` (≈ 27 MB)
+### [x] [M] 4.1 `uvicorn[standard]` → `uvicorn` (≈ 27 MB)
 
 Das `[standard]`-Extra zieht `uvloop`, `httptools`, `websockets`, `watchfiles`,
 `PyYAML` und `python-dotenv`. Keins davon wird benutzt:
@@ -487,28 +488,37 @@ Das `[standard]`-Extra zieht `uvloop`, `httptools`, `websockets`, `watchfiles`,
   gar kein WS-Protokoll); der Dienst hat keine WebSockets.
 - `watchfiles` und `python-dotenv` sind `--reload` und `--env-file`.
 
-**Risiko:** gering, aber es ist die Aenderung, bei der ein Irrtum am teuersten
-waere – wenn `/health` nicht mehr antwortet, meldet der Healthcheck `unhealthy`.
-Vor dem Release lokal bauen und starten:
-`./scripts/build-local.sh led && MINABOX_LED_TAG=local docker compose up -d led`,
-dann `curl` gegen `/health` und `/test`.
+**Erledigt und im Container nachgemessen:**
 
-### [ ] [M] 4.2 `pip` und `setuptools` nicht ins Runtime-Image kopieren (≈ 19 MB)
+```
+http: uvicorn.protocols.http.h11_impl    (Fallback greift)
+ws  : None                               (kein WS-Protokoll noetig)
+loop: auto
+```
+
+`/health` und `/test` antworten normal.
+
+### [x] [M] 4.2 `pip` und `setuptools` nicht ins Runtime-Image kopieren (≈ 19 MB)
 
 `COPY --from=builder /usr/local/lib/python3.13/site-packages ...` nimmt die
 Build-Werkzeuge mit. Zur Laufzeit installiert niemand etwas nach.
 
 `gpiozero` 2.x sucht seine Pin-Factories ueber `importlib.metadata` (stdlib),
-nicht ueber `pkg_resources` – und der Code importiert `LGPIOFactory` ohnehin
-direkt. **Trotzdem der Punkt mit dem hoechsten Restrisiko in diesem Abschnitt**,
-weil ein fehlendes `pkg_resources` sich erst zur Laufzeit zeigt. Gleicher
-Testlauf wie bei 4.1.
+nicht ueber `pkg_resources`; die einzige `pkg_resources`-Erwaehnung im ganzen
+Image stand in einem Docstring von `click`. Beides vorher geprueft.
 
-Nebenbei landen ueber `COPY --from=builder /usr/local/bin` auch `rgpiod`, `rgs`,
-`idle`, `pydoc` und `pinout` im Image – zusammen nur ~200 kB, aber sie gehoeren
-da nicht hin.
+**Erledigt** – mit einer Korrektur an meiner eigenen Annahme. `pip` liess sich
+nicht per `pip uninstall` entfernen (pip deinstalliert sich nicht zuverlaessig
+selbst), und `rm -rf` im Runtime-Stage haette auch nichts gebracht: die 7 MB
+kommen aus einem Basis-Layer von `python:3.13-slim`, ein Whiteout darueber
+spart nichts. Was es *doch* bringt: das `rm` im **Builder**, denn sonst legt die
+`COPY` eine zweite pip-Kopie ueber die erste. Gemessen: 236 MB mit, 229 MB ohne.
 
-### [ ] [M] 4.3 `curl` durch einen Python-Healthcheck ersetzen (≈ 14,5 MB)
+`/usr/local/bin` wird jetzt gar nicht mehr kopiert – der Entrypoint ist
+`python -m`, und die Konsolenskripte dort (`rgpiod`, `rgs`, `uvicorn`,
+`watchfiles`, `pinout`) ruft dieser Dienst nie auf.
+
+### [x] [M] 4.3 `curl` durch einen Python-Healthcheck ersetzen (≈ 14,5 MB)
 
 `curl` ist die einzige apt-Installation im Runtime-Stage und existiert nur fuer
 den Healthcheck. Python ist ohnehin da:
@@ -518,11 +528,12 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=2).status==200 else 1)"
 ```
 
-**Wichtig:** `docker-compose.yml:342` ueberschreibt den Healthcheck mit
-`["CMD","curl",...]`. Beide Stellen muessen zusammen geaendert werden, sonst ist
-der Container dauerhaft `unhealthy`.
+**Erledigt**, an beiden Stellen – Dockerfile *und* `docker-compose.yml`, das
+den Healthcheck sonst mit `curl` ueberschrieben und den Container dauerhaft
+`unhealthy` gemacht haette. Damit entfaellt die einzige apt-Installation im
+Runtime-Stage komplett.
 
-### [ ] [H] 4.4 Die `lg`-Quelle ist unversioniert und ungeprueft
+### [x] [H] 4.4 Die `lg`-Quelle ist unversioniert und ungeprueft
 
 ```dockerfile
 RUN wget -q https://github.com/joan2937/lg/archive/refs/heads/master.tar.gz ...
@@ -533,31 +544,53 @@ kann eine andere C-Bibliothek einbacken als der vorige, ohne dass sich im Repo
 etwas aendert – und ein kompromittiertes Upstream-Repo landet ungeprueft im
 Image, das als root baut und danach GPIO-Zugriff hat.
 
-Fuer einen GoLive ist das der wichtigste Dockerfile-Punkt. Auf einen Tag oder
-Commit-SHA festnageln und die Pruefsumme mitgeben.
+Fuer einen GoLive ist das der wichtigste Dockerfile-Punkt.
+
+**Erledigt:** festgenagelt auf `v0.2.2` mit SHA-256-Pruefsumme, beides als
+Build-Args, damit ein Update sichtbar im Diff steht:
+
+```dockerfile
+ARG LG_VERSION=v0.2.2
+ARG LG_SHA256=b08d8569d6dc8fa91a42ba1e37f620fdcb19d6bf2330e4b7d7301431ddbe124c
+```
+
+`v0.2.2` ist die Release, zu der das PyPI-Paket `lgpio` 0.2.2.0 gehoert – der
+Bau ist damit auch inhaltlich zur Python-Bindung passend, was bei `master`
+nicht garantiert war. Statt `make install` werden nur noch Bibliothek und
+Header installiert; die Daemons `rgpiod` und `rgs` landen nicht mehr im Image.
 
 Der Build aus Quellen selbst bleibt noetig: PyPI liefert `lgpio` 0.2.2.0 nur als
 Wheel fuer cp39–cp312, **nicht fuer cp313**. Der Builder-Stage kann also nicht
 entfallen. (Der Button-Service macht dasselbe mit `git clone --depth 1` – dort
 gilt derselbe Befund.)
 
-### [ ] [N] 4.5 Kleinigkeiten im Dockerfile
+### [~] [N] 4.5 Kleinigkeiten im Dockerfile
 
-- `PYTHONDONTWRITEBYTECODE=1` und `PYTHONUNBUFFERED=1` fehlen; der Host-Helper
-  hat beide.
-- `RUN useradd` und `RUN chown -R` sind zwei Schichten; `COPY --chown=` spart
-  die 139 kB Duplikat.
-- Der Builder nutzt `build-essential`, wo `gcc libc6-dev make` genuegt (so macht
-  es der Button-Service). Betrifft nur Buildzeit und CI-Cache, nicht das Image.
+- **[x]** `PYTHONDONTWRITEBYTECODE=1` und `PYTHONUNBUFFERED=1` ergaenzt.
+- **[x]** `useradd` und `chown` in einer Schicht zusammengefasst.
+- **[x]** Builder nutzt `gcc libc6-dev make` statt `build-essential`.
+- **[ ]** `COPY --chown=` statt `chown -R` waere noch eine Schicht weniger,
+  **wurde bewusst nicht gemacht**: `WORKDIR /app` gehoert dann weiter root, und
+  lgpio legt in genau diesem Verzeichnis seine Notify-Datei `.lgd-nfy0` an. Fuer
+  139 kB nicht das Risiko wert.
 - `python:3.13-slim` ist ein beweglicher Tag. Ein Digest-Pin waere fuer
   reproduzierbare Releases konsequent – aber er will gepflegt werden, sonst
   bleiben Sicherheitsupdates der Basis aus. Bewusste Entscheidung, kein Fehler.
 
 ### Summe
 
-4.1 + 4.2 + 4.3 sparen zusammen rund **60 MB von 297 MB (−20 %)**, ohne eine
-Zeile Anwendungscode anzufassen. Die gleichen Aenderungen greifen bei
-button/display/rfid, die aus demselben Muster gebaut sind.
+Gemessen statt geschaetzt: **297 MB -> 229 MB, also -68 MB (-23 %)**, ohne eine
+Zeile Anwendungscode. `site-packages` schrumpfte von 63 auf 27 MB.
+
+| | vorher | nachher |
+|---|---|---|
+| Image gesamt | 297 MB | **229 MB** |
+| `site-packages` | 63 MB | 27 MB |
+| `curl` + Abhaengigkeiten | 14,5 MB | 0 |
+| apt-Layer im Runtime-Stage | 1 | **0** |
+
+Die gleichen Aenderungen greifen bei `button`, `display` und `rfid`, die aus
+demselben Muster gebaut sind.
 
 ---
 
