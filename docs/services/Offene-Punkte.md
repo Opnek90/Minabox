@@ -5,8 +5,8 @@ alle** Dienste betreffen. Sie stehen hier statt im Review des einzelnen
 Dienstes, weil sie dort nur zufaellig gefunden wurden und in einem eigenen
 Branch abgearbeitet gehoeren.
 
-Aufgenommen am 2026-08-25 aus dem [LED-Review](led/GoLive-Review.md) und dem
-[Display-Review](display/GoLive-Review.md).
+Aufgenommen am 2026-08-25 aus dem [LED-Review](led/GoLive-Review.md), dem
+[Display-Review](display/GoLive-Review.md) und einer Stoerung im Betrieb.
 Ergaenzung zu [ServiceReview.md](../ServiceReview.md), das die neun Dienste
 insgesamt behandelt.
 
@@ -161,6 +161,51 @@ die Begruendung steht in [seinem Review](display/GoLive-Review.md#5-runtime-cost
 **Risiko:** keins bei `compileall`. Beim Zurueckholen von `curl` ist es eine
 bewusste Ruecknahme zweier Review-Entscheidungen – deshalb hier und nicht
 stillschweigend im naechsten Branch.
+
+### [ ] [H] 1.5 Der Audio-Dienst meldet `healthy`, waehrend gar kein Ton moeglich ist
+
+Aufgefallen am 2026-08-25 an einer echten Stoerung, nicht beim Lesen von Code.
+
+Nach einem Neustart hielt der PN532 den I2C-Bus fest. Der Codec-Treiber probiert
+genau einmal beim Booten und gab auf:
+
+```
+wm8960 1-001a: Failed to issue reset
+wm8960 1-001a: probe with driver wm8960 failed with error -5
+```
+
+Die Soundkarte existierte danach nicht mehr - `aplay -l` zeigte nur noch HDMI und
+die Kopfhoererbuchse. Aus der Box kam kein Ton. In derselben Zeit meldete
+`GET /health` des Audio-Dienstes:
+
+```json
+{"status": "healthy", "service": "audio", "mqtt_connected": true,
+ "vlc_initialized": true}
+```
+
+Und `docker ps` zeigte alle zehn Container gruen.
+
+Der Endpunkt kennt nur zwei Bedingungen: Broker verbunden, VLC hochgefahren.
+Beides war wahr. Ob das konfigurierte Ausgabegeraet ueberhaupt existiert, wird
+nicht geprueft - dabei steht es in `audio.json` (`enabled_output_devices`) und
+laesst sich mit einer Abfrage der vorhandenen Senken vergleichen.
+
+Das ist derselbe Fehler, der fuer [LED](led/GoLive-Review.md) und
+[Display](display/GoLive-Review.md) bereits behoben wurde - konfiguriert ist
+nicht dasselbe wie benutzbar - nur beim Dienst, bei dem er am meisten weh tut.
+Ein dunkles Display ist ein Schoenheitsfehler; eine stumme Box ist kaputt.
+
+**Fix:** `/health` um das Ausgabegeraet erweitern und `degraded` melden, wenn die
+konfigurierte Senke fehlt. Der Dienst fragt die Geraeteliste ohnehin schon ab -
+`get_audio_devices()` liefert sie, und `_publish_status` wertet sie fuer
+`multiple_output_devices` bereits aus.
+
+**Zusammenhang:** haengt an 1.2. Solange `degraded` die WebUI nicht erreicht,
+bleibt auch ein korrekter Status unsichtbar. Beide zusammen ergeben erst den
+Nutzen - deshalb am besten in einem Zug.
+
+**Risiko:** gering. Nur ein zusaetzliches Feld und eine Bedingung; der
+Container-Healthcheck fragt weiterhin nur, ob der Endpunkt antwortet.
 
 ---
 
