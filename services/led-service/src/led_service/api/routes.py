@@ -44,7 +44,11 @@ def create_app(
 
     @app.post("/test")
     async def test_led(body: TestLEDRequest) -> dict[str, object]:
-        """Run a fixed 5-second blink on the LED for testing.
+        """Start a fixed five second blink on the LED for testing.
+
+        Returns as soon as the blink is running -- the backend proxies this
+        call with a five second timeout, so waiting for the blink to finish
+        would race it.
 
         Returns 404 if the LED is not found or not available (e.g. no GPIO).
         """
@@ -60,21 +64,28 @@ def create_app(
     async def health_check() -> dict[str, object]:
         """Health check endpoint.
 
-        Returns service status and basic statistics.
+        Reports ``degraded`` when the broker is away or when LEDs are
+        configured but none of them holds a pin. The container health check
+        only asks whether this endpoint answers at all: a restart would not
+        fix either condition.
         """
-        # Count configured LEDs
-        current_config = led_manager._controllers
-        leds_count = len(current_config)
-
         # Live connection state, not "did startup succeed once".
         mqtt_connected = mqtt_client.is_connected
 
+        # Configured is not the same as usable. A wrong GPIO group id leaves
+        # every pin unclaimable, and reporting only the configured count made
+        # that look perfectly healthy.
+        leds_configured = led_manager.led_count
+        leds_available = led_manager.available_count
+        leds_usable = leds_available > 0 or leds_configured == 0
+
         return {
-            "status": "healthy" if mqtt_connected else "degraded",
+            "status": "healthy" if mqtt_connected and leds_usable else "degraded",
             "service": "led",
             "version": get_version(),
             "device_id": config.env.minabox_device_id,
-            "leds_configured": leds_count,
+            "leds_configured": leds_configured,
+            "leds_available": leds_available,
             "mqtt_connected": mqtt_connected,
             "mqtt_broker": config.env.mqtt_broker,
             "mqtt_port": config.env.mqtt_port,
