@@ -326,3 +326,65 @@ async def test_working_leds_are_not_reported_as_missing(
 
     assert not any(entry["event"] == "no_leds_available" for entry in logs)
     assert manager.available_count == 1
+
+
+# --- releasing the pin while a pattern is running ----------------------------
+
+GLOW = LEDPattern(pattern_type="glow", cycle_ms=2000, repeat=0)
+
+
+async def test_closing_does_not_write_to_a_released_pin() -> None:
+    """task.cancel() only requests cancellation; close() has to await it.
+
+    Releasing the pin first left the still-suspended pattern to run its finally
+    block against a closed device. Every config save in the WebUI logged a
+    GPIODeviceClosed for the glowing ring that way.
+    """
+    led = FakeLED()
+    controller = controller_for(make_led(rfid_removed=GLOW), led)
+    controller._is_pwm = True
+
+    with structlog.testing.capture_logs() as logs:
+        await apply(controller, "rfid_removed")
+        await controller.close()
+        await _settle()
+
+    assert not [e for e in logs if e["event"] == "pattern_task_failed"]
+    assert led.closed is True
+    assert led.values[-1] == 0.0
+
+
+async def test_reinitialising_stops_a_running_pattern_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The same path as a config save: initialize_leds() over a live glow."""
+    monkeypatch.setattr(led_controller, "_ensure_pin_factory", lambda: None)
+    manager = LEDManager(disable_gpio=True)
+    config = make_led(rfid_removed=GLOW)
+    await manager.initialize_leds([config])
+
+    led = FakeLED()
+    controller = manager._controllers[config.id]
+    controller._led = led
+    controller._gpio_available = True
+    controller._is_pwm = True
+    await apply(controller, "rfid_removed")
+
+    with structlog.testing.capture_logs() as logs:
+        await manager.initialize_leds([config])
+        await _settle()
+
+    assert not [e for e in logs if e["event"] == "pattern_task_failed"]
+    assert led.closed is True
+
+
+async def test_closing_twice_is_harmless() -> None:
+    led = FakeLED()
+    controller = controller_for(make_led(audio_playing=SOLID), led)
+
+    await apply(controller, "audio_playing")
+    await controller.close()
+    await controller.close()
+    await controller.cleanup()
+
+    assert led.closed is True

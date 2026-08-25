@@ -13,6 +13,10 @@ from led_service.config_schema import (
 )
 
 
+class ClosedDeviceError(RuntimeError):
+    """Stands in for gpiozero's GPIODeviceClosed."""
+
+
 class FakeLED:
     """Records what a pattern does instead of touching a GPIO pin.
 
@@ -28,14 +32,26 @@ class FakeLED:
         self._fail_on_switch = fail_on_switch
         self._value = 0.0
 
-    def on(self) -> None:
+    def _check(self) -> None:
+        """Refuse writes after close, the way gpiozero does.
+
+        gpiozero raises GPIODeviceClosed here, and modelling that is the point:
+        releasing the pin while a pattern was still suspended let the pattern's
+        finally block write to a closed device.
+        """
+        if self.closed:
+            raise ClosedDeviceError("LED is closed or uninitialized")
         if self._fail_on_switch:
             raise RuntimeError("pin is not available")
+
+    def on(self) -> None:
+        self._check()
         self.is_lit = True
         self._value = 1.0
         self.transitions.append("on")
 
     def off(self) -> None:
+        self._check()
         self.is_lit = False
         self._value = 0.0
         self.transitions.append("off")
@@ -49,6 +65,7 @@ class FakeLED:
 
     @value.setter
     def value(self, brightness: float) -> None:
+        self._check()
         self._value = brightness
         self.is_lit = brightness > 0.0
         self.values.append(brightness)

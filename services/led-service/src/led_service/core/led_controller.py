@@ -157,27 +157,41 @@ class LEDController:
         """True when this controller actually holds a usable GPIO pin."""
         return self._gpio_available
 
-    def close_sync(self) -> None:
-        """Synchronous close for re-initialization without await (issue #37).
+    async def close(self) -> None:
+        """Stop the running pattern and release the GPIO pin (issue #37).
 
-        Cancels any running task and releases the GPIO LED object.
-        Called by LEDManager.initialize_leds() before creating new controllers.
-        Works with both LED and PWMLED instances.
+        Called by LEDManager.initialize_leds() before building new controllers,
+        and by cleanup() at shutdown. Safe to call more than once.
+
+        The cancellation is awaited before the device is released. This used to
+        be a synchronous close_sync() that only *requested* cancellation:
+        task.cancel() takes effect the next time the task is scheduled, so the
+        pin was already gone by the time the pattern woke up, and the pattern's
+        own finally block then wrote to a closed device. On every config save
+        in the WebUI that produced a GPIODeviceClosed on the glowing ring.
         """
-        if self._current_task and not self._current_task.done():
-            self._current_task.cancel()
-        if self._led is not None:
-            try:
-                if self._is_pwm:
-                    self._led.value = 0.0
-                else:
-                    self._led.off()
-                self._led.close()
-            except Exception:
-                pass
-            self._led = None
-            self._gpio_available = False
-            self._is_pwm = False
+        async with self._lock:
+            await self._cancel_current_pattern()
+        self._release_led()
+
+    def _release_led(self) -> None:
+        """Switch the LED off and hand the pin back. Works for LED and PWMLED."""
+        if self._led is None:
+            return
+        try:
+            if self._is_pwm:
+                self._led.value = 0.0
+            else:
+                self._led.off()
+        except Exception:
+            logger.warning("led_off_failed", led_id=self.config.id, exc_info=True)
+        try:
+            self._led.close()
+        except Exception:
+            logger.warning("led_close_failed", led_id=self.config.id, exc_info=True)
+        self._led = None
+        self._gpio_available = False
+        self._is_pwm = False
 
     async def apply_pattern(self, logical_state: str) -> None:
         """Apply the pattern for a given logical state.
@@ -413,23 +427,14 @@ class LEDController:
         self._current_task = None
 
     async def cleanup(self) -> None:
-        """Clean up resources (cancel pattern, turn off LED)."""
-        async with self._lock:
-            await self._cancel_current_pattern()
-        if self._led:
-            try:
-                if self._is_pwm:
-                    self._led.value = 0.0
-                else:
-                    self._led.off()
-            finally:
-                try:
-                    self._led.close()
-                except Exception:
-                    logger.warning(
-                        "led_close_failed", led_id=self.config.id, exc_info=True
-                    )
+        """Release the pin and leave it pulled down (shutdown path)."""
+        held_a_pin = self._led is not None
+        await self.close()
 
+        # Only at shutdown: leaving the pin floating makes an LED glimmer after
+        # `docker compose down`. On a re-initialisation this would be pointless,
+        # because the pin is claimed again immediately.
+        if held_a_pin:
             try:
                 from gpiozero import Device
 
@@ -532,7 +537,7 @@ class LEDManager:
             led_configs: List of LED configurations.
         """
         for controller in self._controllers.values():
-            controller.close_sync()
+            await controller.close()
         self._controllers.clear()
 
         if not self._disable_gpio:
