@@ -57,8 +57,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-08-25",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Eine unvollstaendige Tasten-Konfiguration wurde gespeichert und als Erfolg gemeldet, obwohl der Tasten-Dienst sie nicht laden kann. Sie wird jetzt abgelehnt, mit Angabe der Taste und des fehlenden Feldes."
+              ],
+              "en": [
+                "An incomplete button configuration was saved and reported as successful even though the button service cannot load it. It is now rejected, naming the button and the missing field."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-24",
@@ -321,8 +335,34 @@
       ]
     },
     "button": {
-      "latest": "0.1.2",
+      "latest": "0.2.0",
       "releases": [
+        {
+          "version": "0.2.0",
+          "date": "2026-08-25",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Zustandsanzeige des Dienstes meldet jetzt \"eingeschraenkt\", wenn eine Taste ihren Pin nicht bekommt oder die Konfiguration nicht laedt - vorher sah eine Box mit lauter toten Tasten gesund aus.",
+                "Der Dienst braucht rund 60 Prozent weniger Rechenzeit im Leerlauf und sein Abbild ist 68 MB kleiner."
+              ],
+              "en": [
+                "The service status now reports \"degraded\" when a button cannot claim its pin or the configuration fails to load - a box with nothing but dead buttons used to look healthy.",
+                "The service needs about 60 percent less idle CPU time and its image is 68 MB smaller."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Ein Tastendruck-Pin, der schon einem anderen Dienst gehoert, legte bisher **alle** Tasten der Box still - und gab die Pins bis zum Neustart des Containers nicht wieder her. Jetzt faellt nur die betroffene Taste aus, die uebrigen funktionieren weiter.",
+                "Eine unvollstaendige Tasten-Konfiguration liess sich speichern, brachte den Dienst beim naechsten Start aber in eine Neustart-Schleife. Sie wird jetzt schon beim Speichern abgelehnt, und der Dienst startet auch mit einer fehlerhaften Datei, damit sie sich ueber die Oberflaeche reparieren laesst."
+              ],
+              "en": [
+                "A button pin already owned by another service used to take **every** button on the box down with it - and kept the pins until the container was restarted. Now only the affected button drops out and the others keep working.",
+                "An incomplete button configuration could be saved but sent the service into a restart loop on its next start. It is now rejected on save, and the service starts even with a broken file so it can be repaired from the interface."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.2",
           "date": "2026-08-23",
@@ -645,8 +685,24 @@
       ]
     },
     "webui": {
-      "latest": "0.1.13",
+      "latest": "0.1.14",
       "releases": [
+        {
+          "version": "0.1.14",
+          "date": "2026-08-25",
+          "notes": {
+            "improved": {
+              "de": [
+                "Im Tasten-Bereich lassen sich Pin-Nummern und Aktion nicht mehr vergessen - die Felder sind als Pflicht gekennzeichnet, und \"Speichern\" bleibt gesperrt, bis sie ausgefuellt sind.",
+                "Schlaegt das Speichern einer Tasten-Konfiguration fehl, steht jetzt in der Meldung, welche Taste und welches Feld gemeint ist."
+              ],
+              "en": [
+                "Pin numbers and the action can no longer be forgotten in the buttons area - the fields are marked required, and Save stays disabled until they are filled in.",
+                "When saving a button configuration fails, the message now says which button and which field is meant."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.13",
           "date": "2026-08-24",
