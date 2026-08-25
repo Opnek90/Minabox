@@ -382,6 +382,69 @@ def _validate_config_shape(service: str, body: dict) -> None:
         )
 
 
+# The rules button_service/config_schema.py enforces, mirrored -- no more and
+# no less. A body that fails here is one the button service cannot load, and
+# writing it anyway used to be silently fatal: the running service kept its old
+# config, the WebUI reported success, and the next container start died on the
+# file in a restart loop.
+#
+# Kept as a copy on purpose. The backend does not import from another service's
+# package, and the alternative (moving the schema into shared-lib) would make
+# every button change a shared-lib change. If the rules there move, they move
+# here too -- test_button_config_validation.py holds both ends together.
+def _validate_buttons_config(body: dict) -> None:
+    """Reject a button config the button service would refuse to load."""
+    errors: list[str] = []
+
+    for index, button in enumerate(body.get("buttons", [])):
+        where = f"buttons[{index}]"
+        if not isinstance(button, dict):
+            errors.append(f"{where} must be an object")
+            continue
+
+        where = f"buttons[{index}] ({button.get('id') or 'no id'})"
+
+        # No .strip() anywhere below: the button service checks `min_length=1`
+        # and plain truthiness, so a blank-but-not-empty string is legal there.
+        # Being stricter here would reject a config the service loads happily.
+        for field in ("id", "name"):
+            value = button.get(field)
+            if not isinstance(value, str) or not value:
+                errors.append(f"{where}: '{field}' must not be empty")
+
+        btn_type = button.get("type")
+        if btn_type == "push":
+            if button.get("gpio") is None:
+                errors.append(f"{where}: 'gpio' is required for push buttons")
+        elif btn_type == "rotary":
+            missing = [p for p in ("clk", "dt", "sw") if button.get(p) is None]
+            if missing:
+                errors.append(
+                    f"{where}: {', '.join(missing)} required for rotary encoders"
+                )
+        else:
+            errors.append(f"{where}: 'type' must be 'push' or 'rotary'")
+
+        mode = button.get("mode")
+        if mode == "basic":
+            action = button.get("action")
+            if not isinstance(action, str) or not action:
+                errors.append(f"{where}: 'action' is required in basic mode")
+        elif mode == "advanced":
+            if not button.get("actions"):
+                errors.append(f"{where}: 'actions' is required in advanced mode")
+        else:
+            errors.append(f"{where}: 'mode' must be 'basic' or 'advanced'")
+
+    if errors:
+        logger.warning("button_config_rejected", errors=errors)
+        raise ApiError(
+            status_code=422,
+            code="button_config_invalid",
+            detail="; ".join(errors),
+        )
+
+
 def _config_path(service: str) -> Path | None:
     if service not in CONFIG_FILES:
         return None
@@ -528,6 +591,7 @@ async def update_buttons_config(body: dict) -> dict:
     if not path or not path.exists():
         raise ApiError(status_code=503, code="button_config_unavailable", detail="Button config not available")
     _validate_config_shape("buttons", body)
+    _validate_buttons_config(body)
     try:
         write_json_atomic(path, body)
         if _mqtt_client is not None:

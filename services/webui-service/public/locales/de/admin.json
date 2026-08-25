@@ -61,6 +61,7 @@
   "buttons": {
     "actions": {
       "action": "Aktion",
+      "action_required": "Bitte mindestens eine Aktion auswählen.",
       "advanced_hint": "Weise jedem Ereignis eine eigene Aktion zu.",
       "basic_hint": "Wähle eine Aktion, die beim Drücken ausgelöst wird.",
       "event": "Ereignis",
@@ -91,6 +92,7 @@
       "mode": "Modus",
       "mode_hint": "Einfach: eine Aktion. Erweitert: verschiedene Aktionen pro Ereignis.",
       "name": "Name",
+      "pin_required": "Pflichtfeld – ohne Pin-Nummer lässt sich der Button nicht speichern",
       "sw": "SW-Pin",
       "type": "Typ"
     },
@@ -317,8 +319,8 @@
     "guard_enabled": "Nach einer Weile von selbst beenden",
     "guard_minutes": "Höchstdauer am Stück (Minuten)",
     "guard_minutes_hint": "Danach wird die Lautstärke langsam heruntergeregelt und die Box hört auf – damit sie nicht stundenlang weiterspielt, wenn die Karte liegen bleibt.",
-      "playlist_shuffle": "Playlists zufällig abspielen",
-      "playlist_shuffle_hint": "Aus: die Titel laufen in der Reihenfolge der Playlist – passend für Hörspiele in Kapiteln.",
+    "playlist_shuffle": "Playlists zufällig abspielen",
+    "playlist_shuffle_hint": "Aus: die Titel laufen in der Reihenfolge der Playlist – passend für Hörspiele in Kapiteln.",
     "sleep_title": "Einschlafen",
     "title": "Beim Auflegen einer Karte"
   },
