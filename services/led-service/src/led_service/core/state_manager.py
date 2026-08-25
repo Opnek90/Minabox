@@ -15,6 +15,7 @@ from ..exceptions import StateError
 
 logger = structlog.get_logger(__name__)
 
+
 class StateManager:
     """Derives logical states from MQTT messages."""
 

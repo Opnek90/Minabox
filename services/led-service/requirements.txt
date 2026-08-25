@@ -9,8 +9,6 @@ aiomqtt>=2.5.0,<2.6.0
 # Logging
 structlog>=25.4.0,<25.5.0
 
-# Retry & Error Handling
-tenacity>=9.0.0,<10.0.0
 
 # GPIO Hardware
 gpiozero>=2.0.1,<2.1.0
