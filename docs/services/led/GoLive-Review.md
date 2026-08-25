@@ -11,8 +11,8 @@ Abschnitt 1 treten im Alltag auf und sollten vorher weg.
 Legende: **[H]** hoch · **[M]** mittel · **[N]** niedrig ·
 `[x]` umgesetzt · `[ ]` offen
 
-Umgesetzt auf dem Branch `fix/led-go-live`: 1.1 bis 1.4, die `repeat`-Semantik
-und die Tests. Alles Weitere ist noch offen.
+Umgesetzt auf dem Branch `fix/led-go-live`: Abschnitte 1 bis 3 vollstaendig.
+Offen ist nur noch Abschnitt 4 (Image-Groesse) und der Rest von 3.4.
 
 ---
 
@@ -120,7 +120,7 @@ mit unbrauchbarem Bereich bekommt 0.0–1.0, ein `blink` ohne `interval_ms`
 bekommt 500 ms. Die Coroutinen behalten ihre eigenen Pruefungen als letzte
 Instanz, und 1.3 macht sie jetzt sichtbar.
 
-### [ ] [M] 1.5 `config/update` schreibt auf ein Read-only-Mount und meldet trotzdem Erfolg
+### [x] [M] 1.5 `config/update` schreibt auf ein Read-only-Mount und meldet trotzdem Erfolg
 
 `docker-compose.yml:330` mountet `config` als `:ro` (im laufenden Container
 verifiziert: `"RW": false`). `ConfigManager.update_config()` ruft
@@ -142,12 +142,16 @@ schreibt die Datei selbst und schickt nur `config/reload`. Der Weg ist damit
 toter Code mit einer Falltuer – wer ihn spaeter benutzt, bekommt "gespeichert"
 gemeldet und einen Fehler im Log.
 
-**Fix:** entweder `config/update` ersatzlos entfernen (Subscription, Handler,
-Doku) oder den Callback `async` machen und das Ergebnis abwarten. Ich empfehle
-Entfernen: das Besitzverhaeltnis "Backend schreibt, Service liest" ist sauber
-und wird durch das `:ro`-Mount bereits erzwungen.
+**Erledigt:** `config/update` und der `config/get`-Stub sind raus – Subscription,
+Handler und Doku. Nachgeprueft: `publish_config_update()` im Backend
+(`core/mqtt_client.py:226`) hat **keinen einzigen Aufrufer**, das Topic war auf
+beiden Seiten tot.
 
-### [ ] [M] 1.6 Kein Schutz gegen gleichzeitige Zustandswechsel
+Uebrig bleibt genau ein Konfigurationsweg, und der ist ein Reload. Der wird
+jetzt **abgewartet**, bevor `config/response` rausgeht – vorher meldete der
+Dienst Erfolg, waehrend der Task noch lief.
+
+### [x] [M] 1.6 Kein Schutz gegen gleichzeitige Zustandswechsel
 
 `main.py:154` startet fuer jede MQTT-Nachricht ein `asyncio.create_task(
 led_manager.apply_state(...))`. Zwei kurz aufeinanderfolgende Nachrichten
@@ -164,13 +168,20 @@ falsch stehen.
 Die alte Doku behauptete eine FIFO-Queue – die gibt es nicht. Im neuen
 Architecture-Dokument steht das jetzt korrekt.
 
-**Fix:** ein `asyncio.Lock` pro Controller um `apply_pattern()`, oder – die
-kleinere Aenderung – `on_message` den Handler awaiten lassen, statt Tasks zu
-streuen. Das serialisiert die Verarbeitung und macht die FIFO-Zusage nachtraeglich
-wahr. Risiko: mittel, weil die Reihenfolge sich messbar aendert. Vorher lokal
-mit `MINABOX_LED_TAG=local` gegen echte Hardware testen.
+**Erledigt:** beides. `on_message` awaitet den Handler, statt Tasks zu streuen –
+damit werden Zustaende in Broker-Reihenfolge angewendet, und die FIFO-Zusage aus
+der alten Doku stimmt nachtraeglich. Zusaetzlich haelt jeder Controller ein
+`asyncio.Lock` um "altes Pattern abbrechen, neues starten", weil `POST /test`
+aus dem Webserver-Task kommt und sich sonst mit einem MQTT-Zustandswechsel
+verschraenken koennte.
 
-### [ ] [M] 1.7 `LGPIOFactory` wird bei jedem Reload neu erzeugt, die alte nie geschlossen
+**Dabei aufgefallen:** `POST /test` hat den Blink bisher *abgewartet*. Durch die
+`repeat`-Korrektur dauert er jetzt exakt 5,0 s – und das Backend proxyt den Ruf
+mit `httpx.AsyncClient(timeout=5.0)`. Das waere ein Wettrennen gegen den eigenen
+Timeout geworden. `run_test_blink()` startet den Blink jetzt und kehrt sofort
+zurueck; ein echter Zustandswechsel uebernimmt die LED mitten im Test.
+
+### [x] [M] 1.7 `LGPIOFactory` wird bei jedem Reload neu erzeugt, die alte nie geschlossen
 
 `core/led_controller.py:420`:
 
@@ -184,9 +195,11 @@ in der WebUI. Die vorherige Factory verliert nur ihre Referenz; ihr
 nie gerufen wird. lgpio hat eine feste Handle-Tabelle.
 
 *Nicht verifiziert* – dazu muesste man auf der Box wiederholt speichern, und
-das wollte ich am laufenden System nicht tun. Der Fix ist aber unabhaengig davon
-richtig: die Factory einmal beim Start setzen, nicht bei jedem Reload, oder die
-alte vorher schliessen.
+das wollte ich am laufenden System nicht tun.
+
+**Erledigt:** `_ensure_pin_factory()` legt die Factory einmal pro Prozess an.
+Schlaegt der Versuch fehl, bleibt das Flag ungesetzt, damit die naechste
+Initialisierung es erneut probiert.
 
 ### [x] [N] 1.8 Der "5-Sekunden-Testblink" dauert 2,5 Sekunden
 
@@ -209,7 +222,7 @@ Offen bleibt die WebUI-Hilfe: dort steht die Bedeutung von `repeat` nirgends.
 
 ## 2. Robustheit und Betrieb
 
-### [ ] [H] 2.1 `/health` meldet `healthy`, obwohl keine einzige LED funktioniert
+### [x] [H] 2.1 `/health` meldet `healthy`, obwohl keine einzige LED funktioniert
 
 `api/routes.py:69` zaehlt `len(led_manager._controllers)` – das sind die
 *konfigurierten*, nicht die *initialisierten* LEDs. Ein Controller, dessen Pin
@@ -220,13 +233,17 @@ Praktische Folge: wenn nach einem Update die Gruppen-ID nicht mehr passt, sind
 alle LEDs tot, der Container ist `healthy`, die WebUI zeigt gruen, und im Log
 steht nur eine `warning`.
 
-**Fix:** `leds_available` (Controller mit `_gpio_available`) zusaetzlich
-ausgeben und `degraded` melden, wenn LEDs konfiguriert, aber keine verfuegbar
-ist. Der Docker-Healthcheck prueft nur, dass der Endpunkt antwortet – der
-Container wuerde also *nicht* neu starten, die WebUI koennte es aber anzeigen.
-Risiko: gering.
+**Erledigt:** `/health` gibt `leds_configured` und `leds_available` getrennt aus
+und meldet `degraded`, wenn LEDs konfiguriert sind, aber keine einzige einen Pin
+haelt. Dazu eine `no_leds_available`-Warning direkt nach `initialize_leds()` –
+die landet im Debug-Export, was der eigentliche Diagnoseweg ist.
 
-### [ ] [H] 2.2 Keine Log-Rotation
+**Wichtig:** das Backend liest heute nur den HTTP-Status und die Version aus dem
+Body (`routes_system.py:_check_service_http`), nicht das `status`-Feld. In der
+WebUI wird `degraded` also noch nicht sichtbar – das waere eine eigene
+Backend-Aenderung.
+
+### [x] [H] 2.2 Keine Log-Rotation
 
 `docker inspect` zeigt `{"Type":"json-file","Config":{}}` – Docker-Default,
 also unbegrenzt. In `docker-compose.yml` gibt es keinen einzigen
@@ -236,17 +253,14 @@ Monaten auf einmal die Box lahmlegt.
 Betrifft alle neun Dienste, nicht nur LED, wird aber durch 1.2 hier besonders
 gefuettert.
 
-**Fix:** in `docker-compose.yml` pro Dienst (oder ueber einen YAML-Anker)
+**Erledigt:** YAML-Anker `x-logging` in `docker-compose.yml`, angehaengt an alle
+zehn Dienste. 10 MB pro Datei, drei Dateien – gedeckelt bei rund 300 MB fuer den
+ganzen Stack, mit genug Historie fuer einen Debug-Export.
 
-```yaml
-logging:
-  driver: json-file
-  options: { max-size: "10m", max-file: "3" }
-```
+Wirkt erst, wenn die Container neu erzeugt werden. `docker compose config`
+laeuft sauber durch.
 
-Risiko: keins, wirkt beim naechsten Container-Neustart.
-
-### [ ] [M] 2.3 Port 8004 haengt ohne Authentifizierung auf allen Interfaces
+### [x] [M] 2.3 Port 8004 haengt ohne Authentifizierung auf allen Interfaces
 
 `ss -tlnp` zeigt `0.0.0.0:8004` und `[::]:8004`. `POST /test` ist ungeschuetzt –
 jeder im WLAN kann die LEDs der Box blinken lassen. Das Backend braucht den
@@ -255,20 +269,29 @@ Host-Port nicht, es spricht `http://led:8000` ueber das Compose-Netz an.
 Fuer den Audio-Service ist genau das schon geloest, samt Begruendung im
 Compose-Kommentar (`docker-compose.yml:200`): `127.0.0.1:8003:8003`.
 
-**Fix:** `- "127.0.0.1:8004:8000"`. Diagnose per `curl` auf der Box bleibt
-moeglich. Risiko: keins fuer LED. (Gleiches gilt fuer button/display/rfid auf
-8005–8007.)
+**Erledigt:** `- "127.0.0.1:8004:8000"`, mit derselben Begruendung im Kommentar
+wie beim Audio-Service. Diagnose per `curl` auf der Box bleibt moeglich.
 
-### [ ] [M] 2.4 Eine deaktivierte LED belegt ihren Pin weiterhin
+**Weiterhin offen:** `rfid` (8001), `button` (8005), `display` (8006) und
+`media-downloader` (8007) haengen unveraendert auf `0.0.0.0`. Das sind andere
+Dienste – gehoert in einen eigenen Branch.
+
+### [x] [M] 2.4 Eine deaktivierte LED belegt ihren Pin weiterhin
 
 `enabled` wird nur in `apply_pattern()` geprueft (`led_controller.py:133`).
 `LEDController.__init__` legt das `LED`/`PWMLED`-Objekt trotzdem an. Wer eine
 LED in der WebUI abschaltet, um den Pin anderweitig zu nutzen, bekommt ihn
 nicht frei.
 
-**Fix:** die `enabled`-Pruefung nach vorn in `__init__` ziehen. Risiko: gering.
+**Erledigt:** die `enabled`-Pruefung steht jetzt ganz vorn in `__init__`, noch
+vor `disable_gpio`. Eine deaktivierte LED legt kein `LED`/`PWMLED`-Objekt mehr
+an und gibt ihren Pin frei.
 
-### [ ] [M] 2.5 Keine Validierung von GPIO-Nummer, Doppelbelegung und doppelter ID
+Nachgeprueft, dass das nichts kaputtmacht: der Test-Button in der WebUI ist bei
+deaktivierten LEDs ohnehin schon ausgegraut
+(`LEDConfigPanel.tsx:212`, `disabled={... || !isEnabled}`).
+
+### [x] [M] 2.5 Keine Validierung von GPIO-Nummer, Doppelbelegung und doppelter ID
 
 `gpio: PositiveInt` akzeptiert `999`. Zwei LEDs auf demselben Pin sind erlaubt –
 die zweite scheitert dann mit `GPIOPinInUse`, was als `warning` untergeht (1.3
@@ -279,28 +302,37 @@ wird nie geschlossen.
 Die WebUI prueft nichts (`inputProps={{ min: 0 }}`), das Backend nur die
 Grobstruktur (`_validate_config_shape`: "`leds` ist eine Liste").
 
-**Fix:** im Pydantic-Schema – GPIO auf 2–27 begrenzen, `id` und `gpio` ueber
-alle Eintraege auf Eindeutigkeit pruefen. **Achtung:** eine strengere
-Validierung kann eine bestehende `leds.json` unbrauchbar machen, und
-`load_app_config()` laesst den Dienst dann nicht starten. Vorher gegen die
-echte Datei der Box testen.
+**Erledigt – als Warnung, nicht als Ablehnung.** `LEDServiceConfig` meldet jetzt
+`duplicate_led_id`, `duplicate_led_gpio` und `led_gpio_outside_bcm_range`,
+laesst die Konfiguration aber durch. Genau aus dem Grund, der hier als Achtung
+stand: eine `leds.json`, die die Validierung nicht besteht, laesst den Dienst
+gar nicht mehr starten.
 
-### [ ] [N] 2.6 Tasks ohne Referenz
+Doppelte GPIOs werden nur bei aktivierten LEDs gemeldet – eine deaktivierte
+belegt seit 2.4 keinen Pin mehr und kollidiert deshalb auch nicht.
 
-`main.py:154`, `:175`, `:192` starten Tasks mit `asyncio.create_task(...)`, ohne
-das Ergebnis irgendwo zu halten. Der Garbage Collector darf einen solchen Task
-mitten im Lauf einsammeln. In der Praxis selten, aber es ist ein dokumentierter
-Fallstrick.
+### [x] [N] 2.6 Tasks ohne Referenz
+
+`main.py` startete Tasks mit `asyncio.create_task(...)`, ohne das Ergebnis
+irgendwo zu halten. Der Garbage Collector darf einen solchen Task mitten im Lauf
+einsammeln.
+
+**Erledigt:** mit 1.6 sind alle drei verschwunden – die Handler werden awaitet,
+statt Tasks zu streuen. Uebrig bleibt der Uvicorn-Task, und den haelt
+`self._uvicorn_task`.
 
 ---
 
 ## 3. Code-Qualitaet
 
-### [ ] [M] 3.1 Deutsche Kommentare im Dockerfile
+### [x] [M] 3.1 Deutsche Kommentare im Dockerfile
 
-`services/led-service/Dockerfile:64-67` – der Versions-Block ist noch deutsch,
-inklusive "ungueltig". Der Rest der Datei ist englisch. Der Host-Helper hat den
-Block bereits uebersetzt; der Text kann von dort uebernommen werden.
+`services/led-service/Dockerfile:64-67` – der Versions-Block war noch deutsch.
+
+**Erledigt:** Text vom Host-Helper uebernommen.
+
+**Weiterhin offen:** derselbe deutsche Block steht noch in den Dockerfiles von
+`button`, `audio`, `media-downloader`, `webui` und `display`.
 
 Der Python-Quellcode ist ansonsten durchgaengig englisch – Bezeichner,
 Docstrings und Kommentare. Ausnahme sind Werte, keine Sprache: die LED-Namen
@@ -309,7 +341,7 @@ Auffaellig nur, dass die getrackte `leds.json.example` "Gruen" schreibt, die
 lokale `leds.json` aber "Grün" – die Umlaut-Regel des Projekts gilt fuer
 `.py`/`.sh`, insofern in Ordnung.
 
-### [~] [M] 3.2 66 ruff-Befunde, 8 von 16 Dateien nicht formatiert
+### [x] [M] 3.2 66 ruff-Befunde, 8 von 16 Dateien nicht formatiert
 
 ```
 26 W293  Leerzeichen in Leerzeilen
@@ -330,54 +362,77 @@ lokale `leds.json` aber "Grün" – die Umlaut-Regel des Projekts gilt fuer
 `TYPE_CHECKING`-Block, der nur `LED` holt. Zur Laufzeit harmlos (`from __future__
 import annotations`), fuer mypy und jeden Leser aber falsch.
 
-**Erledigt auf `fix/led-go-live`:** `ruff check` laeuft sauber durch, `F821`
-inklusive. Offen bleibt `ruff format` – das wuerde 8 Dateien reflowen, ein
-grosser, rein mechanischer Diff. Der gehoert in einen eigenen Commit, damit die
-inhaltlichen Fixes lesbar bleiben.
+**Erledigt:** `ruff check` und `ruff format` laufen beide sauber durch, `F821`
+inklusive.
 
-### [ ] [N] 3.3 Toter Code
+### [x] [N] 3.3 Toter Code
+
+**Erledigt**, alles:
 
 | Stelle | Befund |
 |---|---|
-| `src/led_service/models/` | `__init__.py` und `schemas.py` sind beide 0 Byte |
-| `requirements.txt:13`, `pyproject.toml:16` | `tenacity` wird nirgends importiert |
-| `exceptions.py` | `HardwareError`, `GPIOInitError`, `UnknownStateError` werden nie geworfen (der ungenutzte Import ist raus) |
-| `mqtt_client.py:171` | `_handle_config_get()` bestaetigt nur, liefert die Config nie |
-| ~~`core/__init__.py`~~ | ~~exportiert `run_*_pattern`, aber nicht `run_glow_pattern`~~ – erledigt |
+| `src/led_service/models/` | Paket geloescht – beide Dateien waren 0 Byte |
+| `requirements.txt`, `pyproject.toml` | `tenacity` entfernt, wurde nie importiert |
+| `exceptions.py` | `GPIOInitError` und `UnknownStateError` entfernt, wurden nie geworfen |
+| `mqtt_client.py` | `_handle_config_get()` entfernt (siehe 1.5) |
+| `core/__init__.py` | exportiert jetzt auch `run_glow_pattern` |
 
-### [ ] [N] 3.4 Drei verschiedene Versionsnummern
+### [~] [N] 3.4 Drei verschiedene Versionsnummern
 
 `VERSION` sagt `0.1.1`, `pyproject.toml:7` sagt `0.1.0`, und
 `api/routes.py:45` traegt `version="0.1.0"` fest in die FastAPI-App ein –
 waehrend `/health` daneben korrekt `get_version()` aus den Build-Args liest.
 Die OpenAPI-Seite unter `/docs` zeigt damit dauerhaft eine falsche Version.
 
-**Erledigt auf `fix/led-go-live`:** `create_app()` nutzt jetzt
-`get_version()`. Offen bleibt `pyproject.toml` – entweder pflegen oder das Feld
-auf die VERSION-Datei zeigen lassen.
+**Erledigt:** `create_app()` nutzt jetzt `get_version()`.
 
-### [ ] [N] 3.5 Kleinigkeiten mit Typ-Bezug
+**Bewusst nicht geaendert:** `pyproject.toml`. Der Drift ist nicht LED-spezifisch
+– *jeder* Dienst im Repo steht dort auf `0.1.0`, waehrend die VERSION-Dateien
+laengst weiter sind:
 
-- `api/routes.py:69`: `led_manager._controllers` greift von aussen auf ein
-  privates Attribut zu. Eine `led_count`-Property waere sauberer.
-- `led_controller.py:65` und `:415` lesen `DISABLE_GPIO` zweimal direkt per
-  `os.getenv`, statt es einmal ueber `EnvConfig` zu fuehren wie alle anderen
-  Einstellungen.
+| | pyproject | VERSION |
+|---|---|---|
+| audio | 0.1.0 | 0.2.0 |
+| backend | 0.1.0 | 0.2.1 |
+| button | 0.1.0 | 0.1.2 |
+| led | 0.1.0 | 0.1.1 |
+| rfid | 0.1.0 | 0.2.0 |
+
+Das Feld wird nirgends gelesen: das Dockerfile installiert den Dienst nicht als
+Paket, und `get_version()` liest die Build-Args. LED als einzigen Dienst auf
+`dynamic = ["version"]` umzustellen waere schlimmer als die einheitliche Luege.
+Gehoert repo-weit gerade gezogen, nicht hier.
+
+### [x] [N] 3.5 Kleinigkeiten mit Typ-Bezug
+
+**Erledigt:**
+
+- `LEDManager` hat jetzt `led_count` und `available_count`; `/health` fasst
+  `_controllers` nicht mehr an.
+- `DISABLE_GPIO` wird einmal in `EnvConfig.disable_gpio` gelesen und an
+  `LEDManager` -> `LEDController` durchgereicht. Die zwei `os.getenv`-Aufrufe
+  mitten in der Hardware-Schicht sind weg, und die Tests koennen den Schalter
+  jetzt als Parameter setzen statt ueber die Umgebung.
 
 ### [x] [H] 3.6 Null Tests
 
 `services/led-service/` hat kein `tests/`-Verzeichnis. Zum Vergleich: backend 15
 Dateien, rfid 4, audio 3, display 1, host-helper 1.
 
-**Erledigt:** 74 Tests in `services/led-service/tests/`, alle ohne Hardware.
+**Erledigt:** 97 Tests in `services/led-service/tests/`, alle ohne Hardware.
 
 | Datei | Deckt ab |
 |---|---|
 | `test_led_patterns.py` | die `repeat`-Semantik aller Pattern, Abbruch mittendrin, dass keine LED angeschaltet zurueckbleibt |
-| `test_config_schema.py` | die Reparaturen aus 1.4, und dass die ausgelieferte `leds.json.example` validiert |
-| `test_led_controller.py` | Idempotenz (1.2), das Logging fehlgeschlagener Tasks (1.3), die Dauer des Testblinks |
+| `test_config_schema.py` | die Reparaturen aus 1.4, die Kollisionswarnungen aus 2.5, `DISABLE_GPIO` aus der Umgebung, und dass die ausgelieferte `leds.json.example` validiert |
+| `test_led_controller.py` | Idempotenz (1.2), Logging fehlgeschlagener Tasks (1.3), Dauer und Nicht-Blockieren des Testblinks, deaktivierte LEDs ohne Pin (2.4), einmalige Pin-Factory (1.7) |
+| `test_led_health_endpoint.py` | der `/health`-Vertrag aus 2.1 |
 | `test_led_state_manager.py` | jede Ableitungsregel, Audio-Zustaende, retained presence, kaputte Payloads |
-| `test_mqtt_subscriptions.py` | der Vertrag aus 1.1: keine Regel ohne Subscription |
+| `test_mqtt_subscriptions.py` | der Vertrag aus 1.1: keine Regel ohne Subscription, und dass die toten Config-Topics weg sind |
+
+Die Suite fasst **keine echte Hardware an**. Ein frueher Entwurf liess gpiozero
+auf einen ungueltigen Pin laufen, um das Scheitern zu beobachten – das fiel an
+den `PinFactoryFallback`-Warnungen auf und ist jetzt durch einen Stub ersetzt.
 
 Die Pattern-Tests ersetzen `_sleep_or_cancel` durch einen Zaehler statt echt zu
 schlafen. Damit sind die Zeit-Zusagen exakt pruefbar – etwa dass der letzte Puls

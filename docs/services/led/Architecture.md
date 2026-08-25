@@ -42,9 +42,8 @@ led-service/
     ├── main.py              # Entry point: config, logging, components, signals, shutdown
     ├── config.py            # Loads env + leds.json into one AppConfig
     ├── config_schema.py     # Pydantic models: LEDPattern, LEDConfig, LEDServiceConfig, EnvConfig
-    ├── config_manager.py    # Thin subclass of shared_lib JsonConfigManager (load/reload/write)
+    ├── config_manager.py    # Thin subclass of shared_lib JsonConfigManager (load/reload)
     ├── exceptions.py        # Service-specific exception hierarchy
-    ├── models/              # Empty placeholder package, carries no code
     ├── api/
     │   ├── __init__.py
     │   └── routes.py        # FastAPI: GET /health, POST /test
@@ -125,14 +124,19 @@ client — a level change in the WebUI takes effect without a restart.
 
 | Topic | Direction | Meaning |
 | --- | --- | --- |
-| `led/config/update` | backend → service | Full LED configuration as JSON. The service validates it, writes it to `config/leds.json`, re-initialises all controllers and re-applies `system_online`. |
-| `led/config/reload` | backend → service | Re-read `config/leds.json` from disk and re-initialise. This is the path the backend actually uses: it writes the file itself and then only asks the service to pick it up. |
-| `led/config/get` | backend → service | Currently a stub. It acknowledges on `config/response` but does not return the configuration. |
-| `led/config/response` | service → backend | Result of the last config operation. |
+| `led/config/reload` | backend → service | Re-read `config/leds.json` from disk, rebuild every controller and re-apply `system_online`. |
+| `led/config/response` | service → backend | Result of the reload, sent after it has actually run. |
 
-After `update` and `reload` the service re-subscribes to `rfid/presence` and
-`audio/status` so the broker re-delivers those retained messages and the LEDs
-recover their real state instead of sitting at `system_online`.
+There is one config path and it is a reload. The backend owns the file: it
+writes `leds.json` atomically through `PUT /api/config/leds` and then asks the
+service to pick it up. A `config/update` topic carrying the whole configuration
+used to exist as well, but nothing ever published it, and it could not have
+worked — it wrote into a directory that is mounted read-only. It is gone, along
+with the `config/get` stub that only ever acknowledged.
+
+After a reload the service re-subscribes to `rfid/presence` and `audio/status`
+so the broker re-delivers those retained messages and the LEDs recover their
+real state instead of sitting at `system_online`.
 
 Response payload:
 
@@ -144,22 +148,31 @@ Response payload:
 }
 ```
 
-On failure `success` is `false` and `error` carries a short code
-(`invalid_config`, `reload_failed`).
+On failure `success` is `false` and `error` carries `reload_failed`. The reload
+is awaited before the response goes out, so a config the service could not
+apply is never reported as saved.
 
 ### 4.3 REST
 
 The service runs a small FastAPI app on port 8000 inside the container
 (published as 8004 on the host).
 
-- `GET /health` – returns `status` (`healthy` when the broker connection is
-  live, `degraded` otherwise), the service version from the image build args,
-  the device id, the number of initialised controllers and the broker
-  host/port. The Docker healthcheck only checks that the endpoint answers, so a
-  `degraded` service stays a healthy container on purpose — a missing broker is
-  not a reason to restart a working LED service.
-- `POST /test` – body `{"led_id": "led_2"}`. Runs a fixed test blink
-  (500 ms interval, five blinks, 5 s) regardless of the LED's bindings.
+- `GET /health` – returns `status`, the service version from the image build
+  args, the device id, the broker host/port, and two separate counts:
+  `leds_configured` and `leds_available`. They differ when a pin cannot be
+  claimed — a wrong `GPIO_GID` after an update leaves every LED dark — and
+  reporting only the configured count made that look perfectly healthy.
+  `status` is `degraded` when the broker is away, or when LEDs are configured
+  but none of them holds a pin.
+
+  The Docker healthcheck only checks that the endpoint answers, so a `degraded`
+  service stays a healthy container on purpose: neither a missing broker nor an
+  unclaimable pin is fixed by a restart.
+- `POST /test` – body `{"led_id": "led_2"}`. Starts a fixed test blink
+  (500 ms interval, five blinks, 5 s) regardless of the LED's bindings and
+  returns immediately — the backend proxies this call with a five second
+  timeout, so waiting for the blink to finish would race it. A real state
+  change arriving during a test takes the LED over.
   Returns 404 if the id is unknown or the pin was never claimed. The WebUI
   reaches this through the backend, which proxies to `http://led:8000/test`.
 
@@ -205,11 +218,16 @@ that ownership — the service reads the file and never needs to write it.
 | `id` | Internal identifier assigned by the backend (`led_1`, `led_2`, …). Never shown to the user. |
 | `name` | Display name for the WebUI and the logs. |
 | `gpio` | BCM pin number the LED is wired to. |
-| `enabled` | `false` makes the LED ignore every state change. Defaults to `true` so older configs keep working. |
+| `enabled` | `false` makes the LED ignore every state change *and* claim no GPIO pin at all, so switching it off in the UI frees the pin. Defaults to `true` so older configs keep working. |
 | `bindings` | Map of logical state → pattern object. |
 
 Several LEDs may bind the same state; a state without a binding leaves that LED
 untouched.
+
+Two entries on the same pin or with the same `id` are both accepted and both
+logged as a warning (`duplicate_led_gpio`, `duplicate_led_id`). Neither is worth
+refusing the whole config over, but the second entry loses in each case: it
+cannot claim the pin, or it overwrites the first in the controller map.
 
 ### 5.2 Pattern object
 
@@ -283,14 +301,27 @@ blink or pulse never leaves the LED stuck on. If a pattern raises inside its
 task, the controller logs `pattern_task_failed` and forgets the state, so the
 next attempt is not suppressed as a repeat.
 
-There is no queue. States are applied as their MQTT messages arrive; ordering is
-whatever the event loop schedules.
+States are applied in the order the broker delivers them. The MQTT client
+awaits its message handler instead of dispatching each message into its own
+task, so the receive loop hands over one message at a time.
+
+Each controller additionally holds a lock around "cancel the old pattern, start
+the new one". Two states arriving three milliseconds apart — `rfid/presence`
+and `rfid/tag-scanned` do exactly that — could otherwise both cancel, both
+start, and leave the first pattern running with nothing owning it. `POST /test`
+takes the same lock, which is how a real state change preempts a test blink.
+
+The gpiozero pin factory is set once per process. It used to be re-created on
+every reload, and gpiozero never closes the factory it replaces, so each save in
+the WebUI leaked an open `/dev/gpiochip0` handle.
 
 ### Development without hardware
 
-`DISABLE_GPIO=true` skips pin initialisation entirely. If GPIO is available but
-a pin cannot be claimed — wrong group id, pin already in use — the controller
-logs `gpio_unavailable_fallback` and stays inert instead of failing startup.
+`DISABLE_GPIO=true` skips pin initialisation entirely. The flag is read once
+into `EnvConfig` and passed down to `LEDManager`, so nothing below it reaches
+for the environment on its own. If GPIO is available but a pin cannot be
+claimed — wrong group id, pin already in use — the controller logs
+`gpio_unavailable_fallback` and stays inert instead of failing startup.
 
 ---
 
@@ -321,7 +352,8 @@ without LEDs simply never starts it.
 | `user` | `${HOST_UID}:${GPIO_GID}` | Runs unprivileged; the gpio group is what grants pin access. |
 | `group_add` | `${GPIO_GID}` | Same group again, so lgpio can open the chip. |
 | `volumes` | `config:ro` | The backend writes the file, the service only reads it. |
-| `ports` | `8004:8000` | Health and test endpoint. The backend itself reaches the service over the compose network as `http://led:8000`. |
+| `ports` | `127.0.0.1:8004:8000` | Health and test endpoint, bound to localhost: `POST /test` is unauthenticated, and the backend reaches the service over the compose network as `http://led:8000`. Diagnosis with `curl` on the box stays possible. |
+| `logging` | `json-file`, 10 MB × 3 | The driver default is unlimited growth, and the box runs from an SD card. |
 | `depends_on` | `backend` healthy | Avoids a burst of `backend_unreachable` at boot. |
 
 Environment: `MQTT_BROKER`, `MQTT_PORT`, `MINABOX_DEVICE_ID`, `LOG_LEVEL`,
@@ -350,16 +382,18 @@ The events worth grepping for:
 | --- | --- | --- |
 | `led_state_changed` | info | A pattern was started; carries `led_id`, `logical_state`, `pattern_type`. |
 | `gpio_unavailable_fallback` | warning | A pin could not be claimed; that LED stays dark for the rest of the process. |
+| `no_leds_available` | warning | LEDs are configured but not one of them holds a pin — check `GPIO_GID` and the device mapping. |
+| `duplicate_led_gpio` / `duplicate_led_id` | warning | Two entries collide; the second one loses. |
 | `pattern_task_failed` | error | A pattern raised while running; that LED is dark until the next state. |
 | `solid_pattern_duration_ignored` | warning | A `solid` binding still carries `duration_ms`. |
 | `blink_interval_defaulted` / `pulse_duration_defaulted` / `glow_brightness_range_invalid` | warning | The schema repaired a binding the WebUI produced; fix it there to silence this. |
-| `config_update_failed` / `config_reload_failed` | error | A config operation failed; the previous configuration stays active. |
+| `config_reload_failed` | error | The reload failed; the previous configuration stays active and `config/response` reports it. |
 | `state_derivation_failed` | error | A payload could not be parsed. |
 | `led_pin_pulldown_failed` | warning | Cleanup could not reset the pin; harmless at shutdown. |
 
 Behaviour on failure:
 
-- **Invalid config over MQTT:** rejected, the running configuration is kept, and
+- **A reload that fails:** the running configuration is kept and
   `config/response` reports `success: false`.
 - **Invalid config file at startup:** `load_app_config()` raises and the process
   exits, so the container restarts rather than running with no LEDs at all.

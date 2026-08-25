@@ -7,8 +7,19 @@ Detailed MQTT topic mapping, logical state derivation rules, and payload shapes 
 ## REST API
 
 Service root endpoints:
-- `GET /health`
-- `POST /test` (body: `{ "led_id": string }`)
+- `GET /health` — reports `leds_configured` and `leds_available` separately, and
+  `degraded` when the broker is away or no configured LED holds a pin
+- `POST /test` (body: `{ "led_id": string }`) — starts a five second test blink
+  and returns immediately
+
+## Tests
+
+```bash
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') python -m pytest services/led-service/tests -q
+```
+
+No hardware required; `DISABLE_GPIO` is a constructor argument, not an ambient
+environment lookup.
 
 ## Configuration
 
@@ -16,7 +27,7 @@ Main config file: `config/leds.json`
 
 Each LED entry:
 - `id`, `name`, `gpio`
-- `enabled` (when `false`, the LED ignores state changes and stays off)
+- `enabled` (when `false`, the LED ignores state changes and claims no GPIO pin)
 - `bindings`: mapping from logical state (e.g. `system_online`) to a pattern (`solid`, `blink`, `pulse`, `off`, `glow`)
 
 Pattern fields:
@@ -47,7 +58,9 @@ Subscriptions (key ones):
 
 Configuration & log-level:
 - `.../config/general` (MQTT payload includes `log_level`)
-- `.../led/config/update` (full config JSON)
-- `.../led/config/reload`
-- `.../led/config/get` and response on `.../led/config/response`
+- `.../led/config/reload`, answered on `.../led/config/response`
+
+The backend owns `leds.json`: it writes the file and then asks the service to
+reload it. There is no topic for pushing a configuration into the service — the
+config directory is mounted read-only.
 
