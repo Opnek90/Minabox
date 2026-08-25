@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 import structlog
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, model_validator
@@ -19,6 +19,19 @@ DEFAULT_PULSE_DURATION_MS = 250
 DEFAULT_GLOW_CYCLE_MS = 2000
 DEFAULT_GLOW_MIN_BRIGHTNESS = 0.0
 DEFAULT_GLOW_MAX_BRIGHTNESS = 1.0
+
+
+# Usable BCM pin numbers on a Raspberry Pi header. Only used to warn -- the
+# board decides what is really wired, and a wrong number already fails loudly
+# when the pin cannot be claimed.
+BCM_PIN_RANGE = (2, 27)
+
+
+def _warn_duplicates(values: list[Any], event: str, field: str) -> None:
+    seen: set[Any] = set()
+    duplicates = sorted({v for v in values if v in seen or seen.add(v)})
+    if duplicates:
+        logger.warning(event, **{field: duplicates})
 
 
 class LEDPattern(BaseModel):
@@ -210,9 +223,46 @@ class LEDServiceConfig(BaseModel):
         description="Configured LEDs for this device.",
     )
 
+    @model_validator(mode="after")
+    def warn_about_collisions(self) -> LEDServiceConfig:
+        """Point out the two duplicates that quietly cost an LED.
+
+        Two entries on the same pin: the second one cannot claim it and ends up
+        inert with nothing but a warning. Two entries with the same id: the
+        second overwrites the first in the controller map, and the first is
+        never closed. Neither is worth refusing the whole config over, but both
+        deserve to be visible.
+        """
+        _warn_duplicates([led.id for led in self.leds], "duplicate_led_id", "led_id")
+        _warn_duplicates(
+            [led.gpio for led in self.leds if led.enabled], "duplicate_led_gpio", "gpio"
+        )
+
+        outside = [
+            led.gpio
+            for led in self.leds
+            if not BCM_PIN_RANGE[0] <= led.gpio <= BCM_PIN_RANGE[1]
+        ]
+        if outside:
+            logger.warning(
+                "led_gpio_outside_bcm_range",
+                gpio=sorted(set(outside)),
+                expected=f"{BCM_PIN_RANGE[0]}-{BCM_PIN_RANGE[1]}",
+                detail="These pins will fail to initialise on a Raspberry Pi.",
+            )
+        return self
+
 
 class EnvConfig(EnvConfigBase):
     """Environment-based configuration for the LED service (extends shared base)."""
+
+    disable_gpio: bool = Field(
+        default=False,
+        description=(
+            "Skip all hardware access. Set for development on a machine "
+            "without GPIO pins."
+        ),
+    )
 
 
 class AppConfig(BaseModel):

@@ -19,7 +19,7 @@ LEDS_CONFIG_PATH: Final[Path] = CONFIG_DIR / "leds.json"
 
 def _load_env_config() -> EnvConfig:
     """Load required environment variables into an EnvConfig."""
-    return EnvConfig(**load_env())
+    return EnvConfig(**load_env(optional_defaults={"DISABLE_GPIO": False}))
 
 
 def _load_leds_config(path: Path = LEDS_CONFIG_PATH) -> LEDServiceConfig:
@@ -43,5 +43,6 @@ def load_app_config() -> AppConfig:
         mqtt_broker=app_config.env.mqtt_broker,
         mqtt_port=app_config.env.mqtt_port,
         device_id=app_config.env.minabox_device_id,
+        disable_gpio=app_config.env.disable_gpio,
     )
     return app_config
