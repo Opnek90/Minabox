@@ -30,6 +30,9 @@ def test_defaults_are_safe_to_render():
     assert audio == {
         "state": "stopped",
         "volume": 0,
+        "min_volume": 0,
+        "max_volume": 100,
+        "volume_step": 0,
         "muted": False,
         "multiple_output_devices": False,
         "bluetooth_sink_available": False,
@@ -53,6 +56,10 @@ def test_audio_status_is_cached():
     assert sm.get_audio() == {
         "state": "playing",
         "volume": 42,
+        # Absent from this payload, so the defaults stand.
+        "min_volume": 0,
+        "max_volume": 100,
+        "volume_step": 0,
         "muted": True,
         "multiple_output_devices": True,
         "bluetooth_sink_available": True,
@@ -172,3 +179,44 @@ def test_session_round_trip():
     sm = _sm()
     sm.update_session("all", True)
     assert sm.get_session() == {"repeat_mode": "all", "shuffle": True}
+
+
+# ---------------------------------------------------------------------------
+# Volume bounds
+# ---------------------------------------------------------------------------
+
+
+def _status(**fields) -> str:
+    return json.dumps({"state": "playing", "volume": 40, **fields})
+
+
+def test_volume_bounds_come_from_the_status():
+    sm = _sm()
+    payload = _status(min_volume=0, max_volume=40, volume_step=5)
+    sm.update_audio(STATUS, payload.encode())
+    view = sm.get_volume_view()
+    assert (view.min_volume, view.max_volume, view.step) == (0, 40, 5)
+    assert view.percent == 100
+
+
+def test_without_bounds_the_volume_is_read_as_a_percentage():
+    """An audio service that does not send them yet must not break the HUD."""
+    sm = _sm()
+    sm.update_audio(STATUS, _status().encode())
+    view = sm.get_volume_view()
+    assert view.percent == 40
+    assert not view.use_blocks  # step unknown, so a bar rather than wrong blocks
+
+
+def test_a_narrower_maximum_changes_what_the_same_volume_means():
+    sm = _sm()
+    sm.update_audio(STATUS, _status(max_volume=80, volume_step=5).encode())
+    assert sm.get_volume_view().percent == 50
+    sm.update_audio(STATUS, _status(max_volume=40, volume_step=5).encode())
+    assert sm.get_volume_view().percent == 100
+
+
+def test_mute_reaches_the_view():
+    sm = _sm()
+    sm.update_audio(STATUS, _status(muted=True).encode())
+    assert sm.get_volume_view().muted

@@ -8,6 +8,8 @@ from typing import Any
 
 import structlog
 
+from ..render.volume import VolumeView
+
 logger = structlog.get_logger(__name__)
 
 # How long the error indicator stays up after the last error event.
@@ -37,6 +39,13 @@ class StateManager:
         self._audio: dict[str, Any] = {
             "state": "stopped",
             "volume": 0,
+            # The bounds and the step arrive with audio/status. The defaults
+            # here are the widest possible range, so a service that starts
+            # before the first status shows a plausible bar rather than a wrong
+            # one - see render/volume.py for why the raw volume is not enough.
+            "min_volume": 0,
+            "max_volume": 100,
+            "volume_step": 0,
             "muted": False,
             "multiple_output_devices": False,
             "bluetooth_sink_available": False,
@@ -54,6 +63,11 @@ class StateManager:
             data = json.loads(payload.decode("utf-8"))
             self._audio["state"] = data.get("state", "stopped")
             self._audio["volume"] = int(data.get("volume", 0))
+            self._audio["min_volume"] = int(data.get("min_volume", 0))
+            self._audio["max_volume"] = int(data.get("max_volume", 100))
+            # 0 means "unknown", which the renderer reads as "draw a bar, not
+            # blocks". An older audio service simply does not send it.
+            self._audio["volume_step"] = int(data.get("volume_step", 0))
             self._audio["muted"] = bool(data.get("muted", False))
             self._audio["multiple_output_devices"] = data.get(
                 "multiple_output_devices", False
@@ -84,8 +98,19 @@ class StateManager:
         self._sleep_timer["remaining_ms"] = remaining_ms
 
     def get_audio(self) -> dict[str, Any]:
-        """Return current audio state (state, volume, muted)."""
+        """Return current audio state (state, volume, bounds, muted)."""
         return dict(self._audio)
+
+    def get_volume_view(self) -> VolumeView:
+        """Return what the volume HUD needs, resolved from the cached status."""
+        audio = self._audio
+        return VolumeView(
+            volume=audio["volume"],
+            min_volume=audio["min_volume"],
+            max_volume=audio["max_volume"],
+            step=audio["volume_step"],
+            muted=bool(audio["muted"]),
+        )
 
     def get_sleep_timer(self) -> dict[str, Any]:
         """Return current sleep timer state (active, remaining_ms)."""
