@@ -6,6 +6,11 @@ according to the pattern types defined in the LED service architecture:
 - blink: LED toggles at regular intervals
 - pulse: LED briefly lights up then turns off
 - glow: smooth breathing effect via Software PWM (PWMLED) using a sine curve
+
+``repeat`` counts whole cycles everywhere: one blink is on *and* off again,
+one pulse is on and off again, one glow cycle is dark to bright and back.
+An earlier version counted blink toggles instead, so ``repeat: 2`` produced a
+single blink and the "5 second" test blink lasted 2.5 seconds.
 """
 
 from __future__ import annotations
@@ -19,24 +24,37 @@ import structlog
 from ..exceptions import InvalidPatternError
 
 if TYPE_CHECKING:
-    from gpiozero import LED
+    from gpiozero import LED, PWMLED
 
 logger = structlog.get_logger(__name__)
 
 # Number of brightness steps per glow cycle. Higher = smoother, higher CPU cost.
-# 50 steps is imperceptible on slow cycles (≥ 1 s) and negligible for the Pi.
+# 50 steps is imperceptible on slow cycles (>= 1 s) and negligible for the Pi.
 _GLOW_STEPS = 50
 
 
-async def run_solid_pattern(
-    led: LED,
-    led_id: str,
-) -> None:
+async def _sleep_or_cancel(cancel_event: asyncio.Event, seconds: float) -> bool:
+    """Wait for ``seconds`` unless the pattern is cancelled first.
+
+    Every pattern needs the same "sleep, but wake up immediately when someone
+    overrides me" step, and writing it inline meant a try/except around every
+    single wait. Returns True if the pattern should stop.
+    """
+    if cancel_event.is_set():
+        return True
+    try:
+        await asyncio.wait_for(cancel_event.wait(), timeout=seconds)
+    except TimeoutError:
+        return False
+    return True
+
+
+async def run_solid_pattern(led: LED, led_id: str) -> None:
     """Run a solid pattern (LED permanently on).
 
     The LED is turned on and stays on indefinitely until another pattern
     overrides it. duration_ms is intentionally not a parameter here because
-    'solid' means constant light — a duration would contradict that semantics
+    'solid' means constant light -- a duration would contradict that semantics
     and previously caused the LED not to light up when duration_ms was non-zero.
 
     Args:
@@ -45,12 +63,10 @@ async def run_solid_pattern(
     """
     led.on()
     logger.debug("pattern_solid_started", led_id=led_id)
-    # LED stays on until another pattern overrides it — no sleep, no led.off()
+    # LED stays on until another pattern overrides it -- no sleep, no led.off()
 
-async def run_off_pattern(
-    led: LED,
-    led_id: str,
-) -> None:
+
+async def run_off_pattern(led: LED, led_id: str) -> None:
     """Turn the LED off immediately without any visible pulse.
 
     Useful for logical states like 'audio_stopped' or 'audio_paused'
@@ -58,6 +74,7 @@ async def run_off_pattern(
     """
     led.off()
     logger.debug("pattern_off_applied", led_id=led_id)
+
 
 async def run_blink_pattern(
     led: LED,
@@ -70,8 +87,8 @@ async def run_blink_pattern(
 
     Args:
         led: The gpiozero LED instance to control.
-        interval_ms: Time in milliseconds between toggles.
-        repeat: Number of blink cycles (0 or None means infinite).
+        interval_ms: Time in milliseconds the LED stays on, and stays off.
+        repeat: Number of complete on/off blinks (0 or None means infinite).
         led_id: LED identifier for logging.
         cancel_event: Event to signal pattern cancellation.
 
@@ -84,7 +101,7 @@ async def run_blink_pattern(
         )
 
     interval_sec = interval_ms / 1000.0
-    cycles = 0
+    blinks = 0
     infinite = repeat is None or repeat == 0
 
     logger.debug(
@@ -96,34 +113,18 @@ async def run_blink_pattern(
     )
 
     try:
-        while infinite or cycles < repeat:
-            if cancel_event.is_set():
-                logger.debug("pattern_blink_cancelled", led_id=led_id, cycles=cycles)
+        while infinite or blinks < repeat:
+            led.on()
+            if await _sleep_or_cancel(cancel_event, interval_sec):
                 break
-
-            if led.is_lit:
-                led.off()
-            else:
-                led.on()
-
-            try:
-                await asyncio.wait_for(
-                    cancel_event.wait(),
-                    timeout=interval_sec,
-                )
+            led.off()
+            if await _sleep_or_cancel(cancel_event, interval_sec):
                 break
-            except asyncio.TimeoutError:
-                pass
-
-            if not infinite:
-                cycles += 1
+            blinks += 1
     finally:
         led.off()
-        logger.debug(
-            "pattern_blink_finished",
-            led_id=led_id,
-            cycles=cycles,
-        )
+        logger.debug("pattern_blink_finished", led_id=led_id, blinks=blinks)
+
 
 async def run_pulse_pattern(
     led: LED,
@@ -150,6 +151,8 @@ async def run_pulse_pattern(
         )
 
     duration_sec = duration_ms / 1000.0
+    # Gap between pulses: at most 1/3 of pulse duration, minimum 100 ms.
+    gap_sec = max(100.0, duration_ms / 3) / 1000.0
     pulses = 0
     infinite = repeat is None or repeat == 0
 
@@ -163,47 +166,32 @@ async def run_pulse_pattern(
 
     try:
         while infinite or pulses < repeat:
-            if cancel_event.is_set():
-                logger.debug("pattern_pulse_cancelled", led_id=led_id, pulses=pulses)
-                break
-
             led.on()
-
-            try:
-                await asyncio.wait_for(
-                    cancel_event.wait(),
-                    timeout=duration_sec,
-                )
+            if await _sleep_or_cancel(cancel_event, duration_sec):
                 break
-            except asyncio.TimeoutError:
-                pass
-
             led.off()
+            pulses += 1
 
-            if not infinite:
-                pulses += 1
-
-            # Gap between pulses: at most 1/3 of pulse duration, minimum 100 ms.
-            gap_ms = max(100, duration_ms / 3)
-            try:
-                await asyncio.wait_for(
-                    cancel_event.wait(),
-                    timeout=gap_ms / 1000.0,
-                )
+            # No trailing gap after the last pulse -- it would only delay the
+            # next pattern by up to a third of a pulse for no visible effect.
+            if not infinite and pulses >= repeat:
                 break
-            except asyncio.TimeoutError:
-                pass
+            if await _sleep_or_cancel(cancel_event, gap_sec):
+                break
     finally:
         led.off()
-        logger.debug(
-            "pattern_pulse_finished",
-            led_id=led_id,
-            pulses=pulses,
-        )
+        logger.debug("pattern_pulse_finished", led_id=led_id, pulses=pulses)
+
+
+def _glow_brightness(step: int, min_brightness: float, span: float) -> float:
+    """Brightness of one glow step on a sine curve, starting and ending dark."""
+    angle = (step / _GLOW_STEPS) * math.pi * 2
+    # cos goes 1..-1..1; map to 0..1..0 then scale into the brightness range
+    return min_brightness + span * (0.5 - 0.5 * math.cos(angle))
 
 
 async def run_glow_pattern(
-    led: "PWMLED",
+    led: PWMLED,
     cycle_ms: int,
     min_brightness: float,
     max_brightness: float,
@@ -213,8 +201,8 @@ async def run_glow_pattern(
 ) -> None:
     """Run a glow (breathing) pattern using Software PWM via PWMLED.
 
-    Brightness follows a sine curve: dark → bright → dark over one cycle.
-    The effect is smooth and natural for slow ambient cycles (≥ 1 s).
+    Brightness follows a sine curve: dark -> bright -> dark over one cycle.
+    The effect is smooth and natural for slow ambient cycles (>= 1 s).
 
     Stops cleanly on cancel_event between every brightness step so the LED
     never freezes at an intermediate brightness level after cancellation.
@@ -222,8 +210,8 @@ async def run_glow_pattern(
     Args:
         led: A gpiozero PWMLED instance (not a plain LED).
         cycle_ms: Duration of one full glow cycle in milliseconds (min 500).
-        min_brightness: Minimum brightness value 0.0–1.0.
-        max_brightness: Maximum brightness value 0.0–1.0.
+        min_brightness: Minimum brightness value 0.0-1.0.
+        max_brightness: Maximum brightness value 0.0-1.0.
         repeat: Number of cycles. 0 or None means infinite.
         led_id: LED identifier for logging.
         cancel_event: Event to signal pattern cancellation.
@@ -247,7 +235,7 @@ async def run_glow_pattern(
         )
 
     step_sec = (cycle_ms / 1000.0) / _GLOW_STEPS
-    brightness_range = max_brightness - min_brightness
+    span = max_brightness - min_brightness
     cycles = 0
     infinite = repeat is None or repeat == 0
 
@@ -263,35 +251,15 @@ async def run_glow_pattern(
 
     try:
         while infinite or cycles < repeat:
-            if cancel_event.is_set():
-                logger.debug("pattern_glow_cancelled", led_id=led_id, cycles=cycles)
-                break
-
+            cancelled = False
             for step in range(_GLOW_STEPS):
-                if cancel_event.is_set():
+                led.value = _glow_brightness(step, min_brightness, span)
+                if await _sleep_or_cancel(cancel_event, step_sec):
+                    cancelled = True
                     break
-
-                # Sine wave: 0 → π*2 over one cycle; starts and ends at minimum
-                angle = (step / _GLOW_STEPS) * math.pi * 2
-                # sin goes -1..1; map to 0..1 then scale to brightness range
-                brightness = min_brightness + brightness_range * (0.5 - 0.5 * math.cos(angle))
-                led.value = brightness
-
-                try:
-                    await asyncio.wait_for(
-                        cancel_event.wait(),
-                        timeout=step_sec,
-                    )
-                    break
-                except asyncio.TimeoutError:
-                    pass
-
-            if not infinite:
-                cycles += 1
+            if cancelled:
+                break
+            cycles += 1
     finally:
         led.value = 0.0
-        logger.debug(
-            "pattern_glow_finished",
-            led_id=led_id,
-            cycles=cycles,
-        )
+        logger.debug("pattern_glow_finished", led_id=led_id, cycles=cycles)

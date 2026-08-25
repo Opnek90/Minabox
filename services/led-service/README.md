@@ -7,8 +7,19 @@ Detailed MQTT topic mapping, logical state derivation rules, and payload shapes 
 ## REST API
 
 Service root endpoints:
-- `GET /health`
-- `POST /test` (body: `{ "led_id": string }`)
+- `GET /health` — reports `leds_configured` and `leds_available` separately, and
+  `degraded` when the broker is away or no configured LED holds a pin
+- `POST /test` (body: `{ "led_id": string }`) — starts a five second test blink
+  and returns immediately
+
+## Tests
+
+```bash
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') python -m pytest services/led-service/tests -q
+```
+
+No hardware required; `DISABLE_GPIO` is a constructor argument, not an ambient
+environment lookup.
 
 ## Configuration
 
@@ -16,14 +27,20 @@ Main config file: `config/leds.json`
 
 Each LED entry:
 - `id`, `name`, `gpio`
-- `enabled` (when `false`, the LED ignores state changes and stays off)
-- `bindings`: mapping from logical state (e.g. `system_online`) to a pattern (`solid`, `blink`, `pulse`, `off`)
+- `enabled` (when `false`, the LED ignores state changes and claims no GPIO pin)
+- `bindings`: mapping from logical state (e.g. `system_online`) to a pattern (`solid`, `blink`, `pulse`, `off`, `glow`)
 
-Pattern fields (subset):
+Pattern fields:
 - `pattern_type`
-- `duration_ms` (optional; `0`/`null` means “until overridden” for `solid`)
-- `interval_ms` (required for `blink`)
-- `repeat` (optional; `0`/`null` means repeat indefinitely)
+- `interval_ms` (required for `blink`): on-time, and off-time, of one blink
+- `duration_ms` (required for `pulse`): on-time per pulse; cleared on every other pattern type
+- `repeat` (optional): number of complete cycles — one blink is on *and* off again. `0`/`null` repeats until another state overrides the LED
+- `cycle_ms`, `min_brightness`, `max_brightness` (`glow` only)
+
+A pattern the service could not run — a `pulse` without a duration, a `glow`
+whose `min_brightness` is not below its `max_brightness` — is repaired with a
+default and a warning rather than rejected, so one bad binding cannot stop the
+service from starting.
 
 ## MQTT Topics
 
@@ -33,7 +50,7 @@ Topic prefix pattern:
 Subscriptions (key ones):
 - Audio status: `.../audio/status`
 - RFID events: `.../rfid/tag-scanned`, `.../rfid/tag-removed`, `.../rfid/unknown-tag`
-- RFID blocked: `.../rfid/tag-blocked` (derived from Backend content restrictions)
+- RFID blocked: `.../rfid/tag-blocked` (published by the backend for a blocked card)
 - System events: `.../system/service-started`, `.../system/service-error`, `.../system/booting`
 - Button raw events: `.../button/raw-event`
 - Backend health: `.../backend/unreachable`
@@ -41,7 +58,9 @@ Subscriptions (key ones):
 
 Configuration & log-level:
 - `.../config/general` (MQTT payload includes `log_level`)
-- `.../led/config/update` (full config JSON)
-- `.../led/config/reload`
-- `.../led/config/get` and response on `.../led/config/response`
+- `.../led/config/reload`, answered on `.../led/config/response`
+
+The backend owns `leds.json`: it writes the file and then asks the service to
+reload it. There is no topic for pushing a configuration into the service — the
+config directory is mounted read-only.
 

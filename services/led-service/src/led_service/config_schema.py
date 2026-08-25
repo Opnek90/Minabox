@@ -1,15 +1,38 @@
 from __future__ import annotations
 
+from typing import Any, Literal
+
 import structlog
-from typing import Dict, List, Literal
-
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, model_validator
-
 from shared_lib.config import EnvConfigBase
 
 logger = structlog.get_logger(__name__)
 
 PatternType = Literal["solid", "blink", "pulse", "off", "glow"]
+
+# Fallbacks for pattern fields the WebUI can leave empty or set to a value that
+# would make the pattern impossible to run. The schema repairs those instead of
+# rejecting them: a config that fails validation takes the whole service down
+# on the next start, and one unusable binding is not worth that.
+DEFAULT_BLINK_INTERVAL_MS = 500
+DEFAULT_PULSE_DURATION_MS = 250
+DEFAULT_GLOW_CYCLE_MS = 2000
+DEFAULT_GLOW_MIN_BRIGHTNESS = 0.0
+DEFAULT_GLOW_MAX_BRIGHTNESS = 1.0
+
+
+# Usable BCM pin numbers on a Raspberry Pi header. Only used to warn -- the
+# board decides what is really wired, and a wrong number already fails loudly
+# when the pin cannot be claimed.
+BCM_PIN_RANGE = (2, 27)
+
+
+def _warn_duplicates(values: list[Any], event: str, field: str) -> None:
+    seen: set[Any] = set()
+    duplicates = sorted({v for v in values if v in seen or seen.add(v)})
+    if duplicates:
+        logger.warning(event, **{field: duplicates})
+
 
 class LEDPattern(BaseModel):
     """Pattern description for a logical state on a single LED.
@@ -28,9 +51,8 @@ class LEDPattern(BaseModel):
     duration_ms: NonNegativeInt | None = Field(
         default=None,
         description=(
-            "Pattern duration in milliseconds. "
-            "Not applicable for 'solid' (ignored with a warning) or 'glow'. "
-            "For 'pulse', how long the LED stays on per pulse."
+            "On-time per pulse in milliseconds. Only used by 'pulse'; cleared "
+            "for every other pattern type."
         ),
     )
     interval_ms: PositiveInt | None = Field(
@@ -40,15 +62,17 @@ class LEDPattern(BaseModel):
     repeat: NonNegativeInt | None = Field(
         default=None,
         description=(
-            "Number of repetitions. 0 or None means repeat indefinitely "
-            "until another pattern overrides this one."
+            "Number of complete cycles -- one blink is on and off again, one "
+            "pulse is on and off again, one glow cycle is dark to bright and "
+            "back. 0 or None means repeat indefinitely until another pattern "
+            "overrides this one."
         ),
     )
     cycle_ms: int | None = Field(
         default=None,
         ge=500,
         description=(
-            "Duration of one full glow cycle (dark → bright → dark) in milliseconds. "
+            "Duration of one full glow cycle (dark -> bright -> dark) in milliseconds. "
             "Only used for 'glow'. Default: 2000. Minimum: 500."
         ),
     )
@@ -72,15 +96,37 @@ class LEDPattern(BaseModel):
     )
 
     @model_validator(mode="after")
-    def clear_duration_for_solid(self) -> "LEDPattern":
-        """Ensure duration_ms is always None for solid patterns.
+    def normalise_for_pattern_type(self) -> LEDPattern:
+        """Fill in what a pattern needs and drop what it cannot use.
 
-        The solid pattern means 'stay on indefinitely'. A non-zero duration_ms
-        has no meaning here and previously caused the LED not to light up at all
-        (bug #97). We strip it at parse time and emit a warning so the config
-        can be corrected in the UI.
+        Every value here used to be trusted as written. A 'pulse' with
+        duration_ms 0 or a 'glow' whose min_brightness was not below its
+        max_brightness reached the pattern coroutine, raised inside its task,
+        and left the LED dark without a single log line.
+
+        Repairing is deliberate: the WebUI can produce all of these, and a
+        binding that lights up with a default is a better answer than a service
+        that refuses to start.
         """
-        if self.pattern_type == "solid" and self.duration_ms is not None and self.duration_ms > 0:
+        if self.pattern_type == "solid":
+            self._clear_duration_for_solid()
+        elif self.pattern_type == "off":
+            self.duration_ms = None
+        elif self.pattern_type == "blink":
+            self._require_blink_interval()
+            # Blink has never used duration_ms; keeping it only invites the
+            # assumption that it shortens the pattern.
+            self.duration_ms = None
+        elif self.pattern_type == "pulse":
+            self._require_pulse_duration()
+        elif self.pattern_type == "glow":
+            self._resolve_glow_range()
+            self.duration_ms = None
+        return self
+
+    def _clear_duration_for_solid(self) -> None:
+        """A solid pattern stays on; a duration would contradict that (bug #97)."""
+        if self.duration_ms:
             logger.warning(
                 "solid_pattern_duration_ignored",
                 duration_ms=self.duration_ms,
@@ -90,8 +136,54 @@ class LEDPattern(BaseModel):
                     "duration_ms from this binding in the UI to suppress this warning."
                 ),
             )
-            self.duration_ms = None
-        return self
+        self.duration_ms = None
+
+    def _require_blink_interval(self) -> None:
+        if self.interval_ms is None:
+            logger.warning(
+                "blink_interval_defaulted",
+                default_ms=DEFAULT_BLINK_INTERVAL_MS,
+                detail=(
+                    "A 'blink' binding without interval_ms cannot blink. Falling "
+                    "back to the default interval; set one in the UI."
+                ),
+            )
+            self.interval_ms = DEFAULT_BLINK_INTERVAL_MS
+
+    def _require_pulse_duration(self) -> None:
+        if not self.duration_ms:
+            logger.warning(
+                "pulse_duration_defaulted",
+                duration_ms=self.duration_ms,
+                default_ms=DEFAULT_PULSE_DURATION_MS,
+                detail=(
+                    "A 'pulse' binding needs a duration_ms above zero. Falling "
+                    "back to the default; set one in the UI."
+                ),
+            )
+            self.duration_ms = DEFAULT_PULSE_DURATION_MS
+
+    def _resolve_glow_range(self) -> None:
+        if self.cycle_ms is None:
+            self.cycle_ms = DEFAULT_GLOW_CYCLE_MS
+        if self.min_brightness is None:
+            self.min_brightness = DEFAULT_GLOW_MIN_BRIGHTNESS
+        if self.max_brightness is None:
+            self.max_brightness = DEFAULT_GLOW_MAX_BRIGHTNESS
+
+        if self.min_brightness >= self.max_brightness:
+            logger.warning(
+                "glow_brightness_range_invalid",
+                min_brightness=self.min_brightness,
+                max_brightness=self.max_brightness,
+                detail=(
+                    "min_brightness must stay below max_brightness or the LED "
+                    "cannot breathe. Falling back to the full range."
+                ),
+            )
+            self.min_brightness = DEFAULT_GLOW_MIN_BRIGHTNESS
+            self.max_brightness = DEFAULT_GLOW_MAX_BRIGHTNESS
+
 
 class LEDConfig(BaseModel):
     """Configuration for a single physical LED."""
@@ -107,7 +199,7 @@ class LEDConfig(BaseModel):
     gpio: PositiveInt = Field(
         description="GPIO pin number the LED is connected to.",
     )
-    bindings: Dict[str, LEDPattern] = Field(
+    bindings: dict[str, LEDPattern] = Field(
         default_factory=dict,
         description=(
             "Mapping from logical state (e.g. 'system_online', 'audio_playing') "
@@ -122,16 +214,55 @@ class LEDConfig(BaseModel):
         ),
     )
 
+
 class LEDServiceConfig(BaseModel):
     """Top-level LED configuration loaded from config/leds.json."""
 
-    leds: List[LEDConfig] = Field(
+    leds: list[LEDConfig] = Field(
         default_factory=list,
         description="Configured LEDs for this device.",
     )
 
+    @model_validator(mode="after")
+    def warn_about_collisions(self) -> LEDServiceConfig:
+        """Point out the two duplicates that quietly cost an LED.
+
+        Two entries on the same pin: the second one cannot claim it and ends up
+        inert with nothing but a warning. Two entries with the same id: the
+        second overwrites the first in the controller map, and the first is
+        never closed. Neither is worth refusing the whole config over, but both
+        deserve to be visible.
+        """
+        _warn_duplicates([led.id for led in self.leds], "duplicate_led_id", "led_id")
+        _warn_duplicates(
+            [led.gpio for led in self.leds if led.enabled], "duplicate_led_gpio", "gpio"
+        )
+
+        outside = [
+            led.gpio
+            for led in self.leds
+            if not BCM_PIN_RANGE[0] <= led.gpio <= BCM_PIN_RANGE[1]
+        ]
+        if outside:
+            logger.warning(
+                "led_gpio_outside_bcm_range",
+                gpio=sorted(set(outside)),
+                expected=f"{BCM_PIN_RANGE[0]}-{BCM_PIN_RANGE[1]}",
+                detail="These pins will fail to initialise on a Raspberry Pi.",
+            )
+        return self
+
+
 class EnvConfig(EnvConfigBase):
     """Environment-based configuration for the LED service (extends shared base)."""
+
+    disable_gpio: bool = Field(
+        default=False,
+        description=(
+            "Skip all hardware access. Set for development on a machine "
+            "without GPIO pins."
+        ),
+    )
 
 
 class AppConfig(BaseModel):

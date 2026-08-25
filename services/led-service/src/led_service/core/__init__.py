@@ -3,6 +3,7 @@ from __future__ import annotations
 from .led_controller import LEDController, LEDManager
 from .led_patterns import (
     run_blink_pattern,
+    run_glow_pattern,
     run_off_pattern,
     run_pulse_pattern,
     run_solid_pattern,
@@ -14,6 +15,7 @@ __all__ = [
     "LEDManager",
     "StateManager",
     "run_blink_pattern",
+    "run_glow_pattern",
     "run_off_pattern",
     "run_pulse_pattern",
     "run_solid_pattern",
