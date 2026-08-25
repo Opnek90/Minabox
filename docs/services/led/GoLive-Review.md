@@ -12,7 +12,12 @@ Legende: **[H]** hoch · **[M]** mittel · **[N]** niedrig ·
 `[x]` umgesetzt · `[ ]` offen
 
 Umgesetzt auf dem Branch `fix/led-go-live`: Abschnitte 1 bis 3 vollstaendig.
-Offen ist nur noch Abschnitt 4 (Image-Groesse) und der Rest von 3.4.
+Offen ist nur noch Abschnitt 4 (Image-Groesse).
+
+Was bei diesem Review aufgefallen ist, aber **andere Dienste** betrifft – offene
+Ports, der nie ausgewertete `degraded`-Status, deutsche Dockerfile-Kommentare,
+die ungepinnte `lg`-Quelle – steht in
+[../Offene-Punkte.md](../Offene-Punkte.md).
 
 ---
 
