@@ -35,6 +35,15 @@
 # To enable memory limits on Pi: add cgroup_memory=1 to /boot/firmware/cmdline.txt
 # (or /boot/cmdline.txt), then reboot. Then you can add deploy.resources per service.
 
+# Logging: the json-file driver defaults to unlimited growth, and the box runs
+# from an SD card. Ten megabytes per service across three files caps the whole
+# stack at roughly 300 MB and keeps enough history for a debug export.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   # =================================
@@ -43,6 +52,7 @@ services:
   mqtt:
     image: eclipse-mosquitto:2
     container_name: minabox-mqtt
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "${MQTT_PORT:?MQTT_PORT must be set in .env}:1883"
@@ -68,6 +78,7 @@ services:
       context: ./services
       dockerfile: backend-service/Dockerfile
     container_name: minabox-backend
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-8080}:8080"
@@ -139,6 +150,7 @@ services:
       context: ./services
       dockerfile: host-helper-service/Dockerfile
     container_name: minabox-host-helper
+    logging: *default-logging
     restart: unless-stopped
     user: "0:0"
     pid: "host"
@@ -192,6 +204,7 @@ services:
       context: ./services
       dockerfile: audio-service/Dockerfile
     container_name: minabox-audio
+    logging: *default-logging
     restart: unless-stopped
     ports:
       # Nur auf dem Loopback veroeffentlicht. Die REST-API kennt keine
@@ -240,6 +253,7 @@ services:
       context: ./services
       dockerfile: rfid-service/Dockerfile
     container_name: minabox-rfid
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "8001:8000"
@@ -276,6 +290,7 @@ services:
       context: ./services
       dockerfile: button-service/Dockerfile
     container_name: minabox-button
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "8005:8000"
@@ -316,9 +331,13 @@ services:
       context: ./services
       dockerfile: led-service/Dockerfile
     container_name: minabox-led
+    logging: *default-logging
     restart: unless-stopped
     ports:
-      - "8004:8000"
+      # Bound to localhost: POST /test is unauthenticated, and the backend
+      # talks to the service over the compose network (http://led:8000).
+      # Diagnosis with curl on the box stays possible.
+      - "127.0.0.1:8004:8000"
     environment:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
@@ -356,6 +375,7 @@ services:
       context: ./services
       dockerfile: display-service/Dockerfile
     container_name: minabox-display
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "8006:8000"
@@ -394,6 +414,7 @@ services:
       context: ./services/webui-service
       dockerfile: Dockerfile
     container_name: minabox-webui
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "${WEBUI_PORT:-80}:80"
@@ -430,6 +451,7 @@ services:
       context: ./services
       dockerfile: media-downloader-service/Dockerfile
     container_name: minabox-media-downloader
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "8007:8007"
