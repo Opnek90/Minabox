@@ -22,6 +22,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.2 - 2026-08-25
+
+#### Fixed
+- An incomplete button configuration was saved and reported as successful even
+  though the button service cannot load it. It is now rejected, naming the
+  button and the missing field.
+
 ### 0.2.1 - 2026-08-24
 
 #### Improved
@@ -154,6 +161,15 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.14 - 2026-08-25
+
+#### Improved
+- Pin numbers and the action can no longer be forgotten in the buttons area -
+  the fields are marked required, and Save stays disabled until they are
+  filled in.
+- When saving a button configuration fails, the message now says which button
+  and which field is meant.
 
 ### 0.1.13 - 2026-08-24
 
@@ -407,6 +423,25 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## button
+
+### 0.2.0 - 2026-08-25
+
+#### Fixed
+- A button pin already owned by another service used to take **every** button
+  on the box down with it - and kept the pins until the container was
+  restarted. Now only the affected button drops out and the others keep
+  working.
+- An incomplete button configuration could be saved but sent the service into
+  a restart loop on its next start. It is now rejected on save, and the
+  service starts even with a broken file so it can be repaired from the
+  interface.
+
+#### Improved
+- The service status now reports "degraded" when a button cannot claim its pin
+  or the configuration fails to load - a box with nothing but dead buttons
+  used to look healthy.
+- The service needs about 60 percent less idle CPU time and its image is
+  68 MB smaller.
 
 ### 0.1.2 - 2026-08-23
 

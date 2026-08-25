@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import signal
 
 import structlog
@@ -15,11 +13,11 @@ from .api.routes import create_app
 from .config import load_app_config
 from .config_manager import ConfigManager
 from .config_schema import AppConfig, ButtonServiceConfig
-from .core.events import RawButtonEvent
 from .core.event_processor import run_event_processor
+from .core.events import RawButtonEvent
 from .core.gpio_input_manager import GPIOInputManager
-from .exceptions import GPIOInitError
 from .infrastructure import MQTTClient
+from .models import HealthState
 
 logger = structlog.get_logger(__name__)
 
@@ -47,6 +45,7 @@ class ButtonService:
         self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._gpio_manager: GPIOInputManager | None = None
+        self._config_error: str | None = None
 
         self.mqtt_client = MQTTClient(
             config=config,
@@ -61,32 +60,47 @@ class ButtonService:
     def _get_config(self) -> ButtonServiceConfig | None:
         return self.config_manager.get_current_config()
 
+    def _get_health_state(self) -> HealthState:
+        """Snapshot for /health: what is configured, and what actually runs."""
+        gpio_enabled = not self.config.env.disable_gpio
+        manager = self._gpio_manager
+        return HealthState(
+            buttons_configured=self._get_buttons_count(),
+            buttons_available=manager.available_count if manager else 0,
+            gpio_enabled=gpio_enabled,
+            config_error=self._config_error,
+        )
+
+    def _load_buttons_config(self) -> ButtonServiceConfig:
+        """Load buttons.json, or fall back to an empty set.
+
+        A config the schema rejects used to end the process before the API was
+        even up. With `restart: unless-stopped` that is a restart loop, and the
+        WebUI -- the only way to repair the file -- goes with it. Coming up
+        empty and reporting it on /health leaves a way back in.
+        """
+        try:
+            config = self.config_manager.load_config()
+        except Exception as exc:
+            self._config_error = str(exc)
+            logger.error(
+                "config_load_failed",
+                error=str(exc),
+                message=(
+                    "Starting without buttons. Fix config/buttons.json via the "
+                    "WebUI (Admin -> Buttons); it is reloaded on save."
+                ),
+            )
+            return ButtonServiceConfig()
+        self._config_error = None
+        return config
+
     async def start(self) -> None:
         """Start the button service."""
         logger.debug("button_service_starting")
 
-        buttons_config = self.config_manager.load_config()
-        loop = asyncio.get_running_loop()
-
-        disable_gpio = os.environ.get("DISABLE_GPIO", "false").strip().lower() in ("true", "1")
-        if disable_gpio:
-            logger.info("gpio_disabled_by_config", message="DISABLE_GPIO=true; running without button hardware.")
-            self._gpio_manager = None
-        else:
-            try:
-                self._gpio_manager = GPIOInputManager(
-                    config=buttons_config,
-                    event_queue=self._event_queue,
-                    loop=loop,
-                )
-                self._gpio_manager.start()
-            except Exception as exc:
-                logger.warning(
-                    "gpio_init_skipped",
-                    error=str(exc),
-                    message="Running without button hardware; MQTT and API remain available.",
-                )
-                self._gpio_manager = None
+        buttons_config = self._load_buttons_config()
+        self._start_gpio(buttons_config)
 
         # Connects in the background and retries forever, so an unreachable
         # broker no longer fails startup.
@@ -113,11 +127,49 @@ class ButtonService:
 
         logger.info("button_service_started")
 
+    def _start_gpio(self, buttons_config: ButtonServiceConfig) -> None:
+        """Bring up the input devices for the given configuration.
+
+        Only a pin factory that cannot be created is fatal to the hardware
+        layer; a single unavailable pin is skipped inside the manager. On
+        failure the manager is closed before it is dropped -- dropping it
+        without closing left the pins it had already claimed busy until the
+        container was restarted.
+        """
+        if self.config.env.disable_gpio:
+            logger.info(
+                "gpio_disabled_by_config",
+                message="DISABLE_GPIO=true; running without button hardware.",
+            )
+            self._gpio_manager = None
+            return
+
+        manager = GPIOInputManager(
+            config=buttons_config,
+            event_queue=self._event_queue,
+            loop=asyncio.get_running_loop(),
+        )
+        try:
+            manager.start()
+        except Exception as exc:
+            manager.close()
+            logger.warning(
+                "gpio_init_skipped",
+                error=str(exc),
+                message=(
+                    "Running without button hardware; MQTT and API remain available."
+                ),
+            )
+            self._gpio_manager = None
+            return
+
+        self._gpio_manager = manager
+
     async def _start_api_server(self) -> None:
         app = create_app(
             self.config,
             self.mqtt_client,
-            get_buttons_count=self._get_buttons_count,
+            get_health_state=self._get_health_state,
         )
         # Read port from config instead of hardcoding 8000 (issue #17)
         port = self.config.env.api_port
@@ -163,8 +215,10 @@ class ButtonService:
         try:
             self.config_manager.update_config(new_config)
             self._reinit_gpio()
+            self._config_error = None
             logger.debug("config_update_applied")
         except Exception as exc:
+            self._config_error = str(exc)
             logger.error("config_update_failed", error=str(exc), exc_info=True)
             raise
 
@@ -172,32 +226,36 @@ class ButtonService:
         try:
             self.config_manager.reload_config()
             self._reinit_gpio()
+            self._config_error = None
             logger.debug("config_reload_applied")
         except Exception as exc:
+            # The previous configuration keeps running, so the buttons still
+            # work -- but what is on disk no longer matches, and the next
+            # restart would come up empty. /health has to say so, because
+            # config/response has no subscriber.
+            self._config_error = str(exc)
             logger.error("config_reload_failed", error=str(exc), exc_info=True)
             raise
 
     def _reinit_gpio(self) -> None:
-        if os.environ.get("DISABLE_GPIO", "false").strip().lower() in ("true", "1"):
+        if self.config.env.disable_gpio:
             return
         cfg = self.config_manager.get_current_config()
         if not cfg:
             return
+
+        # Release the pins first, otherwise the new devices cannot claim them.
         if self._gpio_manager:
             self._gpio_manager.close()
             self._gpio_manager = None
-        try:
-            loop = asyncio.get_running_loop()
-            self._gpio_manager = GPIOInputManager(
-                config=cfg,
-                event_queue=self._event_queue,
-                loop=loop,
-            )
-            self._gpio_manager.start()
-            logger.debug("gpio_reinitialized", buttons_count=len(cfg.buttons))
-        except Exception as exc:
-            logger.warning("gpio_reinit_skipped", error=str(exc))
-            self._gpio_manager = None
+
+        self._start_gpio(cfg)
+        manager = self._gpio_manager
+        logger.debug(
+            "gpio_reinitialized",
+            buttons_count=len(cfg.buttons),
+            available=manager.available_count if manager else 0,
+        )
 
 
 async def main() -> None:

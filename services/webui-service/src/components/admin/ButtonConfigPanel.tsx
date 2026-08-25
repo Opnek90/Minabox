@@ -102,8 +102,13 @@ export const ButtonConfigPanel: React.FC = () => {
       const updated = await configApi.updateButtons(config);
       setConfig(updated);
       showSuccess(t('buttons.save_success'));
-    } catch {
-      showError(t('buttons.save_error'));
+    } catch (err) {
+      // The backend rejects a config the button service could not load, and
+      // names the button and field. Swallowing that left the user with a bare
+      // "save failed" and no idea which button was wrong.
+      const detail = (err as { response?: { data?: { detail?: string } } })
+        ?.response?.data?.detail;
+      showError(detail ? `${t('buttons.save_error')}: ${detail}` : t('buttons.save_error'));
     } finally {
       setSaving(false);
     }
@@ -146,9 +151,32 @@ export const ButtonConfigPanel: React.FC = () => {
   const handleNext = () => setActiveStep((s) => s + 1);
   const handleBack = () => setActiveStep((s) => s - 1);
 
+  // The button service refuses a config that misses any of these, and refusing
+  // it means the running service keeps the old one while the file on disk is
+  // already broken - the next restart then comes up without buttons. The
+  // backend rejects the same set with a 422; this keeps the user from getting
+  // that far.
+  const formType = btnForm.type ?? 'push';
+  const formMode = btnForm.mode ?? 'basic';
+
+  const missingPins: string[] =
+    formType === 'push'
+      ? btnForm.gpio == null
+        ? ['gpio']
+        : []
+      : (['clk', 'dt', 'sw'] as const).filter((pin) => btnForm[pin] == null);
+
   const isStep0Valid =
     (btnForm.name ?? '').trim().length > 0 &&
-    (btnForm.id ?? '').trim().length > 0;
+    (btnForm.id ?? '').trim().length > 0 &&
+    missingPins.length === 0;
+
+  const hasAnyAction =
+    formMode === 'basic'
+      ? (btnForm.action ?? '').length > 0
+      : Object.values(btnForm.actions ?? {}).some((a) => (a ?? '').length > 0);
+
+  const isStep1Valid = isStep0Valid && hasAnyAction;
 
   const handleSaveButtonDialog = () => {
     if (!editBtn || !config) return;
@@ -201,7 +229,7 @@ export const ButtonConfigPanel: React.FC = () => {
   }
 
   const advancedEvents =
-    btnForm.type === 'rotary'
+    formType === 'rotary'
       ? (['rotate_cw', 'rotate_ccw', 'press'] as const)
       : (['short_press', 'long_press', 'double_press'] as const);
 
@@ -412,22 +440,29 @@ export const ButtonConfigPanel: React.FC = () => {
                 <option value="advanced">{t('buttons.modes.advanced')}</option>
               </TextField>
 
-              {(btnForm.type ?? 'push') === 'push' ? (
+              {formType === 'push' ? (
                 <TextField
-                  label={t('buttons.fields.gpio')} type="number"
+                  label={t('buttons.fields.gpio')} type="number" required
                   value={btnForm.gpio ?? ''}
                   onChange={(e) => setBtnForm((p) => ({ ...p, gpio: e.target.value ? parseInt(e.target.value, 10) : undefined }))}
                   size="small" fullWidth inputProps={{ min: 0 }}
-                  helperText={t('buttons.fields.gpio_hint')}
+                  error={btnForm.gpio == null}
+                  helperText={
+                    btnForm.gpio == null
+                      ? t('buttons.fields.pin_required')
+                      : t('buttons.fields.gpio_hint')
+                  }
                 />
               ) : (
                 <Stack direction="row" spacing={1.5}>
                   {(['clk', 'dt', 'sw'] as const).map((pin) => (
                     <TextField
-                      key={pin} label={pin.toUpperCase()} type="number"
+                      key={pin} label={pin.toUpperCase()} type="number" required
                       value={btnForm[pin] ?? ''}
                       onChange={(e) => setBtnForm((p) => ({ ...p, [pin]: e.target.value ? parseInt(e.target.value, 10) : undefined }))}
                       size="small" fullWidth inputProps={{ min: 0 }}
+                      error={btnForm[pin] == null}
+                      helperText={btnForm[pin] == null ? t('buttons.fields.pin_required') : undefined}
                     />
                   ))}
                 </Stack>
@@ -442,7 +477,10 @@ export const ButtonConfigPanel: React.FC = () => {
                   ? t('buttons.actions.basic_hint')
                   : t('buttons.actions.advanced_hint')}
               </Typography>
-              {(btnForm.mode ?? 'basic') === 'basic' ? (
+              {!hasAnyAction && (
+                <Alert severity="warning">{t('buttons.actions.action_required')}</Alert>
+              )}
+              {formMode === 'basic' ? (
                 <TextField
                   select label={t('buttons.actions.action')}
                   value={btnForm.action ?? ''}
@@ -488,7 +526,7 @@ export const ButtonConfigPanel: React.FC = () => {
                 {t('next', { ns: 'common' })}
               </Button>
             ) : (
-              <Button variant="contained" onClick={handleSaveButtonDialog} disabled={!isStep0Valid}>
+              <Button variant="contained" onClick={handleSaveButtonDialog} disabled={!isStep1Valid}>
                 {t('save', { ns: 'common' })}
               </Button>
             )}

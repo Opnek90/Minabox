@@ -23,6 +23,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.2 - 2026-08-25
+
+#### Behoben
+- Eine unvollstaendige Tasten-Konfiguration wurde gespeichert und als Erfolg
+  gemeldet, obwohl der Tasten-Dienst sie nicht laden kann. Sie wird jetzt
+  abgelehnt, mit Angabe der Taste und des fehlenden Feldes.
+
 ### 0.2.1 - 2026-08-24
 
 #### Verbessert
@@ -161,6 +168,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.14 - 2026-08-25
+
+#### Verbessert
+- Im Tasten-Bereich lassen sich Pin-Nummern und Aktion nicht mehr vergessen -
+  die Felder sind als Pflicht gekennzeichnet, und "Speichern" bleibt gesperrt,
+  bis sie ausgefuellt sind.
+- Schlaegt das Speichern einer Tasten-Konfiguration fehl, steht jetzt in der
+  Meldung, welche Taste und welches Feld gemeint ist.
 
 ### 0.1.13 - 2026-08-24
 
@@ -427,6 +443,25 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## button
+
+### 0.2.0 - 2026-08-25
+
+#### Behoben
+- Ein Tastendruck-Pin, der schon einem anderen Dienst gehoert, legte bisher
+  **alle** Tasten der Box still - und gab die Pins bis zum Neustart des
+  Containers nicht wieder her. Jetzt faellt nur die betroffene Taste aus, die
+  uebrigen funktionieren weiter.
+- Eine unvollstaendige Tasten-Konfiguration liess sich speichern, brachte den
+  Dienst beim naechsten Start aber in eine Neustart-Schleife. Sie wird jetzt
+  schon beim Speichern abgelehnt, und der Dienst startet auch mit einer
+  fehlerhaften Datei, damit sie sich ueber die Oberflaeche reparieren laesst.
+
+#### Verbessert
+- Die Zustandsanzeige des Dienstes meldet jetzt "eingeschraenkt", wenn eine
+  Taste ihren Pin nicht bekommt oder die Konfiguration nicht laedt - vorher
+  sah eine Box mit lauter toten Tasten gesund aus.
+- Der Dienst braucht rund 60 Prozent weniger Rechenzeit im Leerlauf und sein
+  Abbild ist 68 MB kleiner.
 
 ### 0.1.2 - 2026-08-23
 

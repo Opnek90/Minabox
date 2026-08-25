@@ -1,6 +1,10 @@
 # Core Framework
 fastapi>=0.126.0,<0.127.0
-uvicorn[standard]>=0.34.0,<0.35.0
+# Plain uvicorn, not [standard]: that extra pulls uvloop, httptools,
+# websockets, watchfiles and PyYAML - 27 MB of which nothing is used here.
+# uvloop never even activates, because main.py runs the server inside a loop it
+# started itself, so uvicorn's setup_event_loop() is never called.
+uvicorn>=0.34.0,<0.35.0
 pydantic>=2.12.0,<2.13.0
 
 # MQTT Client
@@ -9,10 +13,14 @@ aiomqtt>=2.5.0,<2.6.0
 # Logging
 structlog>=25.4.0,<25.5.0
 
-# Retry & Error Handling
-tenacity>=9.0.0,<10.0.0
-
 # GPIO Hardware
 gpiozero>=2.0.1,<2.1.0
-lgpio>=0.2.0.0
-RPi.GPIO>=0.7.1,<0.8.0
+# lgpio: the pin factory gpiozero uses here, because it talks to
+# /dev/gpiochip0 and therefore works inside the container. No cp313 wheel
+# exists on PyPI, so pip builds the sdist against the liblgpio.so the builder
+# stage compiles first.
+#
+# RPi.GPIO used to be listed next to it and was never imported: the factory is
+# pinned to lgpio in three places, and RPi.GPIO pokes at the BCM registers
+# directly, which stopped working with the Pi 5 (RP1, gpiochip4).
+lgpio>=0.2.2.0
