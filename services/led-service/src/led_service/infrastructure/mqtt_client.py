@@ -3,20 +3,17 @@
 Connection lifecycle, reconnection and status replay come from
 ``shared_lib.mqtt.BaseMQTTClient``. This module adds:
 - the LED subscription list
-- the config API (config/get, config/update, config/reload, config/response)
+- the config API (config/reload, config/response)
 """
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import structlog
 from shared_lib.mqtt import BaseMQTTClient
-
-from ..config_schema import LEDServiceConfig
 
 if TYPE_CHECKING:
     from ..config_schema import AppConfig
@@ -30,16 +27,19 @@ class MQTTClient(BaseMQTTClient):
     def __init__(
         self,
         config: AppConfig,
-        on_message_callback: Callable[[str, bytes], None],
-        on_config_update_callback: Callable[[LEDServiceConfig], None],
-        on_config_reload_callback: Callable[[], None],
+        on_message_callback: Callable[[str, bytes], Awaitable[None]],
+        on_config_reload_callback: Callable[[], Awaitable[None]],
     ) -> None:
         """Initialize the MQTT client.
+
+        Both callbacks are awaited rather than dispatched into their own task.
+        That is what makes the ordering deterministic: the base client's
+        receive loop hands over one message at a time, so states are applied in
+        the order the broker delivered them.
 
         Args:
             config: Application configuration.
             on_message_callback: Callback for regular MQTT messages (topic, payload).
-            on_config_update_callback: Callback for config/update messages.
             on_config_reload_callback: Callback for config/reload messages.
         """
         super().__init__(
@@ -50,7 +50,6 @@ class MQTTClient(BaseMQTTClient):
         )
         self._config = config
         self._on_message = on_message_callback
-        self._on_config_update = on_config_update_callback
         self._on_config_reload = on_config_reload_callback
 
         # Registered up front; the base client applies them on every connect.
@@ -73,7 +72,6 @@ class MQTTClient(BaseMQTTClient):
         return [
             # Audio status
             f"{prefix}/audio/status",
-
             # RFID events
             f"{prefix}/rfid/tag-scanned",
             f"{prefix}/rfid/tag-removed",
@@ -85,25 +83,18 @@ class MQTTClient(BaseMQTTClient):
             # Retained presence topic: always reflects current tag state.
             # Re-subscribed after config reload to trigger broker re-delivery.
             f"{prefix}/rfid/presence",
-
             # System events
             f"{prefix}/system/service-started",
             f"{prefix}/system/service-error",
             f"{prefix}/system/booting",
-
             # Button events
             f"{prefix}/button/raw-event",
-
             # Backend status
             f"{prefix}/backend/unreachable",
-
             # Parental: usage outside allowed times
             f"{prefix}/led/usage-denied",
-
             # Config API
-            f"{prefix}/led/config/update",
             f"{prefix}/led/config/reload",
-            f"{prefix}/led/config/get",
             f"{prefix}/config/general",
         ]
 
@@ -128,62 +119,32 @@ class MQTTClient(BaseMQTTClient):
 
     async def on_message(self, topic: str, payload: bytes) -> None:
         """Dispatch an incoming message to the LED handlers."""
-        if topic.endswith("/led/config/update"):
-            await self._handle_config_update(payload)
-        elif topic.endswith("/led/config/reload"):
+        if topic.endswith("/led/config/reload"):
             await self._handle_config_reload()
-        elif topic.endswith("/led/config/get"):
-            await self._handle_config_get()
         elif topic.endswith("/config/general"):
             await self.apply_general_config(payload)
         else:
-            # Regular message - pass to callback
-            self._on_message(topic, payload)
-
-    async def _handle_config_update(self, payload: bytes) -> None:
-        """Handle config/update message.
-
-        Args:
-            payload: The new LED configuration as JSON.
-        """
-        logger.debug("config_update_received")
-
-        try:
-            config_dict = json.loads(payload.decode("utf-8"))
-            new_config = LEDServiceConfig.model_validate(config_dict)
-            self._on_config_update(new_config)
-
-            # Re-deliver retained topics so state-dependent LEDs recover correctly
-            await self.resubscribe_retained_topics()
-
-            await self._send_config_response(success=True, error=None)
-
-        except Exception as exc:
-            logger.error("config_update_failed", error=str(exc), exc_info=True)
-            await self._send_config_response(success=False, error="invalid_config")
+            await self._on_message(topic, payload)
 
     async def _handle_config_reload(self) -> None:
-        """Handle config/reload message."""
+        """Re-read leds.json and report the real outcome.
+
+        The reload is awaited before the response goes out. It used to be
+        dispatched into a background task while success was reported straight
+        away, so a config the service could not apply still looked like it had
+        been saved.
+        """
         logger.debug("config_reload_received")
 
         try:
-            self._on_config_reload()
-
-            # Re-deliver retained topics so state-dependent LEDs recover correctly
-            await self.resubscribe_retained_topics()
-
-            await self._send_config_response(success=True, error=None)
+            await self._on_config_reload()
         except Exception as exc:
             logger.error("config_reload_failed", error=str(exc), exc_info=True)
             await self._send_config_response(success=False, error="reload_failed")
+            return
 
-    async def _handle_config_get(self) -> None:
-        """Handle config/get message.
-
-        This sends the current LED configuration via config/response.
-        """
-        logger.debug("config_get_received")
-        # For now, just acknowledge - full implementation would fetch current config
+        # Re-deliver retained topics so state-dependent LEDs recover correctly
+        await self.resubscribe_retained_topics()
         await self._send_config_response(success=True, error=None)
 
     async def _send_config_response(self, success: bool, error: str | None) -> None:

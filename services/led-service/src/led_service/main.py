@@ -21,11 +21,12 @@ from shared_lib.logging import setup_structlog
 from .api.routes import create_app
 from .config import load_app_config
 from .config_manager import ConfigManager
-from .config_schema import AppConfig, LEDServiceConfig
+from .config_schema import AppConfig
 from .core import LEDManager, StateManager
 from .infrastructure import MQTTClient
 
 logger = structlog.get_logger(__name__)
+
 
 class LEDService:
     """Main LED service class."""
@@ -38,13 +39,12 @@ class LEDService:
         """
         self.config = config
         self.config_manager = ConfigManager()
-        self.led_manager = LEDManager()
+        self.led_manager = LEDManager(disable_gpio=config.env.disable_gpio)
         self.state_manager = StateManager(config.env.minabox_device_id)
 
         self.mqtt_client = MQTTClient(
             config=config,
             on_message_callback=self._handle_mqtt_message,
-            on_config_update_callback=self._handle_config_update,
             on_config_reload_callback=self._handle_config_reload,
         )
 
@@ -141,8 +141,13 @@ class LEDService:
         logger.info("shutdown_signal_received")
         self._shutdown_event.set()
 
-    def _handle_mqtt_message(self, topic: str, payload: bytes) -> None:
-        """Handle incoming MQTT messages.
+    async def _handle_mqtt_message(self, topic: str, payload: bytes) -> None:
+        """Handle one incoming MQTT message.
+
+        Awaited by the MQTT client rather than dispatched into its own task.
+        Loose tasks gave no ordering guarantee -- two states arriving together
+        could interleave inside a controller -- and nothing held a reference to
+        them, so the garbage collector was free to drop one mid-flight.
 
         Args:
             topic: The MQTT topic.
@@ -150,45 +155,19 @@ class LEDService:
         """
         logical_state = self.state_manager.derive_state(topic, payload)
         if logical_state:
-            asyncio.create_task(self.led_manager.apply_state(logical_state))
+            await self.led_manager.apply_state(logical_state)
 
-    def _handle_config_update(self, new_config: LEDServiceConfig) -> None:
-        """Handle LED configuration updates from MQTT.
+    async def _handle_config_reload(self) -> None:
+        """Re-read leds.json and rebuild every controller.
 
-        Args:
-            new_config: The new LED configuration.
+        Raises on failure so the MQTT client can report it on config/response
+        instead of acknowledging a reload that never happened.
         """
-        async def _do_update() -> None:
-            try:
-                self.config_manager.update_config(new_config)
-                await self.led_manager.initialize_leds(new_config.leds)
-                await self.led_manager.apply_state("system_online")
-                logger.debug("config_hot_reload_success")
-            except Exception as exc:
-                logger.error(
-                    "config_hot_reload_failed",
-                    error=str(exc),
-                    exc_info=True,
-                )
+        new_config = self.config_manager.reload_config()
+        await self.led_manager.initialize_leds(new_config.leds)
+        await self.led_manager.apply_state("system_online")
+        logger.debug("config_reload_success")
 
-        asyncio.create_task(_do_update())
-
-    def _handle_config_reload(self) -> None:
-        """Handle config reload requests from MQTT."""
-        async def _do_reload() -> None:
-            try:
-                new_config = self.config_manager.reload_config()
-                await self.led_manager.initialize_leds(new_config.leds)
-                await self.led_manager.apply_state("system_online")
-                logger.debug("config_reload_success")
-            except Exception as exc:
-                logger.error(
-                    "config_reload_failed",
-                    error=str(exc),
-                    exc_info=True,
-                )
-
-        asyncio.create_task(_do_reload())
 
 async def main() -> None:
     """Main async entry point."""
@@ -223,6 +202,7 @@ async def main() -> None:
         raise
     finally:
         await service.stop()
+
 
 if __name__ == "__main__":
     try:
