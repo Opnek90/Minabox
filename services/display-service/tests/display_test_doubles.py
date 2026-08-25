@@ -44,6 +44,9 @@ class FakePanel:
     def show_areas(self, areas, font_size="medium", font="default") -> None:
         self.calls.append(("show_areas", font_size, font))
 
+    def show_image(self, img) -> None:
+        self.calls.append(("show_image", img))
+
     def show_lines(self, lines) -> None:
         self.calls.append(("show_lines", tuple(lines)))
 

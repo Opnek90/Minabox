@@ -288,6 +288,9 @@ def fast_loop(monkeypatch):
     """A render loop that ticks fast enough to observe in a test."""
     monkeypatch.setattr("display_service.main.RENDER_INTERVAL", 0.01)
     monkeypatch.setattr("display_service.main.DISPLAY_INIT_RETRY_INTERVAL", 0.0)
+    # The floor between frames is longer than this whole test; frame pacing is
+    # covered in test_display_volume_hud.py.
+    monkeypatch.setattr("display_service.main.MIN_REDRAW_INTERVAL", 0.0)
 
 
 @pytest.mark.asyncio

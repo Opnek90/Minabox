@@ -290,6 +290,18 @@ class DisplayRenderer:
         """Blank the panel and close the underlying I2C handle."""
         self._device.cleanup()
 
+    def show_image(self, img: Any) -> None:
+        """Push a finished frame straight to the panel.
+
+        The screen renderers in ``display_service.render`` build a whole frame
+        themselves; this is the way onto the device for them, bypassing the
+        widget grid entirely.
+        """
+        try:
+            self._device.display(img)
+        except Exception as exc:
+            logger.warning("display_show_image_failed", error=str(exc))
+
     def show_lines(self, lines: list[str]) -> None:
         """Legacy single-column text renderer (up to 4 lines)."""
         try:
@@ -600,6 +612,12 @@ def shutdown() -> None:
 def clear() -> None:
     if _renderer is not None:
         _renderer.clear()
+
+
+def show_image(img: Any) -> None:
+    """Push a pre-rendered frame. No-op if display unavailable."""
+    if _renderer is not None:
+        _renderer.show_image(img)
 
 
 def show_lines(lines: list[str]) -> None:

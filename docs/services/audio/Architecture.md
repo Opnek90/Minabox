@@ -98,6 +98,9 @@ Topic scheme: `minabox/<device-id>/<domain>/<action>`, built centrally by
   "position_ms": 12345,
   "duration_ms": 240000,
   "volume": 25,
+  "min_volume": 0,
+  "max_volume": 40,
+  "volume_step": 5,
   "muted": false,
   "multiple_output_devices": true,
   "bluetooth_sink_available": true,
@@ -108,14 +111,23 @@ Topic scheme: `minabox/<device-id>/<domain>/<action>`, built centrally by
 - `state`: `playing` | `paused` | `stopped` | `error`
 - `duration_ms`: `null` for streams and while unknown
 - `volume`: the value actually applied, already clamped to the configured bounds
+- `min_volume` / `max_volume`: those bounds. They are in the payload because
+  `max_volume` is a hard **clamp**, not a scale: on a box configured to 40 this
+  message reports `volume: 40` at the stop. A subscriber that shows a percentage
+  cannot tell that from halfway up a box configured to 80 without them
+- `volume_step`: what one `volume/up` or `volume/down` without a payload is
+  worth. The display draws one block per detent and must not guess it
 - `multiple_output_devices` / `bluetooth_sink_available`: derived from the sink
   list; the display service uses them to decide whether to show the output
   switcher and the Bluetooth icon
 
 The periodic publish compares a **fingerprint** of `state`, `track_id`,
-`source_uri`, `volume`, `muted`, `multiple_output_devices` and
-`bluetooth_sink_available`. `position_ms` and `timestamp` are deliberately
-excluded, so a playing track does not push a message every two seconds. The
+`source_uri`, `volume`, `muted`, `multiple_output_devices`,
+`bluetooth_sink_available` and the volume bounds. `position_ms` and `timestamp`
+are deliberately excluded, so a playing track does not push a message every two
+seconds. The bounds are in there even though they rarely change: without them a
+new `max_volume` would not reach a subscriber until the next track, and every
+display of a percentage would keep using the old range in the meantime. The
 status is published with `remember=True`, which makes the shared MQTT client
 replay it after a reconnect — otherwise a broker restart would leave the
 service connected but silent.

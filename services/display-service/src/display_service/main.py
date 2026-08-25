@@ -25,6 +25,7 @@ from .infrastructure import (
     clear,
     is_available,
     show_areas,
+    show_image,
     show_lines,
 )
 from .infrastructure import (
@@ -33,6 +34,8 @@ from .infrastructure import (
 from .infrastructure import (
     shutdown as display_shutdown,
 )
+from .render.volume import VolumeView
+from .render.volume import render as render_volume
 
 logger = structlog.get_logger(__name__)
 
@@ -59,6 +62,12 @@ FORCE_REDRAW_INTERVAL = 60.0
 DISPLAY_INIT_RETRY_INTERVAL = 30.0
 # How long the setup wizard's test pattern is held on the panel.
 TEST_PATTERN_SECONDS = 6.0
+# How long the volume overlay owns the panel after the last change.
+HUD_SECONDS = 1.5
+# A knob turn arrives as a burst of status messages, one per detent. Without a
+# floor the loop would push a full frame for each of them and hold the I2C bus
+# - shared with the RFID reader - for most of the turn.
+MIN_REDRAW_INTERVAL = 0.15
 
 _HEADER_MAX_ITEMS = 6
 _BODY_MAX_ITEMS = 3
@@ -201,6 +210,14 @@ class DisplayService:
         self._display_config: DisplayServiceConfig | None = None
         # Deadline up to which the render loop leaves the test pattern alone.
         self._test_pattern_until: float = 0.0
+        # The volume overlay: what to draw, until when, and the last state we
+        # saw, so a republished but unchanged status does not raise it again.
+        self._hud_until: float = 0.0
+        self._hud_view: VolumeView | None = None
+        self._last_volume_key: tuple | None = None
+        # Lets an incoming message pull the next frame forward instead of
+        # waiting out the tick. A knob has to feel immediate.
+        self._wake = asyncio.Event()
 
     async def start(self) -> None:
         """Start the display service."""
@@ -269,6 +286,42 @@ class DisplayService:
             self.state_manager.set_error()
             return
         self.state_manager.update_audio(topic, payload)
+        self._note_volume_change()
+
+    def _note_volume_change(self) -> None:
+        """Raise the volume overlay when the level or mute actually changed.
+
+        audio/status is retained and republished for reasons that have nothing
+        to do with volume, so the comparison is against the last level we saw
+        rather than against the arrival of a message.
+        """
+        view = self.state_manager.get_volume_view()
+        key = (view.clamped, view.min_volume, view.max_volume, view.muted)
+        if self._last_volume_key is None:
+            # The first status after a connect is the current state, not a
+            # change - otherwise every restart flashes the overlay.
+            self._last_volume_key = key
+            return
+        if key == self._last_volume_key:
+            return
+        self._last_volume_key = key
+        self._raise_volume_hud(view)
+
+    def _raise_volume_hud(self, view: VolumeView) -> None:
+        try:
+            now = asyncio.get_running_loop().time()
+        except RuntimeError:  # pragma: no cover - no loop, so no render loop
+            return
+        self._hud_view = view
+        self._hud_until = now + HUD_SECONDS
+        self._wake.set()
+
+    def _hud_deadline_active(self) -> bool:
+        try:
+            now = asyncio.get_running_loop().time()
+        except RuntimeError:  # pragma: no cover - no loop, so no render loop
+            return False
+        return now < self._hud_until
 
     def _handle_config_reload(self) -> None:
         try:
@@ -321,7 +374,7 @@ class DisplayService:
         cfg = self._display_config
         if not is_available() or not cfg or not cfg.enabled:
             return
-        if self._test_pattern_deadline_active():
+        if self._test_pattern_deadline_active() or self._hud_deadline_active():
             return
         areas = self._build_areas()
         if any(areas):
@@ -483,6 +536,10 @@ class DisplayService:
         self._test_pattern_until = (
             asyncio.get_running_loop().time() + TEST_PATTERN_SECONDS
         )
+        # The user asked to see the test pattern; a volume overlay left over
+        # from a moment ago must not reappear on top of it when it expires.
+        self._hud_until = 0.0
+        self._hud_view = None
         try:
             show_lines(["Minabox", "Display OK"])
         except Exception as exc:
@@ -492,17 +549,52 @@ class DisplayService:
         logger.info("display_test_pattern_shown")
         return True
 
+    async def _wait_for_work(self, timeout: float, last_draw: float) -> None:
+        """Sleep until the next tick, or until something asks for a frame."""
+        loop = asyncio.get_running_loop()
+        if self._hud_view is not None:
+            # Wake when the overlay expires rather than a whole tick later,
+            # or it would sit on the panel for up to a second too long.
+            timeout = min(timeout, max(0.05, self._hud_until - loop.time()))
+        try:
+            await asyncio.wait_for(self._wake.wait(), timeout)
+        except TimeoutError:
+            pass
+        finally:
+            self._wake.clear()
+        # The floor applies however the wake-up came about, not just to the
+        # ones a message triggered: a knob turn arrives as a burst of status
+        # messages and every frame holds the I2C bus - shared with the RFID
+        # reader - for 92 ms. At the normal one-second tick this costs
+        # nothing, because the floor is long past by then.
+        held = loop.time() - last_draw
+        if held < MIN_REDRAW_INTERVAL:
+            await asyncio.sleep(MIN_REDRAW_INTERVAL - held)
+
     async def _render_loop(self) -> None:
         last_fingerprint: str | None = None
         last_forced = 0.0
+        last_draw = 0.0
         last_init_retry = 0.0
         was_available = False
 
         while not self._shutdown_event.is_set():
             try:
-                await asyncio.sleep(RENDER_INTERVAL)
+                await self._wait_for_work(RENDER_INTERVAL, last_draw)
                 now = asyncio.get_running_loop().time()
                 cfg = self._display_config
+
+                if self._hud_view is not None and now >= self._hud_until:
+                    # Expired. The frame underneath is pushed again by itself,
+                    # because the fingerprint standing here is the overlay's
+                    # and never equals the one built from the areas below.
+                    #
+                    # This is deliberately ahead of every other check: an
+                    # overlay left standing keeps _wait_for_work() shortening
+                    # its timeout to a past deadline, and a panel that is
+                    # unplugged or switched off at that moment would spin the
+                    # loop at 20 Hz for as long as it stayed away.
+                    self._hud_view = None
 
                 if not is_available():
                     was_available = False
@@ -531,6 +623,15 @@ class DisplayService:
 
                 if not cfg or not cfg.enabled:
                     continue
+
+                if self._hud_view is not None:
+                    fingerprint = f"hud:{self._hud_view}"
+                    if fingerprint != last_fingerprint:
+                        show_image(render_volume(self._hud_view))
+                        last_fingerprint = fingerprint
+                        last_draw = asyncio.get_running_loop().time()
+                    continue
+
                 areas = self._build_areas()
                 if not any(areas):
                     continue
@@ -546,6 +647,7 @@ class DisplayService:
                     font=cfg.font,
                 )
                 last_fingerprint = fingerprint
+                last_draw = asyncio.get_running_loop().time()
                 if forced:
                     last_forced = now
             except asyncio.CancelledError:

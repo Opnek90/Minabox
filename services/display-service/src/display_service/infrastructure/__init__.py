@@ -5,6 +5,7 @@ from .display_controller import (
     init,
     is_available,
     show_areas,
+    show_image,
     show_lines,
     shutdown,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "init",
     "is_available",
     "show_areas",
+    "show_image",
     "show_lines",
     "shutdown",
 ]

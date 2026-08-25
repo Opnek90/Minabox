@@ -35,7 +35,7 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/                      # 123 tests, no hardware needed
+├── tests/                      # 182 tests, no hardware needed
 │   ├── display_test_doubles.py # FakePanel and the element builder
 │   ├── conftest.py             # A service wired to neither panel nor broker
 │   ├── test_build_areas.py
@@ -43,6 +43,9 @@ display-service/
 │   ├── test_display_config_schema.py
 │   ├── test_display_health_endpoint.py
 │   ├── test_display_state_manager.py
+│   ├── test_display_volume_hud.py    # When the overlay takes the panel
+│   ├── test_display_volume_render.py # Its pixels
+│   ├── test_display_volume_view.py   # Its arithmetic
 │   ├── test_element_renderers.py
 │   └── test_render_fingerprint.py   # The redraw decision
 ├── config/
@@ -61,6 +64,11 @@ display-service/
     ├── core/
     │   ├── __init__.py
     │   └── state_manager.py    # In-memory cache: audio, sleep timer, session, error flag
+    ├── render/                 # Whole-frame screens: pure PIL, no device
+    │   ├── __init__.py
+    │   ├── fonts.py            # Weight lookup against the four faces in the image
+    │   ├── primitives.py       # Text measuring, speaker glyph, blocks, bar
+    │   └── volume.py           # VolumeView and the volume overlay
     └── infrastructure/
         ├── __init__.py
         ├── display_controller.py  # Theme, icon renderer, DisplayRenderer, module-level API
@@ -211,6 +219,37 @@ The test pattern holds the loop off for `TEST_PATTERN_SECONDS` (6 s) via a
 deadline that is set *before* drawing, so the loop cannot slip between the draw
 and the lock.
 
+### The volume overlay
+
+A volume or mute change takes the whole panel for `HUD_SECONDS` (1.5 s) and then
+hands it back. It is the first screen built the way
+[Redesign.md](Redesign.md) describes: `render/volume.py` produces a finished
+128x64 frame and `show_image()` pushes it, bypassing the widget grid entirely.
+
+Three details make it behave:
+
+- **It waits for a change, not for a message.** `audio/status` is retained and
+  republished for reasons that have nothing to do with volume, so the trigger
+  compares the level, the bounds and mute against the last values seen. The
+  first status after a connect is state, not a change - otherwise every restart
+  would flash the overlay.
+- **The loop can be woken.** A one-second tick is far too slow for a knob, so
+  `_wait_for_work()` waits on an `asyncio.Event` that the message handler sets,
+  and shortens its own timeout to the overlay's deadline so the panel comes back
+  on time rather than up to a tick late.
+- **Frames have a floor.** `MIN_REDRAW_INTERVAL` (0.15 s) caps how fast frames
+  can follow one another. A turn of the knob arrives as a burst of one status
+  per detent, and each full frame holds the I2C bus - shared with the RFID
+  reader - for 92 ms. At the normal tick the floor costs nothing.
+
+Priority: the test pattern outranks the overlay. Asking for it clears any
+overlay standing, so it cannot reappear on top of what the user asked to see.
+
+The overlay shows position within `[min_volume, max_volume]`, not the raw
+volume: `max_volume` is a hard clamp, so a box configured to 40 reports
+`volume: 40` at the stop and printing that would claim "40 %" at full volume.
+The bounds and `volume_step` arrive with `audio/status`.
+
 ### Backend polls
 
 Both polls share `_poll_backend()`. The `httpx.AsyncClient` lives for the whole
@@ -239,7 +278,7 @@ reconnect.
 
 | Topic | Effect |
 | --- | --- |
-| `audio/status` | Updates the cached audio state (`state`, `volume`, `muted`, `multiple_output_devices`, `bluetooth_sink_available`) and clears the error flag. |
+| `audio/status` | Updates the cached audio state (`state`, `volume`, `min_volume`, `max_volume`, `volume_step`, `muted`, `multiple_output_devices`, `bluetooth_sink_available`), raises the volume overlay on a real change, and clears the error flag. |
 | `audio/error` | Sets the error flag. |
 | `system/service-error` | Sets the error flag. |
 | `display/config/reload` | Reloads `config/display.json`, applies any hardware change, and redraws immediately. |
