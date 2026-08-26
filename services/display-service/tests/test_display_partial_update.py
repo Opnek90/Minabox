@@ -221,3 +221,34 @@ class TestFallback:
         device.command = FakeDevice.command.__get__(device)
         renderer.show_image(frame(lambda d: d.rectangle([40, 16, 71, 31], fill=1)))
         assert device.full_frames == 2, "the diff was taken against a lost frame"
+
+
+class TestWaveFitsThePanel:
+    """PIL clips silently, so an arm drawn past the edge is simply not there."""
+
+    @staticmethod
+    def _lit(mood, x):
+        from display_service.core.idle_animation import SIZE
+        from display_service.render import knuffel
+
+        img = frame(lambda d: knuffel.draw(d, x, 12, SIZE, mood))
+        pixels = img.load()
+        return sum(
+            1
+            for px in range(img.width)
+            for py in range(img.height)
+            if pixels[px, py]
+        )
+
+    def test_a_waving_knuffel_at_the_far_edge_is_not_cut_off(self):
+        from display_service.core.idle_animation import BOUNDS
+        from display_service.render import knuffel
+
+        _, _, right, _ = BOUNDS
+        for mood in knuffel.WAVING:
+            assert self._lit(mood, right) == self._lit(mood, 2), mood
+
+    def test_the_overhang_scales_with_him(self):
+        from display_service.render import knuffel
+
+        assert knuffel.wave_overhang(80) > knuffel.wave_overhang(38) > 0

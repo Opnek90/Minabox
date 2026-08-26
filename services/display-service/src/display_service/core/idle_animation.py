@@ -36,8 +36,15 @@ WALK_EVERY = (20.0, 60.0)
 STEP_SECONDS = 0.12
 STEP_PIXELS = 2
 
-# Where he is allowed to stand, so no part of him leaves the panel.
-BOUNDS = (2, 2, 128 - SIZE - 2, 64 - SIZE - 2)
+WAVE_EVERY = (25.0, 70.0)
+WAVE_SECONDS = 1.8
+WAVE_PHASE_SECONDS = 0.22
+
+# Where he is allowed to stand, so no part of him leaves the panel - including
+# the arm, which reaches further right than the rest of him. PIL clips silently,
+# so a hand drawn past the edge would simply not be there.
+_OVERHANG = knuffel.wave_overhang(SIZE)
+BOUNDS = (2, 2, 128 - SIZE - _OVERHANG - 2, 64 - SIZE - 2)
 
 
 @dataclass(frozen=True)
@@ -68,7 +75,21 @@ class IdleAnimation:
         self._blink_until = 0.0
         self._next_walk = now + self._rng.uniform(*WALK_EVERY)
         self._next_step = 0.0
+        self._next_wave = now + self._rng.uniform(*WAVE_EVERY)
+        self._wave_until = 0.0
+        self._wave_next_phase = 0.0
+        self._wave_up = False
         self._asleep = False
+
+    @property
+    def walking(self) -> bool:
+        """True while he is on his way somewhere.
+
+        Exposed because "is he moving" cannot be told from the pose: breathing
+        shifts him a pixel too, and a test comparing positions would call that
+        a walk.
+        """
+        return self._target is not None
 
     def set_asleep(self, asleep: bool) -> None:
         """At night he sleeps: eyes shut, and nothing moves.
@@ -80,11 +101,14 @@ class IdleAnimation:
         self._asleep = asleep
         if asleep:
             self._target = None
+            self._wave_until = 0.0
 
     def pose(self) -> Pose:
         offset = 1 if self._breath_up and not self._asleep else 0
         if self._asleep:
             mood = knuffel.ASLEEP
+        elif self._wave_until:
+            mood = knuffel.WAVE_UP if self._wave_up else knuffel.WAVE_DOWN
         elif self._blink_until:
             mood = knuffel.BLINK
         else:
@@ -106,6 +130,7 @@ class IdleAnimation:
             self._next_breath,
             self._blink_until if self._blink_until else self._next_blink,
             self._next_step if self._target is not None else self._next_walk,
+            self._wave_next_phase if self._wave_until else self._next_wave,
         ]
         return min(due)
 
@@ -122,10 +147,41 @@ class IdleAnimation:
             self._blink_until = now + BLINK_SECONDS
             self._next_blink = now + self._rng.uniform(*BLINK_EVERY)
         if self._target is None and now >= self._next_walk:
-            self._target = self._pick_target()
-            self._next_step = now
+            if self._wave_until:
+                # Not while he is waving. Pushed back rather than skipped: the
+                # deadline feeds next_due(), and one left in the past spins the
+                # render loop.
+                self._next_walk = now + self._rng.uniform(*WALK_EVERY)
+            else:
+                self._target = self._pick_target()
+                self._next_step = now
         if self._target is not None and now >= self._next_step:
             self._step(now)
+        self._advance_wave(now)
+
+    def _advance_wave(self, now: float) -> None:
+        """Waving, and never while walking - one thing at a time reads better.
+
+        A wave that falls due mid-walk is pushed back rather than skipped: its
+        deadline feeds next_due(), and leaving one in the past would spin the
+        render loop.
+        """
+        if self._wave_until:
+            if now >= self._wave_until:
+                self._wave_until = 0.0
+            elif now >= self._wave_next_phase:
+                self._wave_up = not self._wave_up
+                self._wave_next_phase = now + WAVE_PHASE_SECONDS
+            return
+        if now < self._next_wave:
+            return
+        if self._target is not None:
+            self._next_wave = now + self._rng.uniform(*WAVE_EVERY)
+            return
+        self._wave_until = now + WAVE_SECONDS
+        self._wave_up = True
+        self._wave_next_phase = now + WAVE_PHASE_SECONDS
+        self._next_wave = now + WAVE_SECONDS + self._rng.uniform(*WAVE_EVERY)
 
     # ------------------------------------------------------------------
 

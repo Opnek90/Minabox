@@ -18,11 +18,24 @@ AWAKE = "awake"
 BLINK = "blink"
 ASLEEP = "asleep"
 PUZZLED = "puzzled"
+WAVE_UP = "wave_up"
+WAVE_DOWN = "wave_down"
 
-MOODS = (AWAKE, BLINK, ASLEEP, PUZZLED)
+MOODS = (AWAKE, BLINK, ASLEEP, PUZZLED, WAVE_UP, WAVE_DOWN)
+WAVING = (WAVE_UP, WAVE_DOWN)
 
 # Everything below is in fortieths of the sprite's size.
 _GRID = 40.0
+
+# Waving needs room beside him: an arm tucked inside the body outline is
+# swallowed by it, and one drawn past the sprite box is silently clipped by
+# PIL. So he is wider while waving, and callers reserve the difference.
+WAVE_OVERHANG_UNITS = 10
+
+
+def wave_overhang(size: int) -> int:
+    """Extra pixels to the right that a waving Knuffel needs."""
+    return round(WAVE_OVERHANG_UNITS * size / _GRID)
 
 
 def draw(canvas: Any, x: int, y: int, size: int, mood: str = AWAKE) -> None:
@@ -38,6 +51,21 @@ def draw(canvas: Any, x: int, y: int, size: int, mood: str = AWAKE) -> None:
     def stroke() -> int:
         return max(1, round(2 * unit))
 
+    if mood in WAVING:
+        # Arm first, so the body draws over the shoulder end of it.
+        # Both phases keep the hand clear of the body and near the head: a
+        # hand tilting beside the face reads as waving, one dropped alongside
+        # the body reads as an arm that has been swallowed by it.
+        high = mood == WAVE_UP
+        canvas.line(
+            [point(33, 17), point(45, 5) if high else point(47, 15)],
+            fill=1,
+            width=max(2, round(4 * unit)),
+        )
+        canvas.ellipse(
+            box(41, 1, 49, 9) if high else box(43, 11, 50, 19), fill=1
+        )
+
     canvas.ellipse(box(4, 0, 15, 13), fill=1)   # left ear
     canvas.ellipse(box(25, 0, 36, 13), fill=1)  # right ear
     canvas.ellipse(box(2, 8, 38, 36), fill=1)   # body
@@ -46,6 +74,26 @@ def draw(canvas: Any, x: int, y: int, size: int, mood: str = AWAKE) -> None:
 
     eyes = (point(12, 19), point(28, 19))
     radius = max(1, round(3 * unit))
+
+    if mood in WAVING:
+        for cx, cy in eyes:
+            canvas.ellipse(
+                [cx - radius, cy - radius, cx + radius, cy + radius], fill=0
+            )
+        mx, my = point(20, 26)
+        canvas.arc(
+            [
+                mx - round(5 * unit),
+                my - round(4 * unit),
+                mx + round(5 * unit),
+                my + round(3 * unit),
+            ],
+            start=20,
+            end=160,
+            fill=0,
+            width=stroke(),
+        )
+        return
 
     if mood == BLINK:
         for cx, cy in eyes:

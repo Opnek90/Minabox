@@ -503,19 +503,33 @@ class VLCBackend(AudioBackend):
     async def get_volume(self) -> int:
         """Report the running level, falling back to the last one we set.
 
-        libVLC answers -1 when it does not know - with no player, or after
-        stop() has released the media. That is "ask me later", not "silent",
-        and passing it on as 0 told every subscriber the volume had dropped to
-        the minimum the instant playback ended.
+        libVLC has two ways of saying "ask me later" and neither is a level:
+        -1 with no player or after stop() has released the media, and 0 in the
+        moment after play() while the audio output is still coming up. Passing
+        either on told every subscriber the volume had moved - once to the
+        minimum when playback ended, and once to zero and back at the start of
+        every track, which on the panel was a full-screen volume overlay for
+        putting a figure on the reader.
+
+        What makes the second case decidable is that every write goes through
+        the clamp in set_volume(), so the box cannot be at a level outside the
+        configured range. Anything outside it is libVLC not knowing yet.
         """
         if not self._player:
             return self._last_volume
-        vol = self._player.audio_get_volume()
-        if vol >= 0:
-            return vol
+        reported = self._player.audio_get_volume()
+        if self._is_plausible(reported):
+            return reported
         if self._pending_volume is not None:
             return self._pending_volume
         return self._last_volume
+
+    def _is_plausible(self, reported: int) -> bool:
+        """True if *reported* is a level this box could actually be at."""
+        if reported < 0:
+            return False
+        min_volume = getattr(self._config, "min_volume", 0)
+        return min_volume <= reported <= self._config.max_volume
 
     async def get_position(self) -> int:
         return self._player.get_time() if self._player else 0

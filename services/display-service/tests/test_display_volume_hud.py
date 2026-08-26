@@ -54,7 +54,7 @@ def _status(service: DisplayService, volume: int, **fields) -> None:
     payload = {
         "state": "stopped",
         "volume": volume,
-        "min_volume": 0,
+        "min_volume": 20,
         "max_volume": 40,
         "volume_step": 5,
         **fields,
@@ -77,9 +77,10 @@ async def test_the_first_status_does_not_flash_the_overlay(service: DisplayServi
 @pytest.mark.asyncio
 async def test_a_volume_change_raises_the_overlay(service: DisplayService):
     _status(service, 20)
-    _status(service, 25)
+    _status(service, 30)
     assert service._hud_view is not None
-    assert service._hud_view.percent == 62
+    # The box allows 20 to 40, so 30 is halfway - not "30 %".
+    assert service._hud_view.percent == 50
 
 
 @pytest.mark.asyncio
@@ -111,10 +112,11 @@ async def test_mute_raises_the_overlay(service: DisplayService):
 async def test_a_new_maximum_changes_what_the_same_volume_means(
     service: DisplayService,
 ):
-    _status(service, 20)
-    _status(service, 20, max_volume=80)
+    _status(service, 30)
+    _status(service, 30, max_volume=80)
     assert service._hud_view is not None
-    assert service._hud_view.percent == 25
+    # Same level, a wider range: 30 is now near the bottom of 20 to 80.
+    assert service._hud_view.percent == 17
 
 
 # ---------------------------------------------------------------------------
@@ -267,4 +269,29 @@ async def test_the_knob_still_works_while_stopped(service: DisplayService):
     """Adjusting the volume between tracks is ordinary, and must still show."""
     _status(service, 30, state="stopped")
     _status(service, 25, state="stopped")
+    assert service._hud_view is not None
+
+
+@pytest.mark.asyncio
+async def test_a_volume_outside_the_allowed_range_is_not_a_volume(
+    service: DisplayService,
+):
+    """Putting a figure on used to raise the overlay: libVLC reports 0 in the
+    moment after play(), while the audio output is still coming up. The box
+    clamps every write into [min, max], so it cannot be at 0 when the minimum
+    is 20 - and the level either side of the artefact is unchanged."""
+    _status(service, 30, state="playing")
+    _status(service, 0, state="playing")
+    assert service._hud_view is None
+    _status(service, 30, state="playing")
+    assert service._hud_view is None, "the level never actually changed"
+
+
+@pytest.mark.asyncio
+async def test_an_artefact_does_not_hide_a_real_change_after_it(
+    service: DisplayService,
+):
+    _status(service, 30, state="playing")
+    _status(service, 0, state="playing")
+    _status(service, 25, state="playing")
     assert service._hud_view is not None

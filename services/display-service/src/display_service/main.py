@@ -341,9 +341,21 @@ class DisplayService:
         to do with volume, so the comparison is against the last level we saw
         rather than against the arrival of a message.
         """
+        audio = self.state_manager.get_audio()
+        raw = audio["volume"]
+        if not audio["min_volume"] <= raw <= audio["max_volume"]:
+            # The audio service clamps every write into that range, so the box
+            # cannot be at a level outside it. What arrives instead is libVLC
+            # saying "ask me later" - 0 in the moment after play(), which used
+            # to raise a full-screen overlay for putting a figure on the
+            # reader. Fixed at the source too; this keeps the panel quiet if
+            # anything like it comes back.
+            logger.debug("volume_out_of_range_ignored", volume=raw)
+            return
+
         view = self.state_manager.get_volume_view()
         key = (view.clamped, view.min_volume, view.max_volume, view.muted)
-        state = self.state_manager.get_audio().get("state")
+        state = audio.get("state")
         previous_state, self._last_play_state = self._last_play_state, state
 
         if self._last_volume_key is None:

@@ -128,3 +128,53 @@ class TestBehaviour:
         anim.set_asleep(False)
         assert anim.next_due() < float("inf")
         assert anim.pose().mood != knuffel.ASLEEP
+
+
+class TestWaving:
+    def test_he_waves(self):
+        anim = _anim()
+        now, moods = 0.0, set()
+        for _ in range(20_000):
+            now = anim.next_due()
+            anim.advance(now)
+            moods.add(anim.pose().mood)
+        assert knuffel.WAVE_UP in moods
+        assert knuffel.WAVE_DOWN in moods, "the hand never came back down"
+
+    def test_a_wave_ends(self):
+        anim = _anim()
+        now = 0.0
+        for _ in range(20_000):
+            now = anim.next_due()
+            anim.advance(now)
+            if anim.pose().mood in knuffel.WAVING:
+                break
+        else:
+            pytest.fail("never waved")
+        anim.advance(now + 10.0)
+        assert anim.pose().mood not in knuffel.WAVING
+
+    def test_he_does_not_wave_while_walking(self):
+        """One thing at a time reads better, and a wave that falls due mid-walk
+        has to be pushed back rather than skipped - its deadline feeds
+        next_due(), and one left in the past spins the render loop."""
+        anim = _anim()
+        now, waved, walked = 0.0, False, False
+        for _ in range(20_000):
+            now = anim.next_due()
+            anim.advance(now)
+            waving = anim.pose().mood in knuffel.WAVING
+            assert not (waving and anim.walking), "waved while walking"
+            waved = waved or waving
+            walked = walked or anim.walking
+        assert waved and walked, "the run never exercised both"
+
+    def test_a_sleeping_creature_does_not_wave(self):
+        anim = _anim()
+        now = 0.0
+        for _ in range(2_000):
+            now = anim.next_due()
+            anim.advance(now)
+        anim.set_asleep(True)
+        anim.advance(now + 3600)
+        assert anim.pose().mood == knuffel.ASLEEP

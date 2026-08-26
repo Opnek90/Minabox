@@ -35,7 +35,7 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/                      # 271 tests, no hardware needed
+├── tests/                      # 279 tests, no hardware needed
 │   ├── display_test_doubles.py # FakePanel and the element builder
 │   ├── conftest.py             # A service wired to neither panel nor broker
 │   ├── test_build_areas.py
@@ -283,8 +283,16 @@ into an OLED - a creature that wanders spreads the wear by itself.
 `core/idle_animation.py` holds the behaviour, `render/knuffel.py` the shape.
 Pure random movement reads as broken, so what he does is mostly stillness with
 the eyes working: he breathes a pixel up and down, blinks every few seconds,
-and every twenty to sixty seconds picks a spot and walks there two pixels at a
-time.
+waves now and then, and every twenty to sixty seconds picks a spot and walks
+there two pixels at a time. Waving and walking exclude each other - one thing
+at a time reads better - and whichever falls due during the other is pushed
+back rather than skipped, because its deadline feeds `next_due()`.
+
+Waving makes him **wider than his own box**: an arm tucked inside the body
+outline is swallowed by it, so the hand reaches past the sprite. PIL clips
+silently, so `BOUNDS` reserves `knuffel.wave_overhang()` on the right and
+`tests/test_display_partial_update.py` checks that a waving Knuffel at the far
+edge has exactly as many lit pixels as one in the middle.
 
 The cost, at 38 px:
 

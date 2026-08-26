@@ -34,6 +34,9 @@ class _Player:
         self.volume = volume
         self.accepts = True
         self.stopped = False
+        # libVLC reports 0 in the moment after play(), while the audio output
+        # is still coming up.
+        self.output_not_up = False
 
     def audio_set_volume(self, v: int) -> int:
         if not self.accepts:
@@ -42,7 +45,9 @@ class _Player:
         return 0
 
     def audio_get_volume(self) -> int:
-        return -1 if self.stopped else self.volume
+        if self.stopped:
+            return -1
+        return 0 if self.output_not_up else self.volume
 
     def stop(self) -> None:
         self.stopped = True
@@ -108,3 +113,43 @@ async def test_the_reported_level_stays_inside_the_configured_range():
     await backend.set_volume(100)
     await backend.stop()
     assert await backend.get_volume() == 40
+
+
+@pytest.mark.asyncio
+async def test_starting_a_track_does_not_look_like_a_dip_to_zero():
+    """The reported bug from the other end: put a figure on, and the panel
+    shows a full-screen volume overlay because the level appeared to go to
+    zero and back."""
+    player = _Player(30)
+    backend = _backend(player)
+    await backend.set_volume(30)
+
+    player.output_not_up = True  # the moment right after play()
+    assert await backend.get_volume() == 30
+
+    player.output_not_up = False
+    assert await backend.get_volume() == 30
+
+
+@pytest.mark.asyncio
+async def test_a_level_below_the_minimum_cannot_be_real():
+    """Every write goes through the clamp, so the box cannot be at 10 when the
+    minimum is 20 - libVLC simply does not know yet."""
+    player = _Player(10)
+    backend = _backend(player, min_volume=20)
+    assert await backend.get_volume() == 30
+
+
+@pytest.mark.asyncio
+async def test_a_level_above_the_maximum_cannot_be_real_either():
+    player = _Player(80)
+    backend = _backend(player, max_volume=40)
+    assert await backend.get_volume() == 30
+
+
+@pytest.mark.asyncio
+async def test_a_box_that_allows_zero_still_reports_zero():
+    """With min_volume 0 the floor is a real level, not an artefact."""
+    player = _Player(0)
+    backend = _backend(player, min_volume=0, default_volume=0)
+    assert await backend.get_volume() == 0
