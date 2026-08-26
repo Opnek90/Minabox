@@ -33,7 +33,8 @@ def lit_count(img, box=None):
 
 
 def view(volume, **kw):
-    return VolumeView(volume=volume, min_volume=0, max_volume=40, step=5, **kw)
+    """The box as configured today: 20-40 at step 5, so five positions."""
+    return VolumeView(volume=volume, min_volume=20, max_volume=40, step=5, **kw)
 
 
 class TestFrame:
@@ -45,7 +46,7 @@ class TestFrame:
     def test_nothing_touches_the_edges(self):
         """PIL crops silently, so an overflowing layout only shows up as a
         clipped glyph on the real panel. The margins have to stay empty."""
-        frames = [render(view(v)) for v in (0, 5, 20, 40)]
+        frames = [render(view(v)) for v in (20, 25, 30, 40)]
         frames.append(render(view(20, muted=True)))
         for img in frames:
             assert lit_count(img, (0, 0, 2, HEIGHT)) == 0, "left margin"
@@ -54,35 +55,57 @@ class TestFrame:
 
 
 class TestBlocks:
-    def test_one_block_per_detent(self):
-        expected = {0: 16, 5: 15, 20: 12, 35: 9, 40: 8}
+    def test_one_block_per_position(self):
+        # runs = filled + 2*(5 - filled), and filled counts from 1 at the floor.
+        expected = {20: 9, 25: 8, 30: 7, 35: 6, 40: 5}
         for volume, runs in expected.items():
             assert lit_runs(render(view(volume)), BLOCK_BAND_Y) == runs, volume
 
+    def test_the_quietest_setting_is_not_an_empty_row(self):
+        """The one thing this screen must never say: "off". The parent set a
+        floor so the box keeps playing; a blank row would contradict that."""
+        floor = render(view(20))
+        # Five positions, one lit: 1 + 2*4 = 9. An empty row would be 10.
+        assert lit_runs(floor, BLOCK_BAND_Y) == 9
+
     def test_every_click_changes_the_picture(self):
-        frames = [render(view(v)).tobytes() for v in range(0, 41, 5)]
+        frames = [render(view(v)).tobytes() for v in range(20, 41, 5)]
         assert len(set(frames)) == len(frames)
 
-    def test_a_hundred_steps_render_as_a_bar_not_a_hundred_blocks(self):
+    def test_a_hundred_positions_render_as_a_bar(self):
         img = render(VolumeView(volume=63, min_volume=0, max_volume=100, step=1))
         assert lit_runs(img, BLOCK_BAND_Y) <= 3
 
+    def test_the_bar_fallback_is_never_empty_either(self):
+        img = render(VolumeView(volume=0, min_volume=0, max_volume=100, step=1))
+        assert lit_count(img, (4, 40, 20, 55)) > 0
+
 
 class TestLabels:
-    HEADER_RIGHT = (100, 16, WIDTH, 32)
+    HEADER_RIGHT = (100, 10, WIDTH, 30)
 
     def test_the_bottom_of_the_range_is_labelled(self):
-        assert lit_count(render(view(0)), self.HEADER_RIGHT) > 0
+        """"Leise" is the difference between the quietest setting and off."""
+        assert lit_count(render(view(20)), self.HEADER_RIGHT) > 0
 
     def test_the_ordinary_case_is_not_labelled(self):
-        assert lit_count(render(view(20)), self.HEADER_RIGHT) == 0
+        assert lit_count(render(view(30)), self.HEADER_RIGHT) == 0
 
-    def test_the_stop_says_max_instead_of_a_number(self):
-        """At the stop the number is redundant and the word is the point."""
+    def test_the_stop_says_so(self):
+        """Otherwise one keeps turning and wonders."""
         at_max = render(view(40))
         assert lit_count(at_max, self.HEADER_RIGHT) > 0
-        # All blocks solid: eight stretches, no borders left over.
-        assert lit_runs(at_max, BLOCK_BAND_Y) == 8
+        # All five blocks solid, no borders left over.
+        assert lit_runs(at_max, BLOCK_BAND_Y) == 5
+
+    def test_no_percentage_anywhere(self):
+        """A third number for one quantity is what made this confusing: the
+        WebUI prints the raw volume beside a slider spanning the range, and
+        any two of the three disagree."""
+        percent_sign = render(view(30))
+        # Right of the speaker glyph (which reaches x=40) the upper band is
+        # empty unless one of the two end labels is showing.
+        assert lit_count(percent_sign, (44, 0, WIDTH, 30)) == 0
 
 
 class TestMuted:
@@ -95,6 +118,7 @@ class TestMuted:
             == render(view(40, muted=True)).tobytes()
         )
 
-    def test_zero_and_muted_look_different(self):
-        """The one distinction a parent has to be able to make at a glance."""
-        assert render(view(0)).tobytes() != render(view(0, muted=True)).tobytes()
+    def test_the_floor_and_muted_look_different(self):
+        """The one distinction a parent has to be able to make at a glance -
+        and the one the child cannot cause by turning, only by pressing."""
+        assert render(view(20)).tobytes() != render(view(20, muted=True)).tobytes()

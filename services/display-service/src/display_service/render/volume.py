@@ -8,10 +8,20 @@ Two facts drive the whole layout, both established in the redesign document:
   Printing that raw number would claim "40 %" at full volume, so everything
   here works in position within the allowed range - the same arithmetic the
   WebUI slider already uses.
-* One turn of the knob is one ``volume_step``. Over 0-40 at step 5 that is
-  exactly eight detents, so the bar is drawn as eight blocks and a click lights
-  exactly one more. It is countable from two metres without reading anything,
-  which matters for the part of the audience that cannot read.
+* One turn of the knob is one ``volume_step``, so the bar is drawn as one block
+  per setting the knob can be in and a click lights exactly one more. It is
+  countable from two metres without reading anything, which matters for the
+  part of the audience that cannot read.
+
+There is deliberately no percentage on this screen. It would be a third number
+for one quantity - the WebUI already prints the raw volume next to a slider
+that spans the allowed range - and any two of them disagree. The blocks cannot
+disagree with anything.
+
+The count is settings, not steps: a knob that can sit in five places draws five
+blocks and the quietest one lights **one**, never none. Parents set
+``min_volume`` precisely so the box is never silent, and a screen showing an
+empty row at the floor would say the opposite of what is true.
 """
 
 from __future__ import annotations
@@ -25,26 +35,25 @@ from .primitives import (
     WIDTH,
     bar,
     blocks,
-    draw_text,
     draw_text_centered,
     draw_text_right,
     new_frame,
     speaker,
-    text_width,
 )
 
-# Blocks stop being countable somewhere past a dozen and a half; below four
+# Blocks stop being countable somewhere past a dozen and a half; below three
 # they no longer read as a scale. Outside that window the same area is drawn
 # as a continuous bar, so a box configured 0-100 at step 1 still works.
-MIN_BLOCKS = 4
+MIN_BLOCKS = 3
 MAX_BLOCKS = 16
 
 LABEL_MAX = "MAX"
-LABEL_MIN = "leise"
+LABEL_MIN = "Leise"
 LABEL_MUTED = "Stumm"
 
-_NUMBER_SIZE = 34
-_NUMBER_SIZE_THREE_DIGITS = 26  # "100" does not fit next to the glyph at 34 px
+# The bar fallback never reads as empty either, for the same reason the blocks
+# do not: at the floor there is still sound.
+MIN_BAR_FRACTION = 0.06
 
 
 @dataclass(frozen=True)
@@ -87,14 +96,28 @@ class VolumeView:
         return self.span // self.step
 
     @property
-    def filled(self) -> int:
+    def positions(self) -> int:
+        """Number of places the knob can sit in - one more than the detents."""
         if self.steps <= 0:
             return 0
-        return min(self.steps, round((self.clamped - self.min_volume) / self.step))
+        return self.steps + 1
+
+    @property
+    def filled(self) -> int:
+        """Blocks lit: 1 at the quietest setting, never 0.
+
+        The floor is a setting, not silence. min_volume exists so the box is
+        never quiet enough to confuse a child, and an empty row would claim the
+        opposite.
+        """
+        if self.positions <= 0:
+            return 0
+        index = round((self.clamped - self.min_volume) / self.step)
+        return min(self.positions, max(0, index) + 1)
 
     @property
     def use_blocks(self) -> bool:
-        return MIN_BLOCKS <= self.steps <= MAX_BLOCKS
+        return MIN_BLOCKS <= self.positions <= MAX_BLOCKS
 
     @property
     def at_max(self) -> bool:
@@ -129,35 +152,17 @@ def render(view: VolumeView) -> Any:
 def _render_level(view: VolumeView) -> Any:
     img, draw = new_frame()
 
-    speaker(draw, 2, 5, 22)
-    baseline = 30
+    speaker(draw, 3, 1, 28)
+    if view.label:
+        # Only the ends say anything worth saying: at the stop, that there is
+        # no more; at the floor, that this is as quiet as it gets and not off.
+        draw_text_right(draw, view.label, fonts.get(fonts.BOLD, 20), WIDTH - 4, 26)
 
-    if view.at_max:
-        # "100 %" and the word both want the same line and only one of them
-        # carries information here: the number is redundant at the stop, the
-        # word is the whole point. So the word takes the hero slot.
-        draw_text(draw, (30, baseline), LABEL_MAX, fonts.get(fonts.BOLD, _NUMBER_SIZE))
-    else:
-        number = str(view.percent)
-        size = _NUMBER_SIZE_THREE_DIGITS if len(number) > 2 else _NUMBER_SIZE
-        number_font = fonts.get(fonts.BOLD, size)
-        draw_text(draw, (30, baseline), number, number_font)
-
-        unit_font = fonts.get(fonts.BOLD, 13)
-        unit_x = 30 + text_width(draw, number, number_font) + 4
-        draw_text(draw, (unit_x, baseline), "%", unit_font)
-
-        if view.label:
-            label_font = fonts.get(fonts.BOLD, 12)
-            label_left = unit_x + text_width(draw, "%", unit_font) + 4
-            if label_left + text_width(draw, view.label, label_font) <= WIDTH - 3:
-                draw_text_right(draw, view.label, label_font, WIDTH - 3, baseline)
-
-    box = (3, 38, WIDTH - 3, HEIGHT - 3)
+    box = (3, 31, WIDTH - 3, HEIGHT - 3)
     if view.use_blocks:
-        blocks(draw, box, view.steps, view.filled)
+        blocks(draw, box, view.positions, view.filled)
     else:
-        bar(draw, box, view.fraction)
+        bar(draw, box, max(MIN_BAR_FRACTION, view.fraction))
     return img
 
 

@@ -39,36 +39,45 @@ class TestPercent:
 
 
 class TestDetents:
-    def test_this_box_has_eight_steps(self):
-        """0-40 at step 5 is what the box is configured for today."""
-        view = VolumeView(volume=0, min_volume=0, max_volume=40, step=5)
-        assert view.steps == 8
+    def test_this_box_has_five_positions(self):
+        """20-40 at step 5 is what the box is configured for today: four
+        detents, and therefore five places the knob can sit in."""
+        view = VolumeView(volume=20, min_volume=20, max_volume=40, step=5)
+        assert view.steps == 4
+        assert view.positions == 5
         assert view.use_blocks
 
     def test_one_click_lights_one_block(self):
         filled = [
-            VolumeView(volume=v, min_volume=0, max_volume=40, step=5).filled
-            for v in range(0, 41, 5)
+            VolumeView(volume=v, min_volume=20, max_volume=40, step=5).filled
+            for v in range(20, 41, 5)
         ]
-        assert filled == [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        assert filled == [1, 2, 3, 4, 5]
 
-    def test_filled_never_exceeds_steps(self):
+    def test_the_quietest_setting_still_lights_one(self):
+        """min_volume exists so the box is never silent; an empty row would
+        claim the opposite of what the parent configured."""
+        view = VolumeView(volume=20, min_volume=20, max_volume=40, step=5)
+        assert view.filled == 1
+
+    def test_filled_never_exceeds_the_positions(self):
         view = VolumeView(volume=999, min_volume=0, max_volume=40, step=5)
-        assert view.filled == view.steps
+        assert view.filled == view.positions
 
-    def test_too_many_steps_falls_back_to_a_bar(self):
+    def test_too_many_positions_fall_back_to_a_bar(self):
         view = VolumeView(volume=63, min_volume=0, max_volume=100, step=1)
-        assert view.steps == 100
+        assert view.positions == 101
         assert not view.use_blocks
 
-    def test_too_few_steps_falls_back_to_a_bar(self):
-        view = VolumeView(volume=20, min_volume=0, max_volume=40, step=20)
-        assert view.steps == 2
+    def test_too_few_positions_fall_back_to_a_bar(self):
+        view = VolumeView(volume=20, min_volume=0, max_volume=40, step=40)
+        assert view.positions == 2
         assert not view.use_blocks
 
     def test_unknown_step_falls_back_to_a_bar(self):
         view = VolumeView(volume=20, min_volume=0, max_volume=40, step=0)
         assert view.steps == 0
+        assert view.positions == 0
         assert not view.use_blocks
         assert view.filled == 0
 
@@ -78,10 +87,10 @@ class TestLabel:
         assert VolumeView(volume=40, min_volume=0, max_volume=40).label == LABEL_MAX
 
     def test_at_the_bottom_it_says_quiet_not_muted(self):
-        assert VolumeView(volume=0, min_volume=0, max_volume=40).label == LABEL_MIN
+        assert VolumeView(volume=20, min_volume=20, max_volume=40).label == LABEL_MIN
 
-    def test_zero_is_not_muted(self):
-        view = VolumeView(volume=0, min_volume=0, max_volume=40)
+    def test_the_floor_is_not_muted(self):
+        view = VolumeView(volume=20, min_volume=20, max_volume=40)
         assert not view.muted
         assert view.label != ""
 
