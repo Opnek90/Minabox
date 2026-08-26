@@ -3,8 +3,30 @@
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
-      "latest": "0.2.2",
+      "latest": "0.2.3",
       "releases": [
+        {
+          "version": "0.2.3",
+          "date": "2026-08-26",
+          "notes": {
+            "improved": {
+              "de": [
+                "Mehr Meldungen im Protokoll fuer Wiedergabe, Pause, Stopp und Lautstaerkeaenderungen - hilft bei der Fehlersuche im Diagnose-Paket."
+              ],
+              "en": [
+                "More log messages for playback, pause, stop and volume changes - helps when reading a debug package."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Der Testton wurde ueber eine eigene, kurzlebige libVLC-Instanz abgespielt. Auf einer echten Box verlor die dabei zum Einsatz kommende libVLC-Ausgabe wiederholt die Synchronisation mit PipeWire und liess die Wiedergabe abbrechen oder abgeschnitten klingen. Der Testton laeuft jetzt ueber paplay, auf demselben Weg wie die Musik."
+              ],
+              "en": [
+                "The test tone was played through a separate, throwaway libVLC instance. On a real box, that output repeatedly lost sync with PipeWire and the playback broke off or sounded truncated. The test tone now travels the same path as the music, via paplay."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.2",
           "date": "2026-08-26",
@@ -99,8 +121,24 @@
       ]
     },
     "backend": {
-      "latest": "0.2.4",
+      "latest": "0.2.5",
       "releases": [
+        {
+          "version": "0.2.5",
+          "date": "2026-08-26",
+          "notes": {
+            "added": {
+              "de": [
+                "Das Diagnose-Paket kann jetzt optional einen Ton-Test einschliessen: die Box spielt dabei einmal einen hoerbaren Testton (nur fuer Administratoren, nie Teil einer Vorauswahl).",
+                "Der Knopf \"Ton-Problem beheben\" liefert jetzt das Ergebnis jedes einzelnen Reparaturschritts, nicht mehr nur ja/nein am Ende."
+              ],
+              "en": [
+                "The debug package can now optionally include a sound test: the box plays an audible test tone once (administrators only, never part of a preset).",
+                "The \"Fix sound problem\" button now reports the result of each individual repair step, not just a yes/no at the end."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.4",
           "date": "2026-08-26",
@@ -899,8 +937,24 @@
       ]
     },
     "webui": {
-      "latest": "0.1.17",
+      "latest": "0.1.18",
       "releases": [
+        {
+          "version": "0.1.18",
+          "date": "2026-08-26",
+          "notes": {
+            "added": {
+              "de": [
+                "Im Diagnose-Paket-Dialog gibt es jetzt eine Option fuer einen Ton-Test mit hoerbarem Testton, nur fuer Administratoren sichtbar und nie vorausgewaehlt.",
+                "Der Knopf \"Ton-Problem beheben\" zeigt jetzt einklappbar, welcher Reparaturschritt lief, behoben wurde oder fehlgeschlagen ist."
+              ],
+              "en": [
+                "The debug package dialog now has an option for a sound test with an audible test tone, visible to administrators only and never preselected.",
+                "The \"Fix sound problem\" button now shows, collapsed by default, which repair step ran, was fixed, or failed."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.17",
           "date": "2026-08-26",

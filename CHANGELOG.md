@@ -23,6 +23,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.5 - 2026-08-26
+
+#### Neu
+- Das Diagnose-Paket kann jetzt optional einen Ton-Test einschliessen: die Box
+  spielt dabei einmal einen hoerbaren Testton (nur fuer Administratoren, nie
+  Teil einer Vorauswahl).
+- Der Knopf "Ton-Problem beheben" liefert jetzt das Ergebnis jedes einzelnen
+  Reparaturschritts, nicht mehr nur ja/nein am Ende.
+
 ### 0.2.4 - 2026-08-26
 
 #### Neu
@@ -187,6 +196,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.18 - 2026-08-26
+
+#### Neu
+- Im Diagnose-Paket-Dialog gibt es jetzt eine Option fuer einen Ton-Test mit
+  hoerbarem Testton, nur fuer Administratoren sichtbar und nie vorausgewaehlt.
+- Der Knopf "Ton-Problem beheben" zeigt jetzt einklappbar, welcher
+  Reparaturschritt lief, behoben wurde oder fehlgeschlagen ist.
 
 ### 0.1.17 - 2026-08-26
 
@@ -455,6 +472,19 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## audio
+
+### 0.2.3 - 2026-08-26
+
+#### Behoben
+- Der Testton wurde ueber eine eigene, kurzlebige libVLC-Instanz abgespielt.
+  Auf einer echten Box verlor die dabei zum Einsatz kommende libVLC-Ausgabe
+  wiederholt die Synchronisation mit PipeWire und liess die Wiedergabe
+  abbrechen oder abgeschnitten klingen. Der Testton laeuft jetzt ueber
+  paplay, auf demselben Weg wie die Musik.
+
+#### Verbessert
+- Mehr Meldungen im Protokoll fuer Wiedergabe, Pause, Stopp und
+  Lautstaerkeaenderungen - hilft bei der Fehlersuche im Diagnose-Paket.
 
 ### 0.2.2 - 2026-08-26
 
