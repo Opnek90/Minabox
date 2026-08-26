@@ -54,6 +54,7 @@ _EXACT: dict[str, str] = {
     "client/browser.json": "Browser, Bildschirmgröße und Sprache",
     "client/console_errors.json": "Fehlermeldungen der Bedienoberfläche",
     "client/failed_requests.json": "Fehlgeschlagene Anfragen der Oberfläche an die Box",
+    "audio/sound_test.json": "Ergebnis eines Ton-Tests: geprüfte und reparierte Schritte, ob der Testton lief",
 }
 
 _PREFIX: tuple[tuple[str, str], ...] = (

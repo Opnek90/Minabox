@@ -44,20 +44,21 @@ interface Selection {
   history: boolean;
   client: boolean;
   include_db: boolean;
+  sound_test: boolean;
 }
 
 const PRESET_VALUES: Record<Preset, Selection> = {
   minimal: {
     logs: false, settings: false, network: true, media: 'off',
-    history: false, client: false, include_db: false,
+    history: false, client: false, include_db: false, sound_test: false,
   },
   recommended: {
     logs: true, settings: true, network: true, media: 'counts',
-    history: false, client: true, include_db: false,
+    history: false, client: true, include_db: false, sound_test: false,
   },
   full: {
     logs: true, settings: true, network: true, media: 'filenames',
-    history: true, client: true, include_db: false,
+    history: true, client: true, include_db: false, sound_test: false,
   },
 };
 
@@ -122,6 +123,7 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
       history: selection.history,
       client: selection.client,
       include_db: selection.include_db && dbConfirmed,
+      sound_test: selection.sound_test,
     }),
     [preset, selection, dbConfirmed]
   );
@@ -236,8 +238,11 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
     // fuer TS ein generischer string - die vier t()-Aufrufe unten sind deshalb
     // per `as never` von der Key-Pruefung ausgenommen.
     const base = `system.debug_export.blocks.${key === 'include_db' ? 'database' : key}`;
-    const locked = onToggle === undefined ? false : !elevated && (key === 'history' || key === 'include_db');
-    const goodToKnow = key === 'history' || key === 'include_db';
+    const locked =
+      onToggle === undefined
+        ? false
+        : !elevated && (key === 'history' || key === 'include_db' || key === 'sound_test');
+    const goodToKnow = key === 'history' || key === 'include_db' || key === 'sound_test';
     return (
       <Accordion key={key} disableGutters elevation={0} sx={{ '&:before': { display: 'none' } }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 1 }}>
@@ -413,6 +418,7 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
                 />
               ) : undefined
             )}
+            {renderBlock('sound_test', selection.sound_test, (value) => update('sound_test', value))}
           </Box>
 
           <Alert severity="info" icon={false}>

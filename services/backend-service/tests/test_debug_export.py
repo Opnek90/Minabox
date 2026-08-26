@@ -125,11 +125,20 @@ def test_options_log_tail_is_clamped():
 
 
 def test_restrict_to_standard_drops_the_elevated_tiers():
-    options = fw.ExportOptions.from_payload({"preset": "full", "include_db": True})
+    options = fw.ExportOptions.from_payload(
+        {"preset": "full", "include_db": True, "sound_test": True}
+    )
     options.restrict_to_standard()
     assert options.history is False
     assert options.include_db is False
+    assert options.sound_test is False
     assert options.media == fw.MEDIA_COUNTS
+
+
+def test_options_sound_test_is_off_in_every_preset():
+    """Audible side effect: only a deliberate tick may turn it on, never a preset."""
+    for preset in ("minimal", "recommended", "full"):
+        assert fw.ExportOptions.from_payload({"preset": preset}).sound_test is False
 
 
 # ── Collector runner ─────────────────────────────────────────────────────────

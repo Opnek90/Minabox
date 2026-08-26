@@ -340,5 +340,6 @@ def debug_export_options(request: Request) -> dict[str, Any]:
             {"key": "history", "always_on": False, "requires_session": True},
             {"key": "client", "always_on": False},
             {"key": "database", "always_on": False, "requires_session": True},
+            {"key": "sound_test", "always_on": False, "requires_session": True},
         ],
     }

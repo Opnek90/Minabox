@@ -57,6 +57,7 @@ export interface DebugExportOptions {
   history?: boolean;
   client?: boolean;
   include_db?: boolean;
+  sound_test?: boolean;
 }
 
 export interface DebugExportPreviewFile {
