@@ -16,12 +16,14 @@ the backend – the WebUI client never talks to it directly.
   (see section 8)
 
 The service does not use MQTT and has no database, deliberately, so it stays
-easy to extract as a standalone Python package later. It currently does not
-provide asynchronous request handling: both `/download` and `/info` run the
-blocking `yt-dlp` call directly inside their `async def` handler, which stalls
-the event loop for the duration of the download – see the
-[Go-Live review](GoLive-Review.md#1-functional-defects) for the impact and the
-fix.
+easy to extract as a standalone Python package later. The actual `yt-dlp`/
+`ffmpeg` work runs via `asyncio.to_thread`, one download at a time
+(`asyncio.Semaphore(1)`) – ffmpeg is CPU-heavy and this runs on a Raspberry
+Pi, so a second concurrent conversion would fight the first for the same
+cores rather than genuinely run in parallel. This also keeps `GET /health`
+answering while a download is in progress – see the
+[Go-Live review](GoLive-Review.md#1-functional-defects) for what it looked
+like before.
 
 ---
 
@@ -107,9 +109,9 @@ Reads the media, stores the audio track as `audio.mp3` under the given
 
 - `422` – import failed (`DOWNLOAD_FAILED`)
 
-No domain allow-list, file size limit, or timeout is enforced inside this
-service itself – see section 6 and section 8 for where that boundary actually
-lives.
+The domain allow-list is enforced by the backend, before it ever calls this
+service – see section 8. The file size limit (`max_filesize`, from
+`MAX_FILESIZE_MB`) is enforced here, inside the `yt-dlp` call itself.
 
 > `video_id` is the identifier assigned by the source. The field name is from
 > the first version of the API and stays for compatibility.
@@ -180,16 +182,14 @@ Read by this service (`config.py`):
 | Variable | Default | Description |
 |---|---|---|
 | `AUDIO_TRACKS_DIR` | `/mnt/audio/tracks/downloads` | Default target directory for MP3 files, used only when the caller omits `output_dir` |
+| `AUDIO_BASE_DIR` | `/mnt/audio` | Shared audio volume mount point; `output_dir` must resolve inside it – anything else is rejected with `422` |
 | `AUDIO_QUALITY` | `192` | MP3 bitrate in kbps |
-| `SERVICE_PORT` | `8000` | Declared in config, but has no effect: the Dockerfile's `CMD` hardcodes `--port 8007` |
-| `LOG_LEVEL` | `INFO` | Declared in config, but has no effect: `main.py` never wires it into the structlog level filter, so every log level is emitted regardless of this setting – see the [Go-Live review](GoLive-Review.md) |
+| `MAX_FILESIZE_MB` | `200` | Wired into `yt-dlp`'s own `max_filesize` option; a download exceeding it fails with `422` |
+| `LOG_LEVEL` | `INFO` | Filters log output and switches the renderer (`DEBUG` -> human-readable console, otherwise structured JSON) |
 
-`docker-compose.yml` additionally sets `DOWNLOAD_PATH`, `MAX_FILESIZE_MB` and
-`ALLOWED_DOMAINS` on this container. **None of the three are read by this
-service** – `config.py` has no field for any of them. The domain allow-list is
-enforced only in the backend (`_ALLOWED_DOMAINS` in `routes_tracks.py`); no
-file size limit is enforced anywhere in the current code. Calling this
-service directly (bypassing the backend) is subject to neither check – see
+The domain allow-list is **not** configured on this container – it lives
+entirely in the backend, is user-editable (Admin UI -> General -> media
+import), and is enforced before the backend ever calls this service. See
 section 8.
 
 No other variables exist, deliberately – in particular none for credentials
@@ -232,14 +232,18 @@ WebUI: polls GET /tracks/{id}/download-status until status is "done"
   usage and reproduction rights, or a statutory exception applies. Neither
   this service nor the backend can verify that for a given URL – see
   `README.md`.
-- **Domain allow-list:** only explicitly allowed hosts can be used
-  (`_ALLOWED_DOMAINS` in the backend). This is a technical guard against
-  arbitrary fetch targets, not a legal clearance of the content hosted there.
-  It is enforced by the backend only – this service accepts any URL it is
-  given.
-- **No file size limit:** `MAX_FILESIZE_MB` is passed to this container but
-  never read (see section 6); no limit is enforced anywhere in the current
-  code, backend included.
+- **Domain allow-list:** only explicitly allowed hosts can be used. The list
+  is user-editable in the backend (Admin UI -> General -> media import,
+  `core/media_settings.py`), read fresh on every request, and defaults to
+  SoundCloud and Bandcamp only – **not** YouTube: unlike the other two,
+  YouTube has no built-in download feature a rights holder opts into, which
+  makes importing from it a meaningfully bigger legal question. This is a
+  technical guard against arbitrary fetch targets, not a legal clearance of
+  the content hosted there. It is enforced by the backend only – this
+  service accepts any URL it is given, so reaching it directly (see below)
+  bypasses the check.
+- **File size limit:** `MAX_FILESIZE_MB` (default 200) is enforced here via
+  `yt-dlp`'s own `max_filesize` option.
 - **No credential parameters:** neither the API, the UI, nor any environment
   variable offers fields for cookie files, browser cookies, login
   credentials, OAuth, session tokens, or decryption keys. Only the URL (and
@@ -267,6 +271,6 @@ The service is defined as `media-downloader` in `docker-compose.yml`:
   the download API has no authentication of its own.
 - **Volume:** shares `/mnt/audio` with the backend and the audio service.
 - **depends_on:** backend (healthy).
-- **Optional `.env` variables:** `MEDIA_DOWNLOADER_MAX_FILESIZE_MB`,
-  `MEDIA_DOWNLOADER_ALLOWED_DOMAINS` – both currently without effect, see
-  section 6.
+- **Optional `.env` variable:** `MEDIA_DOWNLOADER_MAX_FILESIZE_MB`. The
+  allowed-domains list is not a `.env` setting – it is configured in the
+  WebUI and stored in `general_settings.json` (backend), see section 8.

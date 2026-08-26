@@ -539,10 +539,11 @@ to `STATIC_DIR/covers/`.
 
 **URL import** — `POST /tracks/from-url` returns HTTP 202 immediately:
 
-1. Strip playlist parameters from the URL, then check the host against
-   `_ALLOWED_DOMAINS`. The allow-list is a technical guard against arbitrary
-   fetch targets; it says nothing about whether the caller holds the rights to
-   the content.
+1. Strip playlist parameters from the URL, then check the host against the
+   configured allow-list (`core/media_settings.py`, user-editable in Admin UI
+   -> General -> media import, default excludes YouTube). The allow-list is a
+   technical guard against arbitrary fetch targets; it says nothing about
+   whether the caller holds the rights to the content.
 2. If a track with the same `source_uri` exists, return HTTP 200 with its id.
 3. Create a placeholder record and its directory, mark the status `pending`,
    and start a background task.

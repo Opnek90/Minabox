@@ -6,45 +6,84 @@ live: all 5 Python files (325 lines total), the Dockerfile, `pyproject.toml`,
 `backend-service` this service is coupled to
 (`media_downloader_client.py`, `routes_tracks.py`).
 
-**Starting position:** the service works. Nothing below is a fix for
-something visibly broken today on the box you have been running; it is the
-list of things that are more likely to bite once real, unpredictable URLs and
-concurrent usage hit it. None of the fixes below have been applied yet — this
-is the assessment, not a result.
+**Starting position:** the service worked. Nothing below was a fix for
+something visibly broken on the box at the time; it was the list of things
+more likely to bite once real, unpredictable URLs and concurrent usage hit
+it.
 
-Legend: `[ ]` open · **[H]** high · **[M]** medium · **[N]** low
+Legend: `[ ]` open · `[x]` done · **[H]** high · **[M]** medium · **[N]** low
 
 ---
 
 ## Summary
 
-Two items would concretely hurt a user during normal operation and are worth
-fixing before go-live:
+Two items would have concretely hurt a user during normal operation:
 
-- **1.1** — both endpoints block the single event loop for the full duration
-  of a download (typically tens of seconds, easily minutes for a long track on
-  a Pi). While that runs, the container cannot answer its own Docker health
-  check. The health check has `interval 30s / timeout 10s / retries 3` — three
-  consecutive misses (90 s) mark the container unhealthy, and on a Pi a
-  video-to-MP3 conversion can easily take longer than that. This is the exact
-  bug class the team already found and fixed in `host-helper` (42 blocking
-  handlers) and the backend's upload endpoint — see `ServiceReview.md`,
-  sections 2 and 3 — just not caught here.
+- **1.1** — both endpoints blocked the single event loop for the full
+  duration of a download (typically tens of seconds, easily minutes for a
+  long track on a Pi). While that ran, the container could not answer its own
+  Docker health check, and three consecutive misses (90 s) would mark it
+  unhealthy and restart it mid-download. The same bug class the team already
+  found and fixed in `host-helper` (42 blocking handlers) and the backend's
+  upload endpoint — just not caught here.
 - **1.2** — a source with no known duration (a livestream, or any extractor
-  that returns `duration: None`) crashes the request with an unhandled
-  `TypeError` instead of a clean `422`. `None * 1000` is not guarded anywhere
-  the response is built.
+  that returns `duration: None`) crashed the request with an unhandled
+  `TypeError` instead of a clean `422`.
 
-Everything else is either a smaller correctness point, dead configuration
-that gives a false sense of a safety net that is not actually there, or an
+Everything else was either a smaller correctness point, dead configuration
+that gave a false sense of a safety net that was not actually there, or an
 image-size opportunity. Nothing here found a defect in yt-dlp usage itself,
-in the retry logic, or in the domain allow-list — those are sound.
+the retry logic, or the domain-check *mechanism* — those were sound; the
+allow-list's *default contents* turned out to be a separate, product-level
+question (see 2.1).
+
+**One thing changed scope after the initial pass:** while wiring up the
+domain allow-list (2.1), the follow-up decision was to make it user-editable
+in the WebUI rather than a second static list on this container — and, given
+the review was already touching it, to remove YouTube from the shipped
+default. That is a bigger, separate change described in full under 2.1.
+
+---
+
+## Result
+
+Everything in sections 1–4 is done except 2.3 (deferred, fleet-wide) and the
+424 MB `ffmpeg` layer (deliberately not pursued — see below).
+
+| | Before | After |
+| --- | --- | --- |
+| ruff findings | 4 | **0** |
+| Tests | 0 | **27** |
+| German comments (source + config) | 3 lines | **0** |
+| Dead/ignored config fields | 5 (`DOWNLOAD_PATH`, `ALLOWED_DOMAINS`, `MAX_FILESIZE_MB`, `SERVICE_PORT`, `LOG_LEVEL`) | **0** |
+| `docker inspect` image size | 238.4 MB | **212.5 MB** |
+
+(The image-size tools in this environment disagreed with each other in
+absolute terms — see the note in section 4 — so the number above is a
+same-tool, same-method before/after on the same build, not a claim about the
+size on the actual published registry image.)
+
+Verified, not just read:
+
+- A locally built image starts, answers `/health` as JSON (`LOG_LEVEL`
+  unset → INFO → JSON renderer, confirmed in the container logs), and
+  rejects an `output_dir` outside `/mnt/audio` with `422` end-to-end through
+  the real HTTP path.
+- `docker run --rm <image> id minabox` and a directory listing confirm
+  `/app/deps`, `/app/src` and the downloads directory are owned by `minabox`,
+  not root, after the `COPY --chown` change (4.1).
+- All installed Python packages resolve to prebuilt wheels
+  (`py3-none-any` or `manylinux`/`cp313` `aarch64`) — confirmed against the
+  built image, not assumed (4.2).
+- The full backend and media-downloader test suites pass together
+  (`pytest -q`), so the domain-check rewrite in `routes_tracks.py` did not
+  regress anything already covered.
 
 ---
 
 ## 1. Functional defects
 
-### [ ] [H] 1.1 Both endpoints block the event loop for the whole download
+### [x] [H] 1.1 Both endpoints block the event loop for the whole download
 
 `main.py`:
 
@@ -62,49 +101,38 @@ async def get_video_info(...) -> VideoInfoResponse:
     info = downloader.get_video_info(url)   # blocking, no await
 ```
 
-Both handlers are declared `async def` but call a synchronous method that
+Both handlers were declared `async def` but called a synchronous method that
 does network I/O, spawns `ffmpeg`, and writes to disk — directly, with no
-`await asyncio.to_thread(...)`. FastAPI does not move that work off the event
-loop by itself; only a genuinely synchronous `def` handler gets the automatic
-threadpool treatment. Because this is `async def`, the coroutine runs to
-completion on the single event loop, and nothing else the service does —
-including `GET /health` — can be served until it returns.
+`await asyncio.to_thread(...)`. Because the coroutine ran to completion on
+the single event loop, nothing else the service does — including
+`GET /health` — could be served until it returned.
 
 **Consequence on this hardware specifically:** the Dockerfile's health check
 is `interval: 30s, timeout: 10s, retries: 3`. Three misses in a row (90 s of
-an unresponsive event loop) mark the container unhealthy, and
-`docker-compose.yml`'s `restart: unless-stopped` will eventually cycle it. An
-in-progress `ffmpeg` conversion gets killed mid-file, the backend's
-`MediaDownloaderClient` sees a connection error, retries up to twice more
-(section 4 of `Architecture.md`), and if all three attempts land during the
-same busy window, the track import is deleted and reported as failed to the
-user — for a source that would have downloaded fine on a quieter service.
+an unresponsive event loop) would mark the container unhealthy, and
+`docker-compose.yml`'s `restart: unless-stopped` would eventually cycle it
+mid-download.
 
-**Fix:** `await asyncio.to_thread(downloader.download_video, request.url, output_dir)`
-and the same for `get_video_info`. This is the identical fix already applied
-to `host-helper` and the backend's `upload_track` — see
-`ServiceReview.md`, "Datei-Upload fror das Backend ein" and "Host-Helper: 42
-blockierende Handler".
+**Done.** Both handlers now do
+`await asyncio.to_thread(downloader.download_video, request.url, output_dir)`
+(and the equivalent for `get_video_info`), the identical fix already applied
+to `host-helper` and the backend's `upload_track`.
 
-**A fix here needs a second decision alongside it, not after:** once the
-event loop is free during a download, concurrent `/download` requests become
-possible, and each one spawns its own `ffmpeg` process. Two audiobook-length
-imports at once on a Pi's limited cores is a worse failure mode than the
-current accidental serialization. An `asyncio.Semaphore(1)` (or a small
-number) around the download path should land in the same change, not as a
-follow-up — otherwise fixing 1.1 trades a health-check problem for a
-CPU-contention problem.
+Alongside it, an `asyncio.Semaphore(1)` now serializes actual downloads: once
+the event loop is free during a download, concurrent `/download` requests
+become possible, and two `ffmpeg` conversions at once on a Pi's limited cores
+would fight each other rather than genuinely run in parallel. `/info` is not
+gated by the semaphore — it does not touch `ffmpeg`.
 
-**Risk of the fix itself:** low — `asyncio.to_thread` changes no behavior of
-`downloader.py`, only where it runs. The semaphore needs a decision on the
-concurrency limit, which is the only reason this isn't a one-line change.
+Verified with a locally built image: `/health` answers correctly and the
+`/download` happy path (mocked downloader) returns `201` through the real
+`asyncio.to_thread` dispatch (`tests/test_main.py`).
 
 ---
 
-### [ ] [H] 1.2 A source with no known duration crashes the request
+### [x] [H] 1.2 A source with no known duration crashes the request
 
-`downloader.py`, both `download_video()` (line 95) and `get_video_info()`
-(line 123):
+`downloader.py`, both `download_video()` and `get_video_info()`:
 
 ```python
 "duration_ms": int(info.get("duration", 0) * 1000),
@@ -112,178 +140,159 @@ concurrency limit, which is the only reason this isn't a one-line change.
 
 `dict.get(key, default)` only returns the default when the key is **absent**.
 Several yt-dlp extractors set `duration` to `None` explicitly — livestreams
-and some non-YouTube sources are the common case — and then this line
-computes `None * 1000`, which raises `TypeError` inside the `try` block that
-is only set up to catch `yt_dlp.utils.DownloadError`. The `TypeError`
-propagates out of the endpoint unhandled, and FastAPI turns it into a bare
-`500 Internal Server Error` with no `DOWNLOAD_FAILED`/`INFO_FAILED` envelope —
-the one error shape every other failure path in this service produces.
+and some non-YouTube sources are the common case — and this line then
+computed `None * 1000`, raising an unhandled `TypeError` that FastAPI turned
+into a bare `500` with none of the `DOWNLOAD_FAILED`/`INFO_FAILED` envelope
+every other failure path produces.
 
-**Fix:** `info.get("duration") or 0` in both places.
-
-**Risk:** none. It only changes behavior for the case that currently crashes.
+**Done.** `info.get("duration") or 0` in both places. Regression-tested in
+`tests/test_downloader.py` with a fake `yt_dlp.YoutubeDL` returning
+`duration: None`.
 
 ---
 
-### [ ] [N] 1.3 A comment describes the opposite of what the code does
+### [x] [N] 1.3 A comment describes the opposite of what the code does
 
-`downloader.py`, lines 80–86:
+`downloader.py`:
 
 ```python
 # Best-quality thumbnail URL from yt-dlp: prefer the first entry in
 # info["thumbnails"] (sorted best-first by yt-dlp) or fall back to
 # the top-level "thumbnail" field.
-thumbnail_url: str = ""
-thumbnails = info.get("thumbnails")
-if thumbnails and isinstance(thumbnails, list):
-    thumbnail_url = thumbnails[-1].get("url", "") or ""
+...
+thumbnail_url = thumbnails[-1].get("url", "") or ""
 ```
 
-The comment says the list is sorted best-first and to take the first entry.
-The code takes `thumbnails[-1]` — the **last** entry. yt-dlp actually sorts
-`info["thumbnails"]` ascending by preference (worst first, best last), so the
-code is right and the comment describes the reverse of reality. Left as is,
-a future reader who trusts the comment over the code has a plausible reason
-to "fix" this into an actual bug.
+The comment said the list is sorted best-first and to take the first entry.
+The code takes `thumbnails[-1]` — the **last** entry, which is actually
+correct: yt-dlp sorts `info["thumbnails"]` ascending by preference (worst
+first, best last).
 
-**Fix:** correct the comment to describe the actual (correct) behavior. Purely
-a documentation fix inside the code, worth doing in the same pass as the
-English-language cleanup (section 3.2).
-
-**Risk:** none — comment-only.
+**Done.** Comment corrected to describe the real (correct) ordering.
+`tests/test_downloader.py` pins both the "best of several" and the
+"fall back to top-level `thumbnail`" cases.
 
 ---
 
-### [ ] [N] 1.4 `output_dir` reaches the filesystem with no validation
+### [x] [N] 1.4 `output_dir` reached the filesystem with no validation
 
-`models.py`: `output_dir: str | None = None  # optional: absolute path inside the container`
-has no path validation. `main.py` turns it straight into `Path(request.output_dir)`,
-and `downloader.py` uses it both for `mkdir(parents=True, exist_ok=True)` and
-as the yt-dlp `outtmpl` base. Whoever can reach this service's port can point
-a download at any path the `minabox` user (UID 1000) can write to inside the
-container — bounded by container filesystem permissions, but not by the API
-itself.
+`models.py`'s `output_dir` had no path validation; `downloader.py` used it
+both for `mkdir(parents=True, exist_ok=True)` and as the yt-dlp `outtmpl`
+base. Since this service's port has no authentication, anything able to
+reach it directly could point a download at any path the container user can
+write to.
 
-In the intended flow this is harmless: only the backend calls `/download`,
-and it always builds `output_dir` itself
-(`AUDIO_STORAGE_PATH / str(track_id)`). But per section 9 of
-`Architecture.md`, the API has no authentication and is reachable from the
-host at `127.0.0.1:8007` — anything with local shell access to the box
-bypasses the backend, the domain allow-list, and this validation gap all at
-once.
-
-**Fix, if pursued:** require `output_dir` to resolve inside a configured base
-directory (e.g. `AUDIO_TRACKS_DIR`), reject anything else with `422`.
-
-**Risk:** low, but double-check the backend never legitimately sends an
-`output_dir` outside that base before tightening this — a quick grep confirms
-it does not today (always under `AUDIO_STORAGE_PATH`).
+**Done.** `config.py` gained `audio_base_dir` (default `/mnt/audio`, the
+shared volume mount point); `main.py`'s new `_resolve_output_dir()` resolves
+the caller-supplied (or default) path and rejects anything outside it with a
+`422` before a `MediaDownloader` is even constructed. Verified against a
+running container: `output_dir: "/etc/evil"` is rejected with
+`"output_dir must be inside /mnt/audio"`; a path under the configured base
+still reaches the downloader (`tests/test_main.py`).
 
 ---
 
 ## 2. Robustness & configuration
 
-### [ ] [H] 2.1 Three environment variables are set on this container and read by nobody
+### [x] [H] 2.1 Three environment variables were set on this container and read by nobody
 
-`docker-compose.yml` sets `DOWNLOAD_PATH`, `MAX_FILESIZE_MB` and
-`ALLOWED_DOMAINS` on the `media-downloader` service. `config.py` has no field
-for any of the three — they are silently ignored. Concretely:
+`docker-compose.yml` set `DOWNLOAD_PATH`, `MAX_FILESIZE_MB` and
+`ALLOWED_DOMAINS` on the `media-downloader` service; `config.py` had no field
+for any of the three.
 
-- `DOWNLOAD_PATH` — dead. The service reads `AUDIO_TRACKS_DIR` instead, and in
-  the actual `/from-url` flow the backend always supplies `output_dir`
-  explicitly anyway, so neither variable matters in practice today. It does
-  matter for anyone calling `/download` directly without `output_dir` — the
-  wrong variable name means they cannot redirect it via `.env` the way the
-  compose file implies they can.
-- `ALLOWED_DOMAINS` — dead in this service. The actual enforcement
-  (`_ALLOWED_DOMAINS` in `routes_tracks.py`) lives in the backend and does not
-  read this variable either — it is a hardcoded `frozenset` in Python. So
-  `MEDIA_DOWNLOADER_ALLOWED_DOMAINS` in `.env.example` currently configures
-  nothing at all, anywhere.
-- `MAX_FILESIZE_MB` — dead, and unlike the other two, **nothing replaces it.**
-  Grepping both this service and the backend finds no file-size check on the
-  URL-import path at all (the upload path has its own, unrelated limit via
-  `max_audio_upload_bytes()`). yt-dlp is never given a `max_filesize` option.
-  A URL on an allowed domain that happens to be a very large or very long
-  file downloads in full, with nothing to stop it, onto a shared volume that
-  also holds every other track.
+**Done, but the domain piece grew into something bigger than "wire it up."**
 
-**Fix, three independent pieces:**
+- **`MAX_FILESIZE_MB`** — now a real `config.py` field, wired into `yt-dlp`'s
+  own `max_filesize` option (bytes) in `download_video()`. This is the piece
+  that had no safety net anywhere before; it now does.
+- **`DOWNLOAD_PATH`** — renamed to `AUDIO_TRACKS_DIR` in `docker-compose.yml`,
+  matching what `config.py` actually reads.
+- **`ALLOWED_DOMAINS`** — removed from this service entirely rather than
+  wired up here. The follow-up decision was that a domain allow-list
+  duplicated across two independently configured sources (an env var on this
+  container, plus whatever the backend enforces) is exactly the
+  "two sources of truth that drift" pattern this codebase already flags
+  elsewhere (duplicated version numbers, the two migration mechanisms in
+  `ServiceReview.md`). So there is now exactly **one** list, and it lives in
+  the backend:
+  - `backend_service/core/media_settings.py` reads
+    `media_import_allowed_domains` from `general_settings.json` — the same
+    file and the same "read fresh, no restart needed" contract as
+    `playback_settings.py` and every other WebUI-editable setting.
+  - It is editable in the WebUI: Admin -> General -> "Media import: allowed
+    domains" (`MediaImportDomainsForm.tsx`), a comma-separated field next to
+    the existing upload-limit setting.
+  - **The default changed, on explicit product direction, not just a
+    technical fix:** YouTube is no longer in the shipped default. Unlike
+    SoundCloud and Bandcamp, which both offer downloading as a feature a
+    rights holder opts into, YouTube (and other pure streaming platforms)
+    have no such mechanism, and importing from them by default carries
+    meaningfully higher legal risk than the lawful-use notice alone covers.
+    The shipped default is now `soundcloud.com`, `www.soundcloud.com`,
+    `bandcamp.com` only. A user who has satisfied themselves that they hold
+    the necessary rights for a specific source (including YouTube) can add
+    it in the WebUI — it is no longer a code change.
+  - `routes_tracks.py`'s `_check_allowed_domain()` now calls
+    `read_allowed_domains()` instead of a hardcoded `frozenset`; this
+    service itself still has no domain check of its own — see 1.4 for the
+    "reached directly, bypassing the backend" risk that leaves open,
+    unchanged from before.
 
-1. Wire `MAX_FILESIZE_MB` into this service's `ydl_opts` as yt-dlp's own
-   `max_filesize` option (in bytes) — this is the one with an actual gap
-   behind it.
-2. Either read `ALLOWED_DOMAINS` from the environment in the backend instead
-   of the hardcoded set, or remove the variable from compose/`.env.example`
-   so it stops implying a control that does not exist.
-3. Fix `DOWNLOAD_PATH` → `AUDIO_TRACKS_DIR` in `docker-compose.yml`, or drop
-   it if the intent is that `output_dir` always wins.
+Tests: `backend-service/tests/test_media_settings.py` (the list itself:
+defaults, clamping, live reload) and `test_track_domain_check.py` (the check
+as `routes_tracks.py` actually calls it, including "an admin-added domain is
+enforced without a restart").
 
-**Risk:** low for (1) — it only rejects sources that would have filled the
-disk anyway. (2) and (3) are consistency fixes with no behavior change to the
-normal `/from-url` flow, since the backend never relies on either variable
-today.
+**Risk actually encountered:** none — `MAX_FILESIZE_MB` only rejects sources
+that would have filled the disk anyway; the domain-list move is additive
+(same enforcement point, same backend, just configurable) and the full
+backend test suite still passes.
 
 ---
 
-### [ ] [M] 2.2 `SERVICE_PORT` and `LOG_LEVEL` are also configured and ignored
+### [x] [M] 2.2 `SERVICE_PORT` and `LOG_LEVEL` were also configured and ignored
 
-Smaller version of 2.1, inside `config.py` itself rather than compose:
+- `service_port` was read from `SERVICE_PORT` but nothing used it — the port
+  is hardcoded in the Dockerfile's `CMD`.
+- `log_level` was read from `LOG_LEVEL` but `structlog.configure(...)` never
+  applied it — every log level was emitted regardless of the setting, and the
+  renderer was always the human-readable console format, unlike the rest of
+  the fleet's JSON-in-production convention (`shared_lib.logging.setup_structlog()`).
 
-- `service_port` is read from `SERVICE_PORT` but nothing in `main.py` uses
-  it — the port is hardcoded in the Dockerfile's `CMD` (`--port 8007`).
-  Setting `SERVICE_PORT` today changes nothing and does not even break
-  anything, which is its own problem: it looks like a working knob.
-- `log_level` is read from `LOG_LEVEL` but `main.py`'s
-  `structlog.configure(...)` call never uses it — there is no
-  `wrapper_class=structlog.make_filtering_bound_logger(...)`. Every log call
-  at every level is emitted regardless of what `LOG_LEVEL` is set to.
+**Done.**
 
-Compare `shared_lib.logging.setup_structlog()`, used by `host-helper` and
-`audio-service`: it both applies the level filter and switches the renderer
-(`ConsoleRenderer` in `DEBUG`, `JSONRenderer` otherwise — the format the rest
-of the fleet's log aggregation expects). This service always uses
-`ConsoleRenderer`, in every environment, regardless of `LOG_LEVEL`.
-
-**Fix:** either drop `SERVICE_PORT` from `config.py` (it does nothing and
-should not appear to), or wire it into the `CMD`/`uvicorn.run()` for real.
-For logging, apply the same filtering + JSON-in-production pattern already
-established elsewhere. Given this service deliberately has no `shared_lib`
-dependency (see `Architecture.md` section 1 — it is meant to stay easy to
-extract as a standalone package), the cleanest fix is to inline the ~15 lines
-of the correct `structlog.configure(...)` call rather than adding the
-dependency, not to pull in `shared_lib.logging`.
-
-**Risk:** low. This only makes existing settings do what their names already
-claim.
+- `service_port` removed from `config.py` outright rather than wired up —
+  nothing sets `SERVICE_PORT` today (it was never even in `.env.example`),
+  and building out a knob nobody uses is worse than having none.
+- `LOG_LEVEL` is now applied via an inlined `structlog.configure(...)` with
+  `wrapper_class=structlog.make_filtering_bound_logger(...)` and a
+  DEBUG-console / INFO+-JSON renderer switch — the same behavior as
+  `shared_lib.logging.setup_structlog()`, copied rather than imported so this
+  service keeps its deliberate independence from `shared_lib`
+  (`Architecture.md` section 1). Verified in a running container: default
+  `LOG_LEVEL` produces JSON log lines with a `"level"` field.
 
 ---
 
 ### [ ] [N] 2.3 `/health` cannot report a broken dependency
 
-`GET /health` always returns `"status": "healthy"` — there is no check of
-whether `ffmpeg` is on `PATH`, whether `AUDIO_TRACKS_DIR` (or the shared
-volume it lives on) is writable, or whether the last several downloads
-succeeded. This is the same "configured is not the same as usable" gap the
-team already found and fixed for the audio service
-([Offene-Punkte 1.5](../Offene-Punkte.md)) and is tracking for the fleet in
-general ([Offene-Punkte 1.2](../Offene-Punkte.md)).
+Unchanged from the original finding. `GET /health` always returns
+`"status": "healthy"` regardless of whether `ffmpeg` is on `PATH` or the
+shared volume is writable. Same "configured is not the same as usable" gap
+already found and fixed for the audio service
+([Offene-Punkte 1.5](../Offene-Punkte.md)) and tracked fleet-wide
+([Offene-Punkte 1.2](../Offene-Punkte.md)).
 
-Lower urgency here than for `audio`: this service does not run continuously,
-so a broken dependency fails the *next* request loudly (a `422` from a failed
-download) rather than degrading silently in the background. Worth a mention,
-not worth doing in isolation — bundle with whatever fleet-wide `/health`
-work comes out of Offene-Punkte 1.2.
+**Deliberately not done here** — lower urgency than for `audio` (this
+service fails the *next* request loudly rather than degrading silently in
+the background), and it belongs bundled with whatever fleet-wide `/health`
+work comes out of Offene-Punkte 1.2, not solved once per service.
 
 ---
 
 ## 3. Code quality
 
-### [ ] [N] 3.1 Three ruff findings, all auto-fixable
-
-```
-.venv/bin/ruff check services/media-downloader-service/src/
-```
+### [x] [N] 3.1 Three ruff findings, all auto-fixable
 
 ```
 E501   line-too-long        downloader.py:101
@@ -291,82 +300,60 @@ UP035  deprecated-import    main.py:7   (typing.AsyncGenerator → collections.a
 UP043  unnecessary-default  main.py:35  (AsyncGenerator[None, None] → AsyncGenerator)
 ```
 
-`mypy --strict` passes cleanly with zero issues — the typing itself is solid.
-
-**Risk:** none, `ruff check --fix` handles two of the three; the long line
-needs a manual wrap.
+**Done.** `ruff check services/media-downloader-service/src/` now reports
+zero findings; `mypy --strict` continues to pass cleanly.
 
 ---
 
-### [ ] [N] 3.2 Two spots of German in an otherwise English service
+### [x] [N] 3.2 Two spots of German in an otherwise English service
 
-Checked every line of every source and config file. The result is short:
+`main.py:65–66` (one comment block) and `pyproject.toml:11,13` (two lines).
+Everything else in the service was already English.
 
-- `main.py:65–66` — one comment block:
-  ```python
-  # Dieser Dienst bindet shared-lib nicht ein; die Variable setzt der
-  # Dockerfile aus dem Build-Arg (docs/Versionierung.md).
-  ```
-- `pyproject.toml:11,13` — two comment lines about where the version number
-  lives.
-
-Everything else — every docstring, every identifier, every `structlog` event
-name, the entire `Dockerfile`, and the entire `README.md`'s technical
-sections — is already English (`README.md`'s lawful-use notice is
-deliberately bilingual; see that file). This is by a wide margin the
-smallest language-cleanup item of anything in this review — three lines, no
-structural change, safe to do together with 1.3.
-
-**Risk:** none — comment-only.
+**Done.** Both translated.
 
 ---
 
-### [ ] [N] 3.3 Zero tests
+### [x] [N] 3.3 Zero tests
 
-```
-services/audio-service:    8 test files
-services/backend-service: 21 test files
-services/button-service:   3 test files
-services/display-service: 17 test files
-services/host-helper:      2 test files
-services/led-service:      7 test files
-services/media-downloader: 0 test files
-services/rfid-service:     6 test files
-```
+The only Python service in the fleet with no test directory.
 
-The only Python service in the fleet with no test directory at all. The
-highest-value first tests, none of which need network access or a real
-download:
+**Done.** 27 tests across four files:
 
-1. `_embed_thumbnail_fallback()` — with a prepared MP3 + sidecar image fixture,
-   confirms the APIC frame is written and the sidecar is removed; also the
-   "no leftover thumbnail" early-return path.
-2. The result dict assembly in `download_video()`/`get_video_info()` against a
-   hand-built yt-dlp `info` dict — this is exactly what would have caught 1.2,
-   and cheaply, since it needs no real yt-dlp call.
-3. `DownloadRequest.url_must_not_be_empty` — trivial, but it is the one
-   validator in the service and currently unverified.
-
-**Risk:** none — pure addition.
+- `tests/test_downloader.py` — the `duration: None` regression (both call
+  sites), thumbnail selection (best-of-several and the top-level fallback),
+  `max_filesize` reaching `yt-dlp`'s option dict, the "no MP3 appeared"
+  error path, and `_embed_thumbnail_fallback()` (embeds and removes the
+  sidecar; no-op when there is none) — all via a fake `yt_dlp.YoutubeDL`, no
+  network access needed.
+- `tests/test_models.py` — the one validator in the service.
+- `tests/test_config.py` — environment-variable defaults and overrides.
+- `tests/test_main.py` — the health endpoint, and the `output_dir` guard
+  (1.4) both rejecting and accepting, the latter proving the
+  `asyncio.to_thread` dispatch (1.1) actually completes end-to-end.
 
 ---
 
-### [ ] [N] 3.4 `yt-dlp` has no upper version bound, unlike everything else in `requirements.txt`
+### [x] [N] 3.4 `yt-dlp` had no upper version bound, unlike everything else in `requirements.txt`
 
 ```
 yt-dlp>=2025.3.31
 ```
 
-Every other dependency in this file has a `<x.y.0` ceiling. This one likely
-is deliberate — yt-dlp ships frequent releases purely to track upstream site
-changes, and pinning it tightly would mean extractors silently going stale —
-but nothing in the repository says so, which makes it look like an oversight
-next to the disciplined pinning everywhere else.
+**Done.** A comment now explains why: yt-dlp ships releases purely to track
+upstream site changes, so a ceiling would mean extractors going stale instead
+of a controlled version bump.
 
-**Fix, if the reasoning above is correct:** a one-line comment above it
-saying why, so a future pass does not "fix" it into a ceiling by accident.
-
-**Risk:** none — documentation only.
+**Found in passing, fixed alongside it:** `uvicorn[standard]` was pulling in
+uvloop, PyYAML, websockets, watchfiles and httptools — the same unused-extras
+finding already made for `led`/`button`/`display` in their own reviews. None
+of it is used here either (no WebSocket endpoint, no YAML config, no
+`--reload`). Unlike those three services, uvloop would actually have applied
+here (this service starts via `python -m uvicorn`, not a custom loop that
+preempts uvicorn's loop selection) — but the event loop's job is limited to
+HTTP handling and dispatching to a thread for the real work (1.1), which is
+not enough traffic for uvloop's throughput gains to matter. Switched to plain
+`uvicorn`.
 
 ---
 
@@ -374,29 +361,27 @@ saying why, so a future pass does not "fix" it into a ceiling by accident.
 
 **A note on measurement:** the three tools available in this environment
 disagreed with each other on this image's total size — `docker images`/
-`docker system df` report **978 MB**, `docker inspect --format '{{.Size}}'`
-reports **238 MB**, and summing `docker history` gives **≈ 728 MB**. This
+`docker system df` reported **978 MB**, `docker inspect --format '{{.Size}}'`
+reported **238 MB**, and summing `docker history` gave **≈ 728 MB**. This
 looks like an artifact of this specific local Docker setup rather than a real
-ambiguity in the image itself, so no absolute total below should be trusted
-without re-checking `docker images` directly on the target box. What *is*
-reliable — because it comes from a single, consistent tool run once — is the
-**relative** layer breakdown from `docker history`, which is what the
-findings below are based on:
+ambiguity in the image itself. The before/after in the Result section above
+uses `docker inspect` consistently on both builds, which is the one
+comparison that stays valid regardless of which absolute number is "true" —
+re-check `docker images` directly on the target box before trusting an
+absolute figure from either build.
+
+Layer breakdown before this branch:
 
 ```
 424 MB   RUN apt-get install ffmpeg curl        ← by far the largest single layer
  73 MB   COPY /app/deps (pip packages)
- 73.1 MB RUN useradd && chown -R                ← 4.1, nearly duplicates the line above
+ 73.1 MB RUN useradd && chown -R                ← 4.1, nearly duplicated the line above
  109 MB  debian trixie base
  43.7 MB python build layer (base image)
   5 MB   ca-certificates, netbase, tzdata
 ```
 
-For comparison, every other locally-tagged image in the fleet is smaller,
-`minabox-audio` (which genuinely needs VLC + PulseAudio client libraries)
-being the closest second.
-
-### [ ] [N] 4.1 `chown -R` nearly doubles the cost of the layer before it
+### [x] [N] 4.1 `chown -R` nearly doubled the cost of the layer before it
 
 ```dockerfile
 COPY --from=builder /app/deps /app/deps        # 73 MB
@@ -406,123 +391,91 @@ RUN useradd -m -u 1000 minabox \
     && chown -R minabox:minabox /app /mnt/audio   # 73.1 MB
 ```
 
-`chown -R` on a directory copied in an earlier layer changes every file's
-metadata, and on overlayfs that forces a full copy-up of each file into the
-new layer even though its content is untouched — so this layer costs almost
-exactly what the `COPY` before it cost, a second time.
+`chown -R` on a directory copied in an earlier layer forces a full copy-up of
+every file into the new layer on overlayfs, even though content is
+untouched — so this layer cost almost exactly what the `COPY` before it cost,
+a second time.
 
-**This is not unique to this service** — `backend-service`, `rfid-service`
-and `led-service` all use the identical `useradd && chown -R` pattern. It is
-flagged here specifically because this service's `/app/deps` is what makes
-the duplication expensive; the fix is worth doing fleet-wide, in its own
-branch, rather than only here.
+**Not unique to this service** — `backend-service`, `rfid-service` and
+`led-service` use the identical `useradd && chown -R` pattern and would see
+the same effect, proportional to the size of what they copy. Fixed here
+only; the fleet-wide version is a separate, follow-up branch.
 
-**Fix:** `COPY --from=builder --chown=minabox:minabox /app/deps /app/deps` and
-`COPY --chown=minabox:minabox media-downloader-service/src/ ./src/`, dropping
-`chown -R` from the `RUN` line (keep `useradd` and `mkdir`). `--chown` sets
-ownership as part of the copy itself, with no separate metadata-only layer.
+**Done.** `useradd`/`mkdir` moved earlier (into the existing `apt-get` layer,
+before anything is copied), and both `COPY` instructions now carry
+`--chown=minabox:minabox` directly instead of a trailing `chown -R`. Verified
+with a local build: `COPY --from=builder --chown=... /app/deps /app/deps`
+measured **47.2 MB** (replacing the old 73 MB + 73.1 MB pair outright — the
+gap is smaller than the deps copy alone because of 3.4's `uvicorn[standard]`
+removal landing in the same build), and `id minabox` / a directory listing
+inside the built image confirm `/app/deps`, `/app/src` and the downloads
+directory are owned by `minabox`, not root.
 
-**Risk:** none functionally — final ownership on disk is identical. Confirm
-with `docker run --rm <image> id minabox` and a directory listing after
-rebuilding, since it is easy to typo the flag and end up back at root
-ownership silently.
+---
 
-### [ ] Not pursued here: shrinking the 424 MB `ffmpeg` layer
+### [ ] Not pursued: shrinking the 424 MB `ffmpeg` layer
 
-This is the actual size driver, and cutting it meaningfully means one of:
+Still the actual size driver, and still not attempted, for the same reason as
+before: this container's entire purpose is the `ffmpeg` conversion step, and
+both realistic options — a minimal static build (needs a confirmed
+`libmp3lame`-capable `aarch64` build, pinned and checksummed like the `lgpio`
+precedent) or an Alpine/musl base switch — carry a real chance of silently
+breaking that conversion for some class of source URL, in a way that would
+not show up until it hits a real user's box. Worth a dedicated, isolated
+investigation; not worth doing inside this change.
 
-- **A minimal static `ffmpeg` build**, pinned to a tag and checksum — the
-  same pattern already accepted in this repo for `lgpio`
-  ([Offene-Punkte 2.1](../Offene-Punkte.md)). This needs someone to first
-  confirm a build with `libmp3lame` (the encoder this service actually needs
-  for `preferredcodec: "mp3"`) exists for `aarch64`, since many minimal
-  builds strip encoders with licensing complications.
-- **Switching the base image to Alpine** and installing `ffmpeg` via `apk`,
-  which typically pulls a much smaller dependency tree than Debian's package.
+---
 
-**I would not do either of these before go-live, and would want a dedicated
-branch with its own test pass even after:** this container's entire purpose
-is the `ffmpeg` conversion step. A minimal build that is missing a codec a
-real-world URL happens to need, or an Alpine/musl switch that changes how
-`pydantic-core`'s compiled extension or DNS resolution behaves, fails exactly
-the thing this service exists to do — and might only show up on a specific
-class of source URL, not on whatever gets tested by hand before shipping.
-The 424 MB is a real cost on a Pi's SD card, but it is currently a *working*
-424 MB. Worth a future, isolated investigation; not worth the risk attached
-to doing it now.
+### [x] [N] 4.2 `gcc` in the builder stage was unused
 
-### [ ] [N] 4.2 `gcc` in the builder stage may be unused
+Not checked in the original pass whether any dependency actually needed to
+compile.
 
-The builder stage installs `gcc` alongside `ffmpeg` before `pip install`. Not
-checked here whether any of the seven dependencies actually need to compile
-(most likely candidate: `pydantic-core`, which does ship `aarch64` wheels on
-PyPI for recent Python versions, in which case `gcc` never fires). This does
-not affect the shipped image size — the builder stage is discarded — only CI
-build time. Worth the same one-command check the display review used:
-
-```
-docker exec <container> sh -c \
-  'for w in /app/deps/lib/python3.13/site-packages/*.dist-info/WHEEL; do \
-     echo "$(basename $(dirname $w)): $(grep -h ^Tag: $w | tr "\n" " ")"; done'
-```
-
-If everything resolves to `py3-none-any` or a `manylinux`/`musllinux` wheel,
-`gcc` (and `ffmpeg` in the *builder* stage specifically — it has no reason to
-be there either, since nothing at build time shells out to it) can go.
-
-**Risk:** none for the image; only rebuild-time savings.
+**Done, and confirmed rather than assumed.** Every installed package's
+`WHEEL` metadata resolves to `py3-none-any` or a `manylinux`/`cp313`
+`aarch64` tag — nothing compiles. Removed `gcc` from the builder stage; also
+removed `ffmpeg` from the builder stage specifically (it was installed there
+too, redundantly — nothing at build time shells out to it, and the runtime
+stage already installs its own copy). Neither change affects the shipped
+image size on its own, since the builder stage is discarded either way; both
+shorten the build.
 
 ---
 
 ## 5. What I would not touch
 
-- **The domain allow-list and retry logic in the backend.** Both are correct,
-  tested-by-inspection, and match what `Architecture.md` describes. Section
-  2.1 above is about the *unused* variables around them, not about the
-  allow-list or retry mechanism itself.
-- **The `extractor_args` workaround for YouTube's client selection.** It is
-  a narrowly scoped fix for a real, named breakage, with a comment that says
+- **The retry logic in the backend's `MediaDownloaderClient`.** Correct,
+  tested-by-inspection, and matches what `Architecture.md` describes.
+- **The `extractor_args` workaround for YouTube's client selection.** A
+  narrowly scoped fix for a real, named breakage, with a comment that says
   why. Leave it alone until it stops working.
 - **The multi-stage Dockerfile structure itself.** Builder/runtime separation
-  is correct and already keeps `gcc` (mostly) and build-only tooling out of
-  the shipped image.
+  is correct and already keeps build-only tooling out of the shipped image.
 - **Storing audio as MP3 with embedded ID3 cover art.** Matches every other
   track in the library regardless of source; changing it would ripple into
   the audio service and the WebUI player for no benefit identified here.
 
 ---
 
-## 6. Suggested order
+## 6. Remaining / follow-up
 
-**Before go-live:**
+**Not done here, on purpose:**
 
-1. **1.2** — the `duration_ms` crash. One line, two call sites, no risk.
-2. **1.1** — `asyncio.to_thread` plus a concurrency limit, together. This is
-   the item most likely to actually cause a support ticket ("the import
-   failed for no reason") once real usage starts.
-3. **2.1(1)** — wire `MAX_FILESIZE_MB` into yt-dlp's `max_filesize`. Closes
-   the one gap that has no safety net anywhere today.
-4. **1.3, 3.2** — the wrong comment and the three German lines, together,
-   since both are comment-only and touch the same files as the fixes above.
+1. **2.3** — `/health` honesty. Bundle with
+   [Offene-Punkte 1.2](../Offene-Punkte.md) (fleet-wide) rather than solving
+   it once per service.
+2. **The 424 MB `ffmpeg` layer** (section 4). Real cost, real risk, needs its
+   own investigation and its own hardware test pass.
+3. **The `chown -R` → `COPY --chown` fix, fleet-wide.** Applied here only;
+   `backend-service`, `rfid-service` and `led-service` carry the same
+   pattern and would see the same effect at a size proportional to what each
+   copies.
 
-**Shortly after, in one branch:**
-
-5. **2.1(2)+(3), 2.2** — make the compose/`.env.example` variables either do
-   what they claim or disappear.
-6. **3.1** — the three ruff findings.
-7. **3.3** — tests, starting with the two listed in section 3.3 — they would
-   have caught 1.2 for free.
-
-**Its own branch, own testing:**
-
-8. **4.1** — the `chown -R` → `COPY --chown` fix, ideally done fleet-wide
-   (backend, rfid, led) in the same branch rather than once per service.
-
-**Deliberately not before go-live:**
-
-9. The 424 MB `ffmpeg` layer (section 4). Real cost, real risk, needs its own
-   investigation and its own hardware test pass — see the reasoning above.
-
-**Fleet-wide, not this service:**
-
-10. `/health` honesty (2.3) — bundle with [Offene-Punkte 1.2](../Offene-Punkte.md).
+**Worth knowing about, not a defect:** this service still has no domain
+check of its own (1.4/2.1) — reaching it directly, bypassing the backend,
+still bypasses the allow-list entirely. That was true before this branch and
+remains true after it; the fix would be a second enforcement point with its
+own configuration to keep in sync, which is the exact duplication 2.1 just
+removed on the backend side. Left as an accepted risk of the "no
+authentication on this port" design documented in `Architecture.md` section
+8, not reopened here.

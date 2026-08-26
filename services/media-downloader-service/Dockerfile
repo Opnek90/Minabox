@@ -5,12 +5,10 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY media-downloader-service/requirements.txt .
+# Every dependency ships a prebuilt py3-none-any or manylinux/cp313 aarch64
+# wheel (verified against the built image) - nothing here compiles, so this
+# stage needs no compiler.
 RUN pip install --no-cache-dir --prefix=/app/deps -r requirements.txt
 
 # ============================================================
@@ -23,22 +21,24 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1000 minabox \
+    && mkdir -p /mnt/audio/tracks/downloads \
+    && chown minabox:minabox /mnt/audio/tracks/downloads
 
-COPY --from=builder /app/deps /app/deps
+# --chown here, not a separate `chown -R` after the copy: a metadata-only
+# change on overlayfs forces a full copy-up of every file into a new layer,
+# which nearly doubled the cost of these two COPY layers.
+COPY --from=builder --chown=minabox:minabox /app/deps /app/deps
 ENV PATH=/app/deps/bin:$PATH
 ENV PYTHONPATH=/app/src:/app/deps/lib/python3.13/site-packages
 
-COPY media-downloader-service/src/ ./src/
+COPY --chown=minabox:minabox media-downloader-service/src/ ./src/
 
 ENV PYTHONUNBUFFERED=1
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:8007/health || exit 1
-
-RUN useradd -m -u 1000 minabox \
-    && mkdir -p /mnt/audio/tracks/downloads \
-    && chown -R minabox:minabox /app /mnt/audio
 
 USER minabox
 

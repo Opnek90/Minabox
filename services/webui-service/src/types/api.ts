@@ -579,6 +579,8 @@ export interface GeneralConfig {
   auto_update_check_enabled?: boolean;
   /** Largest audio upload accepted over the web UI, in MB. Applied without a restart. */
   max_upload_size_mb?: number;
+  /** Hostnames a media URL import may come from. Applied without a restart. */
+  media_import_allowed_domains?: string[];
 }
 
 export interface SleepTimerStatus {

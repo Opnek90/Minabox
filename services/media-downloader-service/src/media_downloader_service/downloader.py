@@ -32,8 +32,9 @@ class DownloadError(Exception):
 class MediaDownloader:
     """Reads a media URL via yt-dlp and embeds the metadata into the MP3."""
 
-    def __init__(self, audio_quality: str = "192") -> None:
+    def __init__(self, audio_quality: str = "192", max_filesize_mb: int = 200) -> None:
         self.audio_quality = audio_quality
+        self.max_filesize_mb = max_filesize_mb
 
     def download_video(self, url: str, output_dir: Path) -> dict[str, Any]:
         """Download audio from *url* as ``audio.mp3`` into *output_dir*.
@@ -60,6 +61,7 @@ class MediaDownloader:
             "quiet": True,
             "no_warnings": True,
             "extractor_args": _YT_EXTRACTOR_ARGS,
+            "max_filesize": self.max_filesize_mb * 1024 * 1024,
         }
 
         try:
@@ -77,9 +79,10 @@ class MediaDownloader:
 
         thumbnail_embedded = self._embed_thumbnail_fallback(mp3_path, output_dir)
 
-        # Best-quality thumbnail URL from yt-dlp: prefer the first entry in
-        # info["thumbnails"] (sorted best-first by yt-dlp) or fall back to
-        # the top-level "thumbnail" field.
+        # Best-quality thumbnail URL from yt-dlp: info["thumbnails"] is sorted
+        # ascending by preference (worst first), so the best one is the last
+        # entry. Fall back to the top-level "thumbnail" field if the list is
+        # absent or empty.
         thumbnail_url: str = ""
         thumbnails = info.get("thumbnails")
         if thumbnails and isinstance(thumbnails, list):
@@ -92,13 +95,20 @@ class MediaDownloader:
             "title": info.get("title", "Unknown Title"),
             "artist": info.get("uploader") or info.get("channel") or "Unknown Artist",
             "album": "Downloads",
-            "duration_ms": int(info.get("duration", 0) * 1000),
+            # info["duration"] is present but None for livestreams and some
+            # extractors, so `.get(key, default)` alone would still crash.
+            "duration_ms": int((info.get("duration") or 0) * 1000),
             "video_id": video_id,
             "thumbnail": thumbnail_url,
             "thumbnail_embedded": thumbnail_embedded,
         }
 
-        logger.info("download_complete", video_id=video_id, title=result["title"], file_path=result["file_path"])
+        logger.info(
+            "download_complete",
+            video_id=video_id,
+            title=result["title"],
+            file_path=result["file_path"],
+        )
         return result
 
     def get_video_info(self, url: str) -> dict[str, Any]:
@@ -120,7 +130,7 @@ class MediaDownloader:
         return {
             "title": info.get("title", "Unknown Title"),
             "artist": info.get("uploader") or info.get("channel") or "Unknown Artist",
-            "duration_ms": int(info.get("duration", 0) * 1000),
+            "duration_ms": int((info.get("duration") or 0) * 1000),
             "thumbnail": info.get("thumbnail", ""),
             "video_id": info.get("id", "unknown"),
         }

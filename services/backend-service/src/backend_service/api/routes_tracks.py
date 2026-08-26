@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
+from backend_service.core.media_settings import read_allowed_domains
 from backend_service.core.uploads import (
     copy_upload_limited,
     max_audio_upload_bytes,
@@ -36,19 +37,6 @@ COVERS_DIR = STATIC_DIR / "covers"
 AUDIO_STORAGE_PATH = Path(os.environ.get("AUDIO_STORAGE_PATH", "/mnt/audio/tracks"))
 
 MEDIA_DOWNLOADER_URL = os.environ.get("MEDIA_DOWNLOADER_URL", "http://media-downloader:8007")
-
-_ALLOWED_DOMAINS: frozenset[str] = frozenset({
-    "youtube.com",
-    "www.youtube.com",
-    "youtu.be",
-    "music.youtube.com",
-    "m.youtube.com",
-    "soundcloud.com",
-    "www.soundcloud.com",
-    "bandcamp.com",
-    "vimeo.com",
-    "www.vimeo.com",
-})
 
 _PLAYLIST_PARAMS = {"list", "start_radio", "index", "t"}
 
@@ -71,14 +59,19 @@ router = APIRouter()
 
 
 def _check_allowed_domain(url: str) -> None:
-    """Raise HTTP 400 if the URL's hostname is not on the allow-list."""
+    """Raise HTTP 400 if the URL's hostname is not on the allow-list.
+
+    The list is user-configurable (Admin UI -> General -> media import) and
+    read fresh on every call - see core/media_settings.py.
+    """
     try:
         hostname = urlparse(url).hostname or ""
     except Exception:  # noqa: BLE001
         hostname = ""
-    if hostname not in _ALLOWED_DOMAINS:
+    allowed_domains = read_allowed_domains()
+    if hostname not in allowed_domains:
         logger.warning("api_domain_not_allowed", hostname=hostname, url=url)
-        raise ApiError(status_code=400, code="domain_not_allowed", detail=f"Domain '{hostname}' is not supported. Allowed: {', '.join(sorted(_ALLOWED_DOMAINS))}")
+        raise ApiError(status_code=400, code="domain_not_allowed", detail=f"Domain '{hostname}' is not supported. Allowed: {', '.join(sorted(allowed_domains))}")
 
 
 def _strip_playlist_params(url: str) -> str:

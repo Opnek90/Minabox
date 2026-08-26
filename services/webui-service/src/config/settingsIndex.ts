@@ -162,6 +162,11 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         searchKeys: ['general.upload_limit', 'general.upload_limit_mb'],
       },
       {
+        key: 'media_import_domains',
+        titleKey: 'general.media_import_domains_title',
+        searchKeys: ['general.media_import_domains_title', 'general.media_import_domains_label'],
+      },
+      {
         key: 'usb',
         titleKey: 'system.usb',
         searchKeys: ['system.usb_devices', 'system.usb_import'],
