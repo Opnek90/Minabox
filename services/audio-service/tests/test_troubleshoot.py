@@ -44,17 +44,20 @@ class _FakeService:
         volume: int = 40,
         min_volume: int = 10,
         default_volume: int = 40,
+        enabled: list[str] | None = None,
     ) -> None:
         self._audio_config = AudioConfig(
             output_device_name=configured,
             min_volume=min_volume,
             max_volume=100,
             default_volume=default_volume,
+            enabled_output_devices=enabled or [],
         )
         self._sinks = ["wm8960"] if sinks is None else sinks
         self._muted = muted
         self._volume = volume
         self.switched_to: str | None = None
+        self.switch_allowed_disabled = False
         self.tone_played = 0
 
     def _get_audio_config(self):
@@ -65,8 +68,14 @@ class _FakeService:
     ):
         return [{"id": s, "name": s} for s in self._sinks]
 
-    async def switch_output_device(self, sink_name=None, direction=None):
+    async def switch_output_device(
+        self, sink_name=None, direction=None, *, allow_disabled: bool = False
+    ):
+        enabled = self._audio_config.enabled_output_devices
+        if enabled and not allow_disabled and sink_name not in enabled:
+            raise ValueError(f"Device not available or not enabled: {sink_name!r}")
         self.switched_to = sink_name
+        self.switch_allowed_disabled = allow_disabled
         self._audio_config.output_device_name = sink_name
 
     async def set_muted(self, muted: bool) -> None:
@@ -243,3 +252,54 @@ async def test_running_it_twice_changes_nothing_the_second_time(monkeypatch):
 
     second = await ts.AudioTroubleshooter(service).run()
     assert second["fixed"] == [], "the second run undid or redid the first one's work"
+
+
+@pytest.mark.asyncio
+async def test_the_fallback_prefers_an_output_the_user_allowed(monkeypatch):
+    """enabled_output_devices is a deliberate choice, not an obstacle."""
+    service = _FakeService(
+        configured="wm8960",
+        sinks=["hdmi", "headphones"],
+        enabled=["wm8960", "headphones"],
+    )
+    _FakeMixer().install(monkeypatch)
+
+    await ts.AudioTroubleshooter(service).run()
+
+    assert service.switched_to == "headphones", "ignored the allowed output list"
+    assert service.switch_allowed_disabled is False
+
+
+@pytest.mark.asyncio
+async def test_it_reaches_past_the_list_only_when_nothing_allowed_is_left(monkeypatch):
+    """At that point the alternative is a box that stays silent, and the user
+    pressed a button asking for that to stop."""
+    service = _FakeService(
+        configured="wm8960", sinks=["hdmi"], enabled=["wm8960", "headphones"]
+    )
+    _FakeMixer().install(monkeypatch)
+
+    result = await ts.AudioTroubleshooter(service).run()
+
+    assert service.switched_to == "hdmi"
+    assert service.switch_allowed_disabled is True
+    assert "no allowed output" in _steps(result)["sink_present"]["detail"]
+
+
+@pytest.mark.asyncio
+async def test_a_failing_step_does_not_cost_the_tone(monkeypatch):
+    """The tone at the end is what the user is waiting for, and the steps
+    after a failed one may well be the ones that fix it."""
+    service = _FakeService(configured="wm8960", sinks=["hdmi"], muted=True)
+
+    async def _boom(sink_name=None, direction=None, *, allow_disabled=False):
+        raise RuntimeError("re-init failed")
+
+    service.switch_output_device = _boom
+    _FakeMixer().install(monkeypatch)
+
+    result = await ts.AudioTroubleshooter(service).run()
+
+    assert _steps(result)["sink_present"]["ok"] is False
+    assert service._muted is False, "the chain stopped at the first failure"
+    assert service.tone_played == 1

@@ -281,6 +281,17 @@ The tone comes last because of step 4: a mute WirePlumber remembers for the
 media role only appears once a stream has opened the output, and can only be
 corrected there. The tone is that stream.
 
+A step that fails does not end the run — the tone is what the user is waiting
+for, and the steps after a failed one may well be the ones that fix it.
+
+When the configured sink is gone, the fallback prefers one the user actually
+allowed in `enabled_output_devices`. It reaches past that list only when none
+of the allowed outputs is present any more, and says so in the step's `detail`:
+at that point the alternative is a box that stays silent, and the user pressed
+a button asking for exactly that to stop. `switch_output_device()` takes
+`allow_disabled` for this one caller; every other one is a deliberate user
+choice and stays inside the list.
+
 Steps 1 (is there a sound card at all?) and 7 (an ALSA mixer at zero) are not
 here — `/proc/asound/cards` and `amixer` are not reachable from this container.
 They are the host-helper's `POST /audio/repair`, and the backend stitches both

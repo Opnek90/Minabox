@@ -156,7 +156,14 @@ class AudioTroubleshooter:
     # ── The rungs ────────────────────────────────────────────────────────────
 
     async def _step_sink_present(self, steps: list[Step]) -> str | None:
-        """2. Is the configured sink there? Otherwise fall back to the first one."""
+        """2. Is the configured sink there? Otherwise fall back to one that is.
+
+        The fallback prefers a sink the user actually allowed
+        (``enabled_output_devices``). Only when none of those is present any
+        more does it reach past the list - at that point the alternative is a
+        box that stays silent, and the user pressed a button asking for that
+        to stop.
+        """
         config = self._service._get_audio_config()
         configured = (getattr(config, "output_device_name", None) or "").strip()
         try:
@@ -165,10 +172,11 @@ class AudioTroubleshooter:
             steps.append(Step("sink_present", ok=False, detail=f"lookup failed: {e}"))
             return configured or None
 
-        available = [d.get("id") for d in devices if d.get("id")]
+        available = [d["id"] for d in devices if d.get("id")]
         if not available:
             # Nothing to fall back to. This is the sound card being gone, which
-            # only a reboot fixes - step 1 says so, and it is not ours.
+            # only a restart of the box fixes - step 1 says so, and it is not
+            # ours to repair.
             steps.append(Step("sink_present", ok=False, detail="no sink at all"))
             return None
 
@@ -182,16 +190,35 @@ class AudioTroubleshooter:
             steps.append(Step("sink_present", ok=True, detail="host default"))
             return available[0]
 
-        fallback = available[0]
-        await self._service.switch_output_device(sink_name=fallback)
-        steps.append(
-            Step(
-                "sink_present",
-                ok=True,
-                fixed=True,
-                detail=f"{configured} is gone, switched to {fallback}",
+        enabled = getattr(config, "enabled_output_devices", None) or []
+        allowed = [s for s in available if s in enabled] if enabled else available
+        beyond_the_list = not allowed
+        fallback = (allowed or available)[0]
+
+        try:
+            await self._service.switch_output_device(
+                sink_name=fallback, allow_disabled=beyond_the_list
             )
-        )
+        except Exception as e:
+            # One rung failing must not cost the run. The tone at the end is
+            # what the user is waiting for, and the remaining steps may well
+            # be the ones that fix it.
+            logger.warning(
+                "troubleshoot_sink_switch_failed", sink=fallback, error=str(e)
+            )
+            steps.append(
+                Step(
+                    "sink_present",
+                    ok=False,
+                    detail=f"switch to {fallback} failed: {e}",
+                )
+            )
+            return None
+
+        detail = f"{configured} is gone, switched to {fallback}"
+        if beyond_the_list:
+            detail += " (no allowed output was left)"
+        steps.append(Step("sink_present", ok=True, fixed=True, detail=detail))
         return fallback
 
     async def _step_sink_level(self, steps: list[Step], sink: str | None) -> None:

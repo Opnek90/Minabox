@@ -882,11 +882,25 @@ class AudioService:
         self,
         sink_name: str | None = None,
         direction: str | None = None,
+        *,
+        allow_disabled: bool = False,
     ) -> AudioStatus:
-        """Switch output device, re-init VLC, optionally resume. Returns new status."""
+        """Switch output device, re-init VLC, optionally resume. Returns new status.
+
+        Args:
+            allow_disabled: Accept a sink that exists but is not in
+                enabled_output_devices. Only the sound troubleshooter sets
+                this, and only when *none* of the allowed outputs is present
+                any more: the alternative there is a box that stays silent,
+                and the user pressed a button asking for exactly that to stop.
+                Every other caller is a deliberate user choice and stays
+                inside the allowed list.
+        """
         config = self._get_audio_config()
         enabled_list = getattr(config, "enabled_output_devices", None) or []
-        devices = await self.get_audio_devices(enabled_only=bool(enabled_list))
+        devices = await self.get_audio_devices(
+            enabled_only=bool(enabled_list) and not allow_disabled
+        )
         if not devices:
             raise ValueError("No audio devices available")
 
