@@ -23,6 +23,19 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.4 - 2026-08-26
+
+#### Neu
+- Ein Dienst, der selbst meldet, dass er seine Aufgabe nicht erfuellen kann,
+  wird in der Diensteliste jetzt als eingeschraenkt angezeigt. Vorher stand er
+  auf Gruen, solange sein Container lief.
+- Vermittelt den neuen Knopf "Ton-Problem beheben" zwischen Oberflaeche,
+  Ton-Dienst und Box.
+
+#### Behoben
+- Der Neustart des Ton-Dienstes verlangt jetzt das Administrator-Passwort,
+  falls eines gesetzt ist.
+
 ### 0.2.3 - 2026-08-26
 
 #### Verbessert
@@ -175,6 +188,27 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.1.16 - 2026-08-26
+
+#### Neu
+- Unter *Wartung* gibt es den Knopf **Ton-Problem beheben**. Die Box prueft der
+  Reihe nach alles, was den Ton stumm schalten kann, behebt was sie selbst
+  beheben kann, spielt einen Testton und fragt in grossen Worten, ob du etwas
+  hoerst. Sagst du Nein, geht es weiter ueber einen Neustart des Ton-Dienstes
+  bis zu Kabel, Strom und zuletzt einem Neustart der Box.
+- Dienste, die selbst melden, dass sie ihre Aufgabe nicht erfuellen koennen,
+  stehen in der Diensteliste jetzt auf Bernstein statt auf Gruen.
+
+#### Verbessert
+- Das Feld fuer LED-Wiederholungen erklaert jetzt, dass es ganze Zyklen zaehlt
+  und 0 endlos bedeutet.
+
+#### Behoben
+- Beim Loeschen eines Mediums blieb die zugeordnete Karte halb verknuepft: sie
+  zeigte weiter auf einen Titel, den es nicht mehr gab.
+- Einige Knoepfe verloren Hoehe, Innenabstand und Schriftgroesse, sobald sie in
+  der Breite angepasst wurden.
+
 ### 0.1.15 - 2026-08-26
 
 #### Verbessert
@@ -314,6 +348,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## media-downloader
 
+### 0.1.3 - 2026-08-26
+
+#### Verbessert
+- Die Download-Schnittstelle ist nur noch von der Box aus erreichbar, nicht
+  mehr aus dem Netzwerk. Sie verlangte kein Passwort.
+
 ### 0.1.2 - 2026-08-23
 
 ### 0.1.1 - 2026-08-21
@@ -330,6 +370,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.2.1 - 2026-08-26
+
+#### Neu
+- Prueft fuer den Knopf "Ton-Problem beheben" die Soundkarte und die
+  Lautstaerkeregler des Systems und stellt einen Regler gerade, der auf null
+  steht.
+- Kann den Ton-Dienst allein neu starten, ohne die Oberflaeche mitzunehmen.
 
 ### 0.2.0 - 2026-08-24
 
@@ -402,6 +450,23 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## audio
 
+### 0.2.2 - 2026-08-26
+
+#### Behoben
+- Die Box blieb nach einem Neustart manchmal stumm, obwohl niemand sie
+  stummgeschaltet hatte. Das System merkte sich eine einmal gesetzte
+  Stummschaltung dauerhaft und legte sie auf jede neue Wiedergabe; weder ein
+  Neustart der Box noch der der Dienste raeumte das weg.
+- Der Testton lief ueber einen anderen Weg als die Musik und war deshalb auch
+  dann zu hoeren, wenn die Musik stumm blieb. Er nimmt jetzt denselben Weg und
+  kann den Fehler damit ueberhaupt erst zeigen.
+
+#### Neu
+- Der Dienst meldet sich als eingeschraenkt, wenn der eingestellte Lautsprecher
+  gar nicht mehr vorhanden ist. Vorher gab er sich als gesund aus, waehrend gar
+  kein Ton moeglich war.
+- Die Pruefkette hinter dem neuen Knopf "Ton-Problem beheben" in der WebUI.
+
 ### 0.2.1 - 2026-08-26
 
 #### Behoben
@@ -433,6 +498,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## rfid
 
+### 0.2.1 - 2026-08-26
+
+#### Verbessert
+- Der Statusanschluss ist nur noch von der Box aus erreichbar, nicht mehr aus
+  dem Netzwerk.
+
 ### 0.2.0 - 2026-08-23
 
 #### Verbessert
@@ -463,6 +534,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## button
+
+### 0.2.1 - 2026-08-26
+
+#### Verbessert
+- Der Dienst braucht dauerhaft rund fuenf Prozent weniger Rechenzeit. Seine
+  regelmaessige Zustandspruefung kostete mehr als der Dienst selbst.
+- Der Statusanschluss ist nur noch von der Box aus erreichbar, nicht mehr aus
+  dem Netzwerk.
 
 ### 0.2.0 - 2026-08-25
 
@@ -496,6 +575,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## led
 
+### 0.2.1 - 2026-08-26
+
+#### Verbessert
+- Der Dienst braucht dauerhaft rund fuenf Prozent weniger Rechenzeit. Seine
+  regelmaessige Zustandspruefung kostete mehr als der Dienst selbst.
+
 ### 0.2.0 - 2026-08-25
 
 #### Behoben
@@ -528,6 +613,17 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## display
+
+### 0.2.1 - 2026-08-26
+
+#### Neu
+- Beim Pausieren schlaeft das Wesen jetzt ein, mit Zs, die ueber ihm
+  aufsteigen. Vorher stand da nur das Wort "Pause" - das hilft nur, wer schon
+  lesen kann.
+
+#### Verbessert
+- Der Statusanschluss ist nur noch von der Box aus erreichbar, nicht mehr aus
+  dem Netzwerk.
 
 ### 0.2.0 - 2026-08-26
 

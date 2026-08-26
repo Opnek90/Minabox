@@ -3,8 +3,34 @@
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-08-26",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dienst meldet sich als eingeschraenkt, wenn der eingestellte Lautsprecher gar nicht mehr vorhanden ist. Vorher gab er sich als gesund aus, waehrend gar kein Ton moeglich war.",
+                "Die Pruefkette hinter dem neuen Knopf \"Ton-Problem beheben\" in der WebUI."
+              ],
+              "en": [
+                "The service reports itself as degraded when the configured speaker is no longer there. It used to report itself healthy while no sound was possible at all.",
+                "The check chain behind the new \"Fix sound problem\" button in the web UI."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Die Box blieb nach einem Neustart manchmal stumm, obwohl niemand sie stummgeschaltet hatte. Das System merkte sich eine einmal gesetzte Stummschaltung dauerhaft und legte sie auf jede neue Wiedergabe; weder ein Neustart der Box noch der der Dienste raeumte das weg.",
+                "Der Testton lief ueber einen anderen Weg als die Musik und war deshalb auch dann zu hoeren, wenn die Musik stumm blieb. Er nimmt jetzt denselben Weg und kann den Fehler damit ueberhaupt erst zeigen."
+              ],
+              "en": [
+                "The box sometimes stayed silent after a restart although nobody had muted it. The system remembered a mute once it had been set and pushed it onto every new playback; neither restarting the box nor restarting the services cleared it.",
+                "The test tone travelled a different path than the music, so it was audible even while the music stayed muted. It now takes the same path, which is what lets it show the fault at all."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-26",
@@ -73,8 +99,32 @@
       ]
     },
     "backend": {
-      "latest": "0.2.3",
+      "latest": "0.2.4",
       "releases": [
+        {
+          "version": "0.2.4",
+          "date": "2026-08-26",
+          "notes": {
+            "added": {
+              "de": [
+                "Ein Dienst, der selbst meldet, dass er seine Aufgabe nicht erfuellen kann, wird in der Diensteliste jetzt als eingeschraenkt angezeigt. Vorher stand er auf Gruen, solange sein Container lief.",
+                "Vermittelt den neuen Knopf \"Ton-Problem beheben\" zwischen Oberflaeche, Ton-Dienst und Box."
+              ],
+              "en": [
+                "A service that reports it cannot do its job is now shown as degraded in the service list. It used to stay green as long as its container was running.",
+                "Connects the new \"Fix sound problem\" button to the sound service and the box."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Der Neustart des Ton-Dienstes verlangt jetzt das Administrator-Passwort, falls eines gesetzt ist."
+              ],
+              "en": [
+                "Restarting the sound service now asks for the administrator password if one is set."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.3",
           "date": "2026-08-26",
@@ -365,8 +415,24 @@
       ]
     },
     "button": {
-      "latest": "0.2.0",
+      "latest": "0.2.1",
       "releases": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-26",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst braucht dauerhaft rund fuenf Prozent weniger Rechenzeit. Seine regelmaessige Zustandspruefung kostete mehr als der Dienst selbst.",
+                "Der Statusanschluss ist nur noch von der Box aus erreichbar, nicht mehr aus dem Netzwerk."
+              ],
+              "en": [
+                "The service permanently uses about five percent less processing time. Its regular health check cost more than the service itself.",
+                "The status port is reachable from the box only, no longer from the network."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "date": "2026-08-25",
@@ -420,8 +486,30 @@
       ]
     },
     "display": {
-      "latest": "0.2.0",
+      "latest": "0.2.1",
       "releases": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-26",
+          "notes": {
+            "added": {
+              "de": [
+                "Beim Pausieren schlaeft das Wesen jetzt ein, mit Zs, die ueber ihm aufsteigen. Vorher stand da nur das Wort \"Pause\" - das hilft nur, wer schon lesen kann."
+              ],
+              "en": [
+                "On pause the creature now falls asleep, with Zs rising above it. It used to just say \"Pause\" - which only helps whoever can already read."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Der Statusanschluss ist nur noch von der Box aus erreichbar, nicht mehr aus dem Netzwerk."
+              ],
+              "en": [
+                "The status port is reachable from the box only, no longer from the network."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "date": "2026-08-26",
@@ -482,8 +570,24 @@
       ]
     },
     "host-helper": {
-      "latest": "0.2.0",
+      "latest": "0.2.1",
       "releases": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-26",
+          "notes": {
+            "added": {
+              "de": [
+                "Prueft fuer den Knopf \"Ton-Problem beheben\" die Soundkarte und die Lautstaerkeregler des Systems und stellt einen Regler gerade, der auf null steht.",
+                "Kann den Ton-Dienst allein neu starten, ohne die Oberflaeche mitzunehmen."
+              ],
+              "en": [
+                "Checks the sound card and the system volume controls for the \"Fix sound problem\" button, and raises a control that sits at zero.",
+                "Can restart the sound service on its own, without taking the web UI down with it."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "date": "2026-08-24",
@@ -610,8 +714,22 @@
       ]
     },
     "led": {
-      "latest": "0.2.0",
+      "latest": "0.2.1",
       "releases": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-26",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst braucht dauerhaft rund fuenf Prozent weniger Rechenzeit. Seine regelmaessige Zustandspruefung kostete mehr als der Dienst selbst."
+              ],
+              "en": [
+                "The service permanently uses about five percent less processing time. Its regular health check cost more than the service itself."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "date": "2026-08-25",
@@ -670,8 +788,22 @@
       ]
     },
     "media-downloader": {
-      "latest": "0.1.2",
+      "latest": "0.1.3",
       "releases": [
+        {
+          "version": "0.1.3",
+          "date": "2026-08-26",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Download-Schnittstelle ist nur noch von der Box aus erreichbar, nicht mehr aus dem Netzwerk. Sie verlangte kein Passwort."
+              ],
+              "en": [
+                "The download interface is reachable from the box only, no longer from the network. It asked for no password."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.2",
           "date": "2026-08-23",
@@ -708,8 +840,22 @@
       ]
     },
     "rfid": {
-      "latest": "0.2.0",
+      "latest": "0.2.1",
       "releases": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-26",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Statusanschluss ist nur noch von der Box aus erreichbar, nicht mehr aus dem Netzwerk."
+              ],
+              "en": [
+                "The status port is reachable from the box only, no longer from the network."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "date": "2026-08-23",
@@ -753,8 +899,42 @@
       ]
     },
     "webui": {
-      "latest": "0.1.15",
+      "latest": "0.1.16",
       "releases": [
+        {
+          "version": "0.1.16",
+          "date": "2026-08-26",
+          "notes": {
+            "added": {
+              "de": [
+                "Unter *Wartung* gibt es den Knopf **Ton-Problem beheben**. Die Box prueft der Reihe nach alles, was den Ton stumm schalten kann, behebt was sie selbst beheben kann, spielt einen Testton und fragt in grossen Worten, ob du etwas hoerst. Sagst du Nein, geht es weiter ueber einen Neustart des Ton-Dienstes bis zu Kabel, Strom und zuletzt einem Neustart der Box.",
+                "Dienste, die selbst melden, dass sie ihre Aufgabe nicht erfuellen koennen, stehen in der Diensteliste jetzt auf Bernstein statt auf Gruen."
+              ],
+              "en": [
+                "*Maintenance* has a **Fix sound problem** button. The box checks everything that can silence the sound, one thing after another, repairs what it can repair itself, plays a test tone and asks in plain words whether you hear anything. Say no and it goes on: restart the sound service, then the cable, the power, and last a restart of the box.",
+                "Services that report they cannot do their job now show amber in the service list instead of green."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Das Feld fuer LED-Wiederholungen erklaert jetzt, dass es ganze Zyklen zaehlt und 0 endlos bedeutet."
+              ],
+              "en": [
+                "The LED repeats field now explains that it counts whole cycles and that 0 means forever."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Beim Loeschen eines Mediums blieb die zugeordnete Karte halb verknuepft: sie zeigte weiter auf einen Titel, den es nicht mehr gab.",
+                "Einige Knoepfe verloren Hoehe, Innenabstand und Schriftgroesse, sobald sie in der Breite angepasst wurden."
+              ],
+              "en": [
+                "Deleting a medium left its assigned card half-linked: it went on pointing at a title that no longer existed.",
+                "Some buttons lost their height, padding and font size as soon as their width was adjusted."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.15",
           "date": "2026-08-26",
