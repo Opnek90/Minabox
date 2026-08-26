@@ -899,8 +899,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.16",
+      "latest": "0.1.17",
       "releases": [
+        {
+          "version": "0.1.17",
+          "date": "2026-08-26",
+          "notes": {
+            "fixed": {
+              "de": [
+                "\"Als Naechstes\" zeigte bei einer laufenden Playlist die falsche Reihenfolge: bereits gespielte Titel standen vor den kommenden."
+              ],
+              "en": [
+                "\"Up next\" showed the wrong order during a running playlist: already-played tracks were listed ahead of the upcoming ones."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.16",
           "date": "2026-08-26",

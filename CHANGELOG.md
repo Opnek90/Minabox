@@ -188,6 +188,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.1.17 - 2026-08-26
+
+#### Behoben
+- "Als Naechstes" zeigte bei einer laufenden Playlist die falsche Reihenfolge:
+  bereits gespielte Titel standen vor den kommenden.
+
 ### 0.1.16 - 2026-08-26
 
 #### Neu

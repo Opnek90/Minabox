@@ -57,6 +57,14 @@ import { useLayout } from '@/hooks/useLayout';
 
 const SLEEP_PRESETS = [15, 30, 45, 60];
 
+// `queue` is the full session in list order (past tracks included), so
+// filtering out only `is_current` left already-played tracks ahead of the
+// actually upcoming ones. "Up next" means everything after the current index.
+const upNextQueue = (queue: QueueItem[]): QueueItem[] => {
+  const currentIndex = queue.find((q) => q.is_current)?.index ?? -1;
+  return queue.filter((q) => q.index > currentIndex);
+};
+
 const UpNextCollapse: React.FC<{ queue: QueueItem[] }> = ({ queue }) => {
   const { t } = useTranslation('player');
   const [expanded, setExpanded] = useState(false);
@@ -549,9 +557,9 @@ export const PlayerPage: React.FC = () => {
 
           {/* Up next (collapsible) — Output device, Repeat, Shuffle live in the
               overflow menu above (see docs/services/webui/Redesign.md B2) */}
-          {session && session.queue.filter((q: QueueItem) => !q.is_current).length > 0 && (
+          {session && upNextQueue(session.queue).length > 0 && (
             <Box sx={{ pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
-              <UpNextCollapse queue={session.queue.filter((q: QueueItem) => !q.is_current).slice(0, 8)} />
+              <UpNextCollapse queue={upNextQueue(session.queue).slice(0, 8)} />
             </Box>
           )}
         </CardContent>
