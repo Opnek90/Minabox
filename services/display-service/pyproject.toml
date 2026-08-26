@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "display-service"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Minabox display service for I2C OLED (SSD1306) status display."
 requires-python = ">=3.13"
 dependencies = [
@@ -21,6 +21,12 @@ dependencies = [
 
 [project.scripts]
 display-service = "display_service.main:main"
+
+# Die Version steht in der Datei VERSION - eine Quelle je Dienst
+# (docs/Versionierung.md). Frueher stand sie hier ein zweites Mal
+# und war repo-weit veraltet.
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
 
 [tool.ruff]
 line-length = 88
