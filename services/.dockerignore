@@ -31,6 +31,22 @@ data/
 *.db-wal
 *.log
 
+# Laufzeit-Configs der Box - gehoeren nicht ins Image.
+#
+# Die CI baut aus einem Git-Checkout, wo diese vier Dateien gitignored und
+# damit gar nicht vorhanden sind; das veroeffentlichte Image enthaelt sie
+# also nie. ./scripts/build-local.sh baut dagegen aus dem Arbeitsbaum und
+# nahm sie bisher mit - ein lokal gebautes Image verhielt sich damit anders
+# als das ausgelieferte (es startete ohne Mount, das echte brach mit
+# "Configuration file not found" ab). Die *.example-Vorlagen bleiben drin.
+#
+# Nicht ausgeschlossen: rfid.json und backend.json. Die beiden sind im Git
+# eingecheckt und stecken deshalb auch im veroeffentlichten Image.
+audio-service/config/audio.json
+button-service/config/buttons.json
+display-service/config/display.json
+led-service/config/leds.json
+
 # Lokale Umgebungen und Bauartefakte
 .venv/
 venv/
