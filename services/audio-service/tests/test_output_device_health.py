@@ -13,6 +13,7 @@ knew about were true; the one that mattered was never asked.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 
@@ -89,5 +90,27 @@ async def test_a_failed_lookup_is_not_a_missing_device():
     service.get_audio_devices = _boom
 
     available, name = await service.check_output_device()
+    assert available is True
+    assert name == "alsa_output.wm8960"
+
+
+@pytest.mark.asyncio
+async def test_a_slow_sink_lookup_does_not_hold_up_health():
+    """The container health check gives /health 5 s, and the sink detector
+    gives pactl 10 s. Without a cap of its own, a hung pactl would make Docker
+    restart a service whose only problem was a slow sound server."""
+    service = _service("alsa_output.wm8960", [])
+
+    async def _hangs(enabled_only: bool = False, *, force_refresh: bool = False):
+        await asyncio.sleep(30)
+        return []
+
+    service.get_audio_devices = _hangs
+
+    started = asyncio.get_running_loop().time()
+    available, name = await service.check_output_device()
+    elapsed = asyncio.get_running_loop().time() - started
+
+    assert elapsed < 5.0, "check_output_device() outlasted the container health check"
     assert available is True
     assert name == "alsa_output.wm8960"

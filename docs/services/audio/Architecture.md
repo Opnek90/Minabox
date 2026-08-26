@@ -253,6 +253,12 @@ nothing can be missing). A sink lookup that *fails* is not reported as a
 missing device: not being able to ask is not the same as the answer being no,
 and every hiccup in the detector would otherwise show up as a broken box.
 
+The lookup is capped at 2 s, well under the container health check's own 5 s.
+The sink detector shells out to `pactl` and gives it 10 s; without the cap a
+hung `pactl` on a cold cache would make `/health` miss the health check three
+times over, and Docker would restart a service whose only problem was a slow
+sound server.
+
 `POST /api/v1/switch-device` takes `{"sink_name": "..."}` or
 `{"direction": "next"}`; `alsa_device` is a deprecated alias for `sink_name`.
 An unknown or non-enabled sink is answered with HTTP 400.

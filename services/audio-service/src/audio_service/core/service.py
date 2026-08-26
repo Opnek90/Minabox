@@ -35,6 +35,16 @@ TEST_TONE_PATH = os.getenv("AUDIO_TEST_TONE_PATH", "/app/assets/test-tone.wav")
 TEST_TONE_TIMEOUT = 15.0
 TROUBLESHOOT_TONE_TIMEOUT = 15.0
 
+# How long /health is willing to wait for the sink list.
+#
+# Has to stay well under the container health check's own timeout, which is 5 s
+# (docker-compose.yml). The detector shells out to pactl and gives it 10 s, so
+# without this cap a hung pactl on a cold cache would make /health miss the
+# health check, three times over, and Docker would restart a service whose only
+# problem was a slow sound server. A check that cannot answer reports
+# "available" anyway, so timing out costs nothing but the extra information.
+_OUTPUT_DEVICE_CHECK_TIMEOUT = 2.0
+
 logger = structlog.get_logger(__name__)
 
 
@@ -758,7 +768,9 @@ class AudioService:
             return True, None
 
         try:
-            devices = await self.get_audio_devices()
+            devices = await asyncio.wait_for(
+                self.get_audio_devices(), _OUTPUT_DEVICE_CHECK_TIMEOUT
+            )
         except Exception as exc:
             # Not being able to ask is not the same as the device being gone.
             # Reporting "degraded" for a failed lookup would turn every hiccup
