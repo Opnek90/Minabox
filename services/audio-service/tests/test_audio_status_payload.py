@@ -34,10 +34,10 @@ from audio_service.infrastructure.audio_backend import (  # noqa: E402
 
 class _FakeBackend:
     def __init__(self, status: AudioStatus) -> None:
-        self._status = status
+        self.status = status
 
     async def get_status(self) -> AudioStatus:
-        return self._status
+        return self.status
 
 
 class _FakeMQTT:
@@ -54,7 +54,9 @@ class _FakeConfig:
         return f"minabox/{service}/{leaf}"
 
 
-def _service(volume: int = 40, **audio_overrides) -> tuple[AudioService, _FakeMQTT]:
+def _service(
+    volume: int = 40, duration_ms: int | None = 60000, **audio_overrides
+) -> tuple[AudioService, _FakeMQTT]:
     """An AudioService with only the parts _publish_status actually touches."""
     audio = AudioConfig(
         **{"min_volume": 0, "max_volume": 40, "default_volume": 20, **audio_overrides}
@@ -65,7 +67,7 @@ def _service(volume: int = 40, **audio_overrides) -> tuple[AudioService, _FakeMQ
         source_type="file",
         source_uri="/music/a.mp3",
         position_ms=1000,
-        duration_ms=60000,
+        duration_ms=duration_ms,
         volume=volume,
     )
     mqtt = _FakeMQTT()
@@ -132,3 +134,35 @@ async def test_a_new_maximum_reaches_subscribers_immediately():
 
     assert len(mqtt.published) == 2
     assert mqtt.published[-1][1]["max_volume"] == 80
+
+
+@pytest.mark.asyncio
+async def test_a_length_learned_late_still_reaches_subscribers():
+    """VLC often does not know the length when play() returns, so the first
+    status carries null. Without duration_ms in the fingerprint the corrected
+    value would never be published and nothing could show a remaining time."""
+    service, mqtt = _service(duration_ms=None)
+    await service._publish_status()
+    assert mqtt.published[-1][1]["duration_ms"] is None
+
+    service._vlc_backend.status = service._vlc_backend.status.model_copy(
+        update={"duration_ms": 214000}
+    )
+    await service._publish_status(force=False)
+
+    assert len(mqtt.published) == 2
+    assert mqtt.published[-1][1]["duration_ms"] == 214000
+
+
+@pytest.mark.asyncio
+async def test_the_position_alone_does_not_republish():
+    """The whole point of the fingerprint: a playing track stays quiet."""
+    service, mqtt = _service()
+    await service._publish_status()
+
+    service._vlc_backend.status = service._vlc_backend.status.model_copy(
+        update={"position_ms": 45000}
+    )
+    await service._publish_status(force=False)
+
+    assert len(mqtt.published) == 1

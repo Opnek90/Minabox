@@ -49,8 +49,11 @@ def _configured(service: DisplayService) -> DisplayService:
 
 
 def _status(service: DisplayService, volume: int, **fields) -> None:
+    # Stopped on purpose: the screen underneath the overlay is then the widget
+    # grid, so "the panel came back" is a show_areas and stays readable as an
+    # assertion. What the playing screen does is covered in its own file.
     payload = {
-        "state": "playing",
+        "state": "stopped",
         "volume": volume,
         "min_volume": 0,
         "max_volume": 40,

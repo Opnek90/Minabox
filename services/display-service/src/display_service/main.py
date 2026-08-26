@@ -34,6 +34,8 @@ from .infrastructure import (
 from .infrastructure import (
     shutdown as display_shutdown,
 )
+from .render.playing import PlayingView
+from .render.playing import render as render_playing
 from .render.volume import VolumeView
 from .render.volume import render as render_volume
 
@@ -68,6 +70,12 @@ HUD_SECONDS = 1.5
 # floor the loop would push a full frame for each of them and hold the I2C bus
 # - shared with the RFID reader - for most of the turn.
 MIN_REDRAW_INTERVAL = 0.15
+# The progress bar is redrawn when it has moved this many pixels, not on every
+# tick. A full frame holds the I2C bus - shared with the RFID reader - for
+# 92 ms, and a bar that advances pixel by pixel would ask for one every few
+# seconds on a short track. Three pixels of a 118 px bar is a redraw roughly
+# every fortieth of a track.
+PROGRESS_QUANTUM_PX = 3
 
 _HEADER_MAX_ITEMS = 6
 _BODY_MAX_ITEMS = 3
@@ -215,6 +223,11 @@ class DisplayService:
         self._hud_until: float = 0.0
         self._hud_view: VolumeView | None = None
         self._last_volume_key: tuple | None = None
+        # A track change has to pull the session poll forward: the title lives
+        # in that response, and waiting out the interval would leave the
+        # previous title on the panel.
+        self._session_refresh = asyncio.Event()
+        self._last_track_id: Any = None
         # Lets an incoming message pull the next frame forward instead of
         # waiting out the tick. A knob has to feel immediate.
         self._wake = asyncio.Event()
@@ -287,6 +300,7 @@ class DisplayService:
             return
         self.state_manager.update_audio(topic, payload)
         self._note_volume_change()
+        self._note_track_change()
 
     def _note_volume_change(self) -> None:
         """Raise the volume overlay when the level or mute actually changed.
@@ -306,6 +320,16 @@ class DisplayService:
             return
         self._last_volume_key = key
         self._raise_volume_hud(view)
+
+    def _note_track_change(self) -> None:
+        """Ask for a fresh session when the track changed, and redraw."""
+        track_id = self.state_manager.get_audio().get("track_id")
+        if track_id != self._last_track_id:
+            self._last_track_id = track_id
+            self._session_refresh.set()
+        # Position, length and play state all arrive here, and all three are on
+        # the playing screen.
+        self._wake.set()
 
     def _raise_volume_hud(self, view: VolumeView) -> None:
         try:
@@ -463,6 +487,7 @@ class DisplayService:
         interval: float,
         update_fn: Callable[[dict], None],
         error_event: str,
+        wake: asyncio.Event | None = None,
     ) -> None:
         """Generic backend polling helper (issue #24).
 
@@ -474,7 +499,18 @@ class DisplayService:
         async with httpx.AsyncClient(timeout=3.0) as client:
             while not self._shutdown_event.is_set():
                 try:
-                    await asyncio.sleep(interval)
+                    if wake is None:
+                        await asyncio.sleep(interval)
+                    else:
+                        # Fifteen seconds is fine for repeat and shuffle, but
+                        # not for the title: a new track would keep the old one
+                        # on the panel for most of a minute.
+                        try:
+                            await asyncio.wait_for(wake.wait(), interval)
+                        except TimeoutError:
+                            pass
+                        finally:
+                            wake.clear()
                     try:
                         r = await client.get(f"{BACKEND_URL}{endpoint}")
                         if r.status_code == 200:
@@ -500,18 +536,49 @@ class DisplayService:
             error_event="sleep_timer_poll_error",
         )
 
+    @staticmethod
+    def _current_title(data: dict) -> str:
+        """Title of the track marked current in the session queue."""
+        for entry in data.get("queue") or []:
+            if isinstance(entry, dict) and entry.get("is_current"):
+                return str(entry.get("title") or "")
+        return ""
+
     async def _session_poll_loop(self) -> None:
         def _update(data: dict) -> None:
             self.state_manager.update_session(
                 data.get("repeat_mode", "none"),
                 data.get("shuffle", False),
+                self._current_title(data),
             )
+            self._wake.set()
 
         await self._poll_backend(
             endpoint="/api/v1/audio/session",
             interval=SESSION_POLL_INTERVAL,
             update_fn=_update,
             error_event="session_poll_error",
+            wake=self._session_refresh,
+        )
+
+    @staticmethod
+    def _playing_fingerprint(view: PlayingView) -> str:
+        """Everything visible on the playing screen, and nothing else.
+
+        The remaining time is a live number, so fingerprinting the view itself
+        would redraw on every tick. What is actually on the panel is the text -
+        which changes once a minute - and the bar, quantised to the pixel step
+        it is drawn in.
+        """
+        return "play:" + json.dumps(
+            [
+                view.title,
+                view.time_text,
+                view.muted,
+                round(view.fraction * 118 / PROGRESS_QUANTUM_PX),
+            ],
+            sort_keys=True,
+            default=str,
         )
 
     @staticmethod
@@ -630,6 +697,18 @@ class DisplayService:
                         show_image(render_volume(self._hud_view))
                         last_fingerprint = fingerprint
                         last_draw = asyncio.get_running_loop().time()
+                    continue
+
+                if self.state_manager.is_playing():
+                    view = self.state_manager.get_playing_view()
+                    fingerprint = self._playing_fingerprint(view)
+                    forced = (now - last_forced) >= FORCE_REDRAW_INTERVAL
+                    if fingerprint != last_fingerprint or forced:
+                        show_image(render_playing(view))
+                        last_fingerprint = fingerprint
+                        last_draw = asyncio.get_running_loop().time()
+                        if forced:
+                            last_forced = now
                     continue
 
                 areas = self._build_areas()

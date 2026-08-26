@@ -35,14 +35,17 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/                      # 182 tests, no hardware needed
+├── tests/                      # 230 tests, no hardware needed
 │   ├── display_test_doubles.py # FakePanel and the element builder
 │   ├── conftest.py             # A service wired to neither panel nor broker
 │   ├── test_build_areas.py
 │   ├── test_config_reload.py   # Device lifetime and the render loop
 │   ├── test_display_config_schema.py
 │   ├── test_display_health_endpoint.py
+│   ├── test_display_playing.py       # The playing screen: what it says and draws
+│   ├── test_display_playing_screen.py # Where its numbers come from
 │   ├── test_display_state_manager.py
+│   ├── test_display_text_wrap.py     # Breaking a title across lines
 │   ├── test_display_volume_hud.py    # When the overlay takes the panel
 │   ├── test_display_volume_render.py # Its pixels
 │   ├── test_display_volume_view.py   # Its arithmetic
@@ -67,7 +70,8 @@ display-service/
     ├── render/                 # Whole-frame screens: pure PIL, no device
     │   ├── __init__.py
     │   ├── fonts.py            # Weight lookup against the four faces in the image
-    │   ├── primitives.py       # Text measuring, speaker glyph, blocks, bar
+    │   ├── playing.py          # PlayingView and the playing screen
+    │   ├── primitives.py       # Text measuring and wrapping, glyphs, blocks, bar
     │   └── volume.py           # VolumeView and the volume overlay
     └── infrastructure/
         ├── __init__.py
@@ -244,6 +248,43 @@ Three details make it behave:
 
 Priority: the test pattern outranks the overlay. Asking for it clears any
 overlay standing, so it cannot reappear on top of what the user asked to see.
+
+### The playing screen
+
+While a track is playing or paused, `render/playing.py` draws the whole frame
+and the widget grid stands down; when playback stops the grid comes back. The
+screen carries the title, a progress bar and the remaining time - one element
+for each of the two readers, because a four-year-old can read the bar and
+nothing else on this panel.
+
+**The title's size follows its length.** `fit_lines()` picks the largest size in
+which the title fits *both* the width and the title band, so a short title is
+set large and "Das Lied von der Raupe Nimmersatt" is still complete on two
+lines at 12 px. Checking only the width picks a size whose second line then
+does not fit the band, and that line silently disappears - as it did.
+
+**The remaining time is counted here, not asked for.** `position_ms` is
+excluded from the audio service's status fingerprint on purpose, so a playing
+track publishes nothing. The state manager keeps the position from the last
+message together with the clock reading when it arrived and counts on from
+there. Every event that moves the position out of band - a seek, a resume, the
+next track - reaches us as a play command, which publishes unconditionally and
+re-anchors the count. Its clock is injectable so tests can move time; patching
+`time.monotonic` is not an option, because asyncio reads its event loop clock
+from there and a frozen one stops every await in the process.
+
+**The title comes from the backend, and its poll can be woken.** Fifteen
+seconds is fine for repeat and shuffle but not for a title, so a changed
+`track_id` pulls the next session poll forward instead of leaving the previous
+title on the panel for most of a minute.
+
+**The bar is quantised.** `PROGRESS_QUANTUM_PX` (3) decides when the frame is
+worth pushing: a bar advancing pixel by pixel would ask for a full frame - 92 ms
+of the shared I2C bus - every few seconds on a short track.
+
+While muted, the screen draws a small crossed speaker top right and the title
+gives up the width for it. Without that, replacing the grid would take the
+grid's permanent mute icon away exactly when it matters.
 
 The overlay shows position within `[min_volume, max_volume]`, not the raw
 volume: `max_volume` is a hard clamp, so a box configured to 40 reports

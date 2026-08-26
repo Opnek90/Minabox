@@ -132,3 +132,100 @@ def draw_text_right(
 ) -> None:
     """Draw *text* with its right edge at *right_x*, sitting on *baseline_y*."""
     draw_text(draw, (right_x - text_width(draw, text, font), baseline_y), text, font)
+
+
+def _ellipsize(
+    draw: Any, text: str, font: Any, max_width: int, *, force: bool = False
+) -> str:
+    """Return *text*, trimmed and marked with an ellipsis if it does not fit."""
+    if not force and text_width(draw, text, font) <= max_width:
+        return text
+    trimmed = text
+    while trimmed and text_width(draw, trimmed + "…", font) > max_width:
+        trimmed = trimmed[:-1]
+    return trimmed.rstrip() + "…"
+
+
+def wrap(draw: Any, text: str, font: Any, max_width: int, max_lines: int) -> list[str]:
+    """Break *text* into at most *max_lines* lines of at most *max_width* px.
+
+    Wrapping is against measured pixel width, not a character count: "Ein Lama
+    in Yokohama" and "MMMMMMMMMMMMMMMMMMMM" are the same length and nowhere
+    near the same width.
+
+    Every returned line is guaranteed to fit *max_width*, including the case of
+    a single word wider than the whole line. That guarantee is what callers
+    rely on to decide whether a font size works - without it, an over-wide word
+    came back unmarked and was drawn off the edge of the panel.
+    """
+    words = text.split()
+    lines: list[str] = []
+    current = ""
+    index = 0
+    while index < len(words) and len(lines) < max_lines:
+        word = words[index]
+        candidate = f"{current} {word}".strip()
+        if text_width(draw, candidate, font) <= max_width:
+            current = candidate
+            index += 1
+        elif current:
+            # Break before this word and try it again on the next line.
+            lines.append(current)
+            current = ""
+        else:
+            # One word, too wide even alone. Take it and let the trim below
+            # deal with it, or this loop never advances.
+            lines.append(word)
+            index += 1
+    if current and len(lines) < max_lines:
+        lines.append(current)
+        current = ""
+
+    leftover = bool(current) or index < len(words)
+    lines = [_ellipsize(draw, line, font, max_width) for line in lines] or [""]
+    if leftover and not lines[-1].endswith("…"):
+        lines[-1] = _ellipsize(draw, lines[-1], font, max_width, force=True)
+    return lines
+
+
+def block_height(size: int, line_count: int, line_gap: int = 2) -> int:
+    """Height of *line_count* lines set at *size*, from cap top to last baseline."""
+    return size + max(0, line_count - 1) * (size + line_gap)
+
+
+def fit_lines(
+    draw: Any,
+    text: str,
+    max_width: int,
+    max_lines: int,
+    sizes: tuple[int, ...],
+    weight: str,
+    *,
+    max_height: int | None = None,
+    line_gap: int = 2,
+) -> tuple[Any, list[str], int]:
+    """Largest size from *sizes* in which *text* fits whole; the last otherwise.
+
+    This is what lets a short title be big and a long one still be complete:
+    a one-liner comes back large, "Das Lied von der Raupe Nimmersatt" at 12 px
+    on two lines, and neither is cut.
+
+    ``max_height`` is not optional in spirit. Checking only the width picks a
+    size whose lines then do not fit the band they were meant for, and the
+    caller silently drops the ones that overflow - which is how the second line
+    of every two-line title went missing the first time round.
+    """
+    from . import fonts
+
+    for size in sizes:
+        font = fonts.get(weight, size)
+        lines = wrap(draw, text, font, max_width, max_lines)
+        if lines[-1].endswith("…"):
+            continue
+        if max_height is not None:
+            if block_height(size, len(lines), line_gap) > max_height:
+                continue
+        return font, lines, size
+    size = sizes[-1]
+    font = fonts.get(weight, size)
+    return font, wrap(draw, text, font, max_width, max_lines), size

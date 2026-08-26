@@ -26,6 +26,11 @@ logger = structlog.get_logger(__name__)
 # We prewarm slightly below this threshold.
 _PIPELINE_SUSPEND_THRESHOLD_SEC = 4.0
 
+# How close VLC has to report being to a requested position before we call the
+# seek done, and how long we are willing to wait for it.
+_SEEK_TOLERANCE_MS = 1000
+_SEEK_CONFIRM_TIMEOUT_SEC = 1.0
+
 
 class VLCBackend(AudioBackend):
     """VLC-based audio backend implementation.
@@ -309,6 +314,7 @@ class VLCBackend(AudioBackend):
             if start_position_ms > 0:
                 await asyncio.sleep(0.2)
                 self._player.set_time(start_position_ms)
+                await self._wait_for_position(start_position_ms)
 
             self._current_source_uri = source_uri
         except Exception as e:
@@ -333,6 +339,37 @@ class VLCBackend(AudioBackend):
             await asyncio.sleep(0.1)
             elapsed += 0.1
         raise PlaybackError(f"Timeout waiting for {expected_state}")
+
+    async def _wait_for_position(
+        self, target_ms: int, timeout_sec: float = _SEEK_CONFIRM_TIMEOUT_SEC
+    ) -> None:
+        """Wait until VLC reports being near *target_ms*.
+
+        ``set_time()`` is asynchronous, like ``play()`` and ``pause()``. The
+        status published straight afterwards would otherwise carry the position
+        from *before* the jump - and this is the only moment the position
+        reaches anyone: it is deliberately excluded from the status fingerprint
+        so a playing track does not publish every two seconds. Subscribers
+        therefore count down from what arrives here, and a wrong number here
+        stays wrong for the rest of the track.
+
+        Only seeks and resumes pay this wait; an ordinary track start passes
+        ``start_position_ms=0`` and never gets here.
+        """
+        elapsed = 0.0
+        while elapsed < timeout_sec:
+            current = self._player.get_time()
+            # Playback keeps running while we wait, so the reported position
+            # drifts past the target rather than landing on it.
+            if current >= 0 and abs(current - target_ms) <= _SEEK_TOLERANCE_MS:
+                return
+            await asyncio.sleep(0.05)
+            elapsed += 0.05
+        logger.debug(
+            "seek_position_not_confirmed",
+            target_ms=target_ms,
+            reported_ms=self._player.get_time(),
+        )
 
     async def pause(self) -> None:
         """Pause playback and wait for state transition.

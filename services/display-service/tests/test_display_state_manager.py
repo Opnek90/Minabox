@@ -29,10 +29,13 @@ def test_defaults_are_safe_to_render():
     audio = _sm().get_audio()
     assert audio == {
         "state": "stopped",
+        "track_id": None,
         "volume": 0,
         "min_volume": 0,
         "max_volume": 100,
         "volume_step": 0,
+        "position_ms": 0,
+        "duration_ms": None,
         "muted": False,
         "multiple_output_devices": False,
         "bluetooth_sink_available": False,
@@ -55,11 +58,14 @@ def test_audio_status_is_cached():
     )
     assert sm.get_audio() == {
         "state": "playing",
+        "track_id": None,
         "volume": 42,
         # Absent from this payload, so the defaults stand.
         "min_volume": 0,
         "max_volume": 100,
         "volume_step": 0,
+        "position_ms": 0,
+        "duration_ms": None,
         "muted": True,
         "multiple_output_devices": True,
         "bluetooth_sink_available": True,
@@ -125,13 +131,15 @@ def test_a_malformed_status_still_clears_the_error():
     assert sm.has_error() is False
 
 
-def test_the_error_expires_on_its_own(monkeypatch):
-    """The case that kept the icon up forever: an error, then nothing at all."""
+def test_the_error_expires_on_its_own():
+    """The case that kept the icon up forever: an error, then nothing at all.
+
+    The clock is injected rather than patched onto the time module: asyncio
+    reads its event loop clock from there, so freezing it stops every await in
+    the process and the render loop tests hang instead of failing.
+    """
     clock = [1000.0]
-    monkeypatch.setattr(
-        "display_service.core.state_manager.time.monotonic", lambda: clock[0]
-    )
-    sm = _sm(error_timeout=300.0)
+    sm = _sm(error_timeout=300.0, clock=lambda: clock[0])
 
     sm.set_error()
     assert sm.has_error() is True
@@ -143,12 +151,9 @@ def test_the_error_expires_on_its_own(monkeypatch):
     assert sm.has_error() is False
 
 
-def test_a_new_error_restarts_the_timeout(monkeypatch):
+def test_a_new_error_restarts_the_timeout():
     clock = [1000.0]
-    monkeypatch.setattr(
-        "display_service.core.state_manager.time.monotonic", lambda: clock[0]
-    )
-    sm = _sm(error_timeout=300.0)
+    sm = _sm(error_timeout=300.0, clock=lambda: clock[0])
 
     sm.set_error()
     clock[0] += 299.0
@@ -177,8 +182,12 @@ def test_sleep_timer_can_go_inactive():
 
 def test_session_round_trip():
     sm = _sm()
-    sm.update_session("all", True)
-    assert sm.get_session() == {"repeat_mode": "all", "shuffle": True}
+    sm.update_session("all", True, "Ein Lama in Yokohama")
+    assert sm.get_session() == {
+        "repeat_mode": "all",
+        "shuffle": True,
+        "current_title": "Ein Lama in Yokohama",
+    }
 
 
 # ---------------------------------------------------------------------------

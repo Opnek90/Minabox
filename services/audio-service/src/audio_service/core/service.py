@@ -40,7 +40,15 @@ def _status_fingerprint(
     """Return a tuple of the fields that matter for LED / UI state changes.
 
     Intentionally excludes position_ms and timestamp so a playing track
-    does not trigger a publish every 2 seconds.
+    does not trigger a publish every 2 seconds. Subscribers that show progress
+    count on locally from the position in the last message; every event that
+    moves the position out of band - a seek, a resume, the next track - runs
+    through the play command, which publishes unconditionally.
+
+    ``duration_ms`` is in here for the opposite reason. VLC often does not know
+    the length at the moment play() returns, and the first status therefore
+    carries null. Without this the corrected value would never be published and
+    no subscriber could show how long a track still has to run.
 
     The volume bounds belong in here even though they rarely change: without
     them a new max_volume would not reach a subscriber until the next track,
@@ -51,6 +59,7 @@ def _status_fingerprint(
         status.state,
         status.track_id,
         status.source_uri,
+        status.duration_ms,
         status.volume,
         muted,
         multiple_output_devices,

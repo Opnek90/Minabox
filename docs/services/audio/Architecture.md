@@ -117,6 +117,12 @@ Topic scheme: `minabox/<device-id>/<domain>/<action>`, built centrally by
   cannot tell that from halfway up a box configured to 80 without them
 - `volume_step`: what one `volume/up` or `volume/down` without a payload is
   worth. The display draws one block per detent and must not guess it
+- `position_ms`: a snapshot, not a live value. It is excluded from the
+  fingerprint below, so it only reaches subscribers when something else
+  changes. Everything that moves it out of band - a seek, a resume, the next
+  track - runs through the play command, which publishes unconditionally;
+  seeking waits for VLC to confirm the jump first, because `set_time()` is
+  asynchronous and the old position would otherwise be the one published
 - `multiple_output_devices` / `bluetooth_sink_available`: derived from the sink
   list; the display service uses them to decide whether to show the output
   switcher and the Bluetooth icon
