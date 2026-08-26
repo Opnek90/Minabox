@@ -7,6 +7,7 @@ Branch abgearbeitet gehoeren.
 
 Aufgenommen am 2026-08-25 aus dem [LED-Review](led/GoLive-Review.md), dem
 [Display-Review](display/GoLive-Review.md) und einer Stoerung im Betrieb.
+1.6 und 1.7 kamen am 2026-08-26 aus einer zweiten Ton-Stoerung dazu.
 Ergaenzung zu [ServiceReview.md](../ServiceReview.md), das die neun Dienste
 insgesamt behandelt.
 
@@ -206,6 +207,141 @@ Nutzen - deshalb am besten in einem Zug.
 
 **Risiko:** gering. Nur ein zusaetzliches Feld und eine Bedingung; der
 Container-Healthcheck fragt weiterhin nur, ob der Endpunkt antwortet.
+
+### [ ] [H] 1.6 Ein gemerkter Mute in PipeWire ueberlebt jeden Neustart
+
+Aufgefallen am 2026-08-26 an einer echten Stoerung, wie 1.5 nicht beim Lesen von
+Code. Die Box gab keinen Ton. Gleichzeitig erzeugte
+
+```bash
+speaker-test -D plughw:3,0 -c2 -t wav -l1
+```
+
+einwandfrei Ton - die Lautsprecher, der Codec und der ALSA-Pfad waren also in
+Ordnung. `speaker-test` spricht ALSA direkt an und geht an PulseAudio/PipeWire
+vorbei; der Audio-Dienst spielt ueber libVLC → PulseAudio → PipeWire.
+
+WirePlumber merkt sich Lautstaerke und Stummschaltung **pro Medienrolle**,
+dauerhaft in `~/.local/state/wireplumber/stream-properties`. Dort stand:
+
+```
+Output/Audio:media.role:Movie={"mute":true, "channelVolumes":[0.027001]}
+```
+
+Stumm - und zusaetzlich auf 2,7 % Lautstaerke. Jeder neue VLC-Stream bekam das
+beim Oeffnen des Ausgangs sofort aufgedrueckt:
+
+```
+Sink Input #194   Mute: yes
+    media.role = "video"
+    module-stream-restore.id = "sink-input-by-media-role:video"
+```
+
+Nachweisbar auch an libVLC selbst: eine frisch erzeugte Instanz meldet vor
+`play()` noch `mute=0`, unmittelbar nach dem Oeffnen des Ausgangs `mute=1` -
+ohne dass irgendjemand stummgeschaltet haette.
+
+**Ursache:** eine Zustandsverdopplung. `_handle_mute_toggle()`
+(`core/service.py`) schaltet ueber `audio_set_mute()` stumm, PipeWire schreibt
+das in seine Datenbank. `self._muted` im Dienst ist nach einem Neustart wieder
+`False` - der Dienst haelt sich fuer entstummt, PipeWire schaltet aber weiter
+stumm. Kein Neustart des Containers und kein Neustart der Box raeumt das weg,
+daher kam die Stoerung wieder.
+
+**Nebenbefund:** `PULSE_PROP_media.role=music` in `docker-compose.yml` ist
+wirkungslos. VLC setzt seine eigene Rolle und nimmt dafuer standardmaessig
+`video`, weshalb der Zustand unter `Movie` landete statt unter `Music`.
+
+**Zweiter Nebenbefund:** der bestehende `POST /api/v1/test-tone` kann diesen
+Fehler gar nicht zeigen. Er spielt ueber `paplay`, und das laeuft unter
+`application.name:paplay` - eine andere Rolle, mit einem eigenen, gesunden
+Eintrag. Der Testton war hoerbar, waehrend die Musik stumm blieb.
+
+**Fix, drei Teile:**
+
+1. `--role=music` in `_build_vlc_args()` (`infrastructure/vlc_backend.py`).
+   Dann landet der Stream in der Rolle, die der Dienst ohnehin meint.
+2. Nach jedem `play()` den Mute-Zustand einmal explizit aus `self._muted`
+   setzen, statt darauf zu vertrauen, dass ein frischer Player unstumm ist.
+   Vor `play()` genuegt nicht - der gemerkte Zustand wird erst beim Oeffnen des
+   Ausgangs angewendet.
+3. Den Testton ueber denselben libVLC-Pfad schicken wie die Musik, sonst prueft
+   er weiterhin einen Weg, den im Betrieb niemand benutzt.
+
+**Sofortmassnahme, falls es erneut auftritt:** waehrend ein VLC-Stream laeuft
+den Sink-Input entstummen - WirePlumber schreibt den korrigierten Wert dann von
+selbst zurueck:
+
+```bash
+XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-input-mute <index> 0
+```
+
+**Risiko:** gering. Teil 1 und 2 sind wenige Zeilen im Backend des Dienstes.
+Teil 3 beruehrt einen Endpunkt, den nur die WebUI aufruft.
+
+### [ ] [H] 1.7 Der Nutzer hat keinen Weg, eine stumme Box selbst zu reparieren
+
+Nichts ist aergerlicher als eine Box, die ploetzlich keinen Ton mehr gibt. Die
+bisherigen Stoerungen dieser Art (1.5, 1.6) waren beide nur mit `aplay -l`,
+`pactl` und einem Blick in die WirePlumber-Datenbank zu finden. Das kann niemand
+leisten, der die Box benutzt statt sie zu entwickeln - und genau die Person
+steht davor.
+
+Vorschlag: ein Knopf **„Ton-Problem beheben"** in der WebUI unter
+*Wartung*, neben dem Debug-Export. Ein Klick, danach fuehrt die Box durch die
+Pruefkette und behebt, was sie selbst beheben kann.
+
+**Pruefkette,** von unten nach oben, jeder Schritt mit einer Behebung, die ohne
+Rueckfrage sicher ist:
+
+| # | Pruefung | Erkennbar an | Automatische Behebung |
+|---|---|---|---|
+| 1 | Soundkarte vorhanden? | Karte zum konfigurierten Sink fehlt in `pactl list cards` | keine - Neustart der Box noetig, siehe 1.5 |
+| 2 | Konfigurierter Sink vorhanden? | `output_device_name` fehlt in `pactl list sinks` | auf den ersten verfuegbaren Sink zurueckfallen |
+| 3 | Sink stumm oder sehr leise? | `Mute: yes`, Volume unter ca. 20 % | entstummen, auf einen normalen Pegel setzen |
+| 4 | Gemerkter Rollen-Zustand stumm? | Testton-Stream startet mit `Mute: yes` | Sink-Input entstummen, WirePlumber speichert es |
+| 5 | Dienst selbst stummgeschaltet? | `self._muted` | entstummen |
+| 6 | Dienst-Lautstaerke unter `min_volume`? | `get_volume()` | auf `default_volume` |
+| 7 | ALSA-Mixer auf 0? | `amixer -c <karte> sget Speaker` | auf einen sinnvollen Wert setzen |
+
+Schritt 4 geht nur, **waehrend** ein Stream laeuft - der Testton ist genau
+dieser Stream, und er muss ueber libVLC laufen, nicht ueber `paplay`
+(siehe 1.6).
+
+**Der DAU-taugliche Teil ist der Abschluss:** die Box spielt den Testton und
+fragt in grossen Worten *„Hoerst du jetzt etwas?"* mit **Ja** und **Nein**.
+
+- **Ja** → „Das Problem ist behoben." Dazu in einem Satz, was es war.
+- **Nein** → naechste Eskalationsstufe: Audio-Dienst neu starten, erneut
+  fragen. Danach die zwei Dinge, die nur ein Mensch pruefen kann - Kabel und
+  Stromversorgung der Lautsprecher - und als letztes das Angebot, die Box neu
+  zu starten.
+
+Was der Nutzer nie zu sehen bekommt: `pactl`, Rollennamen, Sink-Indizes. Die
+technischen Details gehoeren in den Debug-Export, nicht in den Dialog.
+
+**Wo das hingehoert:**
+
+- `POST /api/v1/audio/troubleshoot` im Audio-Dienst. Der Dienst spricht ohnehin
+  ueber den gemounteten Socket mit PulseAudio und kann die Schritte 2 bis 6
+  allein erledigen.
+- Schritt 1 und 7 brauchen den Host: `/proc/asound/cards` und `amixer` sind im
+  Audio-Container nicht erreichbar. Der `host-helper` hat `/:/host:rw` und
+  laeuft als root - dort als Erweiterung von `/diagnostics/host`.
+- Backend-Proxy wie bei den uebrigen Wartungsfunktionen.
+- WebUI: in `SystemMaintenanceSection.tsx`, mit Uebersetzungen in
+  `de/admin.json` und `en/admin.json`.
+
+**Zusammenhang:** 1.5 liefert die Erkennung („die Senke fehlt"), 1.6 den
+haeufigsten Einzelfall, 1.2 die Anzeige. Dieser Punkt macht daraus etwas, das
+der Nutzer selbst ausloesen kann. Sinnvoll erst, wenn 1.5 und 1.6 stehen -
+sonst prueft der Knopf Zustaende, die der Dienst noch falsch meldet.
+
+**Risiko:** mittel. Ein Knopf, der Zustaende veraendert, muss idempotent sein
+und darf nichts anfassen, was nicht nachweislich falsch steht - sonst
+ueberschreibt er eine bewusst leise eingestellte Box. Jede Behebung gehoert
+protokolliert, damit im Debug-Export nachvollziehbar bleibt, was der Knopf
+getan hat.
 
 ---
 
