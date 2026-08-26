@@ -19,6 +19,7 @@ from ..infrastructure.audio_backend import AudioStatus, PlaybackState
 from ..infrastructure.mqtt_client import MQTTClient
 from ..infrastructure.vlc_backend import VLCBackend
 from .mqtt_handler import (
+    DEFAULT_VOLUME_STEP,
     MQTTMessageHandler,
     PlayCommand,
     VolumeCommand,
@@ -34,20 +35,36 @@ def _status_fingerprint(
     muted: bool,
     multiple_output_devices: bool,
     bluetooth_sink_available: bool,
+    volume_bounds: tuple[int, int] = (0, 100),
 ) -> tuple[Any, ...]:
     """Return a tuple of the fields that matter for LED / UI state changes.
 
     Intentionally excludes position_ms and timestamp so a playing track
-    does not trigger a publish every 2 seconds.
+    does not trigger a publish every 2 seconds. Subscribers that show progress
+    count on locally from the position in the last message; every event that
+    moves the position out of band - a seek, a resume, the next track - runs
+    through the play command, which publishes unconditionally.
+
+    ``duration_ms`` is in here for the opposite reason. VLC often does not know
+    the length at the moment play() returns, and the first status therefore
+    carries null. Without this the corrected value would never be published and
+    no subscriber could show how long a track still has to run.
+
+    The volume bounds belong in here even though they rarely change: without
+    them a new max_volume would not reach a subscriber until the next track,
+    and every subscriber that shows a percentage would keep using the old
+    range in the meantime.
     """
     return (
         status.state,
         status.track_id,
         status.source_uri,
+        status.duration_ms,
         status.volume,
         muted,
         multiple_output_devices,
         bluetooth_sink_available,
+        volume_bounds,
     )
 
 
@@ -257,6 +274,18 @@ class AudioService:
         try:
             status = await self._vlc_backend.get_status()
 
+            # max_volume is a hard clamp, not a scale: at the stop this status
+            # reports the configured maximum, not 100. Subscribers that show a
+            # percentage - the WebUI slider, the display HUD - need the bounds
+            # to turn that number back into a position.
+            min_volume, max_volume = 0, 100
+            try:
+                bounds_config = self._get_audio_config()
+                min_volume = getattr(bounds_config, "min_volume", 0)
+                max_volume = getattr(bounds_config, "max_volume", 100)
+            except Exception as exc:
+                logger.warning("audio_status_bounds_failed", error=str(exc))
+
             multiple_output_devices = False
             bluetooth_sink_available = False
             try:
@@ -271,7 +300,11 @@ class AudioService:
                 logger.warning("audio_status_devices_failed", error=str(exc))
 
             fingerprint = _status_fingerprint(
-                status, self._muted, multiple_output_devices, bluetooth_sink_available
+                status,
+                self._muted,
+                multiple_output_devices,
+                bluetooth_sink_available,
+                (min_volume, max_volume),
             )
 
             if not force and fingerprint == self._last_published_fingerprint:
@@ -286,6 +319,9 @@ class AudioService:
                 "position_ms": status.position_ms,
                 "duration_ms": status.duration_ms,
                 "volume": status.volume,
+                "min_volume": min_volume,
+                "max_volume": max_volume,
+                "volume_step": DEFAULT_VOLUME_STEP,
                 "muted": self._muted,
                 "multiple_output_devices": multiple_output_devices,
                 "bluetooth_sink_available": bluetooth_sink_available,

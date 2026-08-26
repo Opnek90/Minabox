@@ -34,10 +34,16 @@ class VolumeCommand(BaseModel):
     volume: int
 
 
+# One turn of the knob. The button service publishes an empty payload, so this
+# default is what a click is actually worth - which is why it is published in
+# audio/status: the display draws one block per detent and must not guess it.
+DEFAULT_VOLUME_STEP = 5
+
+
 class VolumeStepCommand(BaseModel):
     """Volume up/down command payload schema."""
 
-    step: int = 5
+    step: int = DEFAULT_VOLUME_STEP
 
 
 class MQTTMessageHandler:

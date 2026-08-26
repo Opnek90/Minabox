@@ -98,6 +98,9 @@ Topic scheme: `minabox/<device-id>/<domain>/<action>`, built centrally by
   "position_ms": 12345,
   "duration_ms": 240000,
   "volume": 25,
+  "min_volume": 0,
+  "max_volume": 40,
+  "volume_step": 5,
   "muted": false,
   "multiple_output_devices": true,
   "bluetooth_sink_available": true,
@@ -107,15 +110,38 @@ Topic scheme: `minabox/<device-id>/<domain>/<action>`, built centrally by
 
 - `state`: `playing` | `paused` | `stopped` | `error`
 - `duration_ms`: `null` for streams and while unknown
-- `volume`: the value actually applied, already clamped to the configured bounds
+- `volume`: the value actually applied, already clamped to the configured
+  bounds. libVLC has two ways of saying "ask me later" and neither is a level:
+  **-1** with no player or after `stop()` has released the media, and **0** in
+  the moment after `play()` while the audio output is still coming up. The
+  backend reports the last level it set instead. Passing them on cost a
+  spurious volume change at each end of a track - a drop to the minimum when a
+  figure was lifted off the reader, and a dip to zero and back when one was put
+  on. What makes the second case decidable is that every write goes through the
+  clamp, so the box cannot be at a level outside the configured range
+- `min_volume` / `max_volume`: those bounds. They are in the payload because
+  `max_volume` is a hard **clamp**, not a scale: on a box configured to 40 this
+  message reports `volume: 40` at the stop. A subscriber that shows a percentage
+  cannot tell that from halfway up a box configured to 80 without them
+- `volume_step`: what one `volume/up` or `volume/down` without a payload is
+  worth. The display draws one block per detent and must not guess it
+- `position_ms`: a snapshot, not a live value. It is excluded from the
+  fingerprint below, so it only reaches subscribers when something else
+  changes. Everything that moves it out of band - a seek, a resume, the next
+  track - runs through the play command, which publishes unconditionally;
+  seeking waits for VLC to confirm the jump first, because `set_time()` is
+  asynchronous and the old position would otherwise be the one published
 - `multiple_output_devices` / `bluetooth_sink_available`: derived from the sink
   list; the display service uses them to decide whether to show the output
   switcher and the Bluetooth icon
 
 The periodic publish compares a **fingerprint** of `state`, `track_id`,
-`source_uri`, `volume`, `muted`, `multiple_output_devices` and
-`bluetooth_sink_available`. `position_ms` and `timestamp` are deliberately
-excluded, so a playing track does not push a message every two seconds. The
+`source_uri`, `volume`, `muted`, `multiple_output_devices`,
+`bluetooth_sink_available` and the volume bounds. `position_ms` and `timestamp`
+are deliberately excluded, so a playing track does not push a message every two
+seconds. The bounds are in there even though they rarely change: without them a
+new `max_volume` would not reach a subscriber until the next track, and every
+display of a percentage would keep using the old range in the meantime. The
 status is published with `remember=True`, which makes the shared MQTT client
 replay it after a reconnect — otherwise a broker restart would leave the
 service connected but silent.

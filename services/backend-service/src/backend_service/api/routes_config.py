@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -88,19 +89,6 @@ _BUTTON_ACTIONS: list[str] = [
     "next_output_device",
 ]
 
-# All display element types (OLED display service).
-# Source of truth: display-service config_schema.py
-_DISPLAY_ELEMENT_TYPES: list[str] = [
-    "volume",
-    "sleep_timer",
-    "mute",
-    "play_state",
-    "clock",
-    "error_state",
-    "repeat",
-    "shuffle",
-    "bluetooth",
-]
 
 
 @router.get("/leds/states")
@@ -353,10 +341,13 @@ CONFIG_FILES = {
 # A structural check is enough for what goes wrong in practice: a body that
 # lost its content on the way and would leave the other service with a config
 # it cannot start from.
+# The one key each service's config file cannot start without. The display is
+# absent on purpose: it used to require "elements", and that list stopped being
+# read when the widget grid went. Demanding it would reject exactly what the
+# settings page now sends.
 _CONFIG_SHAPE: dict[str, tuple[str, type]] = {
     "leds": ("leds", list),
     "buttons": ("buttons", list),
-    "display": ("elements", list),
 }
 
 
@@ -441,6 +432,106 @@ def _validate_buttons_config(body: dict) -> None:
         raise ApiError(
             status_code=422,
             code="button_config_invalid",
+            detail="; ".join(errors),
+        )
+
+
+# The rules display_service/config_schema.py enforces, mirrored -- same reasoning
+# as _validate_buttons_config above, and the same failure it prevents: the
+# running container survives a bad file, because the reload handler catches the
+# ValidationError and keeps the old config, but the next container start dies on
+# it and goes into a restart loop. The box looks fine until the next reboot.
+#
+# Kept as a copy on purpose: the backend does not import from another service's
+# package. test_display_config_validation.py holds both ends together by running
+# every case through the real schema as well.
+def _as_int(value: object) -> int | None:
+    """What pydantic would make of *value*, or None if it would refuse it.
+
+    Not a nicety: a check stricter than the schema locks the user out of their
+    own box. Pydantic reads "1" and True as 1, so a config carrying either
+    loads fine on the display service - and rejecting it here would leave that
+    box unable to change any of its other settings.
+    """
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+_CLOCK_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _display_brightness_errors(brightness: object) -> list[str]:
+    """What is wrong with the brightness block, if anything.
+
+    A bad time here is the failure this whole area exists for: the running
+    display service keeps its old config, the WebUI reports success, and the
+    next container start dies on the file.
+    """
+    if brightness is None:
+        return []
+    if not isinstance(brightness, dict):
+        return ["'brightness' must be an object"]
+
+    errors: list[str] = []
+    for key in ("day", "night"):
+        if key not in brightness:
+            continue
+        level = _as_int(brightness[key])
+        if level is None or not 0 <= level <= 255:
+            errors.append(f"'brightness.{key}' must be between 0 and 255")
+
+    for key in ("night_from", "night_to"):
+        value = brightness.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not _CLOCK_TIME.match(value):
+            errors.append(f"'brightness.{key}' must be a time of day as HH:MM")
+
+    if "off_at_night" in brightness and not isinstance(
+        brightness["off_at_night"], bool
+    ):
+        errors.append("'brightness.off_at_night' must be true or false")
+
+    return errors
+
+
+def _validate_display_config(body: dict) -> None:
+    """Reject a display config the display service would refuse to load.
+
+    Only the hardware is left. The layout - elements, areas, order, font -
+    stopped reaching the panel when every state of the box got a screen of its
+    own, and the display service now ignores those keys entirely. Rejecting
+    them here would only break a box whose file still has them.
+    """
+    errors: list[str] = []
+
+    enabled = body.get("enabled")
+    if enabled is not None and not isinstance(enabled, bool):
+        errors.append("'enabled' must be true or false")
+
+    bus = _as_int(body.get("i2c_bus"))
+    if body.get("i2c_bus") is not None and (bus is None or bus < 1):
+        errors.append("'i2c_bus' must be a positive integer")
+
+    address = _as_int(body.get("i2c_address"))
+    if body.get("i2c_address") is not None and (address is None or address < 0):
+        errors.append("'i2c_address' must be a non-negative integer")
+
+    errors.extend(_display_brightness_errors(body.get("brightness")))
+
+    if errors:
+        logger.warning("display_config_rejected", errors=errors)
+        raise ApiError(
+            status_code=422,
+            code="display_config_invalid",
             detail="; ".join(errors),
         )
 
@@ -631,12 +722,6 @@ async def test_display() -> dict:
         raise ApiError(status_code=500, code="display_test_failed", detail="Display test failed") from e
 
 
-@router.get("/display/element-types")
-async def get_display_element_types() -> list[str]:
-    """Return all supported display element type identifiers."""
-    return _DISPLAY_ELEMENT_TYPES
-
-
 @router.get("/display")
 async def get_display_config() -> dict:
     """Return display service config (for Admin UI)."""
@@ -662,7 +747,7 @@ async def update_display_config(body: dict) -> dict:
     path = _config_path("display")
     if path is None:
         raise ApiError(status_code=503, code="display_config_unavailable", detail="Display config not available")
-    _validate_config_shape("display", body)
+    _validate_display_config(body)
     try:
         write_json_atomic(path, body)
         if _mqtt_client is not None:

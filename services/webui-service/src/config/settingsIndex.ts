@@ -126,7 +126,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
       {
         key: 'display',
         titleKey: 'display.title',
-        searchKeys: ['display.title', 'display.font', 'display.font_size', 'display.elements'],
+        searchKeys: ['display.title', 'display.enabled', 'display.brightness', 'display.off_at_night'],
       },
     ],
   },

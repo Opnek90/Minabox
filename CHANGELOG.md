@@ -23,6 +23,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.3 - 2026-08-26
+
+#### Verbessert
+- Die Display-Einstellungen sind auf Anschluss und Helligkeit zusammengestrichen.
+  Die alte Elementliste wird weiter angenommen und ignoriert, damit bestehende
+  Boxen unveraendert weiterlaufen.
 ### 0.2.2 - 2026-08-25
 
 #### Behoben
@@ -169,6 +175,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.1.15 - 2026-08-26
+
+#### Verbessert
+- Die Lautstaerkeanzeige im Player zeigt dieselbe Zahl wie das Display am Geraet.
+- Die Display-Einstellungen bestehen nur noch aus Anschluss und Helligkeit; der
+  Editor fuer Anzeige-Elemente ist entfallen, weil er auf nichts mehr wirkte.
 ### 0.1.14 - 2026-08-25
 
 #### Verbessert
@@ -390,6 +402,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## audio
 
+### 0.2.1 - 2026-08-26
+
+#### Behoben
+- Die gemeldete Lautstaerke sprang beim Starten und beim Beenden eines Titels
+  kurz auf einen falschen Wert. Der Regler in der Oberflaeche sprang dadurch
+  nach jedem Stopp an sein linkes Ende.
+- Nach einem Sprung an eine andere Stelle im Titel wurde kurz die alte Position
+  gemeldet.
 ### 0.2.0 - 2026-08-23
 
 #### Behoben
@@ -509,6 +529,29 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## display
 
+### 0.1.2 - 2026-08-26
+
+#### Neu
+- Das Display zeigt jetzt fuer jede Situation ein eigenes Bild statt einer Reihe
+  kleiner Symbole: waehrend der Wiedergabe Titel, Fortschritt und Restzeit, im
+  Leerlauf ein kleines Wesen, das umherwandert, blinzelt und winkt.
+- Beim Drehen am Lautstaerkeknopf erscheint kurz eine grosse Anzeige mit einem
+  Block je Raste.
+- Eine unbekannte, eine gesperrte Figur und ein erreichtes Tageslimit haben je
+  ein eigenes Bild - vorher blieb das Display stumm.
+- Nachts wird das Display dunkler und kann sich ganz abschalten, solange nichts
+  passiert.
+
+#### Verbessert
+- Die Lautstaerkeanzeige zeigt die Stellung im erlaubten Bereich. Auf einer Box
+  mit Maximum 40 stand vorher "40 %", obwohl der Knopf am Anschlag war.
+- Es wird nur noch der geaenderte Bildausschnitt an das Panel geschickt, statt
+  jedes Mal das ganze Bild. Der Leser am selben Anschluss wird dadurch deutlich
+  seltener blockiert.
+
+#### Behoben
+- Beim Abnehmen und beim Auflegen einer Figur sprang kurz die Lautstaerkeanzeige
+  an, obwohl sich nichts geaendert hatte.
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20

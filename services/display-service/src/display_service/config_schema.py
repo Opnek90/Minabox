@@ -1,80 +1,70 @@
-"""Configuration schema for the display service."""
+"""Configuration schema for the display service.
+
+What used to be here was a layout: nine element types, three areas, an order
+and a font. That grid is gone - every state of the box has a screen of its own
+now, and each screen picks its own sizes - so the file it was configured from
+is down to the hardware and an on/off switch.
+
+Pydantic ignores unknown keys, so an existing display.json still loads with its
+``elements`` list in it. Nothing reads it.
+"""
 
 from __future__ import annotations
 
-from typing import List, Literal
+import re
 
-from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
-
+from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt, field_validator
 from shared_lib.config import EnvConfigBase
 
-DisplayElementType = Literal[
-    "volume",
-    "sleep_timer",
-    "mute",
-    "play_state",
-    "clock",
-    "error_state",
-    "repeat",
-    "shuffle",
-    "bluetooth",
-]
-DisplayArea = Literal[0, 1, 2]  # 0=header (full width), 1=left column, 2=right column
-DisplayFontSize = Literal["small", "medium", "large"]
-DisplayFont = Literal[
-    "default",      # PIL built-in bitmap font, always available
-    "sans",         # DejaVu Sans (apt: fonts-dejavu-core, usually pre-installed)
-    "mono",         # DejaVu Sans Mono
-    "roboto",       # Roboto Regular      (apt: fonts-roboto)
-    "ubuntu",       # Ubuntu Regular      (apt: fonts-ubuntu)
-    "noto",         # Noto Sans Regular   (apt: fonts-noto)
-    "liberation",   # Liberation Sans     (apt: fonts-liberation, often pre-installed)
-    "terminus",     # Terminus TTF        (apt: fonts-terminus)
-]
+_CLOCK_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
-class DisplayElement(BaseModel):
-    """Configuration for a single display element (widget)."""
+class BrightnessConfig(BaseModel):
+    """How bright the panel is, and when it gives up for the night.
 
-    id: str = Field(min_length=1, description="Unique identifier (e.g. 'vol', 'time').")
-    type: DisplayElementType = Field(
-        description="Element type: volume, sleep_timer, mute, play_state, clock, error_state, repeat, shuffle, bluetooth.",
+    This device stands in a child's bedroom. At full contrast at eight in the
+    evening it is a light source, and the cost of doing something about it is
+    two bytes on the bus - `contrast()` is a single command.
+
+    Dimming alone is not enough for a dark room: luma says so itself, that a
+    low level "will not necessarily dim the display to nearly off". That is
+    what ``off_at_night`` is for - the panel is switched off outright, and only
+    while there is nothing to say. Anything actually happening (something
+    playing, a hand on the knob, a figure on the reader) takes it back.
+    """
+
+    day: int = Field(default=255, ge=0, le=255, description="Contrast by day.")
+    night: int = Field(default=40, ge=0, le=255, description="Contrast at night.")
+    night_from: str = Field(default="20:00", description="Start of night, HH:MM.")
+    night_to: str = Field(default="07:00", description="End of night, HH:MM.")
+    off_at_night: bool = Field(
+        default=False,
+        description="Switch the panel off at night while nothing is happening.",
     )
-    enabled: bool = Field(default=True, description="Whether this element is shown.")
-    order: NonNegativeInt = Field(
-        default=0,
-        description="Display order within the area (lower = higher on screen).",
-    )
-    area: DisplayArea = Field(
-        default=0,
-        description="Area: 0=header (full width), 1=left column, 2=right column.",
-    )
+
+    @field_validator("night_from", "night_to")
+    @classmethod
+    def _a_clock_time(cls, value: str) -> str:
+        if not _CLOCK_TIME.match(value):
+            raise ValueError("must be a time of day as HH:MM, e.g. 20:00")
+        return value
 
 
 class DisplayServiceConfig(BaseModel):
     """Top-level display configuration loaded from config/display.json."""
 
     enabled: bool = Field(default=True, description="Display global on/off.")
-    i2c_bus: PositiveInt = Field(default=1, description="I2C bus number (e.g. 1 for /dev/i2c-1).")
+    i2c_bus: PositiveInt = Field(
+        default=1,
+        description="I2C bus number (e.g. 1 for /dev/i2c-1).",
+    )
     i2c_address: NonNegativeInt = Field(
         default=60,
         description="I2C device address (60 = 0x3C for SSD1306).",
     )
-    elements: List[DisplayElement] = Field(
-        default_factory=list,
-        description="List of display elements (order = screen order).",
-    )
-    font_size: DisplayFontSize = Field(
-        default="medium",
-        description="Text size: small (9px), medium (12px), large (14px).",
-    )
-    font: DisplayFont = Field(
-        default="sans",
-        description=(
-            "Font family. Options: default (PIL built-in), sans (DejaVu Sans), "
-            "mono (DejaVu Mono), roboto, ubuntu, noto, liberation, terminus. "
-            "Falls back to default if the font is not installed on the system."
-        ),
+    brightness: BrightnessConfig = Field(
+        default_factory=BrightnessConfig,
+        description="Panel brightness, and the night window.",
     )
 
 
@@ -90,7 +80,10 @@ class EnvConfig(EnvConfigBase):
 
 
 class AppConfig(BaseModel):
-    """Combined configuration for the display service."""
+    """Environment configuration for the display service.
+
+    The display config itself is owned by ConfigManager, which can reload it;
+    keeping a second copy here meant keeping a stale one.
+    """
 
     env: EnvConfig
-    display: DisplayServiceConfig

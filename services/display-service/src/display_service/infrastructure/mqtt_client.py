@@ -6,7 +6,8 @@ Connection lifecycle, reconnection and status replay come from
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import structlog
 from shared_lib.mqtt import BaseMQTTClient
@@ -42,6 +43,11 @@ class MQTTClient(BaseMQTTClient):
         for topic in (
             f"{prefix}/audio/status",
             f"{prefix}/audio/error",
+            f"{prefix}/rfid/unknown-tag",
+            f"{prefix}/rfid/tag-blocked",
+            f"{prefix}/rfid/tag-scanned",
+            f"{prefix}/rfid/tag-removed",
+            f"{prefix}/led/usage-denied",
             f"{prefix}/system/service-error",
             f"{prefix}/display/config/reload",
             f"{prefix}/config/general",

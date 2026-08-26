@@ -3,106 +3,40 @@ import {
   Alert,
   Box,
   Button,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
+  Slider,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import SaveIcon from '@mui/icons-material/Save';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
-import type {
-  DisplayConfig,
-  DisplayElement,
-  DisplayElementType,
-  DisplayArea,
-  DisplayFontSize,
-  DisplayFont,
-} from '@/types/api';
-import { DISPLAY_CONDITIONAL_TYPES, DISPLAY_AREA_LIMITS } from '@/types/api';
+import type { DisplayBrightness, DisplayConfig } from '@/types/api';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
-import { useLayout } from '@/hooks/useLayout';
-
-function mergeElements(
-  existing: DisplayElement[],
-  types: string[]
-): DisplayElement[] {
-  const byType = new Map(existing.map((e) => [e.type, e]));
-  return types.map((type, index) => {
-    const el = byType.get(type as DisplayElementType);
-    if (el) {
-      return { ...el, order: el.order, area: el.area ?? 0 };
-    }
-    return {
-      id: type,
-      type: type as DisplayElementType,
-      enabled: false,
-      order: index,
-      area: 0 as DisplayArea,
-    };
-  });
-}
-
-function sortByOrder(elements: DisplayElement[]): DisplayElement[] {
-  return [...elements].sort((a, b) => a.order - b.order);
-}
 
 /**
- * Returns the areas (1 or 2) where the number of enabled elements exceeds
- * the renderer limit, considering that conditional elements *may* all fire
- * simultaneously in the worst case.
+ * Display settings.
+ *
+ * This used to be a layout editor: nine element types, three areas, an order
+ * and a font. That grid stopped reaching the panel when every state of the box
+ * got a screen of its own, so the editor was a control that changed nothing.
+ * What is left is the hardware and an on/off switch.
  */
-function getOvercrowdedAreas(elements: DisplayElement[]): DisplayArea[] {
-  const overcrowded: DisplayArea[] = [];
-  for (const area of [0, 1, 2] as DisplayArea[]) {
-    const limit = DISPLAY_AREA_LIMITS[area];
-    const count = elements.filter((e) => e.enabled && (e.area ?? 0) === area).length;
-    if (count > limit) overcrowded.push(area);
-  }
-  return overcrowded;
-}
-
 export const DisplayConfigPanel: React.FC = () => {
   const { t } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const [config, setConfig] = useState<DisplayConfig | null>(null);
-  const [elementTypes, setElementTypes] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isMobile = useLayout().isMobile;
 
   useEffect(() => {
     configApi
       .getDisplay()
-      .then((data) => {
-        setConfig(data);
-      })
+      .then(setConfig)
       .catch(() => setError('Laden fehlgeschlagen'));
-    configApi.getDisplayElementTypes().then(setElementTypes).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (config && elementTypes.length > 0) {
-      const merged = mergeElements(config.elements, elementTypes);
-      const sorted = sortByOrder(merged);
-      setConfig((prev) => (prev ? { ...prev, elements: sorted } : prev));
-    }
-  }, [elementTypes.length]);
 
   const handleSave = async () => {
     if (!config) return;
@@ -118,339 +52,153 @@ export const DisplayConfigPanel: React.FC = () => {
     }
   };
 
-  const setEnabled = (global: boolean) => {
-    setConfig((prev) => (prev ? { ...prev, enabled: global } : prev));
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (!config) return <Typography>…</Typography>;
+
+  // The service fills these in when the file leaves them out, so the form has
+  // to as well - otherwise the first save would write nulls over them.
+  const brightness: DisplayBrightness = {
+    day: 255,
+    night: 40,
+    night_from: '20:00',
+    night_to: '07:00',
+    off_at_night: false,
+    ...(config.brightness ?? {}),
   };
 
-  const setElementEnabled = (type: DisplayElementType, enabled: boolean) => {
-    setConfig((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        elements: prev.elements.map((e) =>
-          e.type === type ? { ...e, enabled } : e
-        ),
-      };
-    });
-  };
-
-  const moveElement = (type: DisplayElementType, direction: 'up' | 'down') => {
-    setConfig((prev) => {
-      if (!prev) return prev;
-      const sorted = sortByOrder(prev.elements);
-      const idx = sorted.findIndex((e) => e.type === type);
-      if (idx < 0) return prev;
-      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (newIdx < 0 || newIdx >= sorted.length) return prev;
-      const reordered = [...sorted];
-      const [removed] = reordered.splice(idx, 1);
-      reordered.splice(newIdx, 0, removed);
-      const withOrder = reordered.map((e, i) => ({ ...e, order: i }));
-      return { ...prev, elements: withOrder };
-    });
-  };
-
-  const setI2cBus = (value: number) => {
-    setConfig((prev) => (prev ? { ...prev, i2c_bus: value } : prev));
-  };
-
-  const setI2cAddress = (value: number) => {
-    setConfig((prev) => (prev ? { ...prev, i2c_address: value } : prev));
-  };
-
-  const setFontSize = (value: DisplayFontSize) => {
-    setConfig((prev) => (prev ? { ...prev, font_size: value } : prev));
-  };
-
-  const setFont = (value: DisplayFont) => {
-    setConfig((prev) => (prev ? { ...prev, font: value } : prev));
-  };
-
-  const setElementArea = (type: DisplayElementType, area: DisplayArea) => {
-    setConfig((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        elements: prev.elements.map((e) =>
-          e.type === type ? { ...e, area } : e
-        ),
-      };
-    });
-  };
-
-  if (!config) {
-    return error ? <Alert severity="error">{error}</Alert> : null;
-  }
-
-  const sortedElements = sortByOrder(config.elements);
-  const overcrowdedAreas = getOvercrowdedAreas(config.elements);
-  const areaLabel = (a: DisplayArea) =>
-    a === 0 ? t('display.area_header') : a === 1 ? t('display.area_left') : t('display.area_right');
-  const areaLabelShort = (a: DisplayArea) =>
-    a === 0 ? 'H' : a === 1 ? 'L' : 'R';
+  const setBrightness = (patch: Partial<DisplayBrightness>) =>
+    setConfig((prev) =>
+      prev ? { ...prev, brightness: { ...brightness, ...patch } } : prev
+    );
 
   return (
     <Box>
-      {/* ── Control Bar ── */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
-          <Box display="flex" alignItems="center" gap={2}>
-            <Typography variant="overline" color="text.secondary">
-              {t('display.enabled')}
-            </Typography>
-            <Switch
-              checked={config.enabled}
-              onChange={(_, checked) => setEnabled(checked)}
-              color="primary"
-            />
+      <SettingsBlock title={t('display.hardware')} description={t('display.hardware_hint')}>
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="space-between"
+            flexWrap="wrap"
+            gap={2}
+          >
+            <Box display="flex" alignItems="center" gap={2}>
+              <Typography variant="overline" color="text.secondary">
+                {t('display.enabled')}
+              </Typography>
+              <Switch
+                checked={config.enabled}
+                onChange={(_, checked) =>
+                  setConfig((prev) => (prev ? { ...prev, enabled: checked } : prev))
+                }
+                color="primary"
+              />
+            </Box>
+            {/* Inputs wrap on mobile to avoid overflow */}
+            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+              <TextField
+                label={t('display.i2c_bus')}
+                type="number"
+                size="small"
+                value={config.i2c_bus}
+                onChange={(e) =>
+                  setConfig((prev) =>
+                    prev ? { ...prev, i2c_bus: parseInt(e.target.value, 10) || 1 } : prev
+                  )
+                }
+                inputProps={{ min: 0, max: 9 }}
+                sx={{ width: { xs: '100%', sm: 90 } }}
+              />
+              <TextField
+                label={t('display.i2c_address')}
+                type="number"
+                size="small"
+                value={config.i2c_address}
+                onChange={(e) =>
+                  setConfig((prev) =>
+                    prev
+                      ? { ...prev, i2c_address: parseInt(e.target.value, 10) || 60 }
+                      : prev
+                  )
+                }
+                inputProps={{ min: 0, max: 127 }}
+                sx={{ width: { xs: '100%', sm: 100 } }}
+              />
+            </Box>
           </Box>
-          {/* Inputs wrap on mobile to avoid overflow */}
-          <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
-            <TextField
-              label={t('display.i2c_bus')}
-              type="number"
-              size="small"
-              value={config.i2c_bus}
-              onChange={(e) => setI2cBus(parseInt(e.target.value, 10) || 1)}
-              inputProps={{ min: 0, max: 9 }}
-              sx={{ width: { xs: '100%', sm: 90 } }}
-            />
-            <TextField
-              label={t('display.i2c_address')}
-              type="number"
-              size="small"
-              value={config.i2c_address}
-              onChange={(e) => setI2cAddress(parseInt(e.target.value, 10) || 60)}
-              inputProps={{ min: 0, max: 127 }}
-              sx={{ width: { xs: '100%', sm: 100 } }}
-            />
-            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 120 } }}>
-              <InputLabel>{t('display.font_size')}</InputLabel>
-              <Select
-                label={t('display.font_size')}
-                value={config.font_size ?? 'medium'}
-                onChange={(e) => setFontSize(e.target.value as DisplayFontSize)}
-              >
-                <MenuItem value="small">{t('display.font_size_small')}</MenuItem>
-                <MenuItem value="medium">{t('display.font_size_medium')}</MenuItem>
-                <MenuItem value="large">{t('display.font_size_large')}</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 130 } }}>
-              <InputLabel>{t('display.font')}</InputLabel>
-              <Select
-                label={t('display.font')}
-                value={config.font ?? 'default'}
-                onChange={(e) => setFont(e.target.value as DisplayFont)}
-              >
-                <MenuItem value="default">{t('display.font_default')}</MenuItem>
-                <MenuItem value="sans">{t('display.font_sans')}</MenuItem>
-                <MenuItem value="mono">{t('display.font_mono')}</MenuItem>
-                <MenuItem value="roboto">Roboto</MenuItem>
-                <MenuItem value="ubuntu">Ubuntu</MenuItem>
-                <MenuItem value="noto">Noto Sans</MenuItem>
-                <MenuItem value="liberation">Liberation Sans</MenuItem>
-                <MenuItem value="terminus">Terminus</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-      </Paper>
+        </Paper>
 
-      {overcrowdedAreas.length > 0 && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          {t('display.overcrowded_warning', {
-            areas: overcrowdedAreas.map(areaLabel).join(', '),
-          })}
-        </Alert>
-      )}
+      </SettingsBlock>
 
-      <SettingsBlock title={t('display.elements')} description={t('display.elements_hint')}>
-
-      {/* ── Mobile Card-View ── */}
-      {isMobile ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-          {sortedElements.map((el, index) => (
-            <Paper
-              key={el.type}
-              sx={{
-                p: 1.5,
-                backgroundColor:
-                  overcrowdedAreas.includes(el.area ?? 0 as DisplayArea) && el.enabled
-                    ? 'warning.light'
-                    : undefined,
-                opacity:
-                  overcrowdedAreas.includes(el.area ?? 0 as DisplayArea) && el.enabled
-                    ? 0.85
-                    : 1,
-              }}
-            >
-              {/* Row 1: Index + Name + Active Switch */}
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 20 }}>
-                    #{index + 1}
-                  </Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {t(`display.element_types.${el.type}` as const)}
-                    {DISPLAY_CONDITIONAL_TYPES.has(el.type) && (
-                      <Tooltip title={t('display.conditional_hint')}>
-                        <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>*</Typography>
-                      </Tooltip>
-                    )}
-                  </Typography>
-                </Box>
-                <Switch
-                  size="small"
-                  checked={el.enabled}
-                  onChange={(_, checked) => setElementEnabled(el.type, checked)}
-                  color="primary"
-                />
-              </Box>
-
-              {/* Row 2: Area Buttons + Up/Down Arrows */}
-              <Box display="flex" alignItems="center" justifyContent="space-between" mt={1}>
-                <Box display="flex" gap={0.5}>
-                  {([0, 1, 2] as DisplayArea[]).map((a) => (
-                    <Button
-                      key={a}
-                      size="small"
-                      variant={(el.area ?? 0) === a ? 'contained' : 'outlined'}
-                      onClick={() => setElementArea(el.type, a)}
-                      sx={{ minWidth: 44, minHeight: 44, px: 0.5, fontSize: '0.7rem' }}
-                    >
-                      {areaLabelShort(a)}
-                    </Button>
-                  ))}
-                </Box>
-                <Box display="flex" gap={0.5}>
-                  <Tooltip title={t('display.order') + ' hoch'}>
-                    <span>
-                      <IconButton
-                        size="small"
-                        disabled={index === 0}
-                        onClick={() => moveElement(el.type, 'up')}
-                        sx={{ minWidth: 44, minHeight: 44 }}
-                      >
-                        <ArrowUpwardIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title={t('display.order') + ' runter'}>
-                    <span>
-                      <IconButton
-                        size="small"
-                        disabled={index === sortedElements.length - 1}
-                        onClick={() => moveElement(el.type, 'down')}
-                        sx={{ minWidth: 44, minHeight: 44 }}
-                      >
-                        <ArrowDownwardIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </Box>
-              </Box>
-            </Paper>
-          ))}
-        </Box>
-      ) : (
-        /* ── Desktop Table-View ── */
-        <TableContainer component={Paper} sx={{ mb: 2 }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>{t('display.order')}</TableCell>
-                <TableCell>#</TableCell>
-                <TableCell align="left">{t('display.elements')}</TableCell>
-                <TableCell align="left">{t('display.area')}</TableCell>
-                <TableCell align="left">{t('display.active')}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedElements.map((el, index) => (
-                <TableRow
-                  key={el.type}
-                  sx={
-                    overcrowdedAreas.includes(el.area ?? 0 as DisplayArea) && el.enabled
-                      ? { backgroundColor: 'warning.light', opacity: 0.85 }
-                      : undefined
-                  }
-                >
-                  <TableCell>
-                    <Box display="flex" alignItems="center" gap={0.5}>
-                      <Tooltip title={t('display.order') + ' hoch'}>
-                        <span>
-                          <IconButton
-                            size="small"
-                            disabled={index === 0}
-                            onClick={() => moveElement(el.type, 'up')}
-                          >
-                            <ArrowUpwardIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title={t('display.order') + ' runter'}>
-                        <span>
-                          <IconButton
-                            size="small"
-                            disabled={index === sortedElements.length - 1}
-                            onClick={() => moveElement(el.type, 'down')}
-                          >
-                            <ArrowDownwardIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>
-                    <Box display="flex" alignItems="center" gap={0.5}>
-                      {t(`display.element_types.${el.type}` as const)}
-                      {DISPLAY_CONDITIONAL_TYPES.has(el.type) && (
-                        <Tooltip title={t('display.conditional_hint')}>
-                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>*</Typography>
-                        </Tooltip>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Box display="flex" gap={0.5}>
-                      {([0, 1, 2] as DisplayArea[]).map((a) => (
-                        <Button
-                          key={a}
-                          size="small"
-                          variant={(el.area ?? 0) === a ? 'contained' : 'outlined'}
-                          onClick={() => setElementArea(el.type, a)}
-                          sx={{ minWidth: 56 }}
-                        >
-                          {areaLabel(a)}
-                        </Button>
-                      ))}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      size="small"
-                      checked={el.enabled}
-                      onChange={(_, checked) => setElementEnabled(el.type, checked)}
-                      color="primary"
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-
-      <Button
-        variant="contained"
-        startIcon={<SaveIcon />}
-        onClick={handleSave}
-        disabled={saving}
+      <SettingsBlock
+        title={t('display.brightness')}
+        description={t('display.brightness_hint')}
       >
-        {saving ? '…' : t('display.save_button')}
-      </Button>
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Box display="flex" flexDirection="column" gap={2}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                {t('display.brightness_day')}
+              </Typography>
+              <Slider
+                value={brightness.day}
+                min={0}
+                max={255}
+                valueLabelDisplay="auto"
+                onChange={(_, value) => setBrightness({ day: value as number })}
+              />
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                {t('display.brightness_night')}
+              </Typography>
+              <Slider
+                value={brightness.night}
+                min={0}
+                max={255}
+                valueLabelDisplay="auto"
+                onChange={(_, value) => setBrightness({ night: value as number })}
+              />
+            </Box>
+            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+              <TextField
+                label={t('display.night_from')}
+                type="time"
+                size="small"
+                value={brightness.night_from}
+                onChange={(e) => setBrightness({ night_from: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: { xs: '100%', sm: 140 } }}
+              />
+              <TextField
+                label={t('display.night_to')}
+                type="time"
+                size="small"
+                value={brightness.night_to}
+                onChange={(e) => setBrightness({ night_to: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: { xs: '100%', sm: 140 } }}
+              />
+            </Box>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Switch
+                checked={brightness.off_at_night}
+                onChange={(_, checked) => setBrightness({ off_at_night: checked })}
+                color="primary"
+              />
+              <Typography variant="body2">{t('display.off_at_night')}</Typography>
+            </Box>
+          </Box>
+        </Paper>
+
+        <Button
+          variant="contained"
+          startIcon={<SaveIcon />}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? '…' : t('display.save_button')}
+        </Button>
       </SettingsBlock>
     </Box>
   );

@@ -5,7 +5,9 @@ alle** Dienste betreffen. Sie stehen hier statt im Review des einzelnen
 Dienstes, weil sie dort nur zufaellig gefunden wurden und in einem eigenen
 Branch abgearbeitet gehoeren.
 
-Aufgenommen am 2026-08-25 aus dem [LED-Review](led/GoLive-Review.md).
+Aufgenommen am 2026-08-25 aus dem [LED-Review](led/GoLive-Review.md), dem
+[Display-Review](display/GoLive-Review.md) und einer Stoerung im Betrieb.
+1.6 und 1.7 kamen am 2026-08-26 aus einer zweiten Ton-Stoerung dazu.
 Ergaenzung zu [ServiceReview.md](../ServiceReview.md), das die neun Dienste
 insgesamt behandelt.
 
@@ -96,6 +98,251 @@ docker inspect minabox-led --format '{{json .HostConfig.LogConfig}}'
 
 Erwartet: `{"Type":"json-file","Config":{"max-file":"3","max-size":"10m"}}`
 
+### [ ] [H] 1.4 Der Python-Healthcheck kostet 6 % eines Kerns je Dienst
+
+Aufgenommen am 2026-08-25 aus dem
+[Display-Review, Abschnitt 5](display/GoLive-Review.md).
+
+Das LED- und das Button-Review haben `curl -f http://…/health` ersetzt durch
+
+```
+python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(…).status==200 else 1)"
+```
+
+um 14,5 MB apt zu sparen. Gemessen kostet eine Pruefung in diesen Containern:
+
+| Pruefung | CPU je Durchlauf |
+| --- | --- |
+| `curl -sf …/health` | **0,052 s** |
+| `python -c "import urllib.request…"` | **2,13 s** |
+
+Bei `interval: 30s` sind das **7 % eines Kerns, dauerhaft**. Ueber 120 s aus der
+cgroup-Abrechnung, aufgeteilt nach Dienstprozess und Rest des Containers:
+
+| Dienst | Container gesamt | davon Dienst | davon Healthcheck |
+| --- | --- | --- | --- |
+| `display` (curl) | 2,26 % | 1,47 % | **0,80 %** |
+| `button` (Python) | 9,81 % | 3,74 % | **6,06 %** |
+
+Der Healthcheck ist damit in `button` und `led` der groesste einzelne
+Verbraucher – groesser als der Dienst selbst.
+
+**Ursache:** das offizielle `python:3.13-slim` liefert **keinen kompilierten
+Bytecode fuer die Standardbibliothek** aus:
+
+```
+docker exec minabox-display sh -c \
+  'find /usr/local/lib/python3.13 -name "*.pyc" -not -path "*/site-packages/*" | wc -l'
+→ 0
+```
+
+Und die Container laufen als Nicht-Root gegen root-eigene Verzeichnisse, koennen
+also auch kein `__pycache__` anlegen. Jede Pruefung uebersetzt `ssl`, `email`,
+`http.client` und `urllib.parse` neu. `python -X importtime` weist 1,90 s der
+2,13 s allein dem `urllib.request`-Importbaum zu.
+
+Gegenprobe in einem Wegwerf-Container: mit vorkompilierter stdlib faellt
+derselbe Import von 2,13 s auf **0,47 s** – Faktor 4,5 – zum Preis von 13 MB
+(stdlib waechst von 104 MB auf 117 MB).
+
+**Fix, eine der drei Varianten:**
+
+- `curl` zurueckholen (+15 MB je Image, −6 % eines Kerns),
+- `RUN python -m compileall -q /usr/local/lib/python3.13` in die Runtime-Stage
+  (+13 MB, −5 % eines Kerns) – das nimmt denselben Uebersetzungslauf auch aus
+  dem Dienststart heraus,
+- die Pruefung auf einen rohen Socket umstellen, sodass nur `socket` importiert
+  wird (gemessen 0,86 s – besser, aber immer noch Faktor 16 gegenueber `curl`).
+
+`interval` auf 60 s zu setzen halbiert es unabhaengig von der Wahl.
+
+**Betrifft:** `button` und `led`. Der Display-Service behaelt `curl` bewusst;
+die Begruendung steht in [seinem Review](display/GoLive-Review.md#5-runtime-cost--and-a-warning-about-the-health-check).
+
+**Risiko:** keins bei `compileall`. Beim Zurueckholen von `curl` ist es eine
+bewusste Ruecknahme zweier Review-Entscheidungen – deshalb hier und nicht
+stillschweigend im naechsten Branch.
+
+### [ ] [H] 1.5 Der Audio-Dienst meldet `healthy`, waehrend gar kein Ton moeglich ist
+
+Aufgefallen am 2026-08-25 an einer echten Stoerung, nicht beim Lesen von Code.
+
+Nach einem Neustart hielt der PN532 den I2C-Bus fest. Der Codec-Treiber probiert
+genau einmal beim Booten und gab auf:
+
+```
+wm8960 1-001a: Failed to issue reset
+wm8960 1-001a: probe with driver wm8960 failed with error -5
+```
+
+Die Soundkarte existierte danach nicht mehr - `aplay -l` zeigte nur noch HDMI und
+die Kopfhoererbuchse. Aus der Box kam kein Ton. In derselben Zeit meldete
+`GET /health` des Audio-Dienstes:
+
+```json
+{"status": "healthy", "service": "audio", "mqtt_connected": true,
+ "vlc_initialized": true}
+```
+
+Und `docker ps` zeigte alle zehn Container gruen.
+
+Der Endpunkt kennt nur zwei Bedingungen: Broker verbunden, VLC hochgefahren.
+Beides war wahr. Ob das konfigurierte Ausgabegeraet ueberhaupt existiert, wird
+nicht geprueft - dabei steht es in `audio.json` (`enabled_output_devices`) und
+laesst sich mit einer Abfrage der vorhandenen Senken vergleichen.
+
+Das ist derselbe Fehler, der fuer [LED](led/GoLive-Review.md) und
+[Display](display/GoLive-Review.md) bereits behoben wurde - konfiguriert ist
+nicht dasselbe wie benutzbar - nur beim Dienst, bei dem er am meisten weh tut.
+Ein dunkles Display ist ein Schoenheitsfehler; eine stumme Box ist kaputt.
+
+**Fix:** `/health` um das Ausgabegeraet erweitern und `degraded` melden, wenn die
+konfigurierte Senke fehlt. Der Dienst fragt die Geraeteliste ohnehin schon ab -
+`get_audio_devices()` liefert sie, und `_publish_status` wertet sie fuer
+`multiple_output_devices` bereits aus.
+
+**Zusammenhang:** haengt an 1.2. Solange `degraded` die WebUI nicht erreicht,
+bleibt auch ein korrekter Status unsichtbar. Beide zusammen ergeben erst den
+Nutzen - deshalb am besten in einem Zug.
+
+**Risiko:** gering. Nur ein zusaetzliches Feld und eine Bedingung; der
+Container-Healthcheck fragt weiterhin nur, ob der Endpunkt antwortet.
+
+### [ ] [H] 1.6 Ein gemerkter Mute in PipeWire ueberlebt jeden Neustart
+
+Aufgefallen am 2026-08-26 an einer echten Stoerung, wie 1.5 nicht beim Lesen von
+Code. Die Box gab keinen Ton. Gleichzeitig erzeugte
+
+```bash
+speaker-test -D plughw:3,0 -c2 -t wav -l1
+```
+
+einwandfrei Ton - die Lautsprecher, der Codec und der ALSA-Pfad waren also in
+Ordnung. `speaker-test` spricht ALSA direkt an und geht an PulseAudio/PipeWire
+vorbei; der Audio-Dienst spielt ueber libVLC → PulseAudio → PipeWire.
+
+WirePlumber merkt sich Lautstaerke und Stummschaltung **pro Medienrolle**,
+dauerhaft in `~/.local/state/wireplumber/stream-properties`. Dort stand:
+
+```
+Output/Audio:media.role:Movie={"mute":true, "channelVolumes":[0.027001]}
+```
+
+Stumm - und zusaetzlich auf 2,7 % Lautstaerke. Jeder neue VLC-Stream bekam das
+beim Oeffnen des Ausgangs sofort aufgedrueckt:
+
+```
+Sink Input #194   Mute: yes
+    media.role = "video"
+    module-stream-restore.id = "sink-input-by-media-role:video"
+```
+
+Nachweisbar auch an libVLC selbst: eine frisch erzeugte Instanz meldet vor
+`play()` noch `mute=0`, unmittelbar nach dem Oeffnen des Ausgangs `mute=1` -
+ohne dass irgendjemand stummgeschaltet haette.
+
+**Ursache:** eine Zustandsverdopplung. `_handle_mute_toggle()`
+(`core/service.py`) schaltet ueber `audio_set_mute()` stumm, PipeWire schreibt
+das in seine Datenbank. `self._muted` im Dienst ist nach einem Neustart wieder
+`False` - der Dienst haelt sich fuer entstummt, PipeWire schaltet aber weiter
+stumm. Kein Neustart des Containers und kein Neustart der Box raeumt das weg,
+daher kam die Stoerung wieder.
+
+**Nebenbefund:** `PULSE_PROP_media.role=music` in `docker-compose.yml` ist
+wirkungslos. VLC setzt seine eigene Rolle und nimmt dafuer standardmaessig
+`video`, weshalb der Zustand unter `Movie` landete statt unter `Music`.
+
+**Zweiter Nebenbefund:** der bestehende `POST /api/v1/test-tone` kann diesen
+Fehler gar nicht zeigen. Er spielt ueber `paplay`, und das laeuft unter
+`application.name:paplay` - eine andere Rolle, mit einem eigenen, gesunden
+Eintrag. Der Testton war hoerbar, waehrend die Musik stumm blieb.
+
+**Fix, drei Teile:**
+
+1. `--role=music` in `_build_vlc_args()` (`infrastructure/vlc_backend.py`).
+   Dann landet der Stream in der Rolle, die der Dienst ohnehin meint.
+2. Nach jedem `play()` den Mute-Zustand einmal explizit aus `self._muted`
+   setzen, statt darauf zu vertrauen, dass ein frischer Player unstumm ist.
+   Vor `play()` genuegt nicht - der gemerkte Zustand wird erst beim Oeffnen des
+   Ausgangs angewendet.
+3. Den Testton ueber denselben libVLC-Pfad schicken wie die Musik, sonst prueft
+   er weiterhin einen Weg, den im Betrieb niemand benutzt.
+
+**Sofortmassnahme, falls es erneut auftritt:** waehrend ein VLC-Stream laeuft
+den Sink-Input entstummen - WirePlumber schreibt den korrigierten Wert dann von
+selbst zurueck:
+
+```bash
+XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-input-mute <index> 0
+```
+
+**Risiko:** gering. Teil 1 und 2 sind wenige Zeilen im Backend des Dienstes.
+Teil 3 beruehrt einen Endpunkt, den nur die WebUI aufruft.
+
+### [ ] [H] 1.7 Der Nutzer hat keinen Weg, eine stumme Box selbst zu reparieren
+
+Nichts ist aergerlicher als eine Box, die ploetzlich keinen Ton mehr gibt. Die
+bisherigen Stoerungen dieser Art (1.5, 1.6) waren beide nur mit `aplay -l`,
+`pactl` und einem Blick in die WirePlumber-Datenbank zu finden. Das kann niemand
+leisten, der die Box benutzt statt sie zu entwickeln - und genau die Person
+steht davor.
+
+Vorschlag: ein Knopf **„Ton-Problem beheben"** in der WebUI unter
+*Wartung*, neben dem Debug-Export. Ein Klick, danach fuehrt die Box durch die
+Pruefkette und behebt, was sie selbst beheben kann.
+
+**Pruefkette,** von unten nach oben, jeder Schritt mit einer Behebung, die ohne
+Rueckfrage sicher ist:
+
+| # | Pruefung | Erkennbar an | Automatische Behebung |
+|---|---|---|---|
+| 1 | Soundkarte vorhanden? | Karte zum konfigurierten Sink fehlt in `pactl list cards` | keine - Neustart der Box noetig, siehe 1.5 |
+| 2 | Konfigurierter Sink vorhanden? | `output_device_name` fehlt in `pactl list sinks` | auf den ersten verfuegbaren Sink zurueckfallen |
+| 3 | Sink stumm oder sehr leise? | `Mute: yes`, Volume unter ca. 20 % | entstummen, auf einen normalen Pegel setzen |
+| 4 | Gemerkter Rollen-Zustand stumm? | Testton-Stream startet mit `Mute: yes` | Sink-Input entstummen, WirePlumber speichert es |
+| 5 | Dienst selbst stummgeschaltet? | `self._muted` | entstummen |
+| 6 | Dienst-Lautstaerke unter `min_volume`? | `get_volume()` | auf `default_volume` |
+| 7 | ALSA-Mixer auf 0? | `amixer -c <karte> sget Speaker` | auf einen sinnvollen Wert setzen |
+
+Schritt 4 geht nur, **waehrend** ein Stream laeuft - der Testton ist genau
+dieser Stream, und er muss ueber libVLC laufen, nicht ueber `paplay`
+(siehe 1.6).
+
+**Der DAU-taugliche Teil ist der Abschluss:** die Box spielt den Testton und
+fragt in grossen Worten *„Hoerst du jetzt etwas?"* mit **Ja** und **Nein**.
+
+- **Ja** → „Das Problem ist behoben." Dazu in einem Satz, was es war.
+- **Nein** → naechste Eskalationsstufe: Audio-Dienst neu starten, erneut
+  fragen. Danach die zwei Dinge, die nur ein Mensch pruefen kann - Kabel und
+  Stromversorgung der Lautsprecher - und als letztes das Angebot, die Box neu
+  zu starten.
+
+Was der Nutzer nie zu sehen bekommt: `pactl`, Rollennamen, Sink-Indizes. Die
+technischen Details gehoeren in den Debug-Export, nicht in den Dialog.
+
+**Wo das hingehoert:**
+
+- `POST /api/v1/audio/troubleshoot` im Audio-Dienst. Der Dienst spricht ohnehin
+  ueber den gemounteten Socket mit PulseAudio und kann die Schritte 2 bis 6
+  allein erledigen.
+- Schritt 1 und 7 brauchen den Host: `/proc/asound/cards` und `amixer` sind im
+  Audio-Container nicht erreichbar. Der `host-helper` hat `/:/host:rw` und
+  laeuft als root - dort als Erweiterung von `/diagnostics/host`.
+- Backend-Proxy wie bei den uebrigen Wartungsfunktionen.
+- WebUI: in `SystemMaintenanceSection.tsx`, mit Uebersetzungen in
+  `de/admin.json` und `en/admin.json`.
+
+**Zusammenhang:** 1.5 liefert die Erkennung („die Senke fehlt"), 1.6 den
+haeufigsten Einzelfall, 1.2 die Anzeige. Dieser Punkt macht daraus etwas, das
+der Nutzer selbst ausloesen kann. Sinnvoll erst, wenn 1.5 und 1.6 stehen -
+sonst prueft der Knopf Zustaende, die der Dienst noch falsch meldet.
+
+**Risiko:** mittel. Ein Knopf, der Zustaende veraendert, muss idempotent sein
+und darf nichts anfassen, was nicht nachweislich falsch steht - sonst
+ueberschreibt er eine bewusst leise eingestellte Box. Jede Behebung gehoert
+protokolliert, damit im Debug-Export nachvollziehbar bleibt, was der Knopf
+getan hat.
+
 ---
 
 ## 2. Angrenzendes, das sonst verloren geht
@@ -126,14 +373,14 @@ Wheel fuer cp39–cp312, **nicht fuer cp313**.
 Fuer den LED-Teil steht das auch im
 [LED-Review, Abschnitt 4.4](led/GoLive-Review.md).
 
-### [ ] [M] 2.2 Deutsche Kommentare in fuenf Dockerfiles
+### [ ] [M] 2.2 Deutsche Kommentare in vier Dockerfiles
 
 Der Versions-Block am Dateiende ist noch deutsch in:
 
-`button`, `audio`, `media-downloader`, `webui`, `display`
+`button`, `audio`, `media-downloader`, `webui`
 
-`host-helper` und `led` sind bereits uebersetzt – der Wortlaut kann von dort
-uebernommen werden. Reine Textaenderung, kein Risiko, aber sie invalidiert die
+`host-helper`, `led` und `display` sind bereits uebersetzt – der Wortlaut kann
+von dort uebernommen werden. Reine Textaenderung, kein Risiko, aber sie invalidiert die
 letzten Metadaten-Layer und loest damit einen Rebuild aus.
 
 ### [ ] [N] 2.3 Die Version in `pyproject.toml` ist repo-weit veraltet
@@ -195,12 +442,15 @@ wird, und genau dafuer baut man es.
 `*.example`-Vorlagen behalten. Betrifft `audio`, `button`, `display`, `led`,
 `rfid` gleichermassen – deshalb hier und nicht im LED-Review.
 
-### [ ] [M] 2.6 Button-Service: 10 % CPU im Leerlauf
+### [x] [M] 2.6 Button-Service: 10 % CPU im Leerlauf
 
 Gemessen im Vergleich (drei `docker stats`-Durchlaeufe): `button` 9,6–10,5 %,
 `led` und `rfid` je rund 3 %. Steht bereits als offener Punkt in
 [ServiceReview.md](../ServiceReview.md) und ist hier nur als Querverweis
 aufgenommen, damit die Messung nicht verlorengeht.
+
+**Erklaert.** Es ist nicht der Dienst, es ist sein Healthcheck – siehe 1.4. Von
+den gemessenen 9,81 % entfallen 6,06 % auf die Pruefung, 3,74 % auf den Dienst.
 
 ---
 

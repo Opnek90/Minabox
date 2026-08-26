@@ -6,10 +6,9 @@ from pathlib import Path
 from typing import Final
 
 import structlog
+from shared_lib.config import load_env
 
-from shared_lib.config import load_env, load_json_config
-
-from .config_schema import AppConfig, DisplayServiceConfig, EnvConfig
+from .config_schema import AppConfig, EnvConfig
 
 logger = structlog.get_logger(__name__)
 
@@ -23,21 +22,19 @@ def _load_env_config() -> EnvConfig:
     return EnvConfig(**load_env())
 
 
-def _load_display_config(path: Path = DISPLAY_CONFIG_PATH) -> DisplayServiceConfig:
-    """Load and validate display configuration from JSON."""
-    return load_json_config(path, DisplayServiceConfig)
-
-
 def load_app_config() -> AppConfig:
-    """Load and validate the full application configuration."""
-    env_config = _load_env_config()
-    display_config = _load_display_config()
+    """Load and validate the environment configuration.
 
-    app_config = AppConfig(env=env_config, display=display_config)
+    ``display.json`` is deliberately *not* read here. It used to be, into an
+    ``AppConfig.display`` that nothing ever read: ``DisplayService`` loads the
+    same file a second time through ``ConfigManager``, and that is the copy that
+    gets used and reloaded. Two parses of one file, and the unread one went
+    stale on the first reload.
+    """
+    env_config = _load_env_config()
+    app_config = AppConfig(env=env_config)
     logger.info(
         "config_loaded",
-        display_enabled=app_config.display.enabled,
-        elements_count=len(app_config.display.elements),
         mqtt_broker=app_config.env.mqtt_broker,
         device_id=app_config.env.minabox_device_id,
     )

@@ -26,6 +26,11 @@ logger = structlog.get_logger(__name__)
 # We prewarm slightly below this threshold.
 _PIPELINE_SUSPEND_THRESHOLD_SEC = 4.0
 
+# How close VLC has to report being to a requested position before we call the
+# seek done, and how long we are willing to wait for it.
+_SEEK_TOLERANCE_MS = 1000
+_SEEK_CONFIRM_TIMEOUT_SEC = 1.0
+
 
 class VLCBackend(AudioBackend):
     """VLC-based audio backend implementation.
@@ -45,6 +50,12 @@ class VLCBackend(AudioBackend):
         self._player: vlc.MediaPlayer | None = None
         self._initialized = False
         self._pending_volume: int | None = None
+        # The last level we asked libVLC for. It is the answer to "how loud is
+        # this box" whenever libVLC cannot say: after stop() the player has no
+        # media and audio_get_volume() returns -1, and reporting 0 for that
+        # made every subscriber believe the volume had been turned down to the
+        # minimum the moment a figure was lifted off the reader.
+        self._last_volume: int = getattr(config, "default_volume", 40) or 40
         self._current_track_id: str | None = None
         self._current_source_type: str | None = None
         self._current_source_uri: str | None = None
@@ -121,6 +132,7 @@ class VLCBackend(AudioBackend):
             initial_volume = max(initial_volume, min_vol)
 
             logger.debug("setting_initial_volume", volume=initial_volume)
+            self._last_volume = initial_volume
             result = self._player.audio_set_volume(initial_volume)
             if result == -1:
                 logger.warning(
@@ -309,6 +321,7 @@ class VLCBackend(AudioBackend):
             if start_position_ms > 0:
                 await asyncio.sleep(0.2)
                 self._player.set_time(start_position_ms)
+                await self._wait_for_position(start_position_ms)
 
             self._current_source_uri = source_uri
         except Exception as e:
@@ -333,6 +346,37 @@ class VLCBackend(AudioBackend):
             await asyncio.sleep(0.1)
             elapsed += 0.1
         raise PlaybackError(f"Timeout waiting for {expected_state}")
+
+    async def _wait_for_position(
+        self, target_ms: int, timeout_sec: float = _SEEK_CONFIRM_TIMEOUT_SEC
+    ) -> None:
+        """Wait until VLC reports being near *target_ms*.
+
+        ``set_time()`` is asynchronous, like ``play()`` and ``pause()``. The
+        status published straight afterwards would otherwise carry the position
+        from *before* the jump - and this is the only moment the position
+        reaches anyone: it is deliberately excluded from the status fingerprint
+        so a playing track does not publish every two seconds. Subscribers
+        therefore count down from what arrives here, and a wrong number here
+        stays wrong for the rest of the track.
+
+        Only seeks and resumes pay this wait; an ordinary track start passes
+        ``start_position_ms=0`` and never gets here.
+        """
+        elapsed = 0.0
+        while elapsed < timeout_sec:
+            current = self._player.get_time()
+            # Playback keeps running while we wait, so the reported position
+            # drifts past the target rather than landing on it.
+            if current >= 0 and abs(current - target_ms) <= _SEEK_TOLERANCE_MS:
+                return
+            await asyncio.sleep(0.05)
+            elapsed += 0.05
+        logger.debug(
+            "seek_position_not_confirmed",
+            target_ms=target_ms,
+            reported_ms=self._player.get_time(),
+        )
 
     async def pause(self) -> None:
         """Pause playback and wait for state transition.
@@ -450,16 +494,42 @@ class VLCBackend(AudioBackend):
             return
         min_vol = getattr(self._config, "min_volume", 0)
         clamped = min(max(volume, min_vol), self._config.max_volume)
+        self._last_volume = clamped
         if self._player.audio_set_volume(clamped) == -1:
             self._pending_volume = clamped
         else:
             self._pending_volume = None
 
     async def get_volume(self) -> int:
+        """Report the running level, falling back to the last one we set.
+
+        libVLC has two ways of saying "ask me later" and neither is a level:
+        -1 with no player or after stop() has released the media, and 0 in the
+        moment after play() while the audio output is still coming up. Passing
+        either on told every subscriber the volume had moved - once to the
+        minimum when playback ended, and once to zero and back at the start of
+        every track, which on the panel was a full-screen volume overlay for
+        putting a figure on the reader.
+
+        What makes the second case decidable is that every write goes through
+        the clamp in set_volume(), so the box cannot be at a level outside the
+        configured range. Anything outside it is libVLC not knowing yet.
+        """
         if not self._player:
-            return 0
-        vol = self._player.audio_get_volume()
-        return vol if vol >= 0 else (self._pending_volume or 0)
+            return self._last_volume
+        reported = self._player.audio_get_volume()
+        if self._is_plausible(reported):
+            return reported
+        if self._pending_volume is not None:
+            return self._pending_volume
+        return self._last_volume
+
+    def _is_plausible(self, reported: int) -> bool:
+        """True if *reported* is a level this box could actually be at."""
+        if reported < 0:
+            return False
+        min_volume = getattr(self._config, "min_volume", 0)
+        return min_volume <= reported <= self._config.max_volume
 
     async def get_position(self) -> int:
         return self._player.get_time() if self._player else 0
