@@ -63,6 +63,28 @@ class TestToneResponse(BaseModel):
     timestamp: str
 
 
+class TroubleshootStep(BaseModel):
+    """One rung of the sound-repair chain, and what happened on it."""
+
+    id: str
+    ok: bool
+    fixed: bool = False
+    # Technical wording, for the debug export - never for the dialog. The user
+    # is not shown sink names or stream indices.
+    detail: str | None = None
+
+
+class TroubleshootResponse(BaseModel):
+    """Response for POST /troubleshoot."""
+
+    steps: list[TroubleshootStep]
+    fixed: list[str]
+    # The step id the UI names as the cause, or None when nothing was wrong.
+    cause: str | None = None
+    tone_played: bool = False
+    timestamp: str
+
+
 class SwitchDeviceBody(BaseModel):
     """Request body for POST /switch-device."""
 

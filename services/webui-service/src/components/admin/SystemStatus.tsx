@@ -24,6 +24,7 @@ import RouterIcon from '@mui/icons-material/Router';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StorageIcon from '@mui/icons-material/Storage';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import TerminalIcon from '@mui/icons-material/Terminal';
 import ThermostatIcon from '@mui/icons-material/Thermostat';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +38,7 @@ import type { SystemStatus as SystemStatusType } from '@/types/api';
 import { formatUptime } from '@/utils/formatTime';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { DebugExportDialog } from '@/components/admin/DebugExportDialog';
+import { SoundTroubleshootDialog } from '@/components/admin/SoundTroubleshootDialog';
 
 interface StatTileProps {
   icon: React.ReactNode;
@@ -95,6 +97,12 @@ export const SystemStatusPanel: React.FC = () => {
   // statt aus einer Klickanleitung.
   const [debugExportOpen, setDebugExportOpen] = useState(
     () => new URLSearchParams(window.location.search).get('action') === 'debug-export'
+  );
+  // Same deep-link idea as the debug export: ...?action=sound-fix drops the
+  // user straight into the check, so telling somebody how to fix a mute box is
+  // a link rather than a click-by-click instruction.
+  const [soundFixOpen, setSoundFixOpen] = useState(
+    () => new URLSearchParams(window.location.search).get('action') === 'sound-fix'
   );
   const [logsModalService, setLogsModalService] = useState<string | null>(null);
   const [hostStatus, setHostStatus] = useState<HostStatusResponse | null>(null);
@@ -170,6 +178,17 @@ export const SystemStatusPanel: React.FC = () => {
           onClick={() => setDebugExportOpen(true)}
         >
           {t('system.debug_export_short')}
+        </ActionButton>
+        {/* Next to the debug export on purpose: this is the same moment -
+            something is wrong and the user wants to do something about it -
+            except this one they can actually finish themselves. */}
+        <ActionButton
+          actionType="secondary"
+          size="small"
+          startIcon={<VolumeOffIcon />}
+          onClick={() => setSoundFixOpen(true)}
+        >
+          {t('system.sound_fix.title')}
         </ActionButton>
       </Box>
 
@@ -341,6 +360,7 @@ export const SystemStatusPanel: React.FC = () => {
       />
       <SyslogModal open={syslogModalOpen} onClose={() => setSyslogModalOpen(false)} />
       <DebugExportDialog open={debugExportOpen} onClose={() => setDebugExportOpen(false)} />
+      <SoundTroubleshootDialog open={soundFixOpen} onClose={() => setSoundFixOpen(false)} />
       </SettingsBlock>
     </Box>
   );

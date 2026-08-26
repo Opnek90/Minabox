@@ -323,6 +323,32 @@ export interface PlayRequest {
   position_ms?: number;
 }
 
+/**
+ * One rung of the sound-repair chain (docs/services/Offene-Punkte.md 1.7).
+ *
+ * `id` is what the dialog translates into a sentence. `detail` is technical
+ * wording for the debug export and is never shown: the user sees no sink
+ * names, no role names and no stream indices.
+ */
+export interface AudioTroubleshootStep {
+  id: string;
+  ok: boolean;
+  fixed: boolean;
+  detail?: string | null;
+}
+
+export interface AudioTroubleshootResult {
+  steps: AudioTroubleshootStep[];
+  /** Step ids that were actually repaired, bottom of the chain first. */
+  fixed: string[];
+  /** The one the dialog names as the cause; null when nothing was wrong. */
+  cause: string | null;
+  tone_played: boolean;
+  /** False when the host-helper is missing: steps 1 and 7 were skipped. */
+  host_checks_available: boolean;
+  timestamp: string;
+}
+
 // ============================================================================
 // System
 // ============================================================================

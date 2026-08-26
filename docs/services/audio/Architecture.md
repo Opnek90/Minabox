@@ -217,6 +217,7 @@ reaches the service over the Compose network as `http://audio:8003`, while
 | `GET` | `/api/v1/devices?enabled_only=false` | Detected Pulse sinks, cache bypassed |
 | `POST` | `/api/v1/switch-device` | Switch the output sink, returns the new status |
 | `POST` | `/api/v1/test-tone` | Play the bundled test tone on a sink |
+| `POST` | `/api/v1/troubleshoot` | Steps 2–6 of the sound-repair chain, ending with the tone |
 
 `GET /health`:
 
@@ -255,6 +256,35 @@ and every hiccup in the detector would otherwise show up as a broken box.
 `POST /api/v1/switch-device` takes `{"sink_name": "..."}` or
 `{"direction": "next"}`; `alsa_device` is a deprecated alias for `sink_name`.
 An unknown or non-enabled sink is answered with HTTP 400.
+
+`POST /api/v1/troubleshoot` is the check chain behind the WebUI's "Fix sound
+problem" button (`docs/services/Offene-Punkte.md` 1.7). It walks steps 2 to 6 —
+the sink, the stream, and the service's own volume and mute — repairs what it
+can repair safely, and plays the test tone last.
+
+Two rules hold it together, and both are worth keeping through later edits:
+
+- **Idempotent.** The dialog offers the button again after a "no, still
+  nothing", so a second run must not undo the first one's work.
+- **Only what is demonstrably wrong.** A sink is raised when it reads below
+  20 %, never because 40 % is not the number one would pick; the service volume
+  only when it is below its own configured `min_volume`. A box someone
+  deliberately turned down quietly comes out of this exactly as quiet.
+
+The tone comes last because of step 4: a mute WirePlumber remembers for the
+media role only appears once a stream has opened the output, and can only be
+corrected there. The tone is that stream.
+
+Steps 1 (is there a sound card at all?) and 7 (an ALSA mixer at zero) are not
+here — `/proc/asound/cards` and `amixer` are not reachable from this container.
+They are the host-helper's `POST /audio/repair`, and the backend stitches both
+halves together, host first: a mixer at zero has to be raised *before* the tone
+plays, or the tone proves nothing.
+
+Every repair is recorded in the response, so the debug export still shows
+afterwards what the button actually did. The `detail` field is technical
+wording for exactly that; the user is shown a translated sentence keyed on the
+step id, never a sink name or a stream index.
 
 `POST /api/v1/test-tone` takes an optional `{"sink_name": "..."}` and plays
 `assets/test-tone.wav` over libVLC, on a throwaway instance built from the

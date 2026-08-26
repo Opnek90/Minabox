@@ -429,6 +429,41 @@ async def reboot_host() -> dict:
     )
 
 
+async def host_restart_audio_service() -> dict:
+    """Restart only the audio container - the escalation the UI offers next.
+
+    Not the whole stack: that takes the WebUI down with it, and the person
+    waiting for an answer is looking at exactly that page.
+    """
+    return await _proxy(
+        "POST",
+        "/audio/restart",
+        timeout=95.0,
+        error_message="Restarting the audio service failed",
+        error_code="audio_service_restart_failed",
+        log_event="host_helper_audio_restart_failed",
+    )
+
+
+async def host_audio_repair() -> dict | None:
+    """Steps 1 and 7 of the sound-repair chain, run on the host.
+
+    Not a route: the button lives under /audio/troubleshoot, which stitches
+    this half together with the audio service's. Returns None when the
+    host-helper is missing or does not answer - a box without it still gets
+    steps 2 to 6, which is most of the value.
+    """
+    result = await _proxy_optional(
+        "/audio/repair",
+        method="POST",
+        # amixer is asked once per control per card, each through nsenter.
+        timeout=30.0,
+        fallback={},
+        log_event="host_helper_audio_repair_failed",
+    )
+    return result or None
+
+
 @router.post("/shutdown")
 async def shutdown_host() -> dict:
     """Shutdown the host (Pi). Requires Host-Helper."""

@@ -6,7 +6,6 @@ Provides health check, status, devices, and switch-device endpoints.
 from __future__ import annotations
 
 import asyncio
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +15,8 @@ from shared_lib.version import get_version
 
 from ..config_schema import AppConfig
 from ..core import AudioService
+from ..core.service import TEST_TONE_PATH as _TEST_TONE_PATH
+from ..core.service import TEST_TONE_TIMEOUT
 from ..models import (
     DeviceItem,
     DevicesResponse,
@@ -24,19 +25,20 @@ from ..models import (
     SwitchDeviceBody,
     TestToneBody,
     TestToneResponse,
+    TroubleshootResponse,
 )
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-# Test tone bundled for the first-run setup wizard. Deliberately its own asset
-# rather than a track from the library: on a freshly set up box the library is
-# empty.
-TEST_TONE_PATH = Path(
-    os.getenv("AUDIO_TEST_TONE_PATH", "/app/assets/test-tone.wav")
-)
-TEST_TONE_TIMEOUT = 15.0
+# Defined next to the service, which plays the same asset for the sound
+# troubleshooter.
+TEST_TONE_PATH = Path(_TEST_TONE_PATH)
+
+# The chain ends with the tone, so it cannot be shorter than the tone's own
+# limit. The rest is the pactl calls, which are capped at 5 s each.
+TROUBLESHOOT_TIMEOUT = TEST_TONE_TIMEOUT + 20.0
 
 # Global reference to service (set by create_app for route handlers)
 _service: AudioService | None = None
@@ -161,6 +163,48 @@ async def switch_device(body: SwitchDeviceBody) -> StatusResponse:
     except Exception as e:
         logger.error("switch_device_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/troubleshoot", response_model=TroubleshootResponse)
+async def troubleshoot() -> TroubleshootResponse:
+    """Walk the sound-repair chain and end with the test tone.
+
+    Steps 2 to 6 of docs/services/Offene-Punkte.md 1.7 - the sink, the stream
+    and the service's own volume and mute. Steps 1 and 7 need
+    /proc/asound/cards and amixer, which this container cannot reach; the
+    backend adds them from the host-helper.
+
+    Repairs happen without asking, and are safe to: every one of them is
+    idempotent and only fires on a value nobody could have meant. Running this
+    twice does nothing the second time.
+    """
+    if _service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    if not TEST_TONE_PATH.is_file():
+        logger.error("test_tone_missing", path=str(TEST_TONE_PATH))
+        raise HTTPException(status_code=503, detail="Test tone asset not found")
+
+    try:
+        result = await asyncio.wait_for(
+            _service.troubleshoot(), TROUBLESHOOT_TIMEOUT
+        )
+    except TimeoutError:
+        logger.warning("audio_troubleshoot_timeout")
+        raise HTTPException(
+            status_code=504, detail="Troubleshooting timed out"
+        ) from None
+    except Exception as e:  # noqa: BLE001 - reported to the caller as 500
+        logger.error("audio_troubleshoot_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    return TroubleshootResponse(
+        steps=result["steps"],
+        fixed=result["fixed"],
+        cause=result["cause"],
+        tone_played=result["tone_played"],
+        timestamp=datetime.now(UTC).isoformat(),
+    )
 
 
 @router.post("/test-tone", response_model=TestToneResponse)

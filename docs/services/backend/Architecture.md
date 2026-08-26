@@ -211,6 +211,8 @@ moves its contents and its child folders to the root rather than deleting them.
 | GET | `/audio/devices` | Detected output sinks (proxied to the audio service) |
 | POST | `/audio/switch-device` | Switch output sink or cycle with `direction: "next"` |
 | POST | `/audio/test-tone` | Play a short test tone (setup wizard) |
+| POST | `/audio/troubleshoot` | Walk the sound-repair chain, repair what is safe, end with the tone |
+| POST | `/audio/restart-service` | Restart only the audio container |
 
 **RFID**
 

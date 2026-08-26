@@ -10,6 +10,8 @@ from .schemas import (
     SwitchDeviceBody,
     TestToneBody,
     TestToneResponse,
+    TroubleshootResponse,
+    TroubleshootStep,
 )
 
 __all__ = [
@@ -20,4 +22,6 @@ __all__ = [
     "SwitchDeviceBody",
     "TestToneBody",
     "TestToneResponse",
+    "TroubleshootResponse",
+    "TroubleshootStep",
 ]
