@@ -529,7 +529,7 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## display
 
-### 0.1.2 - 2026-08-26
+### 0.2.0 - 2026-08-26
 
 #### Neu
 - Das Display zeigt jetzt fuer jede Situation ein eigenes Bild statt einer Reihe
@@ -552,6 +552,7 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 #### Behoben
 - Beim Abnehmen und beim Auflegen einer Figur sprang kurz die Lautstaerkeanzeige
   an, obwohl sich nichts geaendert hatte.
+
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20

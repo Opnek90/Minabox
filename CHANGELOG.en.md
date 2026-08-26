@@ -506,7 +506,7 @@ A version without a visible change may stay empty - the interface then says
 
 ## display
 
-### 0.1.2 - 2026-08-26
+### 0.2.0 - 2026-08-26
 
 #### Added
 - The display now shows a picture for each situation instead of a row of tiny
@@ -526,6 +526,7 @@ A version without a visible change may stay empty - the interface then says
 #### Fixed
 - Taking a figure off, and putting one on, briefly raised the volume reading
   although nothing had changed.
+
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20
