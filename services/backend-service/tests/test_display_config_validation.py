@@ -118,3 +118,26 @@ def test_everything_this_rejects_the_display_service_also_rejects(name):
 
     with pytest.raises(ValidationError):
         _display_schema()(**INVALID_BODIES[name])
+
+
+# ---------------------------------------------------------------------------
+# What the settings page actually sends
+# ---------------------------------------------------------------------------
+
+
+def test_the_body_the_settings_page_sends_is_accepted():
+    """The panel sends three keys and nothing else.
+
+    A second, older shape check demanded that "elements" be a list, and it
+    survived the removal of the grid. So the endpoint answered the new panel
+    with 422 - the settings page could not save anything at all, while every
+    unit test here passed, because this file only ever called the display
+    validator and never the shape check in front of it.
+    """
+    _validate_display_config({"enabled": True, "i2c_bus": 1, "i2c_address": 60})
+
+
+def test_the_endpoint_no_longer_demands_an_element_list():
+    from backend_service.api.routes_config import _CONFIG_SHAPE
+
+    assert "display" not in _CONFIG_SHAPE

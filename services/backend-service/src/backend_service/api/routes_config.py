@@ -340,10 +340,13 @@ CONFIG_FILES = {
 # A structural check is enough for what goes wrong in practice: a body that
 # lost its content on the way and would leave the other service with a config
 # it cannot start from.
+# The one key each service's config file cannot start without. The display is
+# absent on purpose: it used to require "elements", and that list stopped being
+# read when the widget grid went. Demanding it would reject exactly what the
+# settings page now sends.
 _CONFIG_SHAPE: dict[str, tuple[str, type]] = {
     "leds": ("leds", list),
     "buttons": ("buttons", list),
-    "display": ("elements", list),
 }
 
 
@@ -703,7 +706,6 @@ async def update_display_config(body: dict) -> dict:
     path = _config_path("display")
     if path is None:
         raise ApiError(status_code=503, code="display_config_unavailable", detail="Display config not available")
-    _validate_config_shape("display", body)
     _validate_display_config(body)
     try:
         write_json_atomic(path, body)
