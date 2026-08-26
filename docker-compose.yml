@@ -26,9 +26,11 @@
 # Startup order (depends_on with condition: service_healthy):
 #   1. mqtt        – Message bus; everything depends on it
 #   2. backend     – Central data store; starts after mqtt is healthy
-#   3. audio, webui, host-helper – start after backend is healthy
-#   4. rfid, button, led – start after mqtt is healthy (parallel to backend)
-#   5. media-downloader – starts after backend is healthy
+#   3. audio, host-helper, rfid, button, led, display, media-downloader –
+#      start after backend is healthy (in parallel with each other)
+#   4. webui – starts last, after audio and every enabled peripheral service
+#      (rfid, button, led, display, media-downloader) is healthy, so its
+#      features don't fail just because the box is still booting
 #
 # Resource limits: omitted by default because on many Raspberry Pi setups the
 # kernel has cgroup memory disabled, which causes "Limitation discarded" warnings.
@@ -455,15 +457,37 @@ services:
       - "${WEBUI_PORT:-80}:80"
     networks:
       - minabox-network
-    # service_started, not service_healthy: nginx now resolves "backend" at
-    # request time via the resolver directive in nginx.conf (not once at
-    # config load), so the UI no longer needs the backend container to exist
-    # yet to start. It is the system's only diagnostic surface and should be
-    # the most, not least, available container — ConnectionLostScreen covers
-    # the case where the backend isn't reachable yet.
+    # service_started for host-helper, not service_healthy: nginx resolves
+    # "backend" at request time via the resolver directive in nginx.conf (not
+    # once at config load), so the UI doesn't need the backend container itself
+    # to exist yet to start — ConnectionLostScreen covers the case where the
+    # backend isn't reachable yet. The hardware/peripheral services are
+    # different: those don't have an equivalent fallback screen, so features
+    # that talk to them (Audio, RFID, LED, Display, Media-Downloader) failed
+    # visibly right after boot when webui came up before those containers were
+    # healthy. Waiting for them (required: false, since the hardware ones are
+    # profile-gated and may not be started at all) pushes webui's own start a
+    # bit later without making it as strict as service_healthy on itself.
     depends_on:
       host-helper:
         condition: service_started
+      audio:
+        condition: service_healthy
+      rfid:
+        condition: service_healthy
+        required: false
+      button:
+        condition: service_healthy
+        required: false
+      led:
+        condition: service_healthy
+        required: false
+      display:
+        condition: service_healthy
+        required: false
+      media-downloader:
+        condition: service_healthy
+        required: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
