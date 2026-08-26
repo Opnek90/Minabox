@@ -10,7 +10,17 @@
 export type ContentType = 'playlist' | 'track' | 'stream' | 'podcast';
 export type SourceType = 'file' | 'remote';
 export type AudioState = 'playing' | 'paused' | 'stopped' | 'error';
-export type ServiceState = 'online' | 'offline' | 'error';
+/**
+ * 'degraded' is a service that answers but says it cannot do its job -
+ * no usable GPIO pin, no broker, a configured sound card that is gone.
+ * Its container is running and Docker calls it healthy, so without this it
+ * was shown green.
+ */
+export type ServiceState = 'online' | 'degraded' | 'offline' | 'error';
+
+/** A service that is up, whether or not it is fully working. */
+export const isServiceUp = (state: ServiceState): boolean =>
+  state === 'online' || state === 'degraded';
 export type RFIDMode = 'normal' | 'learning';
 /** All supported LED pattern types. 'glow' requires PWMLED (Software PWM). */
 export type LEDPatternType = 'solid' | 'blink' | 'pulse' | 'off' | 'glow';
@@ -333,6 +343,8 @@ export interface ServiceStatus {
   docker_status?: string | null;
   /** Docker health check result: healthy, unhealthy, starting. */
   health?: string | null;
+  /** What the service says about itself in its own /health body. */
+  service_status?: 'healthy' | 'degraded' | null;
   restart_count?: number | null;
   started_at?: string | null;
   exit_code?: number | null;

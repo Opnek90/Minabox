@@ -471,6 +471,8 @@
     "shutdown_confirm": "Do you really want to shut down the device? Unplug and plug in again to power back on.",
     "ssh_toggle": "SSH access",
     "ssh_toggle_hint": "You can turn it back on for maintenance.",
+    "status_degraded": "Degraded",
+    "status_degraded_hint": "The service is running but reports that it cannot do its job",
     "status_error": "Error",
     "status_offline": "Offline",
     "status_online": "Online",

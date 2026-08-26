@@ -471,6 +471,8 @@
     "shutdown_confirm": "Wollen Sie das Gerät wirklich herunterfahren? Zum Wiederhochfahren Stecker ziehen und erneut einstecken.",
     "ssh_toggle": "SSH-Zugang",
     "ssh_toggle_hint": "Für Wartungen wieder aktivierbar.",
+    "status_degraded": "Eingeschränkt",
+    "status_degraded_hint": "Der Dienst läuft, meldet aber selbst, dass er seine Aufgabe nicht erfüllen kann",
     "status_error": "Fehler",
     "status_offline": "Offline",
     "status_online": "Online",

@@ -10,6 +10,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { useTranslation } from 'react-i18next';
 import type { ServiceStatus as ServiceStatusType } from '@/types/api';
@@ -25,10 +26,14 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service, onOpe
   const { t } = useTranslation('admin');
 
   // ── State config ───────────────────────────────────────────────────────────
+  // 'degraded' is the service's own verdict from its /health body: the
+  // container runs and Docker calls it healthy, but the service says it cannot
+  // do its job. Amber rather than red - it is running, just not usefully.
   const stateConfig = {
-    online:  { color: 'success' as const, icon: <CheckCircleIcon fontSize="small" />, label: t('system.status_online') },
-    offline: { color: 'default' as const, icon: <HelpOutlineIcon fontSize="small" />, label: t('system.status_offline') },
-    error:   { color: 'error'   as const, icon: <ErrorIcon fontSize="small" />,       label: t('system.status_error') },
+    online:   { color: 'success' as const, icon: <CheckCircleIcon fontSize="small" />,  label: t('system.status_online') },
+    degraded: { color: 'warning' as const, icon: <WarningAmberIcon fontSize="small" />, label: t('system.status_degraded') },
+    offline:  { color: 'default' as const, icon: <HelpOutlineIcon fontSize="small" />,  label: t('system.status_offline') },
+    error:    { color: 'error'   as const, icon: <ErrorIcon fontSize="small" />,        label: t('system.status_error') },
   };
   const config = stateConfig[service.state] ?? stateConfig.offline;
 
@@ -51,6 +56,7 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service, onOpe
   const stateTitle = [
     service.docker_status,
     service.health,
+    service.service_status === 'degraded' ? t('system.status_degraded_hint') : null,
     service.restart_count ? `${service.restart_count}× neu gestartet` : null,
   ].filter(Boolean).join(' · ') || undefined;
 
@@ -59,7 +65,12 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service, onOpe
       sx={{
         borderRadius: 2,
         border: '1px solid',
-        borderColor: service.state === 'error' ? 'error.light' : 'divider',
+        borderColor:
+          service.state === 'error'
+            ? 'error.light'
+            : service.state === 'degraded'
+              ? 'warning.light'
+              : 'divider',
         bgcolor: 'background.paper',
         overflow: 'hidden',
         transition: 'border-color 0.2s',

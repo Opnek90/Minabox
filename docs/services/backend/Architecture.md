@@ -625,6 +625,26 @@ Without a usable socket, `routes_system.py` falls back to probing each known
 service's `/health` — no CPU or RAM then, and only the services in the static
 catalogue.
 
+On **both** paths the service's own verdict is folded in. Five services —
+`audio`, `rfid`, `button`, `display`, `led` — answer `/health` with a `status`
+of their own, and it used to be read by nobody. The container health check asks
+only whether the endpoint answers with 2xx, and a degraded service answers 2xx
+on purpose, so that a lost broker does not make Docker restart something that
+is otherwise fine. A service could therefore report itself as broken and be
+shown green: the LED service with not a single usable GPIO pin after a wrong
+`GPIO_GID`, or any service whose MQTT connection had gone while the container
+kept running.
+
+An entry that reports `degraded` carries `service_status: "degraded"` and its
+`state` becomes `degraded` — the fourth state next to `online`, `offline` and
+`error`. `error` wins over it: an unhealthy container is the worse news, and a
+service that still answers must not talk the entry back up into a milder state.
+
+Only entries that are **online** are probed, and all of them together: a
+container already known to be down has nothing to add and would only spend
+`HEALTH_TIMEOUT` saying so, and the round costs one timeout rather than one per
+service.
+
 `core/update_check.py` compares the running versions against
 `release-manifest.json` in the repository. Two rules shape it:
 
