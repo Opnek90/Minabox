@@ -30,9 +30,11 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-# Mixer controls worth looking at, in the order they are tried. A box whose
-# Speaker control sits at zero is broken; one whose "Mic Boost" does is not.
-_MIXER_CONTROLS = ("Speaker", "PCM", "Master", "Headphone", "Digital")
+# Mixer controls worth looking at. Matched exactly, which is the point: the
+# wm8960 also has "Speaker AC", "Speaker DC" and "Speaker Playback ZC", none of
+# which is a volume. A box whose Speaker control sits at zero is broken; one
+# whose "Mic Boost" does is not.
+_MIXER_CONTROLS = ("Speaker", "PCM", "Master", "Headphone")
 
 # Below this, the mixer was not turned down, it was turned off. Same rule as in
 # the audio service: only touch a value nobody could have meant.
@@ -87,13 +89,28 @@ def _controls_of(card: str) -> list[str]:
 
 
 def _control_level(card: str, control: str) -> tuple[int | None, bool]:
-    """(lowest channel percentage, muted) for one control."""
+    """(lowest playback channel percentage, muted) for one control.
+
+    Only the ``Playback`` lines count. A control that does capture as well
+    prints both, and a microphone sitting at 0 % is not a reason to touch the
+    speaker level:
+
+        Front Left: Playback 109 [86%] [-12.00dB] Capture 0 [0%] [off]
+    """
     result = _amixer(["-c", card, "sget", control])
     if result is None or result.returncode != 0:
         return None, False
-    text = result.stdout or ""
-    percents = [int(p) for p in _PERCENT.findall(text)]
-    muted = "[off]" in text
+
+    percents: list[int] = []
+    muted = False
+    for line in (result.stdout or "").splitlines():
+        head, sep, _ = line.partition("Capture")
+        playback = head if sep else line
+        if "Playback" not in playback:
+            continue
+        percents.extend(int(p) for p in _PERCENT.findall(playback))
+        if "[off]" in playback:
+            muted = True
     return (min(percents) if percents else None), muted
 
 
