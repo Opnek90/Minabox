@@ -79,7 +79,7 @@ USER minabox
 EXPOSE 8080
 
 # Run application
-# -- Version (Build-Args; docs/Versionierung.md) ------------------------------
+# -- Version (build args; docs/Versionierung.md) ------------------------------
 # The defaults are deliberately "dev": a locally built image must not pass
 # itself off as a release. The block sits at the end of the file so a version
 # change only invalidates the last few metadata layers.

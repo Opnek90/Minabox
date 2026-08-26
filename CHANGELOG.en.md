@@ -22,6 +22,17 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.4 - 2026-08-26
+
+#### Added
+- A service that reports it cannot do its job is now shown as degraded in the
+  service list. It used to stay green as long as its container was running.
+- Connects the new "Fix sound problem" button to the sound service and the box.
+
+#### Fixed
+- Restarting the sound service now asks for the administrator password if one
+  is set.
+
 ### 0.2.3 - 2026-08-26
 
 #### Improved
@@ -168,6 +179,27 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.1.16 - 2026-08-26
+
+#### Added
+- *Maintenance* has a **Fix sound problem** button. The box checks everything
+  that can silence the sound, one thing after another, repairs what it can
+  repair itself, plays a test tone and asks in plain words whether you hear
+  anything. Say no and it goes on: restart the sound service, then the cable,
+  the power, and last a restart of the box.
+- Services that report they cannot do their job now show amber in the service
+  list instead of green.
+
+#### Improved
+- The LED repeats field now explains that it counts whole cycles and that 0
+  means forever.
+
+#### Fixed
+- Deleting a medium left its assigned card half-linked: it went on pointing at
+  a title that no longer existed.
+- Some buttons lost their height, padding and font size as soon as their width
+  was adjusted.
+
 ### 0.1.15 - 2026-08-26
 
 #### Improved
@@ -301,6 +333,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## media-downloader
 
+### 0.1.3 - 2026-08-26
+
+#### Improved
+- The download interface is reachable from the box only, no longer from the
+  network. It asked for no password.
+
 ### 0.1.2 - 2026-08-23
 
 ### 0.1.1 - 2026-08-21
@@ -317,6 +355,14 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.2.1 - 2026-08-26
+
+#### Added
+- Checks the sound card and the system volume controls for the "Fix sound
+  problem" button, and raises a control that sits at zero.
+- Can restart the sound service on its own, without taking the web UI down
+  with it.
 
 ### 0.2.0 - 2026-08-24
 
@@ -383,6 +429,23 @@ A version without a visible change may stay empty - the interface then says
 
 ## audio
 
+### 0.2.2 - 2026-08-26
+
+#### Fixed
+- The box sometimes stayed silent after a restart although nobody had muted
+  it. The system remembered a mute once it had been set and pushed it onto
+  every new playback; neither restarting the box nor restarting the services
+  cleared it.
+- The test tone travelled a different path than the music, so it was audible
+  even while the music stayed muted. It now takes the same path, which is what
+  lets it show the fault at all.
+
+#### Added
+- The service reports itself as degraded when the configured speaker is no
+  longer there. It used to report itself healthy while no sound was possible
+  at all.
+- The check chain behind the new "Fix sound problem" button in the web UI.
+
 ### 0.2.1 - 2026-08-26
 
 #### Fixed
@@ -412,6 +475,11 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## rfid
+
+### 0.2.1 - 2026-08-26
+
+#### Improved
+- The status port is reachable from the box only, no longer from the network.
 
 ### 0.2.0 - 2026-08-23
 
@@ -443,6 +511,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## button
+
+### 0.2.1 - 2026-08-26
+
+#### Improved
+- The service permanently uses about five percent less processing time. Its
+  regular health check cost more than the service itself.
+- The status port is reachable from the box only, no longer from the network.
 
 ### 0.2.0 - 2026-08-25
 
@@ -476,6 +551,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## led
 
+### 0.2.1 - 2026-08-26
+
+#### Improved
+- The service permanently uses about five percent less processing time. Its
+  regular health check cost more than the service itself.
+
 ### 0.2.0 - 2026-08-25
 
 #### Fixed
@@ -506,7 +587,16 @@ A version without a visible change may stay empty - the interface then says
 
 ## display
 
-### 0.1.2 - 2026-08-26
+### 0.2.1 - 2026-08-26
+
+#### Added
+- On pause the creature now falls asleep, with Zs rising above it. It used to
+  just say "Pause" - which only helps whoever can already read.
+
+#### Improved
+- The status port is reachable from the box only, no longer from the network.
+
+### 0.2.0 - 2026-08-26
 
 #### Added
 - The display now shows a picture for each situation instead of a row of tiny
@@ -526,6 +616,7 @@ A version without a visible change may stay empty - the interface then says
 #### Fixed
 - Taking a figure off, and putting one on, briefly raised the volume reading
   although nothing had changed.
+
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20

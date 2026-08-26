@@ -273,8 +273,9 @@ Every one of these states is visible on `/health` instead.
 
 ## 6. REST API
 
-`GET /health` on port 8000 (exposed as `8005` on the host). Used by the Docker
-health check, which only checks that the endpoint answers at all.
+`GET /health` on port 8000 (exposed as `127.0.0.1:8005` on the host, so it is
+reachable for diagnosis on the box but not from the network). Used by the
+Docker health check, which only checks that the endpoint answers at all.
 
 ```json
 {

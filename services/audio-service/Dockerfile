@@ -79,10 +79,10 @@ EXPOSE 8003
 # Python module path: src/ contains the audio_service package
 ENV PYTHONPATH=/app/src
 
-# -- Version (Build-Args; docs/Versionierung.md) ------------------------------
-# Die Defaults sind absichtlich "dev": ein lokal gebautes Image soll sich nicht
-# als Release ausgeben. Der Block steht am Ende der Datei, damit ein
-# Versionswechsel nur die letzten Metadaten-Layer ungueltig macht.
+# -- Version (build args; docs/Versionierung.md) ------------------------------
+# The defaults are deliberately "dev": a locally built image must not pass
+# itself off as a release. The block sits at the end of the file so that a
+# version change only invalidates the last metadata layers.
 ARG APP_VERSION=0.0.0-dev
 ARG GIT_SHA=unknown
 ARG BUILD_DATE=unknown

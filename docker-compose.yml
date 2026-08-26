@@ -225,6 +225,11 @@ services:
       - XDG_RUNTIME_DIR=/run/user/${HOST_UID:-1000}
       - PULSE_SERVER=unix:/run/user/${HOST_UID:-1000}/pulse/native
       - PULSE_PROP_module-suspend-on-idle.timeout=0
+      # Only reaches the pacat prewarm, not the music: libVLC sets its own
+      # media role and this variable does not override it. The role the music
+      # runs under is pinned with --role=music in _build_vlc_args() - it has to
+      # be, because WirePlumber remembers mute per role and a role nobody
+      # meant to use kept the box silent across reboots.
       - PULSE_PROP_media.role=music
     volumes:
       - ./services/audio-service/config:/app/config
@@ -256,7 +261,10 @@ services:
     logging: *default-logging
     restart: unless-stopped
     ports:
-      - "8001:8000"
+      # Bound to localhost: /health is unauthenticated, and the backend talks
+      # to the service over the compose network (http://rfid:8000).
+      # Diagnosis with curl on the box stays possible.
+      - "127.0.0.1:8001:8000"
     environment:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
@@ -293,7 +301,10 @@ services:
     logging: *default-logging
     restart: unless-stopped
     ports:
-      - "8005:8000"
+      # Bound to localhost: /health is unauthenticated, and the backend talks
+      # to the service over the compose network (http://button:8000).
+      # Diagnosis with curl on the box stays possible.
+      - "127.0.0.1:8005:8000"
     environment:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
@@ -394,7 +405,10 @@ services:
     # and binds it, so the three could previously disagree: setting it left the
     # container permanently unhealthy against a hardcoded 8000.
     ports:
-      - "8006:${DISPLAY_API_PORT:-8000}"
+      # Bound to localhost: /health is unauthenticated, and the backend talks
+      # to the service over the compose network (http://display:8000).
+      # Diagnosis with curl on the box stays possible.
+      - "127.0.0.1:8006:${DISPLAY_API_PORT:-8000}"
     environment:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
       - MQTT_PORT=${MQTT_PORT:?MQTT_PORT must be set in .env}
@@ -475,7 +489,11 @@ services:
     logging: *default-logging
     restart: unless-stopped
     ports:
-      - "8007:8007"
+      # Bound to localhost: not just /health hangs here but the whole download
+      # API, and it is unauthenticated. The backend talks to the service over
+      # the compose network (http://media-downloader:8007); diagnosis with curl
+      # on the box stays possible.
+      - "127.0.0.1:8007:8007"
     environment:
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
       - DOWNLOAD_PATH=/mnt/audio/tracks

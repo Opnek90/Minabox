@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { tagsApi } from '@/api/tags';
 import { systemApi } from '@/api/system';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
+import { isServiceUp } from '@/types/api';
 import type { RFIDScannedMessage } from '@/types/api';
 
 export const ContentStep: React.FC = () => {
@@ -20,7 +21,7 @@ export const ContentStep: React.FC = () => {
     systemApi
       .getStatus()
       .then((s) =>
-        setRfidRunning(s.services.some((x) => x.service === 'rfid' && x.state === 'online')),
+        setRfidRunning(s.services.some((x) => x.service === 'rfid' && isServiceUp(x.state))),
       )
       .catch(() => setRfidRunning(false));
   }, []);

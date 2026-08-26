@@ -50,10 +50,13 @@ PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest -q
 cd services/webui-service && npx tsc --noEmit
 ```
 
-Zu den Ausnahmen: `tsc` meldet acht Fehler, die aus der Zeit vor
-diesen Regeln stammen; sie gehören zum Bestand. Der Bau der WebUI benutzt
-`build:fast` und überspringt `tsc`, deshalb blockieren sie nichts — neue Fehler
-dürfen trotzdem nicht dazukommen. `ruff` läuft nur über die berührten Dateien:
+`tsc` läuft seit 2026-08-26 fehlerfrei durch. Die acht Altfehler, die vorher
+zum Bestand gehörten, sind behoben — zwei davon waren echte Fehler und keine
+Typkosmetik: ein `sx` am `ActionButton` ersetzte das Theming, statt es zu
+ergänzen, und beim Löschen eines Mediums wurde die zugehörige Karte nur halb
+gelöst. Der Bau der WebUI benutzt weiterhin `build:fast` und überspringt
+`tsc`, deshalb blockiert es den Bau nicht — aber die Ausgabe soll ab jetzt leer
+bleiben. `ruff` läuft nur über die berührten Dateien:
 über das ganze Verzeichnis meldet es mehrere hundert Altbefunde.
 
 Dann die berührten Dienste bauen:

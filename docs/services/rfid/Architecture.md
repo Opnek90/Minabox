@@ -129,7 +129,8 @@ runtime-changeable value is the operating mode.
 ### 3.2 REST
 
 The service exposes one HTTP endpoint on port 8000 inside the container
-(published as `8001` on the host), used for health checks and debugging:
+(published as `127.0.0.1:8001` on the host, so it is reachable for diagnosis on
+the box but not from the network), used for health checks and debugging:
 
 - `GET /health`
 

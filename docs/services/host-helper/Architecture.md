@@ -231,6 +231,8 @@ than from configuration, so it always matches how the box was actually started.
 | GET    | `/syslog`           | Query `n` (1–20000, default 200) and `source` (`kernel`\|`docker`).                 |
 | GET    | `/container-logs`   | Query `container_name` and `tail` (1–500, default 200).                              |
 | GET    | `/diagnostics/host` | Failed systemd units, journal errors (priority ≤ 3) and `timedatectl show`.          |
+| POST   | `/audio/repair`     | Steps 1 and 7 of the sound-repair chain: sound card present, ALSA mixer at zero.      |
+| POST   | `/audio/restart`    | `docker compose restart audio` — only that one container.                            |
 
 `/host-status` reads the mounted host paths directly (`/host/proc/uptime`,
 `/host/proc/meminfo`, `/host/proc/loadavg`, `/host/etc/hostname`, `statvfs` on
@@ -248,6 +250,28 @@ backend does not need the socket for its admin log view.
 
 `/diagnostics/host` is the debug export's only route into this service. It is
 read-only and parameterless by design; see `docs/DebugExport.md` section 4.3.
+
+`/audio/repair` is the host's half of the sound-repair chain behind the WebUI's
+"Fix sound problem" button. The audio service walks the rest of the chain
+itself — it talks to PulseAudio over the mounted socket anyway — but
+`/proc/asound/cards` and `amixer` need the host.
+
+It is parameterless for the same reason `/diagnostics/host` is: nothing the
+caller sends decides what runs. The card numbers and control names that end up
+in an `amixer` call are read off the host a moment earlier and checked against
+a strict pattern before they are used again.
+
+Step 1 has no automatic repair, on purpose. When the codec fails to probe at
+boot — which is how a real box lost its sound card — the driver does not try
+again and only a restart brings it back. Saying so is better than a button that
+pretends to have done something. Step 7 raises a mixer control only when it
+reads as off or at most 5 %, and only to 80 %: the point is to make the box
+audible, not loud, and a box someone deliberately turned down has to come out
+of this as quiet as it went in.
+
+`/audio/restart` restarts only the audio container. Deliberately not `/restart`,
+which takes the whole stack down including the WebUI — and the person waiting
+for an answer is looking at exactly that page.
 
 ### WiFi and hotspot
 

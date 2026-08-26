@@ -3,6 +3,7 @@ import type {
   AudioDevicesResponse,
   AudioSessionResponse,
   AudioStatus,
+  AudioTroubleshootResult,
   PlayRequest,
   RepeatMode,
   SleepTimerStatus,
@@ -99,5 +100,26 @@ export const audioApi = {
       { direction: 'next' }
     );
     return response.data.status;
+  },
+
+  /**
+   * Walk the sound-repair chain and end with a test tone.
+   *
+   * Takes its time: the chain talks to the host, to PulseAudio and then plays
+   * a tone, so the budget has to cover all three.
+   */
+  troubleshoot: async (): Promise<AudioTroubleshootResult> => {
+    const response = await apiClient.post<AudioTroubleshootResult>(
+      '/audio/troubleshoot',
+      undefined,
+      { timeout: 90_000 }
+    );
+    return response.data;
+  },
+
+  /** Restart only the audio container - not the whole stack, which would take
+   *  this page down with it. */
+  restartService: async (): Promise<void> => {
+    await apiClient.post('/audio/restart-service', undefined, { timeout: 100_000 });
   },
 };

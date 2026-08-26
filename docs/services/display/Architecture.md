@@ -105,7 +105,8 @@ picking its own sizes for what it has to say.
 | Screen | When | What carries it |
 | --- | --- | --- |
 | idle | nothing playing | Knuffel, wandering |
-| playing | playing or paused | title, progress bar, remaining time |
+| playing | playing | title, progress bar, remaining time |
+| paused | paused | title, progress bar, Knuffel asleep with Zs |
 | volume | the knob was turned, or mute | blocks, one per detent |
 | notice | an unknown, blocked or over-quota figure | a picture and a few words |
 | test pattern | `POST /test` | two lines of text |
@@ -398,6 +399,38 @@ While muted, the screen draws a small crossed speaker top right and the title
 gives up the width for it. Without that, replacing the grid would take the
 grid's permanent mute icon away exactly when it matters.
 
+### Paused
+
+Paused has its own layout, in the same module. It used to be the playing screen
+with the word "Pause" where the remaining time goes - which serves whoever can
+read, and the person most often standing in front of this panel cannot yet. So
+Knuffel falls asleep instead: eyes shut, with `z`, `Z`, `Z` climbing off his
+upper right the way a comic does it. That needs no reading at all.
+
+The title and the bar stay. What is on and how far in are both still true while
+paused, and they are what the parent looks for; only their bands move up to
+make room. The remaining time is the one thing dropped, and it is the one thing
+that is frozen anyway.
+
+**The Zs are the animation, and they are the whole cost.** One Z, then two,
+then three, then round again - on a panel that cannot fade anything out,
+appearing one after another is what reads as breathing.
+`PAUSED_SLEEP_PHASE_SECONDS` is 2.0: exactly two render ticks, so the rhythm is
+even rather than limping between one tick and two, and three phases make a
+six-second breath.
+Knuffel himself does not move between phases, so the diffed partial update is
+about four pages of 28 columns every two seconds on a bus the RFID reader
+shares. Halving the interval would double that for a fidget nobody asked for.
+
+The phase is derived from the render loop's clock rather than counted up, so
+the rhythm does not depend on how often the loop happens to run, and it is part
+of the playing screen's fingerprint *only while paused* - the frozen remaining
+time is not, because it is not on the panel.
+
+The Zs sit no higher than the top of Knuffel's own box. Lifted further, the
+biggest one runs into the progress bar, and a Z growing out of a bar is just a
+broken bar.
+
 The overlay shows position within `[min_volume, max_volume]`, not the raw
 volume: `max_volume` is a hard clamp, so a box configured to 40 reports
 `volume: 40` at the stop and printing that would claim "40 %" at full volume.
@@ -450,7 +483,8 @@ reconnect.
 ### 5.3 REST
 
 The API listens on `0.0.0.0:8000` inside the container (`API_PORT`, default
-8000) and is published as `8006` on the host.
+8000) and is published as `127.0.0.1:8006` on the host - reachable for
+diagnosis on the box, not from the network.
 
 **`GET /health`**
 
@@ -561,7 +595,7 @@ so a box without a panel simply never starts it.
 | `devices` | `/dev/i2c-1` | The only host access this container gets. |
 | `user` | `${HOST_UID}:${I2C_GID}` | Runs unprivileged; the i2c group is what grants bus access. |
 | `volumes` | `config:ro` | The backend writes the file, the service only reads it. |
-| `ports` | `8006:${DISPLAY_API_PORT:-8000}` | Health and test endpoint. The container port, the published port and the health check all read the same variable, so they cannot disagree. |
+| `ports` | `127.0.0.1:8006:${DISPLAY_API_PORT:-8000}` | Health and test endpoint, bound to the loopback because it is unauthenticated. The container port, the published port and the health check all read the same variable, so they cannot disagree. |
 | `logging` | `json-file`, 10 MB × 3 | The driver default is unlimited growth, and the box runs from an SD card. |
 | `depends_on` | `mqtt` + `backend` healthy | The polls would otherwise fail for the first minute. |
 | `environment` | `TZ` | The clock element renders container-local time. |

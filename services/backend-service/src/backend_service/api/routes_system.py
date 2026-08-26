@@ -81,31 +81,85 @@ def set_mqtt_client(mqtt_client: MQTTClient) -> None:
     _mqtt_client = mqtt_client
 
 
-async def _check_service_http(sid: str) -> dict | None:
+async def _check_service_http(
+    sid: str, client: httpx.AsyncClient | None = None
+) -> dict | None:
     """Probe a service's /health endpoint.
 
-    Returns the parsed body on success (so the caller also gets the version the
-    service reports about itself), an empty dict when it answered but sent no
-    usable JSON, and None when it did not answer at all. Only used on the
-    fallback path - with Docker available the container health check already
-    ran the very same request.
+    Returns the parsed body on success (so the caller also gets the version and
+    the status the service reports about itself), an empty dict when it
+    answered but sent no usable JSON, and None when it did not answer at all.
+
+    *client* lets a caller reuse one connection pool across a whole round of
+    probes instead of setting up eight.
     """
     url = SERVICE_HEALTH_URLS.get(sid)
     if not url:
         return None
     try:
-        async with httpx.AsyncClient(timeout=HEALTH_TIMEOUT) as client:
+        if client is None:
+            async with httpx.AsyncClient(timeout=HEALTH_TIMEOUT) as own:
+                r = await own.get(url)
+        else:
             r = await client.get(url)
-            if not 200 <= r.status_code < 300:
-                return None
-            try:
-                body = r.json()
-            except ValueError:
-                return {}
-            return body if isinstance(body, dict) else {}
+        if not 200 <= r.status_code < 300:
+            return None
+        try:
+            body = r.json()
+        except ValueError:
+            return {}
+        return body if isinstance(body, dict) else {}
     except Exception as e:
         logger.debug("service_health_check_failed", service=sid, error=str(e))
         return None
+
+
+# What a service is allowed to call itself in its own /health body. Anything
+# else is ignored rather than passed through, so a typo in one service cannot
+# invent a state the UI has no rendering for.
+_REPORTED_HEALTH_STATES = ("healthy", "degraded")
+
+
+async def _apply_reported_health(entries: list[dict]) -> None:
+    """Fold each service's self-reported /health status into its entry.
+
+    Five services (audio, rfid, button, display, led) answer /health with a
+    "status" of their own, and until this ran nothing looked at it. The
+    container health check only asks whether the endpoint answers with 2xx -
+    and a degraded service answers 2xx on purpose, so that a lost broker does
+    not make Docker restart something that is otherwise fine. The result was a
+    service that reported itself as broken and was shown green: the LED service
+    with not a single usable GPIO pin, or any service whose MQTT connection had
+    gone while the container kept running.
+
+    Only entries that are online are probed. A container that is already known
+    to be down has nothing to add and would only spend HEALTH_TIMEOUT saying
+    so. The probes run together, so the whole round costs one timeout, not one
+    per service.
+    """
+    probeable = [
+        e for e in entries
+        if e.get("state") == "online" and e.get("service") in SERVICE_HEALTH_URLS
+    ]
+    if not probeable:
+        return
+
+    async with httpx.AsyncClient(timeout=HEALTH_TIMEOUT) as client:
+        bodies = await asyncio.gather(
+            *(_check_service_http(e["service"], client) for e in probeable)
+        )
+
+    for entry, body in zip(probeable, bodies, strict=True):
+        if not body:
+            continue
+        reported = body.get("status")
+        if reported not in _REPORTED_HEALTH_STATES:
+            continue
+        entry["service_status"] = reported
+        if reported == "degraded":
+            # Deliberately below "error": an unhealthy container is the worse
+            # news, and a service that still answers is not to overwrite it.
+            entry["state"] = "degraded"
 
 
 def _schema_state() -> dict:
@@ -154,6 +208,11 @@ async def _status_from_docker(mqtt_ok: bool, now: str) -> list[dict] | None:
             # to it, which differs during a reconnect and is worth seeing.
             entry["mqtt_connected"] = mqtt_ok
 
+    # The container health check only proves the endpoint answers. What the
+    # service says about itself in the body is a separate question, and it is
+    # the one that catches a running container that cannot do its job.
+    await _apply_reported_health(entries)
+
     entries.sort(key=_order_key)
     return entries
 
@@ -192,6 +251,10 @@ async def _status_from_probes(mqtt_ok: bool, now: str) -> list[dict]:
             entry["state"] = "online" if health is not None else "offline"
             if health and isinstance(health.get("version"), str):
                 entry["version"] = health["version"]
+            if health and health.get("status") in _REPORTED_HEALTH_STATES:
+                entry["service_status"] = health["status"]
+                if health["status"] == "degraded":
+                    entry["state"] = "degraded"
         services.append(entry)
     return services
 

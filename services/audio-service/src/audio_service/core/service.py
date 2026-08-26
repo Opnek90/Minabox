@@ -6,6 +6,7 @@ Coordinates between MQTT, VLC backend, and state management.
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from time import time
@@ -26,6 +27,23 @@ from .mqtt_handler import (
     VolumeStepCommand,
 )
 from .state_manager import StateManager
+
+# Test tone bundled for the first-run setup wizard and for the sound
+# troubleshooter. Deliberately its own asset rather than a track from the
+# library: on a freshly set up box the library is empty.
+TEST_TONE_PATH = os.getenv("AUDIO_TEST_TONE_PATH", "/app/assets/test-tone.wav")
+TEST_TONE_TIMEOUT = 15.0
+TROUBLESHOOT_TONE_TIMEOUT = 15.0
+
+# How long /health is willing to wait for the sink list.
+#
+# Has to stay well under the container health check's own timeout, which is 5 s
+# (docker-compose.yml). The detector shells out to pactl and gives it 10 s, so
+# without this cap a hung pactl on a cold cache would make /health miss the
+# health check, three times over, and Docker would restart a service whose only
+# problem was a slow sound server. A check that cannot answer reports
+# "available" anyway, so timing out costs nothing but the extra information.
+_OUTPUT_DEVICE_CHECK_TIMEOUT = 2.0
 
 logger = structlog.get_logger(__name__)
 
@@ -721,6 +739,54 @@ class AudioService:
         """Check if VLC backend is initialized via public property (issue #35)."""
         return self._vlc_backend.is_initialized
 
+    async def check_output_device(self) -> tuple[bool, str | None]:
+        """Is the configured output device actually there right now?
+
+        Configured is not the same as usable (docs/services/Offene-Punkte.md
+        1.5). After a restart in which the PN532 held the I2C bus, the wm8960
+        codec failed to probe once and gave up; the sound card was simply gone
+        and the box was silent. /health went on reporting "healthy" the whole
+        time, because it only ever asked whether the broker was connected and
+        whether VLC had come up - both of which were true.
+
+        A dark display is a blemish; a mute box is broken, so this is the
+        service where the distinction is worth reporting.
+
+        Returns:
+            (available, device_name). ``device_name`` is None when no output is
+            configured - nothing is then pinned down and nothing can be
+            missing, so ``available`` is True.
+        """
+        try:
+            config = self._get_audio_config()
+        except Exception as exc:
+            logger.warning("output_device_check_config_failed", error=str(exc))
+            return True, None
+
+        configured = (getattr(config, "output_device_name", None) or "").strip()
+        if not configured:
+            return True, None
+
+        try:
+            devices = await asyncio.wait_for(
+                self.get_audio_devices(), _OUTPUT_DEVICE_CHECK_TIMEOUT
+            )
+        except Exception as exc:
+            # Not being able to ask is not the same as the device being gone.
+            # Reporting "degraded" for a failed lookup would turn every hiccup
+            # in the detector into a fault report.
+            logger.warning("output_device_check_failed", error=str(exc))
+            return True, configured
+
+        available = any(d.get("id") == configured for d in devices)
+        if not available:
+            logger.warning(
+                "configured_output_device_missing",
+                device=configured,
+                detected=[d.get("id") for d in devices],
+            )
+        return available, configured
+
     async def get_audio_status(self) -> AudioStatus:
         """Get current audio status."""
         return await self._vlc_backend.get_status()
@@ -760,15 +826,81 @@ class AudioService:
             })
         return out
 
+    async def play_test_tone(
+        self, tone_path: str, sink_name: str | None = None, *, timeout_sec: float
+    ) -> None:
+        """Play the test tone over the same libVLC path the music uses.
+
+        Runs on its own throwaway player, so the current session keeps
+        playing - the wizard checks the speaker while music is on.
+        """
+        await self._vlc_backend.play_test_tone(
+            tone_path, sink_name, timeout_sec=timeout_sec
+        )
+
+    async def get_volume(self) -> int:
+        """The level libVLC is at right now."""
+        return await self._vlc_backend.get_volume()
+
+    async def set_volume(self, volume: int) -> None:
+        """Set the level and let everyone know - same path as the MQTT command."""
+        await self._vlc_backend.set_volume(volume)
+        await self._save_current_state()
+        await self._publish_status()
+
+    async def set_muted(self, muted: bool) -> None:
+        """Mute or unmute outright, rather than toggling.
+
+        _handle_mute_toggle() flips the flag, which is the wrong tool for
+        anything that needs a known end state - the troubleshooter has to be
+        able to run twice without turning the sound back off.
+        """
+        self._muted = muted
+        await self._vlc_backend.set_muted(muted)
+        await self._publish_status()
+
+    async def play_troubleshoot_tone(self) -> None:
+        """The test tone on the configured sink, over the music's own path."""
+        config = self._get_audio_config()
+        sink = (getattr(config, "output_device_name", None) or "").strip() or None
+        await self._vlc_backend.play_test_tone(
+            TEST_TONE_PATH, sink, timeout_sec=TROUBLESHOOT_TONE_TIMEOUT
+        )
+
+    async def troubleshoot(self) -> dict:
+        """Walk the sound-repair chain (docs/services/Offene-Punkte.md 1.7).
+
+        Steps 2 to 6 only - /proc/asound/cards and amixer are not reachable
+        from this container, so steps 1 and 7 are the host-helper's half and
+        the backend stitches the two together.
+        """
+        from .troubleshoot import AudioTroubleshooter
+
+        return await AudioTroubleshooter(self).run()
+
     async def switch_output_device(
         self,
         sink_name: str | None = None,
         direction: str | None = None,
+        *,
+        allow_disabled: bool = False,
     ) -> AudioStatus:
-        """Switch output device, re-init VLC, optionally resume. Returns new status."""
+        """Switch output device, re-init VLC, optionally resume. Returns new status.
+
+        Args:
+            allow_disabled: Accept a sink that exists but is not in
+                enabled_output_devices. Only the sound troubleshooter sets
+                this, and only when *none* of the allowed outputs is present
+                any more: the alternative there is a box that stays silent,
+                and the user pressed a button asking for exactly that to stop.
+                Every other caller is a deliberate user choice and stays
+                inside the allowed list.
+        """
         config = self._get_audio_config()
         enabled_list = getattr(config, "enabled_output_devices", None) or []
-        devices = await self.get_audio_devices(enabled_only=bool(enabled_list))
+        devices = await self.get_audio_devices(
+            enabled_only=bool(enabled_list) and not allow_disabled
+        )
         if not devices:
             raise ValueError("No audio devices available")
 

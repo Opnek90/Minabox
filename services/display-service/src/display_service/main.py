@@ -7,6 +7,7 @@ import json
 import os
 import signal
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
@@ -39,7 +40,7 @@ from .infrastructure import (
 )
 from .render.idle import render as render_idle
 from .render.idle import strip_width as idle_strip_width
-from .render.playing import PlayingView
+from .render.playing import PAUSED_SLEEP_PHASE_SECONDS, PlayingView
 from .render.playing import render as render_playing
 from .render.quota_over import render as render_quota_over
 from .render.tag_blocked import render as render_tag_blocked
@@ -507,10 +508,14 @@ class DisplayService:
         which changes once a minute - and the bar, quantised to the pixel step
         it is drawn in.
         """
+        # Paused draws Knuffel asleep instead of the time, so the phase of his
+        # Zs is what is visible there and the frozen remaining time is not.
+        visible = view.sleep_phase if view.paused else view.time_text
         return "play:" + json.dumps(
             [
                 view.title,
-                view.time_text,
+                view.paused,
+                visible,
                 view.muted,
                 round(view.fraction * 118 / PROGRESS_QUANTUM_PX),
             ],
@@ -666,6 +671,13 @@ class DisplayService:
             return f"notice:{kind}:{detail}", _NOTICE_RENDERERS[kind](detail)
         if screen == SCREEN_PLAYING:
             view = self.state_manager.get_playing_view()
+            if view.paused:
+                # Derived from the clock rather than counted up, so the rhythm
+                # does not depend on how often this happens to be called.
+                view = replace(
+                    view,
+                    sleep_phase=int(now / PAUSED_SLEEP_PHASE_SECONDS),
+                )
             return self._playing_fingerprint(view), render_playing(view)
         if screen == SCREEN_IDLE:
             animation = self._idle(now)

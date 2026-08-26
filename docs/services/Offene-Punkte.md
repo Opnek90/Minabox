@@ -18,7 +18,7 @@ Legende: `[ ]` offen · `[x]` erledigt · **[H]** hoch · **[M]** mittel ·
 
 ## 1. Robustheit & Betrieb
 
-### [ ] [M] 1.1 Vier Dienste veroeffentlichen ungeschuetzte Ports auf allen Interfaces
+### [x] [M] 1.1 Vier Dienste veroeffentlichen ungeschuetzte Ports auf allen Interfaces
 
 Stand `docker-compose.yml`:
 
@@ -45,7 +45,11 @@ bleibt moeglich.
 **Risiko:** keins, solange wirklich nur das Backend zugreift. Vorher pruefen, ob
 jemand die Ports von aussen fuer Debugging nutzt.
 
-### [ ] [M] 1.2 `degraded` aus `/health` erreicht die WebUI nie
+**Erledigt** am 2026-08-26. `127.0.0.1:` vor alle vier, mit der Begruendung
+als Kommentar am jeweiligen Dienst. Die vier Architektur-Dokumente nennen den
+Loopback jetzt ebenfalls. Vorher geprueft: nur das Backend greift zu.
+
+### [x] [M] 1.2 `degraded` aus `/health` erreicht die WebUI nie
 
 Fuenf Dienste melden in ihrem `/health` einen eigenen Status:
 
@@ -81,6 +85,13 @@ erweitern macht `/api/system/status` langsamer. `HEALTH_TIMEOUT` steht auf 2 s
 bei bis zu acht Diensten – das gehoert parallelisiert (ist es im Fallback
 bereits, `asyncio.gather`).
 
+**Erledigt** am 2026-08-26. Beide Pfade in `routes_system.py` uebernehmen den
+gemeldeten Status. `state` hat einen vierten Wert `degraded`, in der WebUI
+bernsteinfarben; `error` sticht ihn, weil ein ungesunder Container die
+schlechtere Nachricht ist. Abgefragt werden nur Eintraege, die online sind,
+und alle zusammen - die Runde kostet ein `HEALTH_TIMEOUT`, nicht eines je
+Dienst.
+
 ### [ ] [N] 1.3 Log-Rotation wirkt erst beim Neuerzeugen der Container
 
 Kein Fehler, sondern ein Hinweis zur Anwendung. Der `x-logging`-Anker in
@@ -98,7 +109,7 @@ docker inspect minabox-led --format '{{json .HostConfig.LogConfig}}'
 
 Erwartet: `{"Type":"json-file","Config":{"max-file":"3","max-size":"10m"}}`
 
-### [ ] [H] 1.4 Der Python-Healthcheck kostet 6 % eines Kerns je Dienst
+### [x] [H] 1.4 Der Python-Healthcheck kostet 6 % eines Kerns je Dienst
 
 Aufgenommen am 2026-08-25 aus dem
 [Display-Review, Abschnitt 5](display/GoLive-Review.md).
@@ -163,7 +174,13 @@ die Begruendung steht in [seinem Review](display/GoLive-Review.md#5-runtime-cost
 bewusste Ruecknahme zweier Review-Entscheidungen – deshalb hier und nicht
 stillschweigend im naechsten Branch.
 
-### [ ] [H] 1.5 Der Audio-Dienst meldet `healthy`, waehrend gar kein Ton moeglich ist
+**Erledigt** am 2026-08-26. `compileall` in der Runtime-Stage von `button` und
+`led`, vor `USER`. Im lokal gebauten Image nachgemessen: 633 `.pyc` in der
+stdlib, der Import faellt von 2,05 s auf 0,53 s, das Image waechst von 229 MB
+auf 256 MB. `interval` bleibt bei 30 s - die schnellere Erkennung eines
+haengenden Dienstes ist die 1,5 % eines Kerns wert, die jetzt noch anfallen.
+
+### [x] [H] 1.5 Der Audio-Dienst meldet `healthy`, waehrend gar kein Ton moeglich ist
 
 Aufgefallen am 2026-08-25 an einer echten Stoerung, nicht beim Lesen von Code.
 
@@ -208,7 +225,12 @@ Nutzen - deshalb am besten in einem Zug.
 **Risiko:** gering. Nur ein zusaetzliches Feld und eine Bedingung; der
 Container-Healthcheck fragt weiterhin nur, ob der Endpunkt antwortet.
 
-### [ ] [H] 1.6 Ein gemerkter Mute in PipeWire ueberlebt jeden Neustart
+**Erledigt** am 2026-08-26. `/health` fragt jetzt zusaetzlich, ob die
+konfigurierte Senke ueberhaupt da ist, und meldet sonst `degraded`. Eine
+*fehlgeschlagene* Abfrage gilt bewusst nicht als fehlendes Geraet. Zusammen
+mit 1.2 ist das in der WebUI sichtbar.
+
+### [x] [H] 1.6 Ein gemerkter Mute in PipeWire ueberlebt jeden Neustart
 
 Aufgefallen am 2026-08-26 an einer echten Stoerung, wie 1.5 nicht beim Lesen von
 Code. Die Box gab keinen Ton. Gleichzeitig erzeugte
@@ -279,7 +301,13 @@ XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-input-mute <index> 0
 **Risiko:** gering. Teil 1 und 2 sind wenige Zeilen im Backend des Dienstes.
 Teil 3 beruehrt einen Endpunkt, den nur die WebUI aufruft.
 
-### [ ] [H] 1.7 Der Nutzer hat keinen Weg, eine stumme Box selbst zu reparieren
+**Erledigt** am 2026-08-26. Alle drei Teile: `--role=music`, der Mute wird nach
+`play()` erzwungen, und der Testton laeuft ueber libVLC - auf einer eigenen
+Wegwerf-Instanz, damit der Assistent weiter pruefen kann, waehrend Musik
+laeuft. Der Kommentar an `PULSE_PROP_media.role` in `docker-compose.yml` sagt
+jetzt, dass die Variable nur den `pacat`-Prewarm erreicht.
+
+### [x] [H] 1.7 Der Nutzer hat keinen Weg, eine stumme Box selbst zu reparieren
 
 Nichts ist aergerlicher als eine Box, die ploetzlich keinen Ton mehr gibt. Die
 bisherigen Stoerungen dieser Art (1.5, 1.6) waren beide nur mit `aplay -l`,
@@ -343,13 +371,22 @@ ueberschreibt er eine bewusst leise eingestellte Box. Jede Behebung gehoert
 protokolliert, damit im Debug-Export nachvollziehbar bleibt, was der Knopf
 getan hat.
 
+**Erledigt** am 2026-08-26. Knopf *Ton-Problem beheben* neben dem
+Debug-Export, mit Deep-Link `?action=sound-fix`. Die Kette liegt im
+Audio-Dienst (Schritte 2-6) und im Host-Helper (1 und 7); das Backend fuegt
+beide Haelften zusammen, Host zuerst - ein Mixer auf null muss hochgesetzt
+sein, bevor der Testton laeuft. Der Dialog fragt danach *Hoerst du jetzt
+etwas?* und eskaliert ueber einen Neustart des Ton-Dienstes zu Kabel, Strom
+und zuletzt einem Neustart der Box. Jede Behebung ist idempotent und greift
+nur bei Werten, die niemand gemeint haben kann - dafuer gibt es Tests.
+
 ---
 
 ## 2. Angrenzendes, das sonst verloren geht
 
 Kein Robustheitsthema, aber beim selben Review aufgefallen.
 
-### [ ] [H] 2.1 Die `lg`-Quelle wird unversioniert und ungeprueft gebaut
+### [x] [H] 2.1 Die `lg`-Quelle wird unversioniert und ungeprueft gebaut
 
 Betrifft **`led` und `button`** – beide bauen die C-Bibliothek `lgpio` beim
 Image-Build aus dem Netz, ohne Tag und ohne Pruefsumme:
@@ -373,7 +410,12 @@ Wheel fuer cp39–cp312, **nicht fuer cp313**.
 Fuer den LED-Teil steht das auch im
 [LED-Review, Abschnitt 4.4](led/GoLive-Review.md).
 
-### [ ] [M] 2.2 Deutsche Kommentare in vier Dockerfiles
+**War beim Nachsehen schon erledigt.** Beide Dockerfiles sind auf den Tag
+`v0.2.2` mit SHA256 festgenagelt und pruefen die Summe vor dem Auspacken;
+`button` patcht zusaetzlich das Poll-Intervall und laesst den Build lautstark
+scheitern, falls ein kuenftiger Release die Zeile umschreibt.
+
+### [x] [M] 2.2 Deutsche Kommentare in vier Dockerfiles
 
 Der Versions-Block am Dateiende ist noch deutsch in:
 
@@ -383,7 +425,11 @@ Der Versions-Block am Dateiende ist noch deutsch in:
 von dort uebernommen werden. Reine Textaenderung, kein Risiko, aber sie invalidiert die
 letzten Metadaten-Layer und loest damit einen Rebuild aus.
 
-### [ ] [N] 2.3 Die Version in `pyproject.toml` ist repo-weit veraltet
+**Erledigt** am 2026-08-26. `audio`, `media-downloader` und `webui` uebersetzt;
+beim Backend war nur noch die Abschnittsueberschrift deutsch. `button` war
+entgegen der Liste oben bereits erledigt.
+
+### [x] [N] 2.3 Die Version in `pyproject.toml` ist repo-weit veraltet
 
 | Dienst | `pyproject.toml` | `VERSION` |
 |---|---|---|
@@ -412,7 +458,13 @@ version = {file = "VERSION"}
 
 Einen einzelnen Dienst umzustellen waere schlechter als die einheitliche Luege.
 
-### [ ] [N] 2.4 Die WebUI erklaert `repeat` nicht
+**Erledigt** am 2026-08-26. `setuptools` liest die Version jetzt aus der Datei
+`VERSION` des Dienstes - eine Quelle je Dienst, die nicht wieder auseinander
+laufen kann. Fuer alle acht Pakete nachgerechnet: die gebauten Metadaten
+stimmen mit `VERSION` ueberein. Die Tabelle oben war beim Abarbeiten schon
+veraltet, `button` und `led` standen laengst auf 0.2.0.
+
+### [x] [N] 2.4 Die WebUI erklaert `repeat` nicht
 
 Seit der Korrektur zaehlt `repeat` bei allen LED-Patterns **ganze Zyklen** – ein
 Blinken ist an *und* wieder aus. Im Admin-Bereich
@@ -423,7 +475,10 @@ Dasselbe gilt fuer `0` = unendlich, was man dem Feld ebenfalls nicht ansieht.
 
 **Fix:** `helperText` an den drei Stellen, analog zu `leds.fields.gpio_hint`.
 
-### [ ] [N] 2.5 Lokale Builds backen die Config der Box mit ins Image
+**Erledigt** am 2026-08-26. `helperText` am Feld, in beiden Sprachen: zaehlt
+ganze Zyklen, 0 = endlos.
+
+### [x] [N] 2.5 Lokale Builds backen die Config der Box mit ins Image
 
 `services/.dockerignore` schliesst die Laufzeit-Configs nicht aus. In der CI
 faellt das nicht auf, weil dort aus einem Git-Checkout gebaut wird und
@@ -441,6 +496,10 @@ wird, und genau dafuer baut man es.
 **Fix:** in `services/.dockerignore` die Laufzeit-Configs ausschliessen, die
 `*.example`-Vorlagen behalten. Betrifft `audio`, `button`, `display`, `led`,
 `rfid` gleichermassen – deshalb hier und nicht im LED-Review.
+
+**Erledigt** am 2026-08-26. Die vier gitignorierten Laufzeit-Configs stehen in
+`services/.dockerignore`. `rfid.json` und `backend.json` bleiben drin: beide
+sind eingecheckt und stecken deshalb auch im veroeffentlichten Image.
 
 ### [x] [M] 2.6 Button-Service: 10 % CPU im Leerlauf
 

@@ -10,7 +10,17 @@
 export type ContentType = 'playlist' | 'track' | 'stream' | 'podcast';
 export type SourceType = 'file' | 'remote';
 export type AudioState = 'playing' | 'paused' | 'stopped' | 'error';
-export type ServiceState = 'online' | 'offline' | 'error';
+/**
+ * 'degraded' is a service that answers but says it cannot do its job -
+ * no usable GPIO pin, no broker, a configured sound card that is gone.
+ * Its container is running and Docker calls it healthy, so without this it
+ * was shown green.
+ */
+export type ServiceState = 'online' | 'degraded' | 'offline' | 'error';
+
+/** A service that is up, whether or not it is fully working. */
+export const isServiceUp = (state: ServiceState): boolean =>
+  state === 'online' || state === 'degraded';
 export type RFIDMode = 'normal' | 'learning';
 /** All supported LED pattern types. 'glow' requires PWMLED (Software PWM). */
 export type LEDPatternType = 'solid' | 'blink' | 'pulse' | 'off' | 'glow';
@@ -44,8 +54,16 @@ export interface TagCreate {
 
 export interface TagUpdate {
   name?: string | null;
-  content_type?: ContentType;
-  content_id?: number;
+  /**
+   * An omitted field is left unchanged; an explicit `null` clears it.
+   *
+   * The backend tells the two apart by looking at the raw request body, and
+   * unassigning a tag needs `content_type` AND `content_id` set to null -
+   * clearing only one leaves a tag that still claims to point at a track
+   * while pointing at nothing.
+   */
+  content_type?: ContentType | null;
+  content_id?: number | null;
   disabled?: boolean;
 }
 
@@ -313,6 +331,32 @@ export interface PlayRequest {
   position_ms?: number;
 }
 
+/**
+ * One rung of the sound-repair chain (docs/services/Offene-Punkte.md 1.7).
+ *
+ * `id` is what the dialog translates into a sentence. `detail` is technical
+ * wording for the debug export and is never shown: the user sees no sink
+ * names, no role names and no stream indices.
+ */
+export interface AudioTroubleshootStep {
+  id: string;
+  ok: boolean;
+  fixed: boolean;
+  detail?: string | null;
+}
+
+export interface AudioTroubleshootResult {
+  steps: AudioTroubleshootStep[];
+  /** Step ids that were actually repaired, bottom of the chain first. */
+  fixed: string[];
+  /** The one the dialog names as the cause; null when nothing was wrong. */
+  cause: string | null;
+  tone_played: boolean;
+  /** False when the host-helper is missing: steps 1 and 7 were skipped. */
+  host_checks_available: boolean;
+  timestamp: string;
+}
+
 // ============================================================================
 // System
 // ============================================================================
@@ -333,6 +377,8 @@ export interface ServiceStatus {
   docker_status?: string | null;
   /** Docker health check result: healthy, unhealthy, starting. */
   health?: string | null;
+  /** What the service says about itself in its own /health body. */
+  service_status?: 'healthy' | 'degraded' | null;
   restart_count?: number | null;
   started_at?: string | null;
   exit_code?: number | null;

@@ -25,6 +25,12 @@ _PROTECTED_PREFIXES: dict[str, str] = {
     "/api/v1/streams": "media",
     "/api/v1/podcasts": "media",
     "/api/v1/stats": "dashboard",
+    # Restarting a container is an admin action wherever it lives. It sits
+    # under /audio because that is the service it restarts, but it must not
+    # inherit the `player` area, which is off by default. The longest matching
+    # prefix wins, so this entry beats the /api/v1/audio one below regardless
+    # of where it stands in this map.
+    "/api/v1/audio/restart-service": "admin",
     # The `player` area. These are off by default: the player is the everyday
     # screen, and a box where a child cannot press play is not the default
     # anyone wants. Switching the area on covers the live WebSocket too - see
@@ -50,6 +56,24 @@ _PUBLIC_PATHS: frozenset[str] = frozenset({
     "/api/v1/system/debug-export",
     "/api/v1/system/debug-export/options",
 })
+
+
+def area_for_path(path: str) -> str | None:
+    """The protected area a request path falls into, or None.
+
+    The longest matching prefix wins. A plain "first match" would make the
+    *order* of _PROTECTED_PREFIXES decide whether /api/v1/audio/restart-service
+    is an admin route or a player one - a trap for whoever adds the next
+    specific path under a general prefix.
+    """
+    matches = [
+        (prefix, area)
+        for prefix, area in _PROTECTED_PREFIXES.items()
+        if path.startswith(prefix)
+    ]
+    if not matches:
+        return None
+    return max(matches, key=lambda item: len(item[0]))[1]
 
 
 def area_requires_session(area: str) -> bool:
@@ -92,10 +116,7 @@ async def web_auth_middleware(
     if not protected_areas:
         return await call_next(request)
 
-    area = next(
-        (area for prefix, area in _PROTECTED_PREFIXES.items() if path.startswith(prefix)),
-        None,
-    )
+    area = area_for_path(path)
 
     if area is None or area not in protected_areas:
         return await call_next(request)

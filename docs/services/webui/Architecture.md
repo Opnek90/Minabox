@@ -700,6 +700,7 @@ src/locales/
   "system": {
     "services": "Services",
     "status_online": "Online",
+    "status_degraded": "Eingeschränkt",
     "status_offline": "Offline",
     "status_error": "Fehler",
     "restart": "Services neu starten"
@@ -1008,7 +1009,11 @@ export interface AudioStatus {
 
 export interface ServiceStatus {
   service: string;
-  state: 'online' | 'offline' | 'error';
+  // 'degraded': der Dienst antwortet, meldet in seinem eigenen /health-Body
+  // aber, dass er seine Aufgabe nicht erfuellen kann. Sein Container laeuft
+  // und Docker nennt ihn healthy - ohne diesen Zustand stand er auf Gruen.
+  state: 'online' | 'degraded' | 'offline' | 'error';
+  service_status?: 'healthy' | 'degraded' | null;
   timestamp: string;
 }
 

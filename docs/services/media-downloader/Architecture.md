@@ -205,7 +205,8 @@ WebUI: Polling GET /tracks/{id}/download-status → status "done"
 
 Der Service ist als `media-downloader` in `docker-compose.yml` definiert:
 
-- **Port:** `8007` (intern), optional extern auf `8007` exponiert
+- **Port:** `8007` (intern), auf dem Host nur auf `127.0.0.1:8007` - die
+  Download-API kennt keine Authentifizierung
 - **Volume:** Teilt `/mnt/audio` mit dem Backend und Audio-Service
 - **depends_on:** Backend (healthy)
 - **Optionale .env-Variablen:** `MEDIA_DOWNLOADER_MAX_FILESIZE_MB`, `MEDIA_DOWNLOADER_ALLOWED_DOMAINS`

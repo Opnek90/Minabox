@@ -11,6 +11,10 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from backend_service.api.routes_host import (
+    host_audio_repair,
+    host_restart_audio_service,
+)
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
 from backend_service.core.mqtt_client import MQTTClient
@@ -499,6 +503,95 @@ async def switch_audio_device(body: SwitchDeviceRequest) -> dict:
     except Exception as e:
         logger.warning("audio_service_switch_device_failed", error=str(e))
         raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable") from e
+
+
+# The chain in the order the user's box has to be walked, bottom up. Steps 1
+# and 7 come from the host-helper, 2 to 6 from the audio service; merging them
+# here is the only place both halves are visible at once.
+_TROUBLESHOOT_ORDER = (
+    "sound_card",
+    "sink_present",
+    "sink_level",
+    "stream_state",
+    "service_mute",
+    "service_volume",
+    "alsa_mixer",
+)
+
+
+@router.post("/troubleshoot")
+async def troubleshoot_audio() -> dict:
+    """Walk the sound-repair chain and end with a test tone.
+
+    Two halves. The host-helper runs first: it owns /proc/asound/cards and
+    amixer, and a mixer sitting at zero has to be raised *before* the tone
+    plays or the tone proves nothing. The audio service then walks the sink,
+    the stream and its own volume and mute, and plays the tone last.
+
+    The host half is optional. A box without a host-helper still gets steps 2
+    to 6, which is most of the value - refusing the whole thing because one
+    half is missing would be the worse trade.
+
+    Every repair is idempotent, so the UI may offer this button again after a
+    "no, still nothing" without any risk of it undoing its own work.
+    """
+    host_steps: list[dict] = []
+    host_result = await host_audio_repair()
+    if host_result:
+        host_steps = [s for s in host_result.get("steps", []) if isinstance(s, dict)]
+
+    timeout = AUDIO_SERVICE_TIMEOUT + 40.0
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(f"{AUDIO_SERVICE_BASE}/api/v1/troubleshoot")
+            r.raise_for_status()
+            service_result = r.json()
+    except httpx.TimeoutException:
+        logger.warning("audio_service_troubleshoot_timeout")
+        raise ApiError(status_code=503, code="audio_service_timeout", detail="Audio service timeout") from None
+    except httpx.HTTPStatusError as e:
+        logger.warning("audio_service_troubleshoot_error", status=e.response.status_code)
+        raise ApiError(
+            status_code=502 if e.response.status_code >= 500 else e.response.status_code,
+            code="audio_service_error",
+            detail=e.response.text or "Audio service error",
+        ) from e
+    except Exception as e:
+        logger.warning("audio_service_troubleshoot_failed", error=str(e))
+        raise ApiError(status_code=503, code="audio_service_unavailable", detail="Audio service unavailable") from e
+
+    steps = host_steps + list(service_result.get("steps", []))
+    by_id = {s.get("id"): s for s in steps if isinstance(s, dict)}
+    ordered = [by_id[sid] for sid in _TROUBLESHOOT_ORDER if sid in by_id]
+
+    fixed = [s["id"] for s in ordered if s.get("fixed")]
+    logger.info(
+        "audio_troubleshoot_finished",
+        fixed=fixed,
+        host_available=bool(host_result),
+        tone_played=service_result.get("tone_played"),
+    )
+    return {
+        "steps": ordered,
+        "fixed": fixed,
+        # The first repair walking up from the hardware is the likeliest cause,
+        # and the one sentence the user is shown.
+        "cause": fixed[0] if fixed else None,
+        "tone_played": bool(service_result.get("tone_played")),
+        "host_checks_available": bool(host_result),
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+
+
+@router.post("/restart-service")
+async def restart_audio_service() -> dict:
+    """Restart the audio container. The next step after "no, still nothing".
+
+    Its own route rather than the general /system/restart: that one restarts
+    every container including the WebUI, and the page asking the question would
+    go down with it.
+    """
+    return await host_restart_audio_service()
 
 
 class TestToneRequest(BaseModel):

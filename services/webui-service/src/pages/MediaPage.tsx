@@ -302,6 +302,11 @@ export const MediaPage: React.FC = () => {
         await Promise.all(
           affected.map((tag) =>
             tagsApi.update(tag.tag_id, {
+              // Both, not just content_id: the backend clears exactly the
+              // fields it finds as an explicit null, and a tag left with a
+              // content_type but no content_id still claims to point at a
+              // track that no longer exists.
+              content_type: null,
               content_id: null,
               name: tag.name ?? null,
               disabled: tag.disabled ?? false,

@@ -76,6 +76,44 @@ def speaker(draw: Any, x: int, y: int, size: int, *, muted: bool = False) -> Non
         )
 
 
+def sleep_z(draw: Any, x: int, y: int, size: int) -> None:
+    """A single "Z" in a *size* x *size* box with its top left at (x, y).
+
+    Drawn from three strokes rather than set as text: a font glyph small enough
+    to sit beside a 27 px creature comes out as a grey smudge on a 1-bit panel,
+    while three lines stay a Z down to about six pixels.
+    """
+    stroke = max(1, round(size / 6))
+    right = x + size - 1
+    bottom = y + size - 1
+    draw.line([(x, y), (right, y)], fill=1, width=stroke)
+    draw.line([(right, y), (x, bottom)], fill=1, width=stroke)
+    draw.line([(x, bottom), (right, bottom)], fill=1, width=stroke)
+
+
+# Where the three Zs sit relative to the anchor, and how big each one is.
+# They climb to the right and grow as they go - the small one has just left
+# him, the big one is furthest away.
+_SLEEP_Z_STEPS = ((0, 12, 5), (8, 6, 7), (18, 0, 10))
+
+
+def sleep_zs(draw: Any, x: int, y: int, count: int) -> None:
+    """Up to three rising Zs, with the smallest at (x, y + 12).
+
+    *count* is which phase of the loop this is: one Z, then two, then three,
+    then round again. That is the whole animation - on a panel that cannot fade
+    anything out, appearing one after another is what reads as breathing.
+    """
+    for index in range(max(0, min(count, len(_SLEEP_Z_STEPS)))):
+        dx, dy, size = _SLEEP_Z_STEPS[index]
+        sleep_z(draw, x + dx, y + dy, size)
+
+
+SLEEP_ZS_WIDTH = _SLEEP_Z_STEPS[-1][0] + _SLEEP_Z_STEPS[-1][2]
+SLEEP_ZS_HEIGHT = _SLEEP_Z_STEPS[0][1] + _SLEEP_Z_STEPS[0][2]
+SLEEP_ZS_PHASES = len(_SLEEP_Z_STEPS)
+
+
 def blocks(
     draw: Any,
     box: tuple[int, int, int, int],

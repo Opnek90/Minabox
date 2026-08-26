@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "backend-service"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Minabox Backend Service - Central orchestration and data management"
 requires-python = ">=3.13"
 dependencies = [
@@ -29,6 +29,12 @@ dependencies = [
 
 [project.scripts]
 backend-service = "backend_service.main:run"
+
+# Die Version steht in der Datei VERSION - eine Quelle je Dienst
+# (docs/Versionierung.md). Frueher stand sie hier ein zweites Mal
+# und war repo-weit veraltet.
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
 
 [tool.ruff]
 line-length = 88

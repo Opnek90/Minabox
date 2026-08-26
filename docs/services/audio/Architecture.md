@@ -217,6 +217,7 @@ reaches the service over the Compose network as `http://audio:8003`, while
 | `GET` | `/api/v1/devices?enabled_only=false` | Detected Pulse sinks, cache bypassed |
 | `POST` | `/api/v1/switch-device` | Switch the output sink, returns the new status |
 | `POST` | `/api/v1/test-tone` | Play the bundled test tone on a sink |
+| `POST` | `/api/v1/troubleshoot` | Steps 2–6 of the sound-repair chain, ending with the tone |
 
 `GET /health`:
 
@@ -228,25 +229,96 @@ reaches the service over the Compose network as `http://audio:8003`, while
   "uptime_seconds": 123.45,
   "mqtt_connected": true,
   "vlc_initialized": true,
+  "output_device": "alsa_output.platform-soc_sound.stereo-fallback",
+  "output_device_available": true,
   "timestamp": "2026-08-23T20:45:00+00:00"
 }
 ```
 
-`status` is `healthy` when MQTT is connected **and** VLC is initialised,
-otherwise `degraded`. The endpoint answers HTTP 200 in both cases, so a broker
-outage does not make Docker restart a service that is otherwise fine.
+`status` is `healthy` when MQTT is connected, VLC is initialised **and** the
+configured output device actually exists, otherwise `degraded`. The endpoint
+answers HTTP 200 in all cases, so a broker outage does not make Docker restart
+a service that is otherwise fine.
+
+The device check exists because configured is not the same as usable. After a
+restart in which the PN532 held the I2C bus, the wm8960 codec failed to probe
+once and gave up; `aplay -l` showed only HDMI and the headphone jack, and no
+sound came out of the box — while this endpoint reported `healthy`, because
+the broker was connected and VLC had come up. A dark display is a blemish; a
+mute box is broken.
+
+`output_device` is the configured sink name, or `null` when
+`output_device_name` is empty (host default sink — nothing is pinned down, so
+nothing can be missing). A sink lookup that *fails* is not reported as a
+missing device: not being able to ask is not the same as the answer being no,
+and every hiccup in the detector would otherwise show up as a broken box.
+
+The lookup is capped at 2 s, well under the container health check's own 5 s.
+The sink detector shells out to `pactl` and gives it 10 s; without the cap a
+hung `pactl` on a cold cache would make `/health` miss the health check three
+times over, and Docker would restart a service whose only problem was a slow
+sound server.
 
 `POST /api/v1/switch-device` takes `{"sink_name": "..."}` or
 `{"direction": "next"}`; `alsa_device` is a deprecated alias for `sink_name`.
 An unknown or non-enabled sink is answered with HTTP 400.
 
+`POST /api/v1/troubleshoot` is the check chain behind the WebUI's "Fix sound
+problem" button (`docs/services/Offene-Punkte.md` 1.7). It walks steps 2 to 6 —
+the sink, the stream, and the service's own volume and mute — repairs what it
+can repair safely, and plays the test tone last.
+
+Two rules hold it together, and both are worth keeping through later edits:
+
+- **Idempotent.** The dialog offers the button again after a "no, still
+  nothing", so a second run must not undo the first one's work.
+- **Only what is demonstrably wrong.** A sink is raised when it reads below
+  20 %, never because 40 % is not the number one would pick; the service volume
+  only when it is below its own configured `min_volume`. A box someone
+  deliberately turned down quietly comes out of this exactly as quiet.
+
+The tone comes last because of step 4: a mute WirePlumber remembers for the
+media role only appears once a stream has opened the output, and can only be
+corrected there. The tone is that stream.
+
+A step that fails does not end the run — the tone is what the user is waiting
+for, and the steps after a failed one may well be the ones that fix it.
+
+When the configured sink is gone, the fallback prefers one the user actually
+allowed in `enabled_output_devices`. It reaches past that list only when none
+of the allowed outputs is present any more, and says so in the step's `detail`:
+at that point the alternative is a box that stays silent, and the user pressed
+a button asking for exactly that to stop. `switch_output_device()` takes
+`allow_disabled` for this one caller; every other one is a deliberate user
+choice and stays inside the list.
+
+Steps 1 (is there a sound card at all?) and 7 (an ALSA mixer at zero) are not
+here — `/proc/asound/cards` and `amixer` are not reachable from this container.
+They are the host-helper's `POST /audio/repair`, and the backend stitches both
+halves together, host first: a mixer at zero has to be raised *before* the tone
+plays, or the tone proves nothing.
+
+Every repair is recorded in the response, so the debug export still shows
+afterwards what the button actually did. The `detail` field is technical
+wording for exactly that; the user is shown a translated sentence keyed on the
+step id, never a sink name or a stream index.
+
 `POST /api/v1/test-tone` takes an optional `{"sink_name": "..."}` and plays
-`assets/test-tone.wav` through `paplay`. It deliberately bypasses the VLC
-backend: the setup wizard has to be able to check a speaker while music is
-playing, and taking over the player would stop the music. Unknown sinks are
-rejected with HTTP 404, because `paplay` would otherwise fall back to the
-default output silently and report success — which in the wizard would mean the
-user selects output A, hears output B and believes A is verified.
+`assets/test-tone.wav` over libVLC, on a throwaway instance built from the
+same arguments as the music player — same output module, same media role.
+
+It used to go through `paplay`, which turned out to be a test that could not
+fail the way the music fails: `paplay` runs under `application.name:paplay`,
+a different PipeWire stream role with its own remembered volume and mute. On a
+box whose *music* role was remembered as muted, the test tone was audible
+while nothing else was.
+
+The throwaway instance is what keeps the original promise: the setup wizard
+has to be able to check a speaker while music is playing, and taking over the
+service's player would stop the music. Unknown sinks are rejected with HTTP
+404, because neither `paplay` nor libVLC reports an error for them — both fall
+back to the default output silently, which in the wizard would mean the user
+selects output A, hears output B and believes A is verified.
 
 ---
 
@@ -385,8 +457,8 @@ Tested outputs: WM8960 Audio HAT, HiFiBerry, IQaudio, USB sound cards, the
 
 - `libvlc5`, `vlc-plugin-base`, `vlc-plugin-access-extra` — playback engine,
   codecs and the HTTP/HTTPS access modules
-- `pulseaudio-utils` — `pactl` (sink discovery), `pacat` (pipeline prewarm),
-  `paplay` (test tone)
+- `pulseaudio-utils` — `pactl` (sink discovery), `pacat` (pipeline prewarm).
+  `paplay` is no longer used for the test tone; see §3
 - `curl` — container health check
 
 Explicitly **not** the `vlc` package: that is the desktop player and pulls in

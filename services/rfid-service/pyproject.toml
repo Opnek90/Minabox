@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rfid-service"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Minabox RFID hardware integration service"
 requires-python = ">=3.13"
 dependencies = [
@@ -20,6 +20,12 @@ dependencies = [
 
 [project.scripts]
 rfid-service = "rfid_service.main:run"
+
+# Die Version steht in der Datei VERSION - eine Quelle je Dienst
+# (docs/Versionierung.md). Frueher stand sie hier ein zweites Mal
+# und war repo-weit veraltet.
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
 
 [tool.ruff]
 line-length = 88

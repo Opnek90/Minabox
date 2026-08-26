@@ -26,8 +26,10 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from . import fonts
+from . import fonts, knuffel
 from .primitives import (
+    SLEEP_ZS_PHASES,
+    SLEEP_ZS_WIDTH,
     WIDTH,
     bar,
     block_height,
@@ -35,6 +37,7 @@ from .primitives import (
     draw_text_centered,
     fit_lines,
     new_frame,
+    sleep_zs,
     speaker,
 )
 
@@ -56,8 +59,35 @@ TIME_BASELINE = 61
 MUTE_GLYPH = 13
 MUTE_XY = (WIDTH - MUTE_GLYPH - 3, 2)
 
-PAUSED_TEXT = "Pause"
 UNKNOWN_TIME = "spielt"
+
+# Paused has its own layout. "Pause" as a word is for whoever can read, and the
+# person most often standing in front of this panel cannot yet - so Knuffel
+# falls asleep instead, which needs no reading at all. The title and the bar
+# stay: what is on and how far in are still true while paused, and they are
+# what the parent looks for.
+PAUSED_TITLE_TOP = 1
+PAUSED_TITLE_BAND_HEIGHT = 22
+PAUSED_BAR_BOX = (3, 26, WIDTH - 3, 34)
+PAUSED_SLEEPER_SIZE = 27
+PAUSED_SLEEPER_TOP = 36
+# Between him and the first Z. Closer and the Z grows out of his ear.
+PAUSED_Z_GAP = 6
+# The Zs hang off his upper right, the way a comic does it - but not above his
+# head: lifted any further, the biggest one runs into the progress bar, and a Z
+# growing out of a bar is just a broken bar.
+PAUSED_Z_TOP = PAUSED_SLEEPER_TOP
+
+# How long one Z stays before the next joins it. Two seconds is exactly two
+# render ticks, so the rhythm is even rather than limping between one tick and
+# two - and three phases make a six-second breath, which is about the pace of
+# someone actually asleep.
+#
+# It also decides what this costs. Only the Z block changes between phases, so
+# the diffed partial update is roughly four pages of 28 columns, every two
+# seconds, on a bus the RFID reader shares. Halving the interval would double
+# that for a livelier fidget nobody asked for.
+PAUSED_SLEEP_PHASE_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -69,6 +99,9 @@ class PlayingView:
     duration_ms: int | None
     paused: bool = False
     muted: bool = False
+    # Which of the three sleep phases to draw. Only read while paused; the
+    # caller advances it, so this stays a pure view.
+    sleep_phase: int = 0
 
     @property
     def fraction(self) -> float:
@@ -85,8 +118,6 @@ class PlayingView:
         Streams have no length and VLC does not always know one straight away,
         so "no remaining time" is a normal state rather than an error.
         """
-        if self.paused:
-            return PAUSED_TEXT
         if self.remaining_ms is None:
             return UNKNOWN_TIME
         seconds = max(0, round(self.remaining_ms / 1000))
@@ -97,10 +128,8 @@ class PlayingView:
         return f"noch {max(10, round(seconds / 10) * 10)} Sek."
 
 
-def render(view: PlayingView) -> Any:
-    """Return the frame for *view* as a mode-'1' image."""
-    img, draw = new_frame()
-
+def _title(draw: Any, view: PlayingView, band_top: int, band_height: int) -> None:
+    """Fit the title into its band and draw it, centred vertically."""
     title_width = WIDTH - 4
     if view.muted:
         speaker(draw, *MUTE_XY, MUTE_GLYPH, muted=True)
@@ -113,16 +142,47 @@ def render(view: PlayingView) -> Any:
         TITLE_MAX_LINES,
         TITLE_SIZES,
         fonts.REGULAR,
-        max_height=TITLE_BAND_HEIGHT,
+        max_height=band_height,
         line_gap=TITLE_LINE_GAP,
     )
     # Centred in the band, so a one-line title does not hang from the top edge
     # while a two-line one fills it.
     height = block_height(size, len(lines), TITLE_LINE_GAP)
-    top = TITLE_TOP + max(0, (TITLE_BAND_HEIGHT - height) // 2)
+    top = band_top + max(0, (band_height - height) // 2)
     for index, line in enumerate(lines):
         draw_text(draw, (2, top + size + index * (size + TITLE_LINE_GAP)), line, font)
 
+
+def _render_paused(view: PlayingView) -> Any:
+    """Title, bar, and Knuffel asleep with the Zs coming off him."""
+    img, draw = new_frame()
+
+    _title(draw, view, PAUSED_TITLE_TOP, PAUSED_TITLE_BAND_HEIGHT)
+    bar(draw, PAUSED_BAR_BOX, view.fraction)
+
+    # The sleeper and his Zs are centred as one group, so he does not sit
+    # off-centre with empty panel beside him.
+    group = PAUSED_SLEEPER_SIZE + PAUSED_Z_GAP + SLEEP_ZS_WIDTH
+    left = max(2, (WIDTH - group) // 2)
+    knuffel.draw(
+        draw, left, PAUSED_SLEEPER_TOP, PAUSED_SLEEPER_SIZE, knuffel.ASLEEP
+    )
+    sleep_zs(
+        draw,
+        left + PAUSED_SLEEPER_SIZE + PAUSED_Z_GAP,
+        PAUSED_Z_TOP,
+        view.sleep_phase % SLEEP_ZS_PHASES + 1,
+    )
+    return img
+
+
+def render(view: PlayingView) -> Any:
+    """Return the frame for *view* as a mode-'1' image."""
+    if view.paused:
+        return _render_paused(view)
+
+    img, draw = new_frame()
+    _title(draw, view, TITLE_TOP, TITLE_BAND_HEIGHT)
     bar(draw, BAR_BOX, view.fraction)
     draw_text_centered(draw, view.time_text, fonts.get(fonts.BOLD, 15), TIME_BASELINE)
     return img

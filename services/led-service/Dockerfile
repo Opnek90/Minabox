@@ -80,6 +80,22 @@ RUN ldconfig
 # scripts in there belong to packages this service never invokes.
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 
+# python:3.13-slim ships no compiled bytecode for the standard library, and the
+# container runs as a non-root user against root-owned directories - so it can
+# never write a __pycache__ either. The Python health check therefore
+# re-translated ssl, email, http.client and urllib.parse from source on every
+# single run: measured 2.05 s of CPU, which at interval=30s is ~6 % of a core,
+# permanently, and more than the service itself uses.
+#
+# Precompiling once at build time brings the same import down to 0.53 s and
+# takes the same translation out of the service start as well. The price is
+# 27 MB on the image (minabox-button measured 229 MB -> 256 MB).
+#
+# Has to run as root, before USER: that the service user cannot write there is
+# the whole reason the bytecode was missing. compileall writes regardless of
+# PYTHONDONTWRITEBYTECODE, so the ENV further down does not interfere.
+RUN python -m compileall -q /usr/local/lib/python3.13 > /dev/null
+
 # Copy application code (paths relative to context ./services)
 COPY led-service/src/ ./src/
 COPY led-service/config/ ./config/

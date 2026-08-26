@@ -16,6 +16,10 @@ class HealthResponse(BaseModel):
     uptime_seconds: float
     mqtt_connected: bool
     vlc_initialized: bool
+    # Whether the configured sink exists right now. None when no output is
+    # configured - then nothing is pinned down and nothing can be missing.
+    output_device: str | None = None
+    output_device_available: bool = True
     timestamp: str
 
 
@@ -56,6 +60,28 @@ class TestToneResponse(BaseModel):
 
     played: bool
     sink_name: str | None = None
+    timestamp: str
+
+
+class TroubleshootStep(BaseModel):
+    """One rung of the sound-repair chain, and what happened on it."""
+
+    id: str
+    ok: bool
+    fixed: bool = False
+    # Technical wording, for the debug export - never for the dialog. The user
+    # is not shown sink names or stream indices.
+    detail: str | None = None
+
+
+class TroubleshootResponse(BaseModel):
+    """Response for POST /troubleshoot."""
+
+    steps: list[TroubleshootStep]
+    fixed: list[str]
+    # The step id the UI names as the cause, or None when nothing was wrong.
+    cause: str | None = None
+    tone_played: bool = False
     timestamp: str
 
 

@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { configApi } from '@/api/config';
 import { systemApi } from '@/api/system';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
+import { isServiceUp } from '@/types/api';
 import type { ButtonRawEventMessage, LEDConfig } from '@/types/api';
 
 export const HardwareStep: React.FC = () => {
@@ -32,7 +33,7 @@ export const HardwareStep: React.FC = () => {
       .getStatus()
       .then((s) =>
         setRunning(
-          new Set(s.services.filter((x) => x.state === 'online').map((x) => x.service)),
+          new Set(s.services.filter((x) => isServiceUp(x.state)).map((x) => x.service)),
         ),
       )
       .catch(() => setRunning(new Set()))

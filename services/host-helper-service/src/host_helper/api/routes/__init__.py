@@ -8,6 +8,7 @@ routes are registered in.
 from fastapi import APIRouter
 
 from host_helper.api.routes import (
+    audio,
     backup,
     bluetooth,
     diagnostics,
@@ -35,6 +36,7 @@ for _module in (
     update,
     bluetooth,
     diagnostics,
+    audio,
 ):
     router.include_router(_module.router)
 
