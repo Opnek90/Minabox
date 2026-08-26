@@ -179,6 +179,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.1.17 - 2026-08-26
+
+#### Fixed
+- "Up next" showed the wrong order during a running playlist: already-played
+  tracks were listed ahead of the upcoming ones.
+
 ### 0.1.16 - 2026-08-26
 
 #### Added
