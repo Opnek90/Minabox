@@ -228,25 +228,50 @@ reaches the service over the Compose network as `http://audio:8003`, while
   "uptime_seconds": 123.45,
   "mqtt_connected": true,
   "vlc_initialized": true,
+  "output_device": "alsa_output.platform-soc_sound.stereo-fallback",
+  "output_device_available": true,
   "timestamp": "2026-08-23T20:45:00+00:00"
 }
 ```
 
-`status` is `healthy` when MQTT is connected **and** VLC is initialised,
-otherwise `degraded`. The endpoint answers HTTP 200 in both cases, so a broker
-outage does not make Docker restart a service that is otherwise fine.
+`status` is `healthy` when MQTT is connected, VLC is initialised **and** the
+configured output device actually exists, otherwise `degraded`. The endpoint
+answers HTTP 200 in all cases, so a broker outage does not make Docker restart
+a service that is otherwise fine.
+
+The device check exists because configured is not the same as usable. After a
+restart in which the PN532 held the I2C bus, the wm8960 codec failed to probe
+once and gave up; `aplay -l` showed only HDMI and the headphone jack, and no
+sound came out of the box — while this endpoint reported `healthy`, because
+the broker was connected and VLC had come up. A dark display is a blemish; a
+mute box is broken.
+
+`output_device` is the configured sink name, or `null` when
+`output_device_name` is empty (host default sink — nothing is pinned down, so
+nothing can be missing). A sink lookup that *fails* is not reported as a
+missing device: not being able to ask is not the same as the answer being no,
+and every hiccup in the detector would otherwise show up as a broken box.
 
 `POST /api/v1/switch-device` takes `{"sink_name": "..."}` or
 `{"direction": "next"}`; `alsa_device` is a deprecated alias for `sink_name`.
 An unknown or non-enabled sink is answered with HTTP 400.
 
 `POST /api/v1/test-tone` takes an optional `{"sink_name": "..."}` and plays
-`assets/test-tone.wav` through `paplay`. It deliberately bypasses the VLC
-backend: the setup wizard has to be able to check a speaker while music is
-playing, and taking over the player would stop the music. Unknown sinks are
-rejected with HTTP 404, because `paplay` would otherwise fall back to the
-default output silently and report success — which in the wizard would mean the
-user selects output A, hears output B and believes A is verified.
+`assets/test-tone.wav` over libVLC, on a throwaway instance built from the
+same arguments as the music player — same output module, same media role.
+
+It used to go through `paplay`, which turned out to be a test that could not
+fail the way the music fails: `paplay` runs under `application.name:paplay`,
+a different PipeWire stream role with its own remembered volume and mute. On a
+box whose *music* role was remembered as muted, the test tone was audible
+while nothing else was.
+
+The throwaway instance is what keeps the original promise: the setup wizard
+has to be able to check a speaker while music is playing, and taking over the
+service's player would stop the music. Unknown sinks are rejected with HTTP
+404, because neither `paplay` nor libVLC reports an error for them — both fall
+back to the default output silently, which in the wizard would mean the user
+selects output A, hears output B and believes A is verified.
 
 ---
 
@@ -385,8 +410,8 @@ Tested outputs: WM8960 Audio HAT, HiFiBerry, IQaudio, USB sound cards, the
 
 - `libvlc5`, `vlc-plugin-base`, `vlc-plugin-access-extra` — playback engine,
   codecs and the HTTP/HTTPS access modules
-- `pulseaudio-utils` — `pactl` (sink discovery), `pacat` (pipeline prewarm),
-  `paplay` (test tone)
+- `pulseaudio-utils` — `pactl` (sink discovery), `pacat` (pipeline prewarm).
+  `paplay` is no longer used for the test tone; see §3
 - `curl` — container health check
 
 Explicitly **not** the `vlc` package: that is the desktop player and pulls in

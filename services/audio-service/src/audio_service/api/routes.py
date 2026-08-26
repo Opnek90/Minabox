@@ -67,14 +67,19 @@ def create_app(service: AudioService, config: AppConfig) -> FastAPI:
             uptime = service.get_uptime()
             mqtt_connected = service.is_mqtt_connected()
             vlc_initialized = service.is_vlc_initialized()
-            status = "healthy" if (mqtt_connected and vlc_initialized) else "degraded"
+            # Broker up and VLC up used to be the whole check - and both were
+            # true while the sound card had vanished and the box was silent.
+            device_ok, device_name = await service.check_output_device()
+            healthy = mqtt_connected and vlc_initialized and device_ok
             return HealthResponse(
-                status=status,
+                status="healthy" if healthy else "degraded",
                 service="audio",
                 version=get_version(),
                 uptime_seconds=uptime,
                 mqtt_connected=mqtt_connected,
                 vlc_initialized=vlc_initialized,
+                output_device=device_name,
+                output_device_available=device_ok,
                 timestamp=datetime.now(UTC).isoformat(),
             )
         except Exception as e:
@@ -162,10 +167,16 @@ async def switch_device(body: SwitchDeviceBody) -> StatusResponse:
 async def play_test_tone(body: TestToneBody) -> TestToneResponse:
     """Play a short test tone on the given (or active) sink.
 
-    Deliberately routed through paplay instead of the VLC backend: the wizard
-    must be able to check the speaker while something is playing, and taking
-    over the player would stop the music and leave the session in a state the
-    user did not ask for.
+    Routed through libVLC on a throwaway player, not through paplay. paplay
+    runs under ``application.name:paplay``, a different PipeWire stream role
+    with its own remembered volume and mute - so on a box whose *music* role
+    was remembered as muted, the test tone was audible while nothing else was.
+    A tone that cannot fail the way the music fails is not a test.
+
+    The throwaway player is what keeps the old promise: the wizard checks the
+    speaker while something is playing, and taking over the service's player
+    would stop the music and leave the session in a state the user did not ask
+    for.
     """
     if _service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -174,10 +185,11 @@ async def play_test_tone(body: TestToneBody) -> TestToneResponse:
         logger.error("test_tone_missing", path=str(TEST_TONE_PATH))
         raise HTTPException(status_code=503, detail="Test tone asset not found")
 
-    # Unknown sinks have to be caught here. paplay does NOT report an error for
-    # them: it falls back to the default output silently and exits with 0. In
-    # the wizard that would be the worst outcome - the user picks output A,
-    # hears sound from B, and believes A is verified.
+    # Unknown sinks have to be caught here. Neither paplay before nor libVLC
+    # now reports an error for them: both fall back to the default output
+    # silently and report success. In the wizard that would be the worst
+    # outcome - the user picks output A, hears sound from B, and believes A is
+    # verified.
     if body.sink_name:
         try:
             known = await _service.get_audio_devices(force_refresh=True)
@@ -190,36 +202,23 @@ async def play_test_tone(body: TestToneBody) -> TestToneResponse:
                 detail=f"Unknown sink '{body.sink_name}'",
             )
 
-    cmd = ["paplay"]
-    if body.sink_name:
-        cmd.append(f"--device={body.sink_name}")
-    cmd.append(str(TEST_TONE_PATH))
-
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        await asyncio.wait_for(
+            _service.play_test_tone(
+                str(TEST_TONE_PATH),
+                body.sink_name,
+                timeout_sec=TEST_TONE_TIMEOUT,
+            ),
+            TEST_TONE_TIMEOUT + 2.0,
         )
-    except FileNotFoundError:
-        logger.error("test_tone_paplay_missing")
-        raise HTTPException(status_code=503, detail="paplay not available") from None
-
-    try:
-        _, stderr = await asyncio.wait_for(proc.communicate(), TEST_TONE_TIMEOUT)
     except TimeoutError:
-        proc.kill()
         logger.warning("test_tone_timeout", sink=body.sink_name)
         raise HTTPException(status_code=504, detail="Test tone timed out") from None
-
-    if proc.returncode != 0:
-        detail = (stderr or b"").decode(errors="replace").strip()
-        logger.warning(
-            "test_tone_failed", sink=body.sink_name, rc=proc.returncode, error=detail
-        )
+    except Exception as e:  # noqa: BLE001 - reported to the caller as 502
+        logger.warning("test_tone_failed", sink=body.sink_name, error=str(e))
         raise HTTPException(
-            status_code=502, detail=detail or "Test tone playback failed"
-        )
+            status_code=502, detail=str(e) or "Test tone playback failed"
+        ) from e
 
     logger.info("test_tone_played", sink=body.sink_name)
     return TestToneResponse(

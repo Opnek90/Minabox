@@ -16,6 +16,10 @@ class HealthResponse(BaseModel):
     uptime_seconds: float
     mqtt_connected: bool
     vlc_initialized: bool
+    # Whether the configured sink exists right now. None when no output is
+    # configured - then nothing is pinned down and nothing can be missing.
+    output_device: str | None = None
+    output_device_available: bool = True
     timestamp: str
 
 

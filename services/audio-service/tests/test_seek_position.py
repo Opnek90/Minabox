@@ -110,11 +110,17 @@ class _SeekingPlayer:
         self.requested: int | None = None
         self.polls = 0
         self.volume = 30
+        self.muted = 0
+        # What PipeWire hands the stream when it opens the output. A fresh
+        # player reports 0 up to that moment, which is exactly why checking
+        # before play() finds nothing wrong.
+        self.remembered_mute = 0
 
     def set_media(self, media) -> None:
         pass
 
     def play(self) -> int:
+        self.muted = self.remembered_mute
         return 0
 
     def get_state(self):
@@ -133,6 +139,12 @@ class _SeekingPlayer:
         self.volume = v
         return 0
 
+    def audio_get_mute(self) -> int:
+        return self.muted
+
+    def audio_set_mute(self, muted: bool) -> None:
+        self.muted = 1 if muted else 0
+
 
 class _FakeInstance:
     @staticmethod
@@ -146,6 +158,7 @@ def _playable_backend(player) -> VLCBackend:
     backend._player = player
     backend._instance = _FakeInstance()
     backend._pending_volume = None
+    backend._muted = False
     backend._current_source_uri = None
     # Recent enough that the cold-pipeline prewarm is skipped.
     backend._last_stop_time = time.monotonic()
@@ -180,3 +193,39 @@ async def test_an_ordinary_track_start_does_not_pay_the_wait():
 
     assert player.requested is None
     assert player.polls == 0
+
+
+@pytest.mark.asyncio
+async def test_play_unmutes_a_stream_pipewire_handed_back_muted():
+    """A muted box that nobody muted (docs/services/Offene-Punkte.md 1.6).
+
+    WirePlumber remembers mute per media role and pushes it onto every stream
+    the moment it opens the output - after play(), not before. The service
+    believed it was unmuted and never corrected it, so no restart of the
+    container and no reboot of the box brought the sound back.
+    """
+    player = _SeekingPlayer()
+    backend = _playable_backend(player)
+    player.remembered_mute = 1
+
+    await asyncio.wait_for(
+        backend.play("https://example.invalid/track.mp3"), timeout=5.0
+    )
+
+    assert player.muted == 0, "play() left the stream on PipeWire's remembered mute"
+
+
+@pytest.mark.asyncio
+async def test_play_keeps_a_mute_the_user_asked_for():
+    """The correction must not undo a real mute - it forces the state the
+    service asked for, in both directions."""
+    player = _SeekingPlayer()
+    backend = _playable_backend(player)
+    await backend.set_muted(True)
+    player.remembered_mute = 0
+
+    await asyncio.wait_for(
+        backend.play("https://example.invalid/track.mp3"), timeout=5.0
+    )
+
+    assert player.muted == 1, "play() dropped the mute the user asked for"

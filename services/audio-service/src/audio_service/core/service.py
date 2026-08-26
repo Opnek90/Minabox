@@ -721,6 +721,52 @@ class AudioService:
         """Check if VLC backend is initialized via public property (issue #35)."""
         return self._vlc_backend.is_initialized
 
+    async def check_output_device(self) -> tuple[bool, str | None]:
+        """Is the configured output device actually there right now?
+
+        Configured is not the same as usable (docs/services/Offene-Punkte.md
+        1.5). After a restart in which the PN532 held the I2C bus, the wm8960
+        codec failed to probe once and gave up; the sound card was simply gone
+        and the box was silent. /health went on reporting "healthy" the whole
+        time, because it only ever asked whether the broker was connected and
+        whether VLC had come up - both of which were true.
+
+        A dark display is a blemish; a mute box is broken, so this is the
+        service where the distinction is worth reporting.
+
+        Returns:
+            (available, device_name). ``device_name`` is None when no output is
+            configured - nothing is then pinned down and nothing can be
+            missing, so ``available`` is True.
+        """
+        try:
+            config = self._get_audio_config()
+        except Exception as exc:
+            logger.warning("output_device_check_config_failed", error=str(exc))
+            return True, None
+
+        configured = (getattr(config, "output_device_name", None) or "").strip()
+        if not configured:
+            return True, None
+
+        try:
+            devices = await self.get_audio_devices()
+        except Exception as exc:
+            # Not being able to ask is not the same as the device being gone.
+            # Reporting "degraded" for a failed lookup would turn every hiccup
+            # in the detector into a fault report.
+            logger.warning("output_device_check_failed", error=str(exc))
+            return True, configured
+
+        available = any(d.get("id") == configured for d in devices)
+        if not available:
+            logger.warning(
+                "configured_output_device_missing",
+                device=configured,
+                detected=[d.get("id") for d in devices],
+            )
+        return available, configured
+
     async def get_audio_status(self) -> AudioStatus:
         """Get current audio status."""
         return await self._vlc_backend.get_status()
@@ -759,6 +805,18 @@ class AudioService:
                 "priority": s.priority,
             })
         return out
+
+    async def play_test_tone(
+        self, tone_path: str, sink_name: str | None = None, *, timeout_sec: float
+    ) -> None:
+        """Play the test tone over the same libVLC path the music uses.
+
+        Runs on its own throwaway player, so the current session keeps
+        playing - the wizard checks the speaker while music is on.
+        """
+        await self._vlc_backend.play_test_tone(
+            tone_path, sink_name, timeout_sec=timeout_sec
+        )
 
     async def switch_output_device(
         self,

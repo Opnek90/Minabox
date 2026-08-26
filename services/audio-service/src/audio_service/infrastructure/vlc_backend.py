@@ -56,6 +56,11 @@ class VLCBackend(AudioBackend):
         # made every subscriber believe the volume had been turned down to the
         # minimum the moment a figure was lifted off the reader.
         self._last_volume: int = getattr(config, "default_volume", 40) or 40
+        # What the service last asked for. libVLC's own mute flag cannot serve
+        # as the answer: a fresh player reports mute=0 and only picks up
+        # PipeWire's remembered state when it opens the output, i.e. after
+        # play(). See _apply_remembered_mute().
+        self._muted = False
         self._current_track_id: str | None = None
         self._current_source_type: str | None = None
         self._current_source_uri: str | None = None
@@ -159,10 +164,29 @@ class VLCBackend(AudioBackend):
         self._last_stop_time = time.monotonic()
 
     def _build_vlc_args(self) -> list[str]:
+        """Arguments every libVLC instance of this service is created with.
+
+        ``--role=music`` is not cosmetic. WirePlumber remembers volume and mute
+        *per media role*, permanently, in
+        ``~/.local/state/wireplumber/stream-properties``. VLC picks its own
+        role and defaults to ``video``, so the box ended up with
+
+            Output/Audio:media.role:Movie={"mute":true, ...}
+
+        which every new stream got pushed onto it the moment it opened the
+        output - surviving a container restart and a reboot of the box alike.
+        (``PULSE_PROP_media.role=music`` in docker-compose.yml never had an
+        effect for the same reason: VLC overrides it.)
+
+        Naming the role here at least makes the remembered state the one this
+        service believes it is using. It does not make the state harmless on
+        its own - see :meth:`_apply_remembered_mute`.
+        """
         return [
             "--quiet",
             "--no-video",
             "--aout=pulse",
+            "--role=music",
         ]
 
     def _set_pulse_default_sink_blocking(self, sink_name: str) -> bool:
@@ -309,6 +333,8 @@ class VLCBackend(AudioBackend):
                 raise PlaybackError("VLC player.play() returned error")
 
             await self._wait_for_state(vlc.State.Playing)
+
+            self._apply_remembered_mute()
 
             if self._pending_volume is not None:
                 min_vol = getattr(self._config, "min_volume", 0)
@@ -471,6 +497,101 @@ class VLCBackend(AudioBackend):
         # to prewarm the pipeline before the next VLC play.
         self._last_stop_time = time.monotonic()
 
+    def _play_test_tone_blocking(
+        self, tone_path: str, sink_name: str | None, timeout_sec: float
+    ) -> None:
+        """Play *tone_path* on a throwaway libVLC instance. Blocking.
+
+        A second instance rather than the service's player, for two reasons
+        that pull in opposite directions:
+
+        - The tone has to travel the *same* path as the music - same output
+          module, same media role - or it verifies a route nobody uses in
+          practice. That was the old bug: paplay runs under
+          ``application.name:paplay``, which has its own, healthy remembered
+          state, so the tone was audible while the music stayed muted.
+        - It must not take over the player. The setup wizard tests the speaker
+          while something is playing, and stopping the music would leave the
+          session in a state the user did not ask for.
+
+        Deliberately created unmuted and at full volume: this is the one
+        stream that has to be heard, and a remembered mute for the role is
+        exactly what it is meant to expose.
+        """
+        instance = vlc.Instance(self._build_vlc_args())
+        if instance is None:
+            raise VLCError("Failed to create VLC instance for the test tone")
+        player = None
+        try:
+            player = instance.media_player_new()
+            if player is None:
+                raise VLCError("Failed to create VLC player for the test tone")
+            if sink_name:
+                player.audio_output_device_set("pulse", sink_name)
+            player.set_media(instance.media_new(tone_path))
+            if player.play() == -1:
+                raise VLCError("VLC player.play() returned error for the test tone")
+
+            deadline = time.monotonic() + timeout_sec
+            started = False
+            while time.monotonic() < deadline:
+                state = player.get_state()
+                if state == vlc.State.Playing:
+                    if not started:
+                        started = True
+                        player.audio_set_mute(False)
+                        player.audio_set_volume(100)
+                elif state in (vlc.State.Ended, vlc.State.Stopped):
+                    if started:
+                        return
+                elif state == vlc.State.Error:
+                    raise VLCError("VLC reported an error playing the test tone")
+                time.sleep(0.05)
+            if not started:
+                raise VLCError("Test tone never started playing")
+        finally:
+            if player is not None:
+                player.stop()
+                player.release()
+            instance.release()
+
+    async def play_test_tone(
+        self, tone_path: str, sink_name: str | None = None, timeout_sec: float = 10.0
+    ) -> None:
+        """Play a test tone over the same libVLC path the music uses.
+
+        Runs in a thread: the loop below polls libVLC's state, and inline it
+        would freeze MQTT dispatch and the REST API for the length of the tone.
+        """
+        await asyncio.to_thread(
+            self._play_test_tone_blocking, tone_path, sink_name, timeout_sec
+        )
+
+    def _apply_remembered_mute(self) -> None:
+        """Force the mute flag back to what this service asked for.
+
+        Has to run *after* play() reached Playing, not before: PipeWire applies
+        the state it remembers for the role only when the stream opens the
+        output. A freshly created player reports mute=0 right up to that
+        moment and mute=1 immediately after, without anyone having muted
+        anything - which is how a box stayed silent across restarts while the
+        service believed it was unmuted.
+
+        Writing the value back also repairs the remembered state: WirePlumber
+        stores what the running stream reports.
+        """
+        if self._player is None:
+            return
+        if self._player.audio_get_mute() == (1 if self._muted else 0):
+            return
+        logger.info(
+            "correcting_mute_after_play",
+            expected=self._muted,
+            reported=self._player.audio_get_mute() == 1,
+            hint="remembered PipeWire stream state for the media role",
+        )
+        self._player.audio_set_mute(self._muted)
+
     async def set_muted(self, muted: bool) -> None:
         """Mute or unmute through libVLC, leaving the volume untouched.
 
@@ -481,6 +602,7 @@ class VLCBackend(AudioBackend):
         """
         if not self._player:
             return
+        self._muted = muted
         self._player.audio_set_mute(muted)
 
     async def is_muted(self) -> bool:

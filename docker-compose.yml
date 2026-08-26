@@ -225,6 +225,11 @@ services:
       - XDG_RUNTIME_DIR=/run/user/${HOST_UID:-1000}
       - PULSE_SERVER=unix:/run/user/${HOST_UID:-1000}/pulse/native
       - PULSE_PROP_module-suspend-on-idle.timeout=0
+      # Only reaches the pacat prewarm, not the music: libVLC sets its own
+      # media role and this variable does not override it. The role the music
+      # runs under is pinned with --role=music in _build_vlc_args() - it has to
+      # be, because WirePlumber remembers mute per role and a role nobody
+      # meant to use kept the box silent across reboots.
       - PULSE_PROP_media.role=music
     volumes:
       - ./services/audio-service/config:/app/config
