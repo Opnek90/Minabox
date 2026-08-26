@@ -1,18 +1,6 @@
-"""Test doubles and builders for the display service tests."""
+"""Test doubles for the display service tests."""
 
 from __future__ import annotations
-
-from display_service.config_schema import DisplayElement
-
-
-def element(type_: str, area: int = 0, order: int = 0, enabled: bool = True, id_=None):
-    return DisplayElement(
-        id=id_ or type_,
-        type=type_,
-        area=area,
-        order=order,
-        enabled=enabled,
-    )
 
 
 class FakePanel:

@@ -67,11 +67,6 @@ export const configApi = {
     return response.data;
   },
 
-  getDisplayElementTypes: async (): Promise<string[]> => {
-    const response = await apiClient.get<string[]>('/config/display/element-types');
-    return response.data;
-  },
-
   // Button config
   getButtons: async (): Promise<ButtonConfig> => {
     const response = await apiClient.get<ButtonConfig>('/config/buttons');

@@ -35,10 +35,9 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/                      # 306 tests, no hardware needed
-│   ├── display_test_doubles.py # FakePanel and the element builder
+├── tests/                      # 236 tests, no hardware needed
+│   ├── display_test_doubles.py # FakePanel
 │   ├── conftest.py             # A service wired to neither panel nor broker
-│   ├── test_build_areas.py
 │   ├── test_config_reload.py   # Device lifetime and the render loop
 │   ├── test_display_config_schema.py
 │   ├── test_display_health_endpoint.py
@@ -53,16 +52,14 @@ display-service/
 │   ├── test_display_volume_hud.py    # When the overlay takes the panel
 │   ├── test_display_volume_render.py # Its pixels
 │   ├── test_display_volume_view.py   # Its arithmetic
-│   ├── test_element_renderers.py
-│   └── test_render_fingerprint.py   # The redraw decision
 ├── config/
 │   ├── display.json            # Live config (not in git, seeded from the example)
 │   └── display.json.example    # Template used by scripts/setup-folders.sh
 └── src/display_service/
     ├── __init__.py
-    ├── main.py                 # Entry point, element renderers, render loop, backend polls
+    ├── main.py                 # Entry point, screen priority, render loop, backend polls
     ├── config.py               # Loads the environment into AppConfig
-    ├── config_schema.py        # Pydantic: DisplayElement, DisplayServiceConfig, EnvConfig
+    ├── config_schema.py        # Pydantic: DisplayServiceConfig, EnvConfig
     ├── config_manager.py       # Thin subclass of shared_lib JsonConfigManager (load/reload)
     ├── exceptions.py           # Service-specific exception hierarchy
     ├── api/
@@ -86,7 +83,7 @@ display-service/
     │   └── volume.py           # VolumeView and the volume overlay
     └── infrastructure/
         ├── __init__.py
-        ├── display_controller.py  # Theme, icon renderer, DisplayRenderer, module-level API
+        ├── display_controller.py  # Opening the panel, and partial frame pushes
         └── mqtt_client.py         # Subscriptions and message dispatch
 ```
 
@@ -97,101 +94,52 @@ adds the topics and the dispatch this service needs.
 
 ---
 
-## 3. The Layout Model
+## 3. Screens, not a layout
 
-The panel is divided into three fixed areas. Which elements land in which area
-is configuration; the geometry is not.
+There is no layout to configure. Every state of the box has a screen of its
+own, each drawn as a whole 128x64 frame by a module under `render/`, and each
+picking its own sizes for what it has to say.
 
-```text
-┌────────────────────────────────────────┐
-│  area 0 — header, full width, 16 px    │   up to 6 items, side by side
-├────────────────────────────────────────┤   ← separator line
-│  area 1          │  area 2             │   up to 3 items each,
-│  left column     │  right column       │     stacked and vertically centred
-│  64 px           │  64 px              │
-└────────────────────────────────────────┘
-```
+| Screen | When | What carries it |
+| --- | --- | --- |
+| idle | nothing playing | Knuffel, wandering |
+| playing | playing or paused | title, progress bar, remaining time |
+| volume | the knob was turned, or mute | blocks, one per detent |
+| notice | an unknown, blocked or over-quota figure | a picture and a few words |
+| test pattern | `POST /test` | two lines of text |
 
-All geometry is one frozen `Theme` dataclass in `display_controller.py` — the
-single source of truth for width, header height, column width, padding, slot
-height and gap, icon size and the font tables. The body slots are sized so that
-three items fill the body exactly: `3 × 13 px + 2 × 2 px gap = 43 px`.
-
-Items are placed by area:
-
-- **Header:** the width is divided into `128 / n` equal zones, one item centred
-  in each. Six items therefore get 21 px each.
-- **Columns:** items are stacked into 13 px slots and the whole block is centred
-  vertically in the body.
-
-Anything beyond the per-area limit is dropped at render time with a
-`display_area_item_dropped` warning; the same limits are checked once at startup
-and on every reload, which logs `display_area_overcrowded` before the first
-frame is lost.
-
-### Icons
-
-Icons are **drawn**, not loaded. `IconRenderer` builds each one from PIL
-`ImageDraw` primitives on a coordinate grid normalised to a 0–1 unit square, so
-an icon stays sharp at any size, and the image ships no icon files. Rendered
-icons are cached per name for the lifetime of the process.
-
-Known icons: `play`, `pause`, `stop`, `mute`, `moon` / `sleep_timer`, `error`,
-`repeat`, `shuffle`, `bluetooth`. An unknown name falls back to the first three
-letters of its name as upper-case text, so a typo is visible on the panel rather
-than silently blank.
+What replaced the grid, and why, is in [Redesign.md](Redesign.md). The short
+version: 128x64 lets you show *one* thing large or nine things unreadably, and
+the grid chose nine.
 
 ### Fonts
 
-`font_size` maps to a pixel height (`small` 9, `medium` 12, `large` 14) and
-`font` to a list of candidate TTF paths that are tried in order. The first file
-that exists and loads wins; if none does, the service logs `font_not_found` and
-falls back to PIL's built-in bitmap font. Loaded fonts are cached per
-`size:family` key.
+The image installs `fonts-dejavu-core` and nothing else, so exactly four faces
+exist: Sans and Serif, each regular and bold. `render/fonts.py` therefore asks
+for a **weight**, not a font name - anything outside that list would silently
+fall back to PIL's 11 px bitmap default, which is how a display ends up
+unreadable without anything appearing to be wrong.
 
-Only `fonts-dejavu-core` is installed in the image, which covers `sans` and
-`mono`. The other families (`roboto`, `ubuntu`, `noto`, `liberation`,
-`terminus`) are offered by the schema and resolve on a host that has them, but
-inside the container they fall back to the built-in font.
+Sizes are not configured either. Each screen picks its own, and the one place
+it is decided at runtime is the playing screen's title, where `fit_lines()`
+takes the largest size in which the title fits both the width and its band.
 
----
+### Drawing
 
-## 4. Element Types
+`render/primitives.py` holds what the screens share: measuring and wrapping
+text against real pixel widths, the speaker glyph, the block row, the bar.
+`render/knuffel.py` holds the creature and his moods, `render/marks.py` the
+small glyphs for an error and a running sleep timer.
 
-An element type is a small function with the signature
+Everything there is pure PIL and touches no device, which is what lets the
+whole visual layer be tested without an SSD1306 attached - including
+`tests/test_display_screen_edges.py`, which renders every screen in every mood
+and asserts that nothing reaches the edge of the panel. PIL crops silently, so
+an overflowing glyph is not an error; it is simply missing a piece, and only on
+the glass.
 
-```python
-(audio, sleep_timer, session, state_manager) -> dict | None
-```
 
-registered in the `_ELEMENT_RENDERERS` table in `main.py`. Returning `None`
-means "nothing to show right now", which is how the conditional types disappear
-when they have nothing to say. Adding a type means adding a table entry and a
-schema literal; the layout code is not touched.
-
-| Type | Shows | Source | Conditional |
-| --- | --- | --- | --- |
-| `clock` | `HH:MM` | container clock (`TZ`) | no |
-| `volume` | `NN%` | MQTT `audio/status` | no |
-| `play_state` | play / pause / stop icon | MQTT `audio/status` | no |
-| `mute` | mute icon | MQTT `audio/status` | only while muted |
-| `bluetooth` | Bluetooth icon | MQTT `audio/status` | only when a BT sink exists *and* more than one output device is enabled |
-| `error_state` | exclamation icon | MQTT `audio/error`, `system/service-error` | for 5 minutes after the last error |
-| `sleep_timer` | moon icon + remaining minutes | backend poll | only while the timer is active |
-| `repeat` | repeat icon | backend poll | only while `repeat_mode == "all"` |
-| `shuffle` | shuffle icon | backend poll | only while shuffle is on |
-
-Remaining minutes are rounded **up** (`(remaining_ms + 59999) // 60000`), so a
-timer never reads `0m` while it is still running.
-
-The error indicator expires after `ERROR_STATE_TIMEOUT` (5 minutes). It is also
-cleared by any incoming `audio/status` — but the audio service only publishes
-that when the status actually changed, so on an otherwise idle box the timeout
-is the only thing that takes the icon down again.
-
----
-
-## 5. Runtime Flow
+## 4. Runtime Flow
 
 `main.py` starts five things and then waits for a signal:
 
@@ -255,11 +203,17 @@ on the reader and the box stayed quiet - and that is the shape a picture is
 good for. Each has its own words, because "Wer bist du?" is a lie for a figure
 the box recognises perfectly well.
 
-**The widget grid is no longer reachable.** `_build_areas()`, the element
-renderers and `show_areas()` are still in the tree, but no state routes to them
-any more; the `elements` list in `display.json` is accepted and ignored, and
-the WebUI's layout editor no longer affects the panel. Removing all of it
-belongs with the schema change in [Redesign.md](Redesign.md) §6.
+**The widget grid is gone.** It was a layout - nine element types, three areas,
+an order and a font - and every state of the box having a screen of its own
+left it unreachable. Removed with it: `_build_areas()` and the element
+renderers, `show_areas()` and the whole `Theme`/`IconRenderer` layer under it,
+the backend's `_DISPLAY_ELEMENT_TYPES` and `GET /display/element-types`, and
+the WebUI's layout editor.
+
+`display.json` keeps whatever it has. Pydantic ignores unknown keys, so a box
+running today starts with its old `elements` list still in the file and nothing
+reads it - which is also why the backend still *accepts* those keys: rejecting
+them would leave that box unable to change any of its other settings.
 
 ### Sending only what changed
 
@@ -444,9 +398,9 @@ a measured 12 ms of CPU per request that is worth the difference.
 
 ---
 
-## 6. Public Interfaces
+## 5. Public Interfaces
 
-### 6.1 MQTT — subscribed
+### 5.1 MQTT — subscribed
 
 All topics are prefixed `minabox/<device-id>/`. All are subscribed at QoS 1 and
 registered before the first connect, so the base client replays them on every
@@ -464,13 +418,13 @@ reconnect.
 | `display/config/reload` | Reloads `config/display.json`, applies any hardware change, and redraws immediately. |
 | `config/general` | Applies the log level, handled by `BaseMQTTClient.apply_general_config()`. |
 
-### 6.2 MQTT — published
+### 5.2 MQTT — published
 
 | Topic | When | Payload |
 | --- | --- | --- |
 | `system/service-started` | at startup, and again after every reconnect | `{"service": "display"}` |
 
-### 6.3 REST
+### 5.3 REST
 
 The API listens on `0.0.0.0:8000` inside the container (`API_PORT`, default
 8000) and is published as `8006` on the host.
@@ -511,7 +465,7 @@ the setup wizard.
 
 ---
 
-## 7. Configuration
+## 6. Configuration
 
 **File:** `config/display.json`, mounted read-only into the container. The
 backend owns the file and publishes `display/config/reload` after every write.
@@ -520,15 +474,7 @@ backend owns the file and publishes `display/config/reload` after every write.
 {
   "enabled": true,
   "i2c_bus": 1,
-  "i2c_address": 60,
-  "font_size": "large",
-  "font": "sans",
-  "elements": [
-    { "id": "time",  "type": "clock",      "enabled": true, "order": 0, "area": 0 },
-    { "id": "vol",   "type": "volume",     "enabled": true, "order": 0, "area": 1 },
-    { "id": "state", "type": "play_state", "enabled": true, "order": 0, "area": 1 },
-    { "id": "mute",  "type": "mute",       "enabled": true, "order": 1, "area": 2 }
-  ]
+  "i2c_address": 60
 }
 ```
 
@@ -537,19 +483,15 @@ backend owns the file and publishes `display/config/reload` after every write.
 | `enabled` | bool | Global on/off. When false, nothing is drawn. |
 | `i2c_bus` | int > 0 | Bus number, `1` for `/dev/i2c-1`. |
 | `i2c_address` | int ≥ 0 | Device address, `60` = `0x3C` for the SSD1306. |
-| `font_size` | `small` \| `medium` \| `large` | 9, 12 or 14 px. |
-| `font` | `default` \| `sans` \| `mono` \| `roboto` \| `ubuntu` \| `noto` \| `liberation` \| `terminus` | Family; falls back to the built-in font when the file is absent. |
-| `elements` | list | The elements, see below. |
 
-Element:
+That is the whole file. What used to be here - `elements`, `area`, `order`,
+`font`, `font_size` - configured a layout that no longer exists.
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `id` | non-empty string | Free identifier, only used to tell entries apart in the WebUI. |
-| `type` | element type | One of the nine types in section 4. |
-| `enabled` | bool | Whether the element is considered at all. |
-| `order` | int ≥ 0 | Position within the area; lower comes first (left in the header, higher in a column). |
-| `area` | `0` \| `1` \| `2` | Header, left column, right column. |
+**A file that still has those keys keeps working.** Pydantic ignores unknown
+ones, so a box running today starts unchanged and nothing reads them. The
+backend's validator accepts them for the same reason: a check stricter than the
+schema would leave that box unable to change any of its other settings, which
+is worse than the stale keys sitting there.
 
 A reload does not only redraw. If `i2c_bus` or `i2c_address` changed, the device
 is closed and reopened on the new address; if `enabled` went false the panel is
@@ -565,12 +507,9 @@ Only the environment is read into `AppConfig`. `display.json` belongs to
 `ConfigManager`, which is the copy that can be reloaded — a second parse at
 startup would go stale the first time the file changed.
 
-The backend exposes `GET /api/v1/config/display/element-types` so the admin UI
-can offer the available types without hardcoding them.
-
 ---
 
-## 8. Dependencies
+## 7. Dependencies
 
 - **Hardware:** an SSD1306 OLED on `/dev/i2c-1`, shared with the PN532 RFID
   reader.
@@ -588,7 +527,7 @@ can offer the available types without hardcoding them.
 
 ---
 
-## 9. Deployment
+## 8. Deployment
 
 The service runs as the compose service `display` under the `display` profile,
 so a box without a panel simply never starts it.
@@ -625,7 +564,7 @@ blanked and the I2C handle closed — so nothing stays on screen after
 
 ---
 
-## 10. Errors & Logging
+## 9. Errors & Logging
 
 Logging is structlog through `shared_lib.logging.setup_structlog`: human
 readable at `DEBUG`, JSON from `INFO` upwards.

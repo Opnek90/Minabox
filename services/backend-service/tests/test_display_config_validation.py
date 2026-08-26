@@ -7,10 +7,16 @@ box looked fine -- and the next container start died on that file and went into
 a restart loop. The person who changed the setting and the person who found the
 broken box were separated by a reboot.
 
-The half of these tests that matters most is the last group: a validator that is
-*stricter* than the display service would lock the user out of their own
-configuration, which is worse than what it replaces. Every body under
-VALID_BODIES is one the display schema accepts, so it must pass here too.
+There is much less to check now. The layout - elements, areas, order, font -
+stopped reaching the panel when every state of the box got a screen of its own,
+and the display service ignores those keys entirely. So they must be *accepted*
+here: a box running today still has them in its file, and rejecting them would
+lock it out of changing anything else.
+
+The half that matters most is still the last group. A validator stricter than
+the display service locks the user out of their own configuration, which is
+worse than what it replaces, so every body under VALID_BODIES is run through the
+real schema as well.
 """
 
 from __future__ import annotations
@@ -21,196 +27,94 @@ from backend_service.api.routes_config import _validate_display_config
 from backend_service.core.api_errors import ApiError
 
 
-def _element(**overrides) -> dict:
-    element = {
-        "id": "vol",
-        "type": "volume",
-        "enabled": True,
-        "order": 0,
-        "area": 1,
-    }
-    element.update(overrides)
-    return element
-
-
-def _body(*elements, **overrides) -> dict:
-    body = {
-        "enabled": True,
-        "i2c_bus": 1,
-        "i2c_address": 60,
-        "font_size": "large",
-        "font": "sans",
-        "elements": list(elements),
-    }
+def _body(**overrides) -> dict:
+    body = {"enabled": True, "i2c_bus": 1, "i2c_address": 60}
     body.update(overrides)
     return body
 
 
-# ---------------------------------------------------------------------------
-# Bodies the display service loads happily -- these must not be rejected
-# ---------------------------------------------------------------------------
-
-VALID_BODIES = [
-    pytest.param(_body(), id="no-elements"),
-    pytest.param(_body(_element()), id="single-element"),
-    pytest.param(
-        _body(*[_element(id=t, type=t, area=0) for t in ("clock", "error_state")]),
-        id="header-elements",
+VALID_BODIES = {
+    "the whole thing": _body(),
+    "empty": {},
+    "off": _body(enabled=False),
+    "another bus": _body(i2c_bus=3),
+    "address zero": _body(i2c_address=0),
+    "a high address": _body(i2c_address=127),
+    # Everything below is a file a running box still has.
+    "with the old element list": _body(
+        elements=[
+            {"id": "vol", "type": "volume", "area": 1, "order": 0, "enabled": True},
+            {"id": "time", "type": "clock", "area": 0, "order": 0, "enabled": True},
+        ]
     ),
-    # Every type the schema knows, so a new type added to one side and not the
-    # other shows up as a failure here.
-    pytest.param(
-        _body(
-            *[
-                _element(id=t, type=t)
-                for t in (
-                    "volume",
-                    "sleep_timer",
-                    "mute",
-                    "play_state",
-                    "clock",
-                    "error_state",
-                    "repeat",
-                    "shuffle",
-                    "bluetooth",
-                )
-            ]
-        ),
-        id="all-types",
+    "with the old font keys": _body(font="terminus", font_size="large"),
+    "with an element type that never existed": _body(
+        elements=[{"id": "x", "type": "was_auch_immer", "area": 9}]
     ),
-    pytest.param(_body(font_size="small"), id="font-size-small"),
-    pytest.param(_body(font_size="medium"), id="font-size-medium"),
-    pytest.param(_body(font="default"), id="font-default"),
-    pytest.param(_body(font="terminus"), id="font-terminus"),
-    pytest.param(_body(_element(area=0)), id="area-header"),
-    pytest.param(_body(_element(area=2)), id="area-right"),
-    pytest.param(_body(_element(order=99)), id="high-order"),
-    # Defaults exist for everything except id and type, so a minimal element is
-    # legal and must stay legal.
-    pytest.param({"elements": [{"id": "x", "type": "clock"}]}, id="minimal-element"),
-    pytest.param({"elements": []}, id="elements-only"),
-    # A blank-but-not-empty id passes min_length=1 in the schema.
-    pytest.param({"elements": [{"id": " ", "type": "clock"}]}, id="blank-id"),
-]
+    "with a font that never existed": _body(font="comic-sans"),
+    "with elements that are not even a list": _body(elements="nope"),
+    # Pydantic reads these as 1 and 60. Odd to write, harmless to load, and
+    # refusing them here would be stricter than the service - see _as_int.
+    "bus as a numeric string": _body(i2c_bus="1"),
+    "address as a numeric string": _body(i2c_address="60"),
+    "bus as a boolean": _body(i2c_bus=True),
+    "address as a boolean": _body(i2c_address=False),
+}
+
+INVALID_BODIES = {
+    "bus zero": _body(i2c_bus=0),
+    "negative bus": _body(i2c_bus=-1),
+    "bus as a word": _body(i2c_bus="drei"),
+    "negative address": _body(i2c_address=-1),
+    "address as a word": _body(i2c_address="sechzig"),
+    "enabled as text": _body(enabled="ja"),
+}
 
 
-@pytest.mark.parametrize("body", VALID_BODIES)
-def test_valid_bodies_are_accepted(body):
-    _validate_display_config(body)
+@pytest.mark.parametrize("name", sorted(VALID_BODIES))
+def test_a_config_the_display_service_accepts_passes(name):
+    _validate_display_config(VALID_BODIES[name])
 
 
-# ---------------------------------------------------------------------------
-# Bodies the display service refuses -- writing these caused the restart loop
-# ---------------------------------------------------------------------------
-
-INVALID_BODIES = [
-    pytest.param(_body(_element(type="gibt_es_nicht")), "type", id="unknown-type"),
-    pytest.param(_body(_element(type=None)), "type", id="type-missing"),
-    pytest.param(_body(_element(area=9)), "area", id="area-out-of-range"),
-    pytest.param(_body(_element(area=-1)), "area", id="area-negative"),
-    pytest.param(_body(_element(id="")), "id", id="empty-id"),
-    pytest.param(_body(_element(id=None)), "id", id="id-missing"),
-    pytest.param(_body(_element(id=42)), "id", id="id-not-a-string"),
-    pytest.param(_body(_element(order=-1)), "order", id="negative-order"),
-    pytest.param(_body(_element(order="first")), "order", id="order-not-an-int"),
-    pytest.param(_body("not-an-object"), "must be an object", id="element-not-a-dict"),
-    pytest.param(_body(font_size="huge"), "font_size", id="unknown-font-size"),
-    pytest.param(_body(font="comic-sans"), "font", id="unknown-font"),
-    pytest.param(_body(i2c_bus=0), "i2c_bus", id="bus-zero"),
-    pytest.param(_body(i2c_bus=-1), "i2c_bus", id="bus-negative"),
-    pytest.param(_body(i2c_address=-1), "i2c_address", id="address-negative"),
-]
-
-
-@pytest.mark.parametrize("body,expected", INVALID_BODIES)
-def test_invalid_bodies_are_rejected(body, expected):
+@pytest.mark.parametrize("name", sorted(INVALID_BODIES))
+def test_a_config_the_display_service_would_refuse_is_rejected(name):
     with pytest.raises(ApiError) as excinfo:
-        _validate_display_config(body)
+        _validate_display_config(INVALID_BODIES[name])
     assert excinfo.value.status_code == 422
-    assert expected in str(excinfo.value.detail)
 
 
-def test_the_config_that_caused_the_restart_loop():
-    """The exact body from the go-live review, reproduced end to end."""
-    body = {
-        "enabled": True,
-        "i2c_bus": 1,
-        "i2c_address": 60,
-        "font_size": "large",
-        "font": "sans",
-        "elements": [
-            {"id": "time", "type": "clock", "enabled": True, "order": 0, "area": 0},
-            {
-                "id": "kaputt",
-                "type": "gibt_es_nicht",
-                "enabled": True,
-                "order": 0,
-                "area": 9,
-            },
-        ],
-    }
+def test_the_message_names_what_is_wrong():
     with pytest.raises(ApiError) as excinfo:
-        _validate_display_config(body)
-    detail = str(excinfo.value.detail)
-    # Both faults reported at once, so the user does not fix them one per save.
-    assert "type" in detail
-    assert "area" in detail
-
-
-def test_every_error_is_reported_not_just_the_first():
-    body = _body(_element(id="", type="nope", area=7, order=-2))
-    with pytest.raises(ApiError) as excinfo:
-        _validate_display_config(body)
-    detail = str(excinfo.value.detail)
-    assert detail.count(";") >= 3
-
-
-def test_element_types_match_the_endpoint_that_advertises_them():
-    """The admin UI offers _DISPLAY_ELEMENT_TYPES; the validator must accept all."""
-    from backend_service.api.routes_config import _DISPLAY_ELEMENT_TYPES
-
-    body = _body(*[_element(id=t, type=t) for t in _DISPLAY_ELEMENT_TYPES])
-    _validate_display_config(body)
+        _validate_display_config(_body(i2c_bus=0, i2c_address=-1))
+    detail = excinfo.value.detail
+    assert "i2c_bus" in detail
+    assert "i2c_address" in detail
 
 
 # ---------------------------------------------------------------------------
-# The two ends, held together
-#
-# These are the tests that keep the copy honest. The rules above are a
-# transcription of display_service/config_schema.py, and a transcription drifts.
-# Here both are run against the same bodies: whatever the schema accepts the
-# validator must accept, and whatever the schema refuses the validator must
-# refuse -- otherwise the copy has gone stale and this fails instead of a box
-# going into a restart loop months later.
+# Both ends, held together
 # ---------------------------------------------------------------------------
 
 
 def _display_schema():
-    display_service = pytest.importorskip(
-        "display_service.config_schema",
-        reason="display service source not on the path",
-    )
-    return display_service.DisplayServiceConfig
+    """The real schema from the display service, or a skip if it is not on the path."""
+    try:
+        from display_service.config_schema import DisplayServiceConfig
+    except ImportError:  # pragma: no cover - display service not installed
+        pytest.skip("display service package not importable")
+    return DisplayServiceConfig
 
 
-@pytest.mark.parametrize("body", VALID_BODIES)
-def test_valid_bodies_really_load_in_the_display_service(body):
-    _display_schema().model_validate(body)
+@pytest.mark.parametrize("name", sorted(VALID_BODIES))
+def test_everything_this_accepts_the_display_service_also_accepts(name):
+    """A validator stricter than the service locks the user out of their box."""
+    _display_schema()(**VALID_BODIES[name])
 
 
-@pytest.mark.parametrize("body,expected", INVALID_BODIES)
-def test_invalid_bodies_really_fail_in_the_display_service(body, expected):
+@pytest.mark.parametrize("name", sorted(INVALID_BODIES))
+def test_everything_this_rejects_the_display_service_also_rejects(name):
+    """And one that is laxer lets a file through that kills the next start."""
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        _display_schema().model_validate(body)
-
-
-def test_the_two_type_lists_are_the_same():
-    from backend_service.api.routes_config import _DISPLAY_ELEMENT_TYPES
-
-    schema = _display_schema()
-    field = schema.model_fields["elements"]
-    element_model = field.annotation.__args__[0]
-    schema_types = set(element_model.model_fields["type"].annotation.__args__)
-    assert schema_types == set(_DISPLAY_ELEMENT_TYPES)
+        _display_schema()(**INVALID_BODIES[name])

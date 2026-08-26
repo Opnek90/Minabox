@@ -17,7 +17,7 @@ import asyncio
 import contextlib
 
 import pytest
-from display_test_doubles import FakePanel, element
+from display_test_doubles import FakePanel
 
 from display_service.config_schema import DisplayServiceConfig
 from display_service.main import DisplayService
@@ -69,7 +69,7 @@ def test_only_the_elements_changing_leaves_the_device_alone(
     panel, service: DisplayService
 ):
     panel.available = True
-    service._apply_hardware_config(_cfg(), _cfg(elements=[element("clock")]))
+    service._apply_hardware_config(_cfg(), _cfg())
     assert panel.calls == []
 
 
@@ -132,7 +132,7 @@ def test_a_reload_asks_the_loop_for_a_frame(panel, service: DisplayService):
     has its own screen now - and drawing from two places would race the render
     loop for the panel. So this only wakes it."""
     panel.available = True
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
     service._redraw_now()
     assert service._wake.is_set()
     assert panel.names == []
@@ -140,14 +140,14 @@ def test_a_reload_asks_the_loop_for_a_frame(panel, service: DisplayService):
 
 def test_no_redraw_without_a_panel(panel, service: DisplayService):
     panel.available = False
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
     service._redraw_now()
     assert panel.calls == []
 
 
 def test_no_redraw_while_disabled(panel, service: DisplayService):
     panel.available = True
-    service._display_config = _cfg(enabled=False, elements=[element("clock")])
+    service._display_config = _cfg(enabled=False)
     service._redraw_now()
     assert panel.calls == []
 
@@ -163,7 +163,7 @@ def test_no_redraw_when_there_is_nothing_to_draw(panel, service: DisplayService)
 async def test_a_reload_does_not_wipe_the_test_pattern(panel, service: DisplayService):
     """Saving display settings while the six-second test pattern is up."""
     panel.available = True
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
     service._test_pattern_until = asyncio.get_running_loop().time() + 6.0
 
     service._redraw_now()
@@ -175,7 +175,7 @@ async def test_the_redraw_returns_once_the_test_pattern_expired(
     panel, service: DisplayService
 ):
     panel.available = True
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
     service._test_pattern_until = asyncio.get_running_loop().time() - 1.0
 
     service._redraw_now()
@@ -192,7 +192,7 @@ def test_a_failed_reload_keeps_the_previous_config(
 ):
     """The running service must survive a file it cannot load."""
     panel.available = True
-    previous = _cfg(elements=[element("clock", area=0)])
+    previous = _cfg()
     service._display_config = previous
 
     def _boom():
@@ -211,7 +211,7 @@ def test_a_successful_reload_applies_and_redraws(
 ):
     panel.available = True
     service._display_config = _cfg(i2c_address=60)
-    new = _cfg(i2c_address=61, elements=[element("clock", area=0)])
+    new = _cfg(i2c_address=61)
     monkeypatch.setattr(service.config_manager, "reload_config", lambda: new)
 
     service._handle_config_reload()
@@ -226,7 +226,7 @@ async def test_the_test_pattern_takes_the_lock_before_drawing(
     panel, service: DisplayService
 ):
     panel.available = True
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
 
     assert await service.show_test_pattern() is True
     assert panel.calls == [("show_lines", ("Minabox", "Display OK"))]
@@ -238,7 +238,7 @@ async def test_the_test_pattern_reports_failure_and_releases_the_lock(
     panel, service: DisplayService, monkeypatch
 ):
     panel.available = True
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
 
     def _boom(lines):
         raise OSError("bus error")
@@ -294,7 +294,7 @@ async def test_the_loop_reopens_a_panel_that_was_not_ready_at_startup(
     panel, service: DisplayService, fast_loop
 ):
     panel.available = False
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
 
     await _run_loop_briefly(service)
 
@@ -309,7 +309,7 @@ async def test_the_loop_keeps_retrying_while_there_is_no_panel(
 ):
     panel.available = False
     panel.init_succeeds = False
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
 
     await _run_loop_briefly(service)
 
@@ -324,7 +324,7 @@ async def test_the_retry_is_throttled(panel, service: DisplayService, monkeypatc
     monkeypatch.setattr("display_service.main.DISPLAY_INIT_RETRY_INTERVAL", 30.0)
     panel.available = False
     panel.init_succeeds = False
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
 
     await _run_loop_briefly(service)
 
@@ -336,7 +336,7 @@ async def test_a_disabled_display_is_not_reopened(
     panel, service: DisplayService, fast_loop
 ):
     panel.available = False
-    service._display_config = _cfg(enabled=False, elements=[element("clock", area=0)])
+    service._display_config = _cfg(enabled=False)
 
     await _run_loop_briefly(service)
 
@@ -355,7 +355,7 @@ async def test_the_retry_does_not_log_a_warning_each_time(
         return False
 
     monkeypatch.setattr("display_service.main.display_init", _init)
-    service._display_config = _cfg(elements=[element("clock", area=0)])
+    service._display_config = _cfg()
 
     await _run_loop_briefly(service)
 
@@ -368,7 +368,7 @@ async def test_identical_content_is_only_drawn_once(
 ):
     """The frame-skip: 20 ticks of unchanged content are one frame on the bus."""
     panel.available = True
-    service._display_config = _cfg(elements=[element("volume", area=1)])
+    service._display_config = _cfg()
 
     await _run_loop_briefly(service, ticks=0.2)
 
@@ -387,7 +387,7 @@ async def test_a_reappearing_panel_is_redrawn_from_scratch(
     """
     panel.available = True
     panel.init_succeeds = False
-    service._display_config = _cfg(elements=[element("volume", area=1)])
+    service._display_config = _cfg()
 
     task = asyncio.create_task(service._render_loop())
     await asyncio.sleep(0.1)

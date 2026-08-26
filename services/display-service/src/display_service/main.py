@@ -7,7 +7,6 @@ import json
 import os
 import signal
 from collections.abc import Callable
-from datetime import datetime
 from typing import Any
 
 import httpx
@@ -110,113 +109,6 @@ SCREEN_NOTICE = "notice"
 SCREEN_PLAYING = "playing"
 SCREEN_IDLE = "idle"
 
-_HEADER_MAX_ITEMS = 6
-_BODY_MAX_ITEMS = 3
-
-# ---------------------------------------------------------------------------
-# Registry-Pattern for display element renderers (issue #26)
-#
-# Each entry maps an element type string to a callable with the signature:
-#   (audio, sleep_timer, session, state_manager) -> dict | None
-#
-# Return None to skip the element (conditional types).
-# Adding a new type only requires a new entry here — _build_areas() is
-# never touched.
-# ---------------------------------------------------------------------------
-
-
-def _render_volume(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    vol = audio.get("volume", 0)
-    return {"type": "text", "value": f"{vol}%"}
-
-
-def _render_sleep_timer(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    if sleep_timer.get("active") and sleep_timer.get("remaining_ms") is not None:
-        remaining_ms = sleep_timer.get("remaining_ms") or 0
-        minutes = max(0, (remaining_ms + 59999) // 60000)
-        return {"type": "sleep_timer", "minutes": minutes}
-    return None
-
-
-def _render_mute(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    if audio.get("muted"):
-        return {"type": "icon", "value": "mute"}
-    return None
-
-
-def _render_play_state(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    state = audio.get("state", "stopped")
-    if state == "playing":
-        icon_val = "play"
-    elif state == "paused":
-        icon_val = "pause"
-    else:
-        icon_val = "stop"
-    return {"type": "icon", "value": icon_val}
-
-
-def _render_clock(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    return {"type": "text", "value": datetime.now().strftime("%H:%M")}
-
-
-def _render_error_state(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    if state_manager.has_error():
-        return {"type": "icon", "value": "error"}
-    return None
-
-
-def _render_repeat(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    if session.get("repeat_mode") == "all":
-        return {"type": "icon", "value": "repeat"}
-    return None
-
-
-def _render_shuffle(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    if session.get("shuffle"):
-        return {"type": "icon", "value": "shuffle"}
-    return None
-
-
-def _render_bluetooth(
-    audio: dict, sleep_timer: dict, session: dict, state_manager: Any
-) -> dict | None:
-    if audio.get("bluetooth_sink_available") and audio.get("multiple_output_devices"):
-        return {"type": "icon", "value": "bluetooth"}
-    return None
-
-
-# fmt: off
-_ELEMENT_RENDERERS: dict[
-    str,
-    Callable[[dict, dict, dict, Any], dict | None],
-] = {
-    "volume":      _render_volume,
-    "sleep_timer": _render_sleep_timer,
-    "mute":        _render_mute,
-    "play_state":  _render_play_state,
-    "clock":       _render_clock,
-    "error_state": _render_error_state,
-    "repeat":      _render_repeat,
-    "shuffle":     _render_shuffle,
-    "bluetooth":   _render_bluetooth,
-}
-# fmt: on
 
 
 async def _cancel_task(task: asyncio.Task | None, timeout: float = 5.0) -> None:
@@ -280,7 +172,6 @@ class DisplayService:
                 self._display_config.i2c_bus,
                 self._display_config.i2c_address,
             )
-        self._warn_overcrowded_areas(self._display_config)
         # Connects in the background and retries forever, so an unreachable
         # broker no longer fails startup.
         self._mqtt_task = await self.mqtt_client.start()
@@ -462,7 +353,6 @@ class DisplayService:
             previous = self._display_config
             self._display_config = self.config_manager.reload_config()
             logger.info("config_reload_success")
-            self._warn_overcrowded_areas(self._display_config)
             self._apply_hardware_config(previous, self._display_config)
             self._redraw_now()
         except Exception as exc:
@@ -519,76 +409,6 @@ class DisplayService:
         except RuntimeError:  # pragma: no cover - no loop, so no render loop either
             return False
         return now < self._test_pattern_until
-
-    @staticmethod
-    def _warn_overcrowded_areas(cfg: DisplayServiceConfig | None) -> None:
-        if not cfg:
-            return
-        limits = {0: _HEADER_MAX_ITEMS, 1: _BODY_MAX_ITEMS, 2: _BODY_MAX_ITEMS}
-        for area_idx, limit in limits.items():
-            enabled_in_area = [
-                e for e in cfg.elements if e.enabled and e.area == area_idx
-            ]
-            if len(enabled_in_area) > limit:
-                types = [e.type for e in enabled_in_area]
-                logger.warning(
-                    "display_area_overcrowded",
-                    area=area_idx,
-                    configured=len(enabled_in_area),
-                    limit=limit,
-                    elements=types,
-                    hint=(
-                        f"Area {area_idx} has {len(enabled_in_area)} enabled "
-                        f"elements but the renderer supports at most {limit}. "
-                        "Items beyond the limit will be dropped at render time."
-                    ),
-                )
-
-    def _build_areas(self) -> list[list[dict]]:
-        """Build render areas using the _ELEMENT_RENDERERS registry (issue #26)."""
-        cfg = self._display_config
-        if not cfg or not cfg.enabled:
-            return [[], [], []]
-        enabled = [e for e in cfg.elements if e.enabled]
-        if not enabled:
-            return [[], [], []]
-
-        by_area: list[list] = [[], [], []]
-        for area_idx in (0, 1, 2):
-            by_area[area_idx] = sorted(
-                [e for e in enabled if e.area == area_idx],
-                key=lambda e: e.order,
-            )
-
-        audio = self.state_manager.get_audio()
-        sleep_timer = self.state_manager.get_sleep_timer()
-        session = self.state_manager.get_session()
-
-        result: list[list[dict]] = [[], [], []]
-        for area_idx in (0, 1, 2):
-            for el in by_area[area_idx]:
-                renderer = _ELEMENT_RENDERERS.get(el.type)
-                if renderer is None:
-                    logger.warning("unknown_element_type", el_type=el.type)
-                    continue
-
-                item = renderer(audio, sleep_timer, session, self.state_manager)
-                if item is None:
-                    continue
-
-                limit = _HEADER_MAX_ITEMS if area_idx == 0 else _BODY_MAX_ITEMS
-                if len(result[area_idx]) >= limit:
-                    logger.warning(
-                        "display_area_item_dropped",
-                        area=area_idx,
-                        dropped_type=el.type,
-                        limit=limit,
-                    )
-                    continue
-
-                result[area_idx].append(item)
-
-        return result
 
     async def _poll_backend(
         self,
@@ -689,11 +509,6 @@ class DisplayService:
             sort_keys=True,
             default=str,
         )
-
-    @staticmethod
-    def _render_fingerprint(areas: list[list[dict]], font_size: str, font: str) -> str:
-        """Stable representation of everything that affects the rendered frame."""
-        return json.dumps([areas, font_size, font], sort_keys=True, default=str)
 
     async def show_test_pattern(self) -> bool:
         """Show a short test pattern so the user can confirm the panel works.

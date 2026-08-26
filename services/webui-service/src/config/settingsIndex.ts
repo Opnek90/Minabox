@@ -126,7 +126,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
       {
         key: 'display',
         titleKey: 'display.title',
-        searchKeys: ['display.title', 'display.font', 'display.font_size', 'display.elements'],
+        searchKeys: ['display.title', 'display.enabled', 'display.i2c_bus', 'display.i2c_address'],
       },
     ],
   },

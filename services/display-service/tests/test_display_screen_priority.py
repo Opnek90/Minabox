@@ -12,7 +12,7 @@ import contextlib
 import json
 
 import pytest
-from display_test_doubles import FakePanel, element
+from display_test_doubles import FakePanel
 
 from display_service.config_schema import DisplayServiceConfig
 from display_service.main import (
@@ -58,7 +58,7 @@ def fast_loop(monkeypatch):
 
 def _configured(service: DisplayService) -> DisplayService:
     service._display_config = DisplayServiceConfig(
-        enabled=True, elements=[element("clock", area=0)]
+        enabled=True
     )
     return service
 

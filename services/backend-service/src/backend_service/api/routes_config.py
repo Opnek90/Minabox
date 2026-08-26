@@ -88,19 +88,6 @@ _BUTTON_ACTIONS: list[str] = [
     "next_output_device",
 ]
 
-# All display element types (OLED display service).
-# Source of truth: display-service config_schema.py
-_DISPLAY_ELEMENT_TYPES: list[str] = [
-    "volume",
-    "sleep_timer",
-    "mute",
-    "play_state",
-    "clock",
-    "error_state",
-    "repeat",
-    "shuffle",
-    "bluetooth",
-]
 
 
 @router.get("/leds/states")
@@ -446,83 +433,55 @@ def _validate_buttons_config(body: dict) -> None:
 
 
 # The rules display_service/config_schema.py enforces, mirrored -- same reasoning
-# as _validate_buttons_config above, and the same failure it prevents.
+# as _validate_buttons_config above, and the same failure it prevents: the
+# running container survives a bad file, because the reload handler catches the
+# ValidationError and keeps the old config, but the next container start dies on
+# it and goes into a restart loop. The box looks fine until the next reboot.
 #
-# Only the shape check ran here before: "elements must be a list", contents
-# unexamined. So the WebUI could save an element with a type the display service
-# has no renderer for, or an area outside 0-2, and report success. The running
-# container survived it -- the reload handler catches the ValidationError and
-# keeps the old config -- but the next container start died on the file and went
-# into a restart loop. The box looked fine until the next reboot.
-#
-# Kept as a copy on purpose, like the button rules: the backend does not import
-# from another service's package. If the schema there moves, it moves here too --
-# test_display_config_validation.py holds both ends together.
-_DISPLAY_FONT_SIZES = ("small", "medium", "large")
-_DISPLAY_FONTS = (
-    "default",
-    "sans",
-    "mono",
-    "roboto",
-    "ubuntu",
-    "noto",
-    "liberation",
-    "terminus",
-)
+# Kept as a copy on purpose: the backend does not import from another service's
+# package. test_display_config_validation.py holds both ends together by running
+# every case through the real schema as well.
+def _as_int(value: object) -> int | None:
+    """What pydantic would make of *value*, or None if it would refuse it.
+
+    Not a nicety: a check stricter than the schema locks the user out of their
+    own box. Pydantic reads "1" and True as 1, so a config carrying either
+    loads fine on the display service - and rejecting it here would leave that
+    box unable to change any of its other settings.
+    """
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
+    return None
 
 
 def _validate_display_config(body: dict) -> None:
-    """Reject a display config the display service would refuse to load."""
+    """Reject a display config the display service would refuse to load.
+
+    Only the hardware is left. The layout - elements, areas, order, font -
+    stopped reaching the panel when every state of the box got a screen of its
+    own, and the display service now ignores those keys entirely. Rejecting
+    them here would only break a box whose file still has them.
+    """
     errors: list[str] = []
 
-    font_size = body.get("font_size")
-    if font_size is not None and font_size not in _DISPLAY_FONT_SIZES:
-        errors.append(
-            f"'font_size' must be one of {', '.join(_DISPLAY_FONT_SIZES)}"
-        )
+    enabled = body.get("enabled")
+    if enabled is not None and not isinstance(enabled, bool):
+        errors.append("'enabled' must be true or false")
 
-    font = body.get("font")
-    if font is not None and font not in _DISPLAY_FONTS:
-        errors.append(f"'font' must be one of {', '.join(_DISPLAY_FONTS)}")
-
-    bus = body.get("i2c_bus")
-    if bus is not None and (not isinstance(bus, int) or bus < 1):
+    bus = _as_int(body.get("i2c_bus"))
+    if body.get("i2c_bus") is not None and (bus is None or bus < 1):
         errors.append("'i2c_bus' must be a positive integer")
 
-    address = body.get("i2c_address")
-    if address is not None and (not isinstance(address, int) or address < 0):
+    address = _as_int(body.get("i2c_address"))
+    if body.get("i2c_address") is not None and (address is None or address < 0):
         errors.append("'i2c_address' must be a non-negative integer")
-
-    for index, element in enumerate(body.get("elements", [])):
-        where = f"elements[{index}]"
-        if not isinstance(element, dict):
-            errors.append(f"{where} must be an object")
-            continue
-
-        where = f"elements[{index}] ({element.get('id') or 'no id'})"
-
-        # No .strip(): the display service checks `min_length=1`, so a
-        # blank-but-not-empty string is legal there and must stay legal here.
-        element_id = element.get("id")
-        if not isinstance(element_id, str) or not element_id:
-            errors.append(f"{where}: 'id' must not be empty")
-
-        element_type = element.get("type")
-        if element_type not in _DISPLAY_ELEMENT_TYPES:
-            errors.append(
-                f"{where}: 'type' must be one of "
-                f"{', '.join(_DISPLAY_ELEMENT_TYPES)}"
-            )
-
-        area = element.get("area")
-        if area is not None and area not in (0, 1, 2):
-            errors.append(
-                f"{where}: 'area' must be 0 (header), 1 (left) or 2 (right)"
-            )
-
-        order = element.get("order")
-        if order is not None and (not isinstance(order, int) or order < 0):
-            errors.append(f"{where}: 'order' must be a non-negative integer")
 
     if errors:
         logger.warning("display_config_rejected", errors=errors)
@@ -717,12 +676,6 @@ async def test_display() -> dict:
     except Exception as e:
         logger.error("display_test_failed", error=str(e))
         raise ApiError(status_code=500, code="display_test_failed", detail="Display test failed") from e
-
-
-@router.get("/display/element-types")
-async def get_display_element_types() -> list[str]:
-    """Return all supported display element type identifiers."""
-    return _DISPLAY_ELEMENT_TYPES
 
 
 @router.get("/display")

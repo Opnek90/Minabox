@@ -314,9 +314,6 @@ screen is the same creature looking puzzled. Both are described in
 
 What that leaves, and it is the larger half:
 
-- The **widget grid is unreachable** but still in the tree, and `elements` in
-  `display.json` is accepted and ignored. The WebUI's layout editor no longer
-  affects the panel. Step 6 removes all of it.
 - **Screens not built:** `boot`, `paused` as its own screen, `tag_removed`,
   `sleep`, `offline`. Everything that is not playing falls through to Knuffel.
 - **The status strip is partly there.** Error and sleep timer are back as marks

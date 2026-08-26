@@ -229,7 +229,7 @@ moves its contents and its child folders to the root rather than deleting them.
 | GET / PUT | `/config/rfid` | RFID service config (flat API shape, nested on disk) |
 | GET / PUT | `/config/display` | Display service config |
 | GET | `/config/leds/states`, `/config/leds/patterns` | Enumerations for the admin UI |
-| GET | `/config/buttons/actions`, `/config/display/element-types` | Enumerations for the admin UI |
+| GET | `/config/buttons/actions` | Enumerations for the admin UI |
 | POST | `/config/leds/test`, `/config/display/test` | Trigger a hardware self-test |
 | POST / DELETE | `/config/logo` | Upload or remove the custom logo |
 

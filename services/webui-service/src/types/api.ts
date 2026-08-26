@@ -451,49 +451,16 @@ export interface Button {
 // Config: Display (OLED)
 // ============================================================================
 
-export type DisplayElementType = 'volume' | 'sleep_timer' | 'mute' | 'play_state' | 'clock' | 'error_state' | 'repeat' | 'shuffle' | 'bluetooth';
-
-/** Conditional element types – only render an item when the state is active.
- *  If too many of these share an area, some may be dropped at runtime. */
-export const DISPLAY_CONDITIONAL_TYPES: ReadonlySet<DisplayElementType> = new Set([
-  'sleep_timer', 'mute', 'error_state', 'repeat', 'shuffle', 'bluetooth',
-]);
-
-/** Maximum items the renderer can show per area. */
-export const DISPLAY_AREA_LIMITS: Record<number, number> = { 0: 6, 1: 3, 2: 3 };
-
-/** Area on the OLED: 0 = header (full width), 1 = left column, 2 = right column */
-export type DisplayArea = 0 | 1 | 2;
-
-export interface DisplayElement {
-  id: string;
-  type: DisplayElementType;
-  enabled: boolean;
-  order: number;
-  /** Area: 0 = header, 1 = left, 2 = right */
-  area?: DisplayArea;
-}
-
-/** Font size: small (9px), medium (12px), large (14px) */
-export type DisplayFontSize = 'small' | 'medium' | 'large';
-
-export type DisplayFont =
-  | 'default'
-  | 'sans'
-  | 'mono'
-  | 'roboto'
-  | 'ubuntu'
-  | 'noto'
-  | 'liberation'
-  | 'terminus';
-
+/**
+ * The display used to be configured as a layout - nine element types, three
+ * areas, an order and a font. Every state of the box has a screen of its own
+ * now, and each screen picks its own sizes, so all of that stopped reaching
+ * the panel. The display service ignores those keys; nothing here sends them.
+ */
 export interface DisplayConfig {
   enabled: boolean;
   i2c_bus: number;
   i2c_address: number;
-  font_size?: DisplayFontSize;
-  font?: DisplayFont;
-  elements: DisplayElement[];
 }
 
 // ============================================================================

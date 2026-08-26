@@ -14,7 +14,7 @@ import contextlib
 import json
 
 import pytest
-from display_test_doubles import FakePanel, element
+from display_test_doubles import FakePanel
 
 from display_service.config_schema import DisplayServiceConfig
 from display_service.core.state_manager import StateManager
@@ -218,7 +218,7 @@ async def test_the_playing_screen_replaces_the_grid_while_playing(
     panel, service: DisplayService, fast_loop
 ):
     service._display_config = DisplayServiceConfig(
-        enabled=True, elements=[element("clock", area=0)]
+        enabled=True
     )
     _audio(service.state_manager)
 
@@ -236,7 +236,7 @@ async def test_the_idle_screen_comes_back_when_playback_stops(
 ):
     service = playing_service
     service._display_config = DisplayServiceConfig(
-        enabled=True, elements=[element("clock", area=0)]
+        enabled=True
     )
     _audio(service.state_manager, state="stopped")
 
@@ -257,7 +257,7 @@ async def test_it_does_not_push_a_frame_on_every_tick(
     """A full frame holds the shared I2C bus for 92 ms. The bar is quantised to
     the pixel step it is drawn in, so ticks in between change nothing."""
     service._display_config = DisplayServiceConfig(
-        enabled=True, elements=[element("clock", area=0)]
+        enabled=True
     )
     _audio(service.state_manager, duration_ms=60 * 60 * 1000)  # an hour
 
@@ -273,7 +273,7 @@ async def test_the_bar_is_redrawn_as_the_track_advances(
     service = playing_service
     """The counterpart to the test above: quantising must not freeze the bar."""
     service._display_config = DisplayServiceConfig(
-        enabled=True, elements=[element("clock", area=0)]
+        enabled=True
     )
     _audio(service.state_manager, duration_ms=2 * M)
 
