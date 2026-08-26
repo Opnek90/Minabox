@@ -29,12 +29,20 @@ def _anim(seed: int = 7, now: float = 0.0) -> IdleAnimation:
 class TestDeadlines:
     @pytest.mark.parametrize("seed", [1, 7, 42, 1234])
     def test_the_next_deadline_is_always_in_the_future(self, seed):
-        """Three hours of simulated behaviour, every state it can reach."""
+        """Three hours of simulated behaviour, every state it can reach.
+
+        The strip is switched on and off along the way, because reserving it
+        starts a walk - and starting a walk without setting its step deadline
+        leaves the one from the previous walk, which is exactly a time already
+        past. This is the invariant that catches it wherever it is introduced.
+        """
         anim = _anim(seed)
         now = 0.0
-        for _ in range(20_000):
+        for step in range(20_000):
+            if step % 700 == 0:
+                anim.set_reserved(30 if (step // 700) % 2 else 0, now)
             due = anim.next_due()
-            assert due > now, f"deadline in the past: {due} <= {now}"
+            assert due >= now, f"deadline in the past: {due} < {now}"
             now = due
             anim.advance(now)
         assert now > 3 * 60 * 60

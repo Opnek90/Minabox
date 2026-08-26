@@ -318,10 +318,10 @@ What that leaves, and it is the larger half:
   `display.json` is accepted and ignored. The WebUI's layout editor no longer
   affects the panel. Step 6 removes all of it.
 - **Screens not built:** `boot`, `paused` as its own screen, `tag_removed`,
-  `sleep`, `quota_over`, `offline`. Everything that is not playing currently
-  falls through to Knuffel.
-- **No status strip.** The grid used to carry the error flag, the sleep timer,
-  Bluetooth, repeat and shuffle. Only mute survived, drawn on the playing
-  screen. Layer 2 of §2 is still a proposal.
-- **`rfid/tag-blocked`** has no screen. A barred figure is not an unknown one,
-  and answering it with "Wer bist du?" would be a lie.
+  `sleep`, `offline`. Everything that is not playing falls through to Knuffel.
+- **The status strip is partly there.** Error and sleep timer are back as marks
+  on the idle screen, mute is drawn on the playing screen. Bluetooth, repeat
+  and shuffle are not shown anywhere.
+- **Two topics nothing publishes.** The LED service subscribes to
+  `backend/unreachable` and `system/booting`, and no service in this repository
+  sends either. The `offline` screen of §3 would need a publisher first.

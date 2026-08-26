@@ -80,6 +80,53 @@ class IdleAnimation:
         self._wave_next_phase = 0.0
         self._wave_up = False
         self._asleep = False
+        # Pixels on the right kept clear for the marks on the idle screen.
+        self._reserved = 0
+
+    def wave_now(self, now: float) -> None:
+        """Wave because something just happened, not because a timer came round.
+
+        Any walk in progress is abandoned - one thing at a time - and both its
+        deadline and the next scheduled wave are pushed into the future.
+        Leaving either behind is how the render loop ends up spinning against
+        a deadline that has already passed.
+        """
+        if self._asleep:
+            return
+        self._target = None
+        self._next_walk = now + self._rng.uniform(*WALK_EVERY)
+        self._wave_until = now + WAVE_SECONDS
+        self._wave_up = True
+        self._wave_next_phase = now + WAVE_PHASE_SECONDS
+        self._next_wave = now + WAVE_SECONDS + self._rng.uniform(*WAVE_EVERY)
+
+    def set_reserved(self, width: int, now: float) -> None:
+        """Keep *width* pixels on the right clear of him.
+
+        The marks on the idle screen live there. Rather than letting him walk
+        underneath them - on a one-bit panel two lit shapes simply merge - he
+        stays out, and walks off if the strip appears while he is standing in
+        it. He walks rather than jumps, so there is a second or two of overlap
+        while he leaves.
+
+        *now* is not decoration: starting a walk means the step deadline has to
+        be set with it, or next_due() reports the one left over from the last
+        walk - a time already past - and the render loop spins.
+        """
+        if width == self._reserved:
+            return
+        self._reserved = width
+        if self._x > self._max_x() and not self._asleep:
+            self._target = (self._max_x(), self._y)
+            self._next_step = now
+
+    @property
+    def reserved(self) -> int:
+        """Pixels currently kept clear on the right."""
+        return self._reserved
+
+    def _max_x(self) -> int:
+        return max(BOUNDS[0], BOUNDS[2] - self._reserved)
 
     @property
     def walking(self) -> bool:
@@ -187,7 +234,8 @@ class IdleAnimation:
 
     def _pick_target(self) -> tuple[int, int]:
         """Somewhere else, and far enough that the walk is visible."""
-        x0, y0, x1, y1 = BOUNDS
+        x0, y0, _, y1 = BOUNDS
+        x1 = self._max_x()
         for _ in range(8):
             x = self._rng.randint(x0, x1)
             y = self._rng.randint(y0, y1)

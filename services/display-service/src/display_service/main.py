@@ -35,13 +35,17 @@ from .infrastructure import (
     shutdown as display_shutdown,
 )
 from .render.idle import render as render_idle
+from .render.idle import strip_width as idle_strip_width
 from .render.playing import PlayingView
 from .render.playing import render as render_playing
+from .render.quota_over import render as render_quota_over
+from .render.tag_blocked import render as render_tag_blocked
 from .render.unknown_tag import render as render_unknown_tag
 from .render.volume import VolumeView
 from .render.volume import render as render_volume
 
 logger = structlog.get_logger(__name__)
+
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8080")
 SLEEP_TIMER_POLL_INTERVAL = 5.0
@@ -80,14 +84,29 @@ MIN_REDRAW_INTERVAL = 0.15
 PROGRESS_QUANTUM_PX = 3
 # How long an unknown figure stays on the panel. It reports an event, not a
 # state: long enough to read, short enough that the box does not look stuck.
-UNKNOWN_TAG_SECONDS = 4.0
+NOTICE_SECONDS = 4.0
+
+# The three ways a figure can end in nothing happening. All have the same
+# shape from where the child stands - something was put on the reader and the
+# box stayed quiet - which is the shape a picture is actually good for.
+NOTICE_UNKNOWN = "unknown_tag"
+NOTICE_BLOCKED = "tag_blocked"
+NOTICE_QUOTA = "quota_over"
+
+# Only the blocked figure has anything to say about itself - it is the one the
+# box actually recognises, and its name is worth putting on the panel.
+_NOTICE_RENDERERS = {
+    NOTICE_UNKNOWN: lambda _detail: render_unknown_tag(),
+    NOTICE_BLOCKED: render_tag_blocked,
+    NOTICE_QUOTA: lambda _detail: render_quota_over(),
+}
 
 # Which screen owns the panel, most insistent first. Written down rather than
 # left implicit in a chain of early returns, because "what beats what" is the
 # only thing that decides what a person actually sees.
 SCREEN_TEST = "test_pattern"
 SCREEN_HUD = "volume"
-SCREEN_UNKNOWN = "unknown_tag"
+SCREEN_NOTICE = "notice"
 SCREEN_PLAYING = "playing"
 SCREEN_IDLE = "idle"
 
@@ -238,7 +257,8 @@ class DisplayService:
         self._hud_view: VolumeView | None = None
         self._last_volume_key: tuple | None = None
         self._last_play_state: str | None = None
-        self._unknown_tag_until: float = 0.0
+        self._notice: tuple[str, str] | None = None
+        self._notice_until: float = 0.0
         # Built on first use, because it needs a clock that only exists once
         # the loop is running.
         self._idle_animation: IdleAnimation | None = None
@@ -315,7 +335,16 @@ class DisplayService:
 
     def _handle_mqtt_message(self, topic: str, payload: bytes) -> None:
         if topic.endswith("/rfid/unknown-tag"):
-            self._raise_unknown_tag()
+            self._raise_notice(NOTICE_UNKNOWN)
+            return
+        if topic.endswith("/rfid/tag-blocked"):
+            self._raise_notice(NOTICE_BLOCKED, self._tag_name(payload))
+            return
+        if topic.endswith("/led/usage-denied"):
+            self._raise_notice(NOTICE_QUOTA)
+            return
+        if topic.endswith("/rfid/tag-scanned") or topic.endswith("/rfid/tag-removed"):
+            self._wave_hello()
             return
         if topic.endswith("/audio/error") or topic.endswith("/system/service-error"):
             self.state_manager.set_error()
@@ -324,15 +353,39 @@ class DisplayService:
         self._note_volume_change()
         self._note_track_change()
 
-    def _raise_unknown_tag(self) -> None:
-        """Somebody put a figure on the reader that the box does not know."""
+    @staticmethod
+    def _tag_name(payload: bytes) -> str:
+        """The figure's name, if the message carries one worth showing."""
+        try:
+            data = json.loads(payload.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError, AttributeError):
+            return ""
+        return str(data.get("name") or "") if isinstance(data, dict) else ""
+
+    def _raise_notice(self, kind: str, detail: str = "") -> None:
+        """Something was put on the reader and the box is not going to play it."""
         try:
             now = asyncio.get_running_loop().time()
         except RuntimeError:  # pragma: no cover - no loop, so no render loop
             return
-        self._unknown_tag_until = now + UNKNOWN_TAG_SECONDS
+        self._notice = (kind, detail)
+        self._notice_until = now + NOTICE_SECONDS
         self._wake.set()
-        logger.info("unknown_tag_shown")
+        logger.info("notice_shown", kind=kind)
+
+    def _wave_hello(self) -> None:
+        """A figure arrived or left, and Knuffel has something to say about it.
+
+        On arrival the greeting is usually cut short by playback taking the
+        panel a few hundred milliseconds later; on removal it plays out, which
+        is where it is actually seen.
+        """
+        try:
+            now = asyncio.get_running_loop().time()
+        except RuntimeError:  # pragma: no cover - no loop, so no render loop
+            return
+        self._idle(now).wave_now(now)
+        self._wake.set()
 
     def _note_volume_change(self) -> None:
         """Raise the volume overlay when the level or mute actually changed.
@@ -684,11 +737,25 @@ class DisplayService:
             return SCREEN_TEST
         if self._hud_view is not None:
             return SCREEN_HUD
-        if now < self._unknown_tag_until:
-            return SCREEN_UNKNOWN
+        if self._notice is not None and now < self._notice_until:
+            return SCREEN_NOTICE
         if self.state_manager.is_playing():
             return SCREEN_PLAYING
         return SCREEN_IDLE
+
+    def _idle_marks(self) -> tuple[str, ...]:
+        """What is true but not worth a screen of its own.
+
+        Both of these used to sit in the widget grid and went with it. An error
+        is worth a corner mark and not a screen: the flag expires by itself,
+        because nothing tells this service whether the thing is still wrong.
+        """
+        showing = []
+        if self.state_manager.has_error():
+            showing.append("error")
+        if self.state_manager.get_sleep_timer()["active"]:
+            showing.append("sleep_timer")
+        return tuple(showing)
 
     def _idle(self, now: float) -> IdleAnimation:
         if self._idle_animation is None:
@@ -704,8 +771,8 @@ class DisplayService:
         deadline = None
         if screen == SCREEN_HUD:
             deadline = self._hud_until
-        elif screen == SCREEN_UNKNOWN:
-            deadline = self._unknown_tag_until
+        elif screen == SCREEN_NOTICE:
+            deadline = self._notice_until
         elif screen == SCREEN_IDLE:
             # Knuffel says when he next wants drawing - a breath, a blink, a
             # step. Between those there is nothing to do and the loop sleeps.
@@ -739,16 +806,22 @@ class DisplayService:
         """
         if screen == SCREEN_HUD:
             return f"hud:{self._hud_view}", render_volume(self._hud_view)
-        if screen == SCREEN_UNKNOWN:
-            return "unknown_tag", render_unknown_tag()
+        if screen == SCREEN_NOTICE:
+            kind, detail = self._notice
+            return f"notice:{kind}:{detail}", _NOTICE_RENDERERS[kind](detail)
         if screen == SCREEN_PLAYING:
             view = self.state_manager.get_playing_view()
             return self._playing_fingerprint(view), render_playing(view)
         if screen == SCREEN_IDLE:
             animation = self._idle(now)
+            showing = self._idle_marks()
+            animation.set_reserved(idle_strip_width(showing), now)
             animation.advance(now)
             pose = animation.pose()
-            return f"idle:{pose.x},{pose.y},{pose.mood}", render_idle(pose)
+            return (
+                f"idle:{pose.x},{pose.y},{pose.mood},{showing}",
+                render_idle(pose, showing),
+            )
         return None
 
     async def _render_loop(self) -> None:

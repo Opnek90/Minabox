@@ -35,7 +35,7 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/                      # 279 tests, no hardware needed
+├── tests/                      # 306 tests, no hardware needed
 │   ├── display_test_doubles.py # FakePanel and the element builder
 │   ├── conftest.py             # A service wired to neither panel nor broker
 │   ├── test_build_areas.py
@@ -46,6 +46,7 @@ display-service/
 │   ├── test_display_partial_update.py # Sending only what changed
 │   ├── test_display_playing.py       # The playing screen: what it says and draws
 │   ├── test_display_playing_screen.py # Where its numbers come from
+│   ├── test_display_screen_edges.py  # No screen may touch the panel edge
 │   ├── test_display_screen_priority.py # Which screen owns the panel
 │   ├── test_display_state_manager.py
 │   ├── test_display_text_wrap.py     # Breaking a title across lines
@@ -75,7 +76,10 @@ display-service/
     │   ├── __init__.py
     │   ├── fonts.py            # Weight lookup against the four faces in the image
     │   ├── idle.py             # The idle screen: Knuffel and nothing else
-    │   ├── knuffel.py          # The creature, and his four moods
+    │   ├── knuffel.py          # The creature, and his moods
+    │   ├── marks.py            # Small glyphs: error, sleep timer, barred
+    │   ├── quota_over.py       # The daily limit is reached
+    │   ├── tag_blocked.py      # A figure the box knows but will not play
     │   ├── playing.py          # PlayingView and the playing screen
     │   ├── primitives.py       # Text measuring and wrapping, glyphs, blocks, bar
     │   ├── unknown_tag.py      # A figure the box does not know
@@ -241,9 +245,15 @@ actually sees, so it is written down in one place:
 | --- | --- |
 | `test_pattern` | it was asked for, and answering a different question is useless |
 | `volume` | it reports a gesture with a hand still on the knob |
-| `unknown_tag` | it reports something that just happened and needs answering |
+| `notice` | a figure was put on and the box is not going to play it |
 | `playing` | something is playing |
 | `idle` | nothing else applies |
+
+A **notice** is one of three: an unknown figure, a blocked one, or the daily
+limit. They share a screen slot because they share a shape - something was put
+on the reader and the box stayed quiet - and that is the shape a picture is
+good for. Each has its own words, because "Wer bist du?" is a lie for a figure
+the box recognises perfectly well.
 
 **The widget grid is no longer reachable.** `_build_areas()`, the element
 renderers and `show_areas()` are still in the tree, but no state routes to them
@@ -312,15 +322,35 @@ it spun at full speed for as long as the walk lasted.
 a dark child's bedroom is the opposite of what a night mode is for, and a still
 panel is also the cheapest thing this service can do.
 
+### Marks on the idle screen
+
+The widget grid used to carry the error flag and the sleep timer in a corner,
+and both went with it. They come back as small glyphs top right - drawn only
+when there is something to say, so the ordinary idle screen is still Knuffel
+and nothing else.
+
+An error is worth a mark and not a screen. `audio/error` and
+`system/service-error` fire on failures that have usually recovered by the time
+anyone looks, a full screen would displace Knuffel for minutes, and the flag
+expires by itself precisely because nothing tells this service whether the
+thing is still wrong - a screen would claim more certainty than there is. The
+one error that would deserve a screen is a box that cannot make sound at all
+([Offene-Punkte 1.5](../Offene-Punkte.md)), and nothing publishes that yet.
+
+Knuffel keeps out of the strip rather than walking under it: on a one-bit panel
+two lit shapes simply merge. `set_reserved()` narrows his range and walks him
+out if the strip appears while he is standing there - and it takes the clock as
+an argument, because starting a walk without setting its step deadline leaves
+the one from the previous walk, a time already past.
+
 ### The unknown figure
 
 Knuffel again, puzzled, held for `UNKNOWN_TAG_SECONDS` and then gone - it
 reports an event, not a state. One character across every screen reads as one
 box rather than as a pile of screens.
 
-Not covered: `rfid/tag-blocked`, a figure that is known but barred. "Wer bist
-du?" would be a lie for it, so the display ignores that topic rather than
-answering it wrongly.
+A blocked figure and the daily limit share the same slot and the same four
+seconds; see the priority table above.
 
 ### The volume overlay
 
@@ -427,6 +457,9 @@ reconnect.
 | `audio/status` | Updates the cached audio state (`state`, `volume`, `min_volume`, `max_volume`, `volume_step`, `muted`, `multiple_output_devices`, `bluetooth_sink_available`), raises the volume overlay on a real change, and clears the error flag. |
 | `audio/error` | Sets the error flag. |
 | `rfid/unknown-tag` | Shows the unknown-figure screen for four seconds. Published by the **backend**, not the RFID service, when a scanned tag is in no database row. Nothing in the payload is read - the topic is the whole message. |
+| `rfid/tag-blocked` | Shows the blocked-figure screen, naming it if the payload carries a `name`. |
+| `led/usage-denied` | Shows the daily-limit screen. Addressed to the LED service; the display listens in rather than asking for a topic of its own. |
+| `rfid/tag-scanned`, `rfid/tag-removed` | Knuffel waves. On arrival the greeting is usually cut short by playback taking the panel a few hundred milliseconds later; on removal it plays out. |
 | `system/service-error` | Sets the error flag. |
 | `display/config/reload` | Reloads `config/display.json`, applies any hardware change, and redraws immediately. |
 | `config/general` | Applies the log level, handled by `BaseMQTTClient.apply_general_config()`. |
