@@ -7,7 +7,8 @@ Branch abgearbeitet gehoeren.
 
 Aufgenommen am 2026-08-25 aus dem [LED-Review](led/GoLive-Review.md), dem
 [Display-Review](display/GoLive-Review.md) und einer Stoerung im Betrieb.
-1.6 und 1.7 kamen am 2026-08-26 aus einer zweiten Ton-Stoerung dazu.
+1.6 und 1.7 kamen am 2026-08-26 aus einer zweiten Ton-Stoerung dazu, 1.8 aus
+dem ersten echten Test von 1.7 auf einer Box, am selben Tag.
 Ergaenzung zu [ServiceReview.md](../ServiceReview.md), das die neun Dienste
 insgesamt behandelt.
 
@@ -379,6 +380,79 @@ sein, bevor der Testton laeuft. Der Dialog fragt danach *Hoerst du jetzt
 etwas?* und eskaliert ueber einen Neustart des Ton-Dienstes zu Kabel, Strom
 und zuletzt einem Neustart der Box. Jede Behebung ist idempotent und greift
 nur bei Werten, die niemand gemeint haben kann - dafuer gibt es Tests.
+
+### [x] [H] 1.8 Der Testton aus 1.6/1.7 kam trotzdem nicht an
+
+Aufgefallen am 2026-08-26 beim ersten echten Test von 1.7 auf einer Box: der
+Knopf lief durch, meldete `tone_played: true`, kein Schritt als `fixed` - und
+es kam kein Ton. `speaker-test -D hw:3,0` und `paplay` direkt auf denselben
+Sink spielten sofort und sauber; der Fehler lag also wieder zwischen
+Audio-Dienst und Lautsprecher, nicht dahinter.
+
+Zwei Ursachen, beide auf der echten Box nachgewiesen:
+
+**Erstens, ein Rueckfall von 1.6:** `~/.local/state/wireplumber/stream-properties`
+stand erneut auf stumm - diesmal korrekt unter der Rolle, die 1.6 selbst
+eingefuehrt hat:
+
+```
+Output/Audio:media.role:Music={"mute":true, "channelVolumes":[0.125000]}
+```
+
+Die in 1.6 dokumentierte Sofortmassnahme (`pactl set-sink-input-mute <index> 0`
+waehrend der Stream laeuft) wurde direkt am laufenden Sink-Input erprobt und
+schreibt sich zuverlaessig in die Datei zurueck, sofern der Sink-Input lange
+genug lebt. Genau daran haperte es:
+
+**Zweitens, der eigentliche Fund:** die libVLC-`pulse`-Ausgabe selbst ist auf
+dieser Box unzuverlaessig. Mit `--verbose=3` zeigt sie fuer denselben Testton:
+
+```
+pulse audio output debug: cannot synchronize start
+pulse audio output debug: deferring start (1149098 us)
+vlcpulse audio output debug: write index corrupt
+main audio output warning: playback way too late (200246): flushing buffers
+```
+
+Bei der 1,4 s kurzen `test-tone.wav` aus 1.7 ist die Datei zu Ende dekodiert
+(`EOF reached` → `State.Ended`), waehrend die Ausgabe noch mit dem
+Verbindungsaufbau kaempft - hoerbarer Ton kommt gar nicht erst zustande. Mit
+einer laengeren, selbst erzeugten Testdatei (3,5 s) bestaetigt sich das Muster:
+kein einmaliger Anlaufeffekt, sondern wiederkehrende Aussetzer waehrend der
+gesamten Wiedergabe (drei von vier Toenen einer Testschleife nur teilweise
+hoerbar, ein durchgehender Ton in der Mitte unterbrochen). `paplay` gegen
+denselben Sink, dieselbe Rolle, dieselbe Datei spielte in jedem Versuch
+einwandfrei durch. Damit war auch der Sink-Input aus dem VLC-Pfad nicht
+zuverlaessig lange sichtbar genug, um von der 1.6-Sofortmassnahme erwischt zu
+werden - der Rueckfall oben blieb deshalb unbehandelt liegen.
+
+**Fix:** `play_test_tone()` in `infrastructure/vlc_backend.py` spielt nicht
+mehr ueber eine Wegwerf-libVLC-Instanz, sondern ueber `paplay`, mit
+`--property=media.role=Music` (die von PipeWire tatsaechlich verwendete
+Rollen-Bezeichnung, durch Lesen von `stream-properties` auf der Box bestaetigt
+- nicht das `--role=music`, das VLC selbst entgegennimmt) und
+`--volume=65536`, damit eine leise gemerkte Rollen-Lautstaerke den Test nicht
+verfaelscht. Behebt genau den einen Fehlgriff aus 1.6 Teil 3 - "muss ueber
+libVLC laufen" war die falsche Schlussfolgerung aus einer richtigen
+Beobachtung (paplay unter `application.name:paplay` prueft die falsche Rolle).
+Die Rolle explizit zu setzen loest beides: gleiche Rolle wie die Musik, ohne
+die kaputte libVLC-Pulse-Ausgabe.
+
+**Nicht geaendert:** `--role=music` in `_build_vlc_args()` fuer den
+persistenten Player aus 1.6 bleibt bestehen - nur der Testton wechselt den
+Player. Ob dieselbe libVLC-Pulse-Instabilitaet auch laengere,
+normale Wiedergabe im Hintergrund staffelweise stoert (unwahrscheinlicher bei
+Minuten statt Sekunden, aber nicht ausgeschlossen), ist damit nicht
+untersucht.
+
+**Risiko:** gering. Eine Methode in `vlc_backend.py`, keine Aenderung an
+`_build_vlc_args()` oder am Reparatur-Ablauf selbst. `pulseaudio-utils` war
+bereits Laufzeit-Abhaengigkeit (`pactl`, `pacat`).
+
+**Erledigt** am 2026-08-26, mehrfach live auf einer echten Box bestaetigt -
+inklusive Selbstheilung: mit der neuen Testton-Wiedergabe fand und behob die
+bestehende Schrittkette aus 1.7 den Rueckfall aus diesem Punkt beim naechsten
+Lauf von selbst, ohne den manuellen Eingriff, der zur Diagnose noetig war.
 
 ---
 
