@@ -519,8 +519,7 @@ _TROUBLESHOOT_ORDER = (
 )
 
 
-@router.post("/troubleshoot")
-async def troubleshoot_audio() -> dict:
+async def run_sound_test_chain() -> dict:
     """Walk the sound-repair chain and end with a test tone.
 
     Two halves. The host-helper runs first: it owns /proc/asound/cards and
@@ -532,8 +531,10 @@ async def troubleshoot_audio() -> dict:
     to 6, which is most of the value - refusing the whole thing because one
     half is missing would be the worse trade.
 
-    Every repair is idempotent, so the UI may offer this button again after a
-    "no, still nothing" without any risk of it undoing its own work.
+    Every repair is idempotent, so this can be run again after a "no, still
+    nothing" - or as part of a debug export - without any risk of it undoing
+    its own work. Shared by the /troubleshoot endpoint and the debug export's
+    opt-in sound-test collector.
     """
     host_steps: list[dict] = []
     host_result = await host_audio_repair()
@@ -565,12 +566,6 @@ async def troubleshoot_audio() -> dict:
     ordered = [by_id[sid] for sid in _TROUBLESHOOT_ORDER if sid in by_id]
 
     fixed = [s["id"] for s in ordered if s.get("fixed")]
-    logger.info(
-        "audio_troubleshoot_finished",
-        fixed=fixed,
-        host_available=bool(host_result),
-        tone_played=service_result.get("tone_played"),
-    )
     return {
         "steps": ordered,
         "fixed": fixed,
@@ -581,6 +576,19 @@ async def troubleshoot_audio() -> dict:
         "host_checks_available": bool(host_result),
         "timestamp": datetime.now(UTC).isoformat(),
     }
+
+
+@router.post("/troubleshoot")
+async def troubleshoot_audio() -> dict:
+    """Walk the sound-repair chain and end with a test tone. See run_sound_test_chain()."""
+    result = await run_sound_test_chain()
+    logger.info(
+        "audio_troubleshoot_finished",
+        fixed=result["fixed"],
+        host_available=result["host_checks_available"],
+        tone_played=result["tone_played"],
+    )
+    return result
 
 
 @router.post("/restart-service")

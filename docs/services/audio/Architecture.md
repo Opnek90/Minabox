@@ -304,21 +304,31 @@ wording for exactly that; the user is shown a translated sentence keyed on the
 step id, never a sink name or a stream index.
 
 `POST /api/v1/test-tone` takes an optional `{"sink_name": "..."}` and plays
-`assets/test-tone.wav` over libVLC, on a throwaway instance built from the
-same arguments as the music player — same output module, same media role.
+`assets/test-tone.wav` via `paplay`, tagged with
+`--property=media.role=Music` — the exact PipeWire role the music player's
+libVLC instance ends up with (`--role=music`, translated by PipeWire's ACP
+layer; confirmed by reading `wireplumber/stream-properties` on a real box). A
+plain `paplay` call would run under `application.name:paplay`, a *different*
+stream role with its own remembered volume and mute, and used to be audible
+on a box whose *music* role was remembered as muted while nothing else was -
+the explicit role property is what keeps the tone testing the path that
+matters instead of one that cannot fail the way the music fails.
 
-It used to go through `paplay`, which turned out to be a test that could not
-fail the way the music fails: `paplay` runs under `application.name:paplay`,
-a different PipeWire stream role with its own remembered volume and mute. On a
-box whose *music* role was remembered as muted, the test tone was audible
-while nothing else was.
-
-The throwaway instance is what keeps the original promise: the setup wizard
-has to be able to check a speaker while music is playing, and taking over the
-service's player would stop the music. Unknown sinks are rejected with HTTP
-404, because neither `paplay` nor libVLC reports an error for them — both fall
-back to the default output silently, which in the wizard would mean the user
-selects output A, hears output B and believes A is verified.
+It is not libVLC any more, though it was until this was measured on a real
+box: libVLC's own `pulse` audio-output module repeatedly lost sync against
+PipeWire's pulse-compatibility layer mid-stream (`cannot synchronize start`,
+`write index corrupt` in its own debug log) and dropped or truncated
+playback - independent of the tone file's length, and on top of whatever mute
+state was in play. `paplay` against the identical role played cleanly every
+time it was tried, so it plays the tone now; full volume is forced
+(`--volume=65536`) so a quiet remembered role volume cannot be mistaken for
+"sound is fine" either. A separate `paplay` process, not the service's own
+player, is what keeps the original promise: the setup wizard has to be able
+to check a speaker while music is playing, and taking over the service's
+player would stop the music. Unknown sinks are rejected with HTTP 404,
+because `paplay` reports no error for them - it falls back to the default
+output silently, which in the wizard would mean the user selects output A,
+hears output B and believes A is verified.
 
 ---
 
@@ -457,8 +467,8 @@ Tested outputs: WM8960 Audio HAT, HiFiBerry, IQaudio, USB sound cards, the
 
 - `libvlc5`, `vlc-plugin-base`, `vlc-plugin-access-extra` — playback engine,
   codecs and the HTTP/HTTPS access modules
-- `pulseaudio-utils` — `pactl` (sink discovery), `pacat` (pipeline prewarm).
-  `paplay` is no longer used for the test tone; see §3
+- `pulseaudio-utils` — `pactl` (sink discovery), `pacat` (pipeline prewarm),
+  `paplay` (test tone, tagged with the music role; see §3)
 - `curl` — container health check
 
 Explicitly **not** the `vlc` package: that is the desktop player and pulls in

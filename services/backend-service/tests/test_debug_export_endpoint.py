@@ -177,6 +177,7 @@ async def test_without_session_the_elevated_tiers_are_stripped(
                     "preset": "full",
                     "history": True,
                     "include_db": True,
+                    "sound_test": True,
                     "media": "filenames",
                 }
             },
@@ -185,6 +186,7 @@ async def test_without_session_the_elevated_tiers_are_stripped(
     options = _manifest(response.content)["options"]
     assert options["history"] is False
     assert options["include_db"] is False
+    assert options["sound_test"] is False
     assert options["media"] == "counts"
 
 

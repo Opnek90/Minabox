@@ -490,6 +490,19 @@
       "last_resort": "If that does not help, a restart of the whole box is what is left.",
       "reboot": "Restart box",
       "rebooting": "The box is restarting …",
+      "steps_toggle": "What was checked?",
+      "steps": {
+        "sound_card": "Sound card",
+        "sink_present": "Speaker output",
+        "sink_level": "Output volume",
+        "stream_state": "Test tone",
+        "service_mute": "Box mute",
+        "service_volume": "Box volume",
+        "alsa_mixer": "System volume controls"
+      },
+      "step_status_ok": "fine",
+      "step_status_fixed": "repaired",
+      "step_status_failed": "not fixed",
       "cause": {
         "sound_card": "The sound card was not there.",
         "sink_present": "The selected speaker had disappeared – the box now uses a different one.",
@@ -653,6 +666,12 @@
           "helps": "Faults that are hard to pin down when the overview above was not enough.",
           "good_to_know": "This is the most extensive and most personal part. Please only include it if the developer explicitly asked for it.",
           "confirm": "Yes, include the complete database."
+        },
+        "sound_test": {
+          "label": "Run a sound test",
+          "contains": "The result of the same check chain as \"Fix sound problem\": which step was fine, which was repaired, and whether the test tone played.",
+          "helps": "A silent or too-quiet box – especially when you are not standing at it yourself to try \"Fix sound problem\".",
+          "good_to_know": "The box plays an audible test tone while the package is created, and quietly adjusts unusually low volumes along the way – same as the \"Fix sound problem\" button."
         }
       },
       "preview": "Inspect contents first",

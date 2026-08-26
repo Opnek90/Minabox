@@ -51,6 +51,7 @@ BLOCK_MEDIA = "media"
 BLOCK_HISTORY = "history"
 BLOCK_CLIENT = "client"
 BLOCK_DATABASE = "database"
+BLOCK_SOUND_TEST = "sound_test"
 
 MEDIA_OFF = "off"
 MEDIA_COUNTS = "counts"
@@ -73,6 +74,10 @@ class ExportOptions:
     history: bool = False
     client: bool = True
     include_db: bool = False
+    # Plays an audible test tone on the box - opt-in and admin-only, like
+    # include_db, but for a different reason: this one has a physical side
+    # effect rather than a privacy one.
+    sound_test: bool = False
     log_tail: int = DEFAULT_LOG_TAIL
     preset: str = "recommended"
 
@@ -91,6 +96,7 @@ class ExportOptions:
             "history",
             "client",
             "include_db",
+            "sound_test",
         ):
             if flag in raw:
                 base[flag] = bool(raw[flag])
@@ -118,6 +124,7 @@ class ExportOptions:
         """Drop everything that needs an admin session (see section 4.5)."""
         self.history = False
         self.include_db = False
+        self.sound_test = False
         if self.media == MEDIA_FILENAMES:
             self.media = MEDIA_COUNTS
         return self
@@ -132,6 +139,7 @@ class ExportOptions:
             BLOCK_HISTORY: self.history,
             BLOCK_CLIENT: self.client,
             BLOCK_DATABASE: self.include_db,
+            BLOCK_SOUND_TEST: self.sound_test,
         }.get(block, False)
 
     def as_manifest(self) -> dict[str, Any]:
@@ -145,6 +153,7 @@ class ExportOptions:
             "history": self.history,
             "client": self.client,
             "include_db": self.include_db,
+            "sound_test": self.sound_test,
             "log_tail": self.log_tail,
         }
 
@@ -159,6 +168,7 @@ _PRESET_VALUES: dict[str, dict[str, Any]] = {
         "history": False,
         "client": False,
         "include_db": False,
+        "sound_test": False,
         "log_tail": DEFAULT_LOG_TAIL,
     },
     "recommended": {
@@ -170,6 +180,7 @@ _PRESET_VALUES: dict[str, dict[str, Any]] = {
         "history": False,
         "client": True,
         "include_db": False,
+        "sound_test": False,
         "log_tail": DEFAULT_LOG_TAIL,
     },
     "full": {
@@ -181,6 +192,9 @@ _PRESET_VALUES: dict[str, dict[str, Any]] = {
         "history": True,
         "client": True,
         "include_db": False,
+        # Not even in "full": it makes the box play an audible tone, which
+        # nobody should get by picking a preset - only by ticking it on purpose.
+        "sound_test": False,
         "log_tail": MAX_LOG_TAIL,
     },
 }
@@ -489,6 +503,8 @@ def readme_text(ctx: ExportContext, manifest: dict[str, Any]) -> str:
         included.append("- Infos zu deinem Browser und Fehlermeldungen der Oberfläche")
     if options.include_db:
         included.append("- Komplette Datenbank")
+    if options.sound_test:
+        included.append("- Ergebnis eines Ton-Tests (mit hörbarem Testton)")
 
     return f"""Minabox Diagnose-Paket
 ======================

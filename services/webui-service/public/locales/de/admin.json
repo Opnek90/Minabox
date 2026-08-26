@@ -490,6 +490,19 @@
       "last_resort": "Hilft das nicht, bleibt ein Neustart der ganzen Box.",
       "reboot": "Box neu starten",
       "rebooting": "Die Box startet neu …",
+      "steps_toggle": "Was wurde geprüft?",
+      "steps": {
+        "sound_card": "Soundkarte",
+        "sink_present": "Lautsprecher-Ausgang",
+        "sink_level": "Lautstärke des Ausgangs",
+        "stream_state": "Testton",
+        "service_mute": "Stummschaltung der Box",
+        "service_volume": "Lautstärke der Box",
+        "alsa_mixer": "Lautstärkeregler des Systems"
+      },
+      "step_status_ok": "in Ordnung",
+      "step_status_fixed": "repariert",
+      "step_status_failed": "nicht behoben",
       "cause": {
         "sound_card": "Die Soundkarte war nicht da.",
         "sink_present": "Der eingestellte Lautsprecher war verschwunden – die Box benutzt jetzt einen anderen.",
@@ -653,6 +666,12 @@
           "helps": "Schwer eingrenzbaren Fehlern, wenn die Übersicht oben nicht gereicht hat.",
           "good_to_know": "Das ist der umfassendste und persönlichste Teil. Schick ihn bitte nur mit, wenn der Entwickler ausdrücklich darum gebeten hat.",
           "confirm": "Ja, ich möchte die komplette Datenbank mitschicken."
+        },
+        "sound_test": {
+          "label": "Ton-Test durchführen",
+          "contains": "Das Ergebnis derselben Prüfkette wie bei „Ton-Problem beheben“: welcher Schritt in Ordnung war, welcher repariert wurde, und ob der Testton lief.",
+          "helps": "Stummen oder zu leisen Boxen – vor allem, wenn du nicht selbst davorstehst, um „Ton-Problem beheben“ auszuprobieren.",
+          "good_to_know": "Die Box spielt beim Erstellen des Pakets hörbar einen Testton ab und passt dabei unauffällige Lautstärken automatisch an – wie beim Knopf „Ton-Problem beheben“."
         }
       },
       "preview": "Inhalt vorher ansehen",

@@ -28,12 +28,13 @@ Doku vergisst, bekommt einen roten Test.
 
 ### Collector-Namen (Allowlist)
 
-`client.context`, `database.copy`, `db.meta`, `history.usage`,
-`logs.host_diagnostics`, `logs.services`, `logs.syslog`, `media.summary`,
-`network.status`, `services.health`, `settings.environment`, `settings.general`,
-`system.apt_history`, `system.boot_config`, `system.docker`, `system.hardware`,
-`system.kernel_modules`, `system.os`, `system.packages`, `system.power`,
-`system.storage`, `system.usb`, `runtime.buffers`
+`audio.sound_test`, `client.context`, `database.copy`, `db.meta`,
+`history.usage`, `logs.host_diagnostics`, `logs.services`, `logs.syslog`,
+`media.summary`, `network.status`, `services.health`, `settings.environment`,
+`settings.general`, `system.apt_history`, `system.boot_config`,
+`system.docker`, `system.hardware`, `system.kernel_modules`, `system.os`,
+`system.packages`, `system.power`, `system.storage`, `system.usb`,
+`runtime.buffers`
 
 ### Dateien
 
@@ -118,6 +119,10 @@ runtime/temperature_recent.json    nur bei history: letzte Temperaturmessungen
 client/browser.json                Browser, Viewport, Sprache, PWA-Modus
 client/console_errors.json         Ringpuffer der Frontend-Fehler
 client/failed_requests.json        Ringpuffer fehlgeschlagener API-Aufrufe
+
+audio/sound_test.json              nur bei sound_test: Ergebnis der Ton-Reparaturkette (dieselbe
+                                    wie "Ton-Problem beheben"), inkl. ob der Testton lief - spielt
+                                    beim Erzeugen des Pakets hoerbar einen Ton
 ```
 
 ### Was garantiert NICHT enthalten ist

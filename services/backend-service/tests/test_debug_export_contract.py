@@ -68,6 +68,7 @@ def test_no_documented_collector_disappeared():
                 "network.",
                 "history.",
                 "database.",
+                "audio.",
             )
         )
     }
@@ -95,6 +96,7 @@ def test_collector_blocks_are_known():
             "history",
             "client",
             "database",
+            "sound_test",
         }, f"{name} declares an unknown block: {collector.block}"
         # block_enabled must have an answer for it, otherwise it would never run.
         assert isinstance(options.block_enabled(collector.block), bool)

@@ -31,6 +31,12 @@ _PIPELINE_SUSPEND_THRESHOLD_SEC = 4.0
 _SEEK_TOLERANCE_MS = 1000
 _SEEK_CONFIRM_TIMEOUT_SEC = 1.0
 
+# The PipeWire role name the persistent player's stream ends up carrying (see
+# _build_vlc_args's --role=music, translated by PipeWire's ACP layer into this
+# exact property). play_test_tone() below tags itself with the same string on
+# purpose - see its docstring.
+_PIPEWIRE_MUSIC_ROLE = "Music"
+
 
 class VLCBackend(AudioBackend):
     """VLC-based audio backend implementation.
@@ -350,6 +356,11 @@ class VLCBackend(AudioBackend):
                 await self._wait_for_position(start_position_ms)
 
             self._current_source_uri = source_uri
+            logger.info(
+                "vlc_playback_started",
+                source_uri=source_uri,
+                start_position_ms=start_position_ms,
+            )
         except Exception as e:
             # "from e" keeps the original cause in the traceback: without it a
             # missing file, a dead stream and a codec failure all arrive
@@ -497,75 +508,67 @@ class VLCBackend(AudioBackend):
         # to prewarm the pipeline before the next VLC play.
         self._last_stop_time = time.monotonic()
 
-    def _play_test_tone_blocking(
-        self, tone_path: str, sink_name: str | None, timeout_sec: float
-    ) -> None:
-        """Play *tone_path* on a throwaway libVLC instance. Blocking.
-
-        A second instance rather than the service's player, for two reasons
-        that pull in opposite directions:
-
-        - The tone has to travel the *same* path as the music - same output
-          module, same media role - or it verifies a route nobody uses in
-          practice. That was the old bug: paplay runs under
-          ``application.name:paplay``, which has its own, healthy remembered
-          state, so the tone was audible while the music stayed muted.
-        - It must not take over the player. The setup wizard tests the speaker
-          while something is playing, and stopping the music would leave the
-          session in a state the user did not ask for.
-
-        Deliberately created unmuted and at full volume: this is the one
-        stream that has to be heard, and a remembered mute for the role is
-        exactly what it is meant to expose.
-        """
-        instance = vlc.Instance(self._build_vlc_args())
-        if instance is None:
-            raise VLCError("Failed to create VLC instance for the test tone")
-        player = None
-        try:
-            player = instance.media_player_new()
-            if player is None:
-                raise VLCError("Failed to create VLC player for the test tone")
-            if sink_name:
-                player.audio_output_device_set("pulse", sink_name)
-            player.set_media(instance.media_new(tone_path))
-            if player.play() == -1:
-                raise VLCError("VLC player.play() returned error for the test tone")
-
-            deadline = time.monotonic() + timeout_sec
-            started = False
-            while time.monotonic() < deadline:
-                state = player.get_state()
-                if state == vlc.State.Playing:
-                    if not started:
-                        started = True
-                        player.audio_set_mute(False)
-                        player.audio_set_volume(100)
-                elif state in (vlc.State.Ended, vlc.State.Stopped):
-                    if started:
-                        return
-                elif state == vlc.State.Error:
-                    raise VLCError("VLC reported an error playing the test tone")
-                time.sleep(0.05)
-            if not started:
-                raise VLCError("Test tone never started playing")
-        finally:
-            if player is not None:
-                player.stop()
-                player.release()
-            instance.release()
-
     async def play_test_tone(
         self, tone_path: str, sink_name: str | None = None, timeout_sec: float = 10.0
     ) -> None:
-        """Play a test tone over the same libVLC path the music uses.
+        """Play a test tone via paplay, tagged with the same PipeWire role as music.
 
-        Runs in a thread: the loop below polls libVLC's state, and inline it
-        would freeze MQTT dispatch and the REST API for the length of the tone.
+        Not libVLC, and not the service's own player:
+
+        - It must not take over the player. The setup wizard tests the speaker
+          while something is playing, and stopping the music would leave the
+          session in a state the user did not ask for. A second, independent
+          client handles that; a throwaway libVLC instance used to be that
+          second client.
+        - The tone has to travel the *same* PipeWire role as the music - or it
+          verifies a route nobody uses in practice. That is why this still
+          isn't a bare ``paplay`` call: ``--property=media.role=Music`` is the
+          exact property PipeWire ends up with for the persistent player (its
+          libVLC instance is started with ``--role=music``, see
+          ``_build_vlc_args``), confirmed by reading
+          ``wireplumber/stream-properties`` directly on a real box. A remembered
+          mute for that role is exactly what this tone is meant to expose - and,
+          via the troubleshooter's own unmute of the live stream, to repair.
+        - It is *not* libVLC any more, though. Measured on a real box: libVLC's
+          own "pulse" audio-output module repeatedly lost sync against
+          PipeWire's pulse-compatibility layer mid-stream ("cannot synchronize
+          start", "write index corrupt" in its own debug log) and dropped or
+          truncated playback - reproducible independent of the file's length,
+          and on top of whatever mute state was in play. ``paplay`` against the
+          identical role played cleanly every time it was tried. Forcing full
+          volume here keeps a quiet remembered role volume from being mistaken
+          for "sound is fine" the same way a remembered mute would be.
         """
-        await asyncio.to_thread(
-            self._play_test_tone_blocking, tone_path, sink_name, timeout_sec
-        )
+        if not os.environ.get("PULSE_SERVER"):
+            raise VLCError("PULSE_SERVER not set - cannot play the test tone")
+
+        cmd = [
+            "paplay",
+            f"--property=media.role={_PIPEWIRE_MUSIC_ROLE}",
+            "--property=application.name=minabox-soundtest",
+            "--volume=65536",  # PA_VOLUME_NORM - full software gain
+        ]
+        if sink_name:
+            cmd += ["--device", sink_name]
+        cmd.append(tone_path)
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE
+            )
+        except FileNotFoundError as e:
+            raise VLCError(f"paplay is not available: {e}") from e
+
+        try:
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise VLCError("Test tone timed out") from None
+
+        if proc.returncode != 0:
+            message = (stderr or b"").decode(errors="replace").strip()
+            raise VLCError(f"paplay failed ({proc.returncode}): {message}")
 
     def _apply_remembered_mute(self) -> None:
         """Force the mute flag back to what this service asked for.

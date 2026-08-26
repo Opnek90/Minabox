@@ -22,6 +22,14 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.5 - 2026-08-26
+
+#### Added
+- The debug package can now optionally include a sound test: the box plays an
+  audible test tone once (administrators only, never part of a preset).
+- The "Fix sound problem" button now reports the result of each individual
+  repair step, not just a yes/no at the end.
+
 ### 0.2.4 - 2026-08-26
 
 #### Added
@@ -178,6 +186,14 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.18 - 2026-08-26
+
+#### Added
+- The debug package dialog now has an option for a sound test with an audible
+  test tone, visible to administrators only and never preselected.
+- The "Fix sound problem" button now shows, collapsed by default, which
+  repair step ran, was fixed, or failed.
 
 ### 0.1.17 - 2026-08-26
 
@@ -434,6 +450,18 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## audio
+
+### 0.2.3 - 2026-08-26
+
+#### Fixed
+- The test tone was played through a separate, throwaway libVLC instance. On a
+  real box, that output repeatedly lost sync with PipeWire and the playback
+  broke off or sounded truncated. The test tone now travels the same path as
+  the music, via paplay.
+
+#### Improved
+- More log messages for playback, pause, stop and volume changes - helps when
+  reading a debug package.
 
 ### 0.2.2 - 2026-08-26
 

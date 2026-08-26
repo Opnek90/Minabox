@@ -1,5 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   CircularProgress,
@@ -7,10 +10,17 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
   Typography,
 } from '@mui/material';
+import BuildCircleIcon from '@mui/icons-material/BuildCircle';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
+import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { useTranslation } from 'react-i18next';
@@ -205,6 +215,43 @@ export const SoundTroubleshootDialog: React.FC<Props> = ({ open, onClose }) => {
               {t('system.sound_fix.last_resort')}
             </Typography>
           </Box>
+        )}
+
+        {/* Collapsed by default: the Yes/No question stays the one thing that
+            demands attention. Available for whoever wants to see what actually
+            ran - which step failed is exactly what "no sound" reports need. */}
+        {!busy && result && result.steps.length > 0 && (
+          <Accordion disableGutters elevation={0} sx={{ mt: 2, '&:before': { display: 'none' } }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}>
+              <Typography variant="body2">{t('system.sound_fix.steps_toggle')}</Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 0 }}>
+              <List dense disablePadding>
+                {result.steps.map((step) => {
+                  const status = !step.ok ? 'failed' : step.fixed ? 'fixed' : 'ok';
+                  const Icon =
+                    status === 'ok'
+                      ? CheckCircleIcon
+                      : status === 'fixed'
+                        ? BuildCircleIcon
+                        : ReportProblemIcon;
+                  const color =
+                    status === 'ok' ? 'success' : status === 'fixed' ? 'info' : 'warning';
+                  return (
+                    <ListItem key={step.id} disableGutters>
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Icon color={color} fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={t(`system.sound_fix.steps.${step.id}`, { defaultValue: step.id })}
+                        secondary={t(`system.sound_fix.step_status_${status}`)}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </AccordionDetails>
+          </Accordion>
         )}
       </DialogContent>
 
