@@ -50,6 +50,12 @@ class VLCBackend(AudioBackend):
         self._player: vlc.MediaPlayer | None = None
         self._initialized = False
         self._pending_volume: int | None = None
+        # The last level we asked libVLC for. It is the answer to "how loud is
+        # this box" whenever libVLC cannot say: after stop() the player has no
+        # media and audio_get_volume() returns -1, and reporting 0 for that
+        # made every subscriber believe the volume had been turned down to the
+        # minimum the moment a figure was lifted off the reader.
+        self._last_volume: int = getattr(config, "default_volume", 40) or 40
         self._current_track_id: str | None = None
         self._current_source_type: str | None = None
         self._current_source_uri: str | None = None
@@ -126,6 +132,7 @@ class VLCBackend(AudioBackend):
             initial_volume = max(initial_volume, min_vol)
 
             logger.debug("setting_initial_volume", volume=initial_volume)
+            self._last_volume = initial_volume
             result = self._player.audio_set_volume(initial_volume)
             if result == -1:
                 logger.warning(
@@ -487,16 +494,28 @@ class VLCBackend(AudioBackend):
             return
         min_vol = getattr(self._config, "min_volume", 0)
         clamped = min(max(volume, min_vol), self._config.max_volume)
+        self._last_volume = clamped
         if self._player.audio_set_volume(clamped) == -1:
             self._pending_volume = clamped
         else:
             self._pending_volume = None
 
     async def get_volume(self) -> int:
+        """Report the running level, falling back to the last one we set.
+
+        libVLC answers -1 when it does not know - with no player, or after
+        stop() has released the media. That is "ask me later", not "silent",
+        and passing it on as 0 told every subscriber the volume had dropped to
+        the minimum the instant playback ended.
+        """
         if not self._player:
-            return 0
+            return self._last_volume
         vol = self._player.audio_get_volume()
-        return vol if vol >= 0 else (self._pending_volume or 0)
+        if vol >= 0:
+            return vol
+        if self._pending_volume is not None:
+            return self._pending_volume
+        return self._last_volume
 
     async def get_position(self) -> int:
         return self._player.get_time() if self._player else 0

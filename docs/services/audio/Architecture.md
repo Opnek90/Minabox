@@ -110,7 +110,12 @@ Topic scheme: `minabox/<device-id>/<domain>/<action>`, built centrally by
 
 - `state`: `playing` | `paused` | `stopped` | `error`
 - `duration_ms`: `null` for streams and while unknown
-- `volume`: the value actually applied, already clamped to the configured bounds
+- `volume`: the value actually applied, already clamped to the configured
+  bounds. libVLC answers -1 whenever it cannot say - with no player, and after
+  `stop()` has released the media - and the backend then reports the last level
+  it set. Passing the -1 on as 0 told every subscriber the volume had dropped
+  to the minimum the instant playback ended, which showed up on the display as
+  the box quietening itself when a figure was lifted off the reader
 - `min_volume` / `max_volume`: those bounds. They are in the payload because
   `max_volume` is a hard **clamp**, not a scale: on a box configured to 40 this
   message reports `volume: 40` at the stop. A subscriber that shows a percentage

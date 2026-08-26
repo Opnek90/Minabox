@@ -223,6 +223,7 @@ class DisplayService:
         self._hud_until: float = 0.0
         self._hud_view: VolumeView | None = None
         self._last_volume_key: tuple | None = None
+        self._last_play_state: str | None = None
         # A track change has to pull the session poll forward: the title lives
         # in that response, and waiting out the interval would leave the
         # previous title on the panel.
@@ -311,6 +312,9 @@ class DisplayService:
         """
         view = self.state_manager.get_volume_view()
         key = (view.clamped, view.min_volume, view.max_volume, view.muted)
+        state = self.state_manager.get_audio().get("state")
+        previous_state, self._last_play_state = self._last_play_state, state
+
         if self._last_volume_key is None:
             # The first status after a connect is the current state, not a
             # change - otherwise every restart flashes the overlay.
@@ -319,6 +323,16 @@ class DisplayService:
         if key == self._last_volume_key:
             return
         self._last_volume_key = key
+
+        if previous_state is not None and state != previous_state:
+            # The overlay means "somebody just turned the knob". A message that
+            # also changes the play state is reporting a playback event, and a
+            # volume that moves with it is far more likely to be an artefact
+            # than a gesture - which is exactly what it was: libVLC reports -1
+            # once stop() releases the media, and that used to be published as
+            # a drop to the quietest setting.
+            logger.debug("volume_change_with_state_change_ignored", state=state)
+            return
         self._raise_volume_hud(view)
 
     def _note_track_change(self) -> None:

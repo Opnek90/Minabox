@@ -246,3 +246,23 @@ async def test_an_expired_overlay_is_dropped_even_with_no_panel(
         await task
 
     assert service._hud_view is None
+
+
+@pytest.mark.asyncio
+async def test_a_volume_that_moves_with_the_play_state_is_not_a_gesture(
+    service: DisplayService,
+):
+    """Lifting the figure stopped playback, and the volume reported alongside
+    it dropped to the minimum - libVLC answers -1 once stop() has released the
+    media. The panel must not turn that into a full-screen "Leise"."""
+    _status(service, 30, state="playing")
+    _status(service, 20, state="stopped")
+    assert service._hud_view is None
+
+
+@pytest.mark.asyncio
+async def test_the_knob_still_works_while_stopped(service: DisplayService):
+    """Adjusting the volume between tracks is ordinary, and must still show."""
+    _status(service, 30, state="stopped")
+    _status(service, 25, state="stopped")
+    assert service._hud_view is not None

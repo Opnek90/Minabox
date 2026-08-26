@@ -35,7 +35,7 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/                      # 230 tests, no hardware needed
+├── tests/                      # 232 tests, no hardware needed
 │   ├── display_test_doubles.py # FakePanel and the element builder
 │   ├── conftest.py             # A service wired to neither panel nor broker
 │   ├── test_build_areas.py
@@ -237,6 +237,12 @@ Three details make it behave:
   compares the level, the bounds and mute against the last values seen. The
   first status after a connect is state, not a change - otherwise every restart
   would flash the overlay.
+- **A level that moves with the play state is not a gesture.** The overlay
+  means "somebody just turned the knob", so a message that also changes the
+  play state is ignored. The audio service used to report 0 once `stop()` had
+  released the media, and lifting a figure off the reader therefore raised a
+  full-screen "Leise". That is fixed at the source, and this is the guard that
+  keeps the panel quiet if anything like it comes back.
 - **The loop can be woken.** A one-second tick is far too slow for a knob, so
   `_wait_for_work()` waits on an `asyncio.Event` that the message handler sets,
   and shortens its own timeout to the overlay's deadline so the panel comes back
