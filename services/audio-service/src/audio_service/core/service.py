@@ -493,10 +493,17 @@ class AudioService:
                             source_uri=command.source_uri,
                             start_position_ms=command.start_position_ms,
                         )
+                        logger.info(
+                            "playback_started",
+                            track_id=command.track_id,
+                            source_type=command.source_type,
+                            source_uri=command.source_uri,
+                        )
                     else:
                         current_status = await self._vlc_backend.get_status()
                         if current_status.state == PlaybackState.PAUSED:
                             await self._vlc_backend.resume()
+                            logger.info("playback_resumed")
                         else:
                             state = self._state_manager.get_state()
                             can_resume = self._state_manager.can_resume()
@@ -508,6 +515,11 @@ class AudioService:
                                 await self._vlc_backend.play(
                                     source_uri=state.last_source_uri,
                                     start_position_ms=state.last_position_ms,
+                                )
+                                logger.info(
+                                    "playback_resumed_from_state",
+                                    track_id=state.last_track_id,
+                                    position_ms=state.last_position_ms,
                                 )
                             else:
                                 logger.warning("play_resume_no_state")
@@ -534,6 +546,12 @@ class AudioService:
                 await self._vlc_backend.pause()
                 await self._save_current_state()
                 await self._publish_status()
+                status = await self._vlc_backend.get_status()
+                logger.info(
+                    "playback_paused",
+                    track_id=status.track_id,
+                    position_ms=status.position_ms,
+                )
             except Exception as exc:
                 logger.error("handle_pause_failed", error=str(exc))
                 await self._publish_error("playback_error", str(exc))
@@ -547,6 +565,7 @@ class AudioService:
                 await self._vlc_backend.stop()
                 self._state_manager.clear()
                 await self._publish_status()
+                logger.info("playback_stopped")
             except Exception as exc:
                 logger.error("handle_stop_failed", error=str(exc))
                 await self._publish_error("playback_error", str(exc))
@@ -581,6 +600,7 @@ class AudioService:
             await self._vlc_backend.set_volume(command.volume)
             await self._save_current_state()
             await self._publish_status()
+            logger.info("volume_set", volume=command.volume)
         except Exception as exc:
             logger.error("handle_set_volume_failed", error=str(exc))
             await self._publish_error("volume_error", str(exc))
@@ -593,6 +613,12 @@ class AudioService:
             await self._vlc_backend.set_volume(new_volume)
             await self._save_current_state()
             await self._publish_status()
+            logger.info(
+                "volume_increased",
+                previous=current_volume,
+                new_volume=new_volume,
+                step=command.step,
+            )
         except Exception as exc:
             logger.error("handle_volume_up_failed", error=str(exc))
             await self._publish_error("volume_error", str(exc))
@@ -606,6 +632,12 @@ class AudioService:
             await self._vlc_backend.set_volume(new_volume)
             await self._save_current_state()
             await self._publish_status()
+            logger.info(
+                "volume_decreased",
+                previous=current_volume,
+                new_volume=new_volume,
+                step=command.step,
+            )
         except Exception as exc:
             logger.error("handle_volume_down_failed", error=str(exc))
             await self._publish_error("volume_error", str(exc))
@@ -621,7 +653,7 @@ class AudioService:
         try:
             self._muted = not self._muted
             await self._vlc_backend.set_muted(self._muted)
-            logger.debug(
+            logger.info(
                 "mute_toggled",
                 muted=self._muted,
                 volume=await self._vlc_backend.get_volume(),

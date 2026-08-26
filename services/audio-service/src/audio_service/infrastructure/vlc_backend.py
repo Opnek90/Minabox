@@ -350,6 +350,11 @@ class VLCBackend(AudioBackend):
                 await self._wait_for_position(start_position_ms)
 
             self._current_source_uri = source_uri
+            logger.info(
+                "vlc_playback_started",
+                source_uri=source_uri,
+                start_position_ms=start_position_ms,
+            )
         except Exception as e:
             # "from e" keeps the original cause in the traceback: without it a
             # missing file, a dead stream and a codec failure all arrive
