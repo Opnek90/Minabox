@@ -257,6 +257,7 @@
         "solid": "Dauerlicht"
       },
       "repeat": "Wiederholungen (0 = endlos)",
+      "repeat_hint": "Zählt ganze Zyklen – ein Blinken ist an und wieder aus. 0 = endlos.",
       "state": "Zustand",
       "title": "Status-Zuordnungen"
     },

@@ -257,6 +257,7 @@
         "solid": "Solid"
       },
       "repeat": "Repeats (0 = infinite)",
+      "repeat_hint": "Counts whole cycles – one blink is on and off again. 0 = infinite.",
       "state": "State",
       "title": "State Bindings"
     },

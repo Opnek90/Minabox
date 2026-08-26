@@ -478,6 +478,7 @@ export const LEDConfigPanel: React.FC = () => {
                           value={pat.repeat ?? ''}
                           onChange={(e) => updateBinding(state, { repeat: e.target.value ? parseInt(e.target.value, 10) : undefined })}
                           size="small" fullWidth inputProps={{ min: 0 }} placeholder="0"
+                          helperText={t('leds.bindings.repeat_hint')}
                         />
                       )}
                     </CardContent>
