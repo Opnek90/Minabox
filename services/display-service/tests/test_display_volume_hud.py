@@ -28,7 +28,6 @@ def panel(monkeypatch) -> FakePanel:
     monkeypatch.setattr("display_service.main.display_init", fake.init)
     monkeypatch.setattr("display_service.main.display_shutdown", fake.shutdown)
     monkeypatch.setattr("display_service.main.clear", fake.clear)
-    monkeypatch.setattr("display_service.main.show_areas", fake.show_areas)
     monkeypatch.setattr("display_service.main.show_image", fake.show_image)
     monkeypatch.setattr("display_service.main.show_lines", fake.show_lines)
     return fake
@@ -132,18 +131,19 @@ async def test_the_overlay_is_drawn_and_then_gives_the_panel_back(
 
     task = asyncio.create_task(service._render_loop())
     await asyncio.sleep(0.03)
-    drawn_before = panel.names.count("show_areas")
+    drawn_before = len(panel.frames)
 
     _status(service, 25)
     await asyncio.sleep(0.03)
-    assert "show_image" in panel.names
+    overlay = panel.frames[-1]
 
     await asyncio.sleep(0.12)  # past the overlay deadline
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await task
 
-    assert panel.names.count("show_areas") > drawn_before, "panel never came back"
+    assert len(panel.frames) > drawn_before
+    assert panel.frames[-1].tobytes() != overlay.tobytes(), "overlay still up"
 
 
 @pytest.mark.asyncio
@@ -212,14 +212,16 @@ async def test_the_panel_comes_back_without_waiting_out_the_tick(
     task = asyncio.create_task(service._render_loop())
     _status(service, 25)
     await asyncio.sleep(0.03)
-    assert "show_image" in panel.names
+    overlay = panel.frames[-1]
 
     await asyncio.sleep(0.15)  # well past the deadline, far short of a tick
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await task
 
-    assert "show_areas" in panel.names, "the overlay was still holding the panel"
+    assert panel.frames[-1].tobytes() != overlay.tobytes(), (
+        "the overlay was still holding the panel"
+    )
 
 
 @pytest.mark.asyncio

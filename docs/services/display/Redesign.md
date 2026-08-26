@@ -301,3 +301,27 @@ real panel, everything else follows the same pattern.
 
 Steps 1, 2 and 7 are safe to build and try at any point. Step 4 is the one that
 wants careful testing on real hardware.
+
+### Where this actually got to
+
+Steps 1 to 5 are built, in a different order than planned: the volume overlay
+first, then the playing screen, then partial updates - which turned out to be a
+prerequisite rather than an optimisation, because the idle screen animates.
+
+The idle screen is Knuffel, a creature that wanders, and the unknown-figure
+screen is the same creature looking puzzled. Both are described in
+[Architecture.md](Architecture.md).
+
+What that leaves, and it is the larger half:
+
+- The **widget grid is unreachable** but still in the tree, and `elements` in
+  `display.json` is accepted and ignored. The WebUI's layout editor no longer
+  affects the panel. Step 6 removes all of it.
+- **Screens not built:** `boot`, `paused` as its own screen, `tag_removed`,
+  `sleep`, `quota_over`, `offline`. Everything that is not playing currently
+  falls through to Knuffel.
+- **No status strip.** The grid used to carry the error flag, the sleep timer,
+  Bluetooth, repeat and shuffle. Only mute survived, drawn on the playing
+  screen. Layer 2 of §2 is still a proposal.
+- **`rfid/tag-blocked`** has no screen. A barred figure is not an unknown one,
+  and answering it with "Wer bist du?" would be a lie.

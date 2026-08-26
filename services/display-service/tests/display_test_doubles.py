@@ -22,6 +22,9 @@ class FakePanel:
         self.available = available
         self.init_succeeds = init_succeeds
         self.calls: list[tuple] = []
+        # Every screen reaches the panel through show_image now; the frames
+        # are kept so a test can say which one was drawn.
+        self.frames: list = []
 
     # -- the module-level functions main.py imported --------------------
 
@@ -46,6 +49,7 @@ class FakePanel:
 
     def show_image(self, img) -> None:
         self.calls.append(("show_image", img))
+        self.frames.append(img)
 
     def show_lines(self, lines) -> None:
         self.calls.append(("show_lines", tuple(lines)))

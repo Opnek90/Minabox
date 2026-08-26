@@ -111,6 +111,25 @@ _DEFAULT_THEME = Theme()
 
 
 # ---------------------------------------------------------------------------
+# Partial updates
+# ---------------------------------------------------------------------------
+
+# A whole frame is 1024 bytes, and at the 100 kHz this bus runs at that is
+# 92 ms during which the RFID reader cannot get a word in. The SSD1306 can be
+# told to accept a rectangle instead, so a moving sprite costs its own area:
+# 32x16 px is 64 bytes, or 5.8 ms.
+#
+# Reaching a rectangle needs these, and only the last two are public API. They
+# are probed once at init and the renderer falls back to whole frames if a luma
+# upgrade renames any of them - a slower panel rather than a broken one.
+_PARTIAL_ATTRS = ("_const", "_colstart", "_pages", "command", "data")
+
+# Above this the saving no longer pays for the diffing and the extra command
+# bytes, and luma's own full-frame path is both faster and better tested.
+MAX_PARTIAL_BYTES = 768
+
+
+# ---------------------------------------------------------------------------
 # Icon renderer – draws vector icons via PIL ImageDraw primitives
 # ---------------------------------------------------------------------------
 
@@ -273,12 +292,22 @@ class DisplayRenderer:
         self._font_cache: dict[str, Any] = {}
         self._icon_cache: dict[str, Any] = {}
         self._icon_renderer = IconRenderer(theme.icon_size)
+        # The last frame actually on the glass, in physical orientation. None
+        # means "unknown", which forces the next push to be a whole frame.
+        self._last_frame: Any = None
+        self._partial_ok = all(hasattr(device, name) for name in _PARTIAL_ATTRS)
+        if not self._partial_ok:
+            logger.info(
+                "display_partial_updates_unavailable",
+                hint="Whole frames only. Check luma for renamed internals.",
+            )
 
     # ------------------------------------------------------------------
     # Public methods
     # ------------------------------------------------------------------
 
     def clear(self) -> None:
+        self.forget_frame()
         try:
             from luma.core.render import canvas
             with canvas(self._device) as draw:
@@ -288,22 +317,97 @@ class DisplayRenderer:
 
     def close(self) -> None:
         """Blank the panel and close the underlying I2C handle."""
+        self.forget_frame()
         self._device.cleanup()
 
     def show_image(self, img: Any) -> None:
-        """Push a finished frame straight to the panel.
+        """Push a finished frame, sending only the part of it that changed.
 
-        The screen renderers in ``display_service.render`` build a whole frame
-        themselves; this is the way onto the device for them, bypassing the
-        widget grid entirely.
+        The screen renderers in ``display_service.render`` build whole frames;
+        this is the way onto the device for them, bypassing the widget grid.
+        What actually goes over the wire is worked out here rather than by the
+        caller, so every screen benefits without knowing about it - a clock
+        ticking over costs its own two lines, not the whole panel.
         """
         try:
-            self._device.display(img)
+            frame = self._device.preprocess(img)
+            if not self._push_region(frame):
+                self._device.display(img)
+            self._last_frame = frame.copy()
         except Exception as exc:
             logger.warning("display_show_image_failed", error=str(exc))
+            # What is on the glass is now anyone's guess.
+            self._last_frame = None
+
+    def _push_region(self, frame: Any) -> bool:
+        """Send just the changed rectangle. False asks for a whole frame."""
+        if not self._partial_ok or self._last_frame is None:
+            return False
+        if frame.size != self._last_frame.size or frame.mode != self._last_frame.mode:
+            return False
+
+        from PIL import ImageChops
+
+        bbox = ImageChops.difference(frame, self._last_frame).getbbox()
+        if bbox is None:
+            # Identical to what is already showing. The render loop's
+            # fingerprint normally catches this earlier; when it does not,
+            # sending nothing is still the right answer.
+            return True
+
+        x0, y0, x1, y1 = bbox  # x1 and y1 are exclusive
+        page_start, page_end = y0 // 8, (y1 - 1) // 8
+        columns, pages = x1 - x0, page_end - page_start + 1
+        if columns * pages > MAX_PARTIAL_BYTES:
+            return False
+
+        device = self._device
+        device.command(
+            device._const.COLUMNADDR,
+            device._colstart + x0,
+            device._colstart + x1 - 1,
+            device._const.PAGEADDR,
+            page_start,
+            page_end,
+        )
+        device.data(self._pack(frame, x0, x1 - 1, page_start, page_end))
+        return True
+
+    @staticmethod
+    def _pack(
+        frame: Any, x0: int, x1: int, page_start: int, page_end: int
+    ) -> list[int]:
+        """Bytes for one rectangle, in the order the SSD1306 consumes them.
+
+        One byte is eight vertically stacked pixels of a single column, the
+        lowest row in the highest bit; the controller walks columns first and
+        then wraps to the next page. Which is what luma's own offset table
+        encodes, and tests/test_display_partial_update.py holds the two
+        together.
+        """
+        pixels = frame.load()
+        packed: list[int] = []
+        for page in range(page_start, page_end + 1):
+            top = page * 8
+            for x in range(x0, x1 + 1):
+                byte = 0
+                for bit in range(8):
+                    if pixels[x, top + bit]:
+                        byte |= 1 << bit
+                packed.append(byte)
+        return packed
+
+    def forget_frame(self) -> None:
+        """Drop the record of what is on the glass, forcing a whole frame next.
+
+        Anything that writes to the panel behind show_image()'s back has to say
+        so, or the next diff is taken against a frame that is no longer there.
+        """
+        self._last_frame = None
 
     def show_lines(self, lines: list[str]) -> None:
         """Legacy single-column text renderer (up to 4 lines)."""
+        self.forget_frame()
         try:
             from luma.core.render import canvas
             display_lines = [s[:20] for s in lines[:4]]
@@ -339,7 +443,7 @@ class DisplayRenderer:
             self._render_column(img, draw, body_left,  col_x=0,       pil_font=pil_font)
             self._render_column(img, draw, body_right, col_x=t.col_w, pil_font=pil_font)
 
-            self._device.display(img)
+            self.show_image(img)
         except Exception as exc:
             logger.warning("display_render_failed", error=str(exc))
 

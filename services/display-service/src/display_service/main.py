@@ -20,11 +20,11 @@ from .config import load_app_config
 from .config_manager import ConfigManager
 from .config_schema import AppConfig, DisplayServiceConfig
 from .core import StateManager
+from .core.idle_animation import IdleAnimation
 from .infrastructure import (
     MQTTClient,
     clear,
     is_available,
-    show_areas,
     show_image,
     show_lines,
 )
@@ -34,8 +34,10 @@ from .infrastructure import (
 from .infrastructure import (
     shutdown as display_shutdown,
 )
+from .render.idle import render as render_idle
 from .render.playing import PlayingView
 from .render.playing import render as render_playing
+from .render.unknown_tag import render as render_unknown_tag
 from .render.volume import VolumeView
 from .render.volume import render as render_volume
 
@@ -76,6 +78,18 @@ MIN_REDRAW_INTERVAL = 0.15
 # seconds on a short track. Three pixels of a 118 px bar is a redraw roughly
 # every fortieth of a track.
 PROGRESS_QUANTUM_PX = 3
+# How long an unknown figure stays on the panel. It reports an event, not a
+# state: long enough to read, short enough that the box does not look stuck.
+UNKNOWN_TAG_SECONDS = 4.0
+
+# Which screen owns the panel, most insistent first. Written down rather than
+# left implicit in a chain of early returns, because "what beats what" is the
+# only thing that decides what a person actually sees.
+SCREEN_TEST = "test_pattern"
+SCREEN_HUD = "volume"
+SCREEN_UNKNOWN = "unknown_tag"
+SCREEN_PLAYING = "playing"
+SCREEN_IDLE = "idle"
 
 _HEADER_MAX_ITEMS = 6
 _BODY_MAX_ITEMS = 3
@@ -224,6 +238,10 @@ class DisplayService:
         self._hud_view: VolumeView | None = None
         self._last_volume_key: tuple | None = None
         self._last_play_state: str | None = None
+        self._unknown_tag_until: float = 0.0
+        # Built on first use, because it needs a clock that only exists once
+        # the loop is running.
+        self._idle_animation: IdleAnimation | None = None
         # A track change has to pull the session poll forward: the title lives
         # in that response, and waiting out the interval would leave the
         # previous title on the panel.
@@ -296,12 +314,25 @@ class DisplayService:
         self._shutdown_event.set()
 
     def _handle_mqtt_message(self, topic: str, payload: bytes) -> None:
+        if topic.endswith("/rfid/unknown-tag"):
+            self._raise_unknown_tag()
+            return
         if topic.endswith("/audio/error") or topic.endswith("/system/service-error"):
             self.state_manager.set_error()
             return
         self.state_manager.update_audio(topic, payload)
         self._note_volume_change()
         self._note_track_change()
+
+    def _raise_unknown_tag(self) -> None:
+        """Somebody put a figure on the reader that the box does not know."""
+        try:
+            now = asyncio.get_running_loop().time()
+        except RuntimeError:  # pragma: no cover - no loop, so no render loop
+            return
+        self._unknown_tag_until = now + UNKNOWN_TAG_SECONDS
+        self._wake.set()
+        logger.info("unknown_tag_shown")
 
     def _note_volume_change(self) -> None:
         """Raise the volume overlay when the level or mute actually changed.
@@ -408,15 +439,14 @@ class DisplayService:
             display_init(current.i2c_bus, current.i2c_address)
 
     def _redraw_now(self) -> None:
-        """Push a frame immediately, unless the test pattern still owns the panel."""
-        cfg = self._display_config
-        if not is_available() or not cfg or not cfg.enabled:
-            return
-        if self._test_pattern_deadline_active() or self._hud_deadline_active():
-            return
-        areas = self._build_areas()
-        if any(areas):
-            show_areas(areas, font_size=cfg.font_size, font=cfg.font)
+        """Ask the render loop for a frame now rather than at the next tick.
+
+        It used to draw the widget grid here itself. That grid is no longer
+        reachable - every state of the box now has a screen of its own - and
+        drawing from two places would race the loop for the panel anyway. The
+        loop owns the glass; this only wakes it.
+        """
+        self._wake.set()
 
     def _test_pattern_deadline_active(self) -> bool:
         try:
@@ -630,27 +660,84 @@ class DisplayService:
         logger.info("display_test_pattern_shown")
         return True
 
-    async def _wait_for_work(self, timeout: float, last_draw: float) -> None:
-        """Sleep until the next tick, or until something asks for a frame."""
-        loop = asyncio.get_running_loop()
+    def _current_screen(self, now: float) -> str:
+        """Which screen owns the panel right now.
+
+        One place, in order, rather than a chain of early returns: the test
+        pattern was asked for and must not be stolen; the volume overlay
+        reports a gesture just made; an unknown figure reports an event; after
+        that it is simply whether something is playing.
+        """
+        if now < self._test_pattern_until:
+            return SCREEN_TEST
         if self._hud_view is not None:
-            # Wake when the overlay expires rather than a whole tick later,
-            # or it would sit on the panel for up to a second too long.
-            timeout = min(timeout, max(0.05, self._hud_until - loop.time()))
+            return SCREEN_HUD
+        if now < self._unknown_tag_until:
+            return SCREEN_UNKNOWN
+        if self.state_manager.is_playing():
+            return SCREEN_PLAYING
+        return SCREEN_IDLE
+
+    def _idle(self, now: float) -> IdleAnimation:
+        if self._idle_animation is None:
+            self._idle_animation = IdleAnimation(now=now)
+        return self._idle_animation
+
+    async def _wait_for_work(self, timeout: float, last_draw: float) -> None:
+        """Sleep until the next tick, a deadline, or something asking to draw."""
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        screen = self._current_screen(now)
+
+        deadline = None
+        if screen == SCREEN_HUD:
+            deadline = self._hud_until
+        elif screen == SCREEN_UNKNOWN:
+            deadline = self._unknown_tag_until
+        elif screen == SCREEN_IDLE:
+            # Knuffel says when he next wants drawing - a breath, a blink, a
+            # step. Between those there is nothing to do and the loop sleeps.
+            deadline = self._idle(now).next_due()
+        if deadline is not None:
+            # Wake when it falls due rather than a whole tick later, and never
+            # busy-spin on one that has already passed.
+            timeout = min(timeout, max(0.02, deadline - now))
+
         try:
             await asyncio.wait_for(self._wake.wait(), timeout)
         except TimeoutError:
             pass
         finally:
             self._wake.clear()
-        # The floor applies however the wake-up came about, not just to the
-        # ones a message triggered: a knob turn arrives as a burst of status
-        # messages and every frame holds the I2C bus - shared with the RFID
-        # reader - for 92 ms. At the normal one-second tick this costs
+
+        # The floor applies however the wake-up came about: a knob turn arrives
+        # as a burst of status messages, and every frame holds the I2C bus that
+        # the RFID reader shares. At the normal one-second tick it costs
         # nothing, because the floor is long past by then.
         held = loop.time() - last_draw
         if held < MIN_REDRAW_INTERVAL:
             await asyncio.sleep(MIN_REDRAW_INTERVAL - held)
+
+    def _screen_frame(self, screen: str, now: float) -> tuple[str, Any] | None:
+        """Fingerprint and image for *screen*, or None if it draws nothing.
+
+        The fingerprint is what is actually visible, never the live values
+        behind it: a remaining time counted locally would otherwise ask for a
+        frame on every tick.
+        """
+        if screen == SCREEN_HUD:
+            return f"hud:{self._hud_view}", render_volume(self._hud_view)
+        if screen == SCREEN_UNKNOWN:
+            return "unknown_tag", render_unknown_tag()
+        if screen == SCREEN_PLAYING:
+            view = self.state_manager.get_playing_view()
+            return self._playing_fingerprint(view), render_playing(view)
+        if screen == SCREEN_IDLE:
+            animation = self._idle(now)
+            animation.advance(now)
+            pose = animation.pose()
+            return f"idle:{pose.x},{pose.y},{pose.mood}", render_idle(pose)
+        return None
 
     async def _render_loop(self) -> None:
         last_fingerprint: str | None = None
@@ -666,15 +753,9 @@ class DisplayService:
                 cfg = self._display_config
 
                 if self._hud_view is not None and now >= self._hud_until:
-                    # Expired. The frame underneath is pushed again by itself,
-                    # because the fingerprint standing here is the overlay's
-                    # and never equals the one built from the areas below.
-                    #
-                    # This is deliberately ahead of every other check: an
-                    # overlay left standing keeps _wait_for_work() shortening
-                    # its timeout to a past deadline, and a panel that is
-                    # unplugged or switched off at that moment would spin the
-                    # loop at 20 Hz for as long as it stayed away.
+                    # Expired. Dropped here, ahead of every other check, so a
+                    # panel that is unplugged at this moment cannot leave the
+                    # loop waking against a deadline in the past.
                     self._hud_view = None
 
                 if not is_available():
@@ -696,49 +777,25 @@ class DisplayService:
                     last_fingerprint = None
                     was_available = True
 
-                # Otherwise the test pattern would be overwritten by the normal
-                # frame within a second and could not be read.
-                if now < self._test_pattern_until:
-                    last_fingerprint = None
-                    continue
-
                 if not cfg or not cfg.enabled:
                     continue
 
-                if self._hud_view is not None:
-                    fingerprint = f"hud:{self._hud_view}"
-                    if fingerprint != last_fingerprint:
-                        show_image(render_volume(self._hud_view))
-                        last_fingerprint = fingerprint
-                        last_draw = asyncio.get_running_loop().time()
+                screen = self._current_screen(now)
+                if screen == SCREEN_TEST:
+                    # It was asked for and is drawn elsewhere; leave it alone.
+                    last_fingerprint = None
                     continue
 
-                if self.state_manager.is_playing():
-                    view = self.state_manager.get_playing_view()
-                    fingerprint = self._playing_fingerprint(view)
-                    forced = (now - last_forced) >= FORCE_REDRAW_INTERVAL
-                    if fingerprint != last_fingerprint or forced:
-                        show_image(render_playing(view))
-                        last_fingerprint = fingerprint
-                        last_draw = asyncio.get_running_loop().time()
-                        if forced:
-                            last_forced = now
+                drawn = self._screen_frame(screen, now)
+                if drawn is None:
                     continue
+                fingerprint, image = drawn
 
-                areas = self._build_areas()
-                if not any(areas):
-                    continue
-
-                fingerprint = self._render_fingerprint(areas, cfg.font_size, cfg.font)
                 forced = (now - last_forced) >= FORCE_REDRAW_INTERVAL
                 if fingerprint == last_fingerprint and not forced:
                     continue
 
-                show_areas(
-                    areas,
-                    font_size=cfg.font_size,
-                    font=cfg.font,
-                )
+                show_image(image)
                 last_fingerprint = fingerprint
                 last_draw = asyncio.get_running_loop().time()
                 if forced:

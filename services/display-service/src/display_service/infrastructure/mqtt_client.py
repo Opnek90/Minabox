@@ -43,6 +43,7 @@ class MQTTClient(BaseMQTTClient):
         for topic in (
             f"{prefix}/audio/status",
             f"{prefix}/audio/error",
+            f"{prefix}/rfid/unknown-tag",
             f"{prefix}/system/service-error",
             f"{prefix}/display/config/reload",
             f"{prefix}/config/general",

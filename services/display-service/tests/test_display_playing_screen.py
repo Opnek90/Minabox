@@ -19,6 +19,7 @@ from display_test_doubles import FakePanel, element
 from display_service.config_schema import DisplayServiceConfig
 from display_service.core.state_manager import StateManager
 from display_service.main import DisplayService
+from display_service.render.playing import render as render_playing
 
 STATUS = "minabox/box1/audio/status"
 M = 60_000
@@ -193,7 +194,6 @@ def panel(monkeypatch) -> FakePanel:
     monkeypatch.setattr("display_service.main.display_init", fake.init)
     monkeypatch.setattr("display_service.main.display_shutdown", fake.shutdown)
     monkeypatch.setattr("display_service.main.clear", fake.clear)
-    monkeypatch.setattr("display_service.main.show_areas", fake.show_areas)
     monkeypatch.setattr("display_service.main.show_image", fake.show_image)
     monkeypatch.setattr("display_service.main.show_lines", fake.show_lines)
     return fake
@@ -225,13 +225,16 @@ async def test_the_playing_screen_replaces_the_grid_while_playing(
     await _run_briefly(service)
 
     assert "show_image" in panel.names
-    assert "show_areas" not in panel.names
+    assert panel.frames[-1].tobytes() == render_playing(
+        service.state_manager.get_playing_view()
+    ).tobytes()
 
 
 @pytest.mark.asyncio
-async def test_the_grid_comes_back_when_playback_stops(
-    panel, service: DisplayService, fast_loop
+async def test_the_idle_screen_comes_back_when_playback_stops(
+    panel, playing_service: DisplayService, fast_loop, clock
 ):
+    service = playing_service
     service._display_config = DisplayServiceConfig(
         enabled=True, elements=[element("clock", area=0)]
     )
@@ -239,7 +242,12 @@ async def test_the_grid_comes_back_when_playback_stops(
 
     await _run_briefly(service)
 
-    assert "show_areas" in panel.names
+    assert "show_image" in panel.names
+    # Knuffel, not a track: the playing screen would carry a progress bar.
+    drawn = panel.frames[-1]
+    assert drawn.tobytes() != render_playing(
+        service.state_manager.get_playing_view()
+    ).tobytes()
 
 
 @pytest.mark.asyncio

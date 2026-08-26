@@ -30,7 +30,7 @@ def panel(monkeypatch) -> FakePanel:
     monkeypatch.setattr("display_service.main.display_init", fake.init)
     monkeypatch.setattr("display_service.main.display_shutdown", fake.shutdown)
     monkeypatch.setattr("display_service.main.clear", fake.clear)
-    monkeypatch.setattr("display_service.main.show_areas", fake.show_areas)
+    monkeypatch.setattr("display_service.main.show_image", fake.show_image)
     monkeypatch.setattr("display_service.main.show_lines", fake.show_lines)
     return fake
 
@@ -127,20 +127,15 @@ def test_a_first_load_has_nothing_to_compare_against(panel, service: DisplayServ
 # ---------------------------------------------------------------------------
 
 
-def test_a_reload_redraws(panel, service: DisplayService):
+def test_a_reload_asks_the_loop_for_a_frame(panel, service: DisplayService):
+    """It used to draw the widget grid here. The grid is gone - every state
+    has its own screen now - and drawing from two places would race the render
+    loop for the panel. So this only wakes it."""
     panel.available = True
     service._display_config = _cfg(elements=[element("clock", area=0)])
     service._redraw_now()
-    assert panel.names == ["show_areas"]
-
-
-def test_a_reload_uses_the_new_font(panel, service: DisplayService):
-    panel.available = True
-    service._display_config = _cfg(
-        elements=[element("clock", area=0)], font="mono", font_size="small"
-    )
-    service._redraw_now()
-    assert panel.calls == [("show_areas", "small", "mono")]
+    assert service._wake.is_set()
+    assert panel.names == []
 
 
 def test_no_redraw_without_a_panel(panel, service: DisplayService):
@@ -184,7 +179,7 @@ async def test_the_redraw_returns_once_the_test_pattern_expired(
     service._test_pattern_until = asyncio.get_running_loop().time() - 1.0
 
     service._redraw_now()
-    assert panel.names == ["show_areas"]
+    assert service._wake.is_set()
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +217,8 @@ def test_a_successful_reload_applies_and_redraws(
     service._handle_config_reload()
 
     assert service._display_config is new
-    assert panel.names == ["shutdown", "init", "show_areas"]
+    assert panel.names == ["shutdown", "init"]
+    assert service._wake.is_set()
 
 
 @pytest.mark.asyncio
@@ -304,7 +300,7 @@ async def test_the_loop_reopens_a_panel_that_was_not_ready_at_startup(
 
     assert "init" in panel.names
     # And once it is open, the loop goes on to draw.
-    assert "show_areas" in panel.names
+    assert "show_image" in panel.names
 
 
 @pytest.mark.asyncio
@@ -318,7 +314,7 @@ async def test_the_loop_keeps_retrying_while_there_is_no_panel(
     await _run_loop_briefly(service)
 
     assert panel.names.count("init") > 1
-    assert "show_areas" not in panel.names
+    assert "show_image" not in panel.names
 
 
 @pytest.mark.asyncio
@@ -376,7 +372,7 @@ async def test_identical_content_is_only_drawn_once(
 
     await _run_loop_briefly(service, ticks=0.2)
 
-    assert panel.names.count("show_areas") == 1
+    assert panel.names.count("show_image") == 1
 
 
 @pytest.mark.asyncio
@@ -395,7 +391,7 @@ async def test_a_reappearing_panel_is_redrawn_from_scratch(
 
     task = asyncio.create_task(service._render_loop())
     await asyncio.sleep(0.1)
-    drawn_first = panel.names.count("show_areas")
+    drawn_first = panel.names.count("show_image")
 
     panel.available = False  # unplugged
     await asyncio.sleep(0.05)
@@ -407,4 +403,4 @@ async def test_a_reappearing_panel_is_redrawn_from_scratch(
         await task
 
     assert drawn_first == 1
-    assert panel.names.count("show_areas") == 2
+    assert panel.names.count("show_image") == 2

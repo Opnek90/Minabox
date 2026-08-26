@@ -35,15 +35,18 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/                      # 232 tests, no hardware needed
+├── tests/                      # 271 tests, no hardware needed
 │   ├── display_test_doubles.py # FakePanel and the element builder
 │   ├── conftest.py             # A service wired to neither panel nor broker
 │   ├── test_build_areas.py
 │   ├── test_config_reload.py   # Device lifetime and the render loop
 │   ├── test_display_config_schema.py
 │   ├── test_display_health_endpoint.py
+│   ├── test_display_idle_animation.py # How Knuffel behaves
+│   ├── test_display_partial_update.py # Sending only what changed
 │   ├── test_display_playing.py       # The playing screen: what it says and draws
 │   ├── test_display_playing_screen.py # Where its numbers come from
+│   ├── test_display_screen_priority.py # Which screen owns the panel
 │   ├── test_display_state_manager.py
 │   ├── test_display_text_wrap.py     # Breaking a title across lines
 │   ├── test_display_volume_hud.py    # When the overlay takes the panel
@@ -66,12 +69,16 @@ display-service/
     │   └── routes.py           # FastAPI: GET /health, POST /test
     ├── core/
     │   ├── __init__.py
+    │   ├── idle_animation.py   # How Knuffel behaves while nothing plays
     │   └── state_manager.py    # In-memory cache: audio, sleep timer, session, error flag
     ├── render/                 # Whole-frame screens: pure PIL, no device
     │   ├── __init__.py
     │   ├── fonts.py            # Weight lookup against the four faces in the image
+    │   ├── idle.py             # The idle screen: Knuffel and nothing else
+    │   ├── knuffel.py          # The creature, and his four moods
     │   ├── playing.py          # PlayingView and the playing screen
     │   ├── primitives.py       # Text measuring and wrapping, glyphs, blocks, bar
+    │   ├── unknown_tag.py      # A figure the box does not know
     │   └── volume.py           # VolumeView and the volume overlay
     └── infrastructure/
         ├── __init__.py
@@ -223,6 +230,90 @@ The test pattern holds the loop off for `TEST_PATTERN_SECONDS` (6 s) via a
 deadline that is set *before* drawing, so the loop cannot slip between the draw
 and the lock.
 
+### Which screen owns the panel
+
+Every state of the box now has a screen of its own, and the order between them
+is one method, `_current_screen()`, rather than a chain of early returns in the
+render loop. What beats what is the only thing that decides what a person
+actually sees, so it is written down in one place:
+
+| Screen | Wins because |
+| --- | --- |
+| `test_pattern` | it was asked for, and answering a different question is useless |
+| `volume` | it reports a gesture with a hand still on the knob |
+| `unknown_tag` | it reports something that just happened and needs answering |
+| `playing` | something is playing |
+| `idle` | nothing else applies |
+
+**The widget grid is no longer reachable.** `_build_areas()`, the element
+renderers and `show_areas()` are still in the tree, but no state routes to them
+any more; the `elements` list in `display.json` is accepted and ignored, and
+the WebUI's layout editor no longer affects the panel. Removing all of it
+belongs with the schema change in [Redesign.md](Redesign.md) §6.
+
+### Sending only what changed
+
+A whole frame is 1024 bytes, and at the 100 kHz this bus runs at that is 92 ms
+during which the RFID reader cannot get a word in. The SSD1306 accepts a
+rectangle instead - `COLUMNADDR` and `PAGEADDR` together - so a 32x16 sprite
+costs 64 bytes, or 5.8 ms.
+
+`show_image()` works out the rectangle itself, by diffing against the last
+frame it sent, so every screen benefits without knowing about it. Past
+`MAX_PARTIAL_BYTES` it hands back to luma's own full-frame path, which is both
+faster and better tested at that size.
+
+The risk is that this reaches past luma's public API for `_const`, `_colstart`
+and `_pages`. They are probed once at init and the renderer falls back to whole
+frames if a luma upgrade renames any of them - a slower panel rather than a
+broken one. `tests/test_display_partial_update.py` holds the byte packing
+against luma's own offset and mask formulas, so the two cannot drift apart
+unnoticed.
+
+Anything that writes to the panel behind `show_image()`'s back - `clear()`,
+`show_lines()`, a failed push - calls `forget_frame()`, or the next diff is
+taken against a frame that is no longer there.
+
+### The idle screen
+
+Knuffel, and nothing else. No clock and no text: the audience standing in front
+of an idle box cannot read, and a permanent element in permanent pixels burns
+into an OLED - a creature that wanders spreads the wear by itself.
+
+`core/idle_animation.py` holds the behaviour, `render/knuffel.py` the shape.
+Pure random movement reads as broken, so what he does is mostly stillness with
+the eyes working: he breathes a pixel up and down, blinks every few seconds,
+and every twenty to sixty seconds picks a spot and walks there two pixels at a
+time.
+
+The cost, at 38 px:
+
+| | on the bus |
+| --- | --- |
+| breathing and blinking | **1.8 %** |
+| while walking | 18 % |
+| average over a minute | about 4 % |
+
+`next_due()` is what keeps that true: the loop sleeps until Knuffel's next
+breath rather than polling him. Each concern contributes exactly one deadline,
+and only the one that can still happen - leaving the deadline for *starting* a
+walk in the list after one had started handed the loop a time in the past, and
+it spun at full speed for as long as the walk lasted.
+
+`set_asleep()` stops everything for the night. A bright thing wandering around
+a dark child's bedroom is the opposite of what a night mode is for, and a still
+panel is also the cheapest thing this service can do.
+
+### The unknown figure
+
+Knuffel again, puzzled, held for `UNKNOWN_TAG_SECONDS` and then gone - it
+reports an event, not a state. One character across every screen reads as one
+box rather than as a pile of screens.
+
+Not covered: `rfid/tag-blocked`, a figure that is known but barred. "Wer bist
+du?" would be a lie for it, so the display ignores that topic rather than
+answering it wrongly.
+
 ### The volume overlay
 
 A volume or mute change takes the whole panel for `HUD_SECONDS` (1.5 s) and then
@@ -327,6 +418,7 @@ reconnect.
 | --- | --- |
 | `audio/status` | Updates the cached audio state (`state`, `volume`, `min_volume`, `max_volume`, `volume_step`, `muted`, `multiple_output_devices`, `bluetooth_sink_available`), raises the volume overlay on a real change, and clears the error flag. |
 | `audio/error` | Sets the error flag. |
+| `rfid/unknown-tag` | Shows the unknown-figure screen for four seconds. Published by the **backend**, not the RFID service, when a scanned tag is in no database row. Nothing in the payload is read - the topic is the whole message. |
 | `system/service-error` | Sets the error flag. |
 | `display/config/reload` | Reloads `config/display.json`, applies any hardware change, and redraws immediately. |
 | `config/general` | Applies the log level, handled by `BaseMQTTClient.apply_general_config()`. |
