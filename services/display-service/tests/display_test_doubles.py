@@ -39,6 +39,12 @@ class FakePanel:
         self.calls.append(("show_image", img))
         self.frames.append(img)
 
+    def set_contrast(self, level) -> None:
+        self.calls.append(("contrast", level))
+
+    def set_visible(self, visible) -> None:
+        self.calls.append(("visible", visible))
+
     def show_lines(self, lines) -> None:
         self.calls.append(("show_lines", tuple(lines)))
 

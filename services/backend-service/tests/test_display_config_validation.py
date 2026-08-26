@@ -59,6 +59,23 @@ VALID_BODIES = {
     "address as a numeric string": _body(i2c_address="60"),
     "bus as a boolean": _body(i2c_bus=True),
     "address as a boolean": _body(i2c_address=False),
+    # Brightness and the night window.
+    "with brightness": _body(
+        brightness={
+            "day": 255,
+            "night": 40,
+            "night_from": "20:00",
+            "night_to": "07:00",
+            "off_at_night": True,
+        }
+    ),
+    "brightness, partly given": _body(brightness={"night": 10}),
+    "brightness, empty": _body(brightness={}),
+    "a night window inside one day": _body(
+        brightness={"night_from": "13:00", "night_to": "15:00"}
+    ),
+    "contrast at the edges": _body(brightness={"day": 0, "night": 255}),
+    "midnight": _body(brightness={"night_from": "00:00", "night_to": "23:59"}),
 }
 
 INVALID_BODIES = {
@@ -68,6 +85,14 @@ INVALID_BODIES = {
     "negative address": _body(i2c_address=-1),
     "address as a word": _body(i2c_address="sechzig"),
     "enabled as text": _body(enabled="ja"),
+    "brightness that is not an object": _body(brightness="hell"),
+    "contrast above 255": _body(brightness={"day": 256}),
+    "contrast below zero": _body(brightness={"night": -1}),
+    "an hour that does not exist": _body(brightness={"night_from": "24:00"}),
+    "a minute that does not exist": _body(brightness={"night_to": "07:60"}),
+    "a time in words": _body(brightness={"night_from": "abends"}),
+    "a time without a colon": _body(brightness={"night_to": "0700"}),
+    "off_at_night as text": _body(brightness={"off_at_night": "nachts"}),
 }
 
 

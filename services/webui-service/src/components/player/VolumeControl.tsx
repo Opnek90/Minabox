@@ -45,8 +45,17 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
     onVolumeChange(v);
   }, [onVolumeChange]);
 
+  // Position within the allowed range, which is what the slider shows too.
+  // max_volume is a hard clamp, not a scale: on a box configured to 40 the
+  // audio service reports 40 at the stop, so printing the raw value put "40 %"
+  // next to a slider sitting at its right end. The display draws the same
+  // number, and the two disagreed.
+  const percent = Math.round(
+    ((localVolume - minVolume) / Math.max(1, maxVolume - minVolume)) * 100
+  );
+
   const VolumeIcon =
-    localVolume <= minVolume ? VolumeMuteIcon : localVolume < 50 ? VolumeDownIcon : VolumeUpIcon;
+    localVolume <= minVolume ? VolumeMuteIcon : percent < 50 ? VolumeDownIcon : VolumeUpIcon;
 
   return (
     <Box display="flex" alignItems="center" gap={1} sx={{ width: '100%', px: 1 }}>
@@ -62,7 +71,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
         />
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ minWidth: 36, textAlign: 'right' }}>
-        {localVolume}%
+        {percent}%
       </Typography>
     </Box>
   );

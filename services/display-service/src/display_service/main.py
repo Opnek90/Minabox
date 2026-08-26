@@ -7,6 +7,7 @@ import json
 import os
 import signal
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -20,10 +21,13 @@ from .config_manager import ConfigManager
 from .config_schema import AppConfig, DisplayServiceConfig
 from .core import StateManager
 from .core.idle_animation import IdleAnimation
+from .core.night import is_night
 from .infrastructure import (
     MQTTClient,
     clear,
     is_available,
+    set_contrast,
+    set_visible,
     show_image,
     show_lines,
 )
@@ -154,6 +158,10 @@ class DisplayService:
         # Built on first use, because it needs a clock that only exists once
         # the loop is running.
         self._idle_animation: IdleAnimation | None = None
+        # What the panel is currently set to, so the two commands that change
+        # it are only sent when they would change something.
+        self._contrast: int | None = None
+        self._panel_visible = True
         # A track change has to pull the session poll forward: the title lives
         # in that response, and waiting out the interval would leave the
         # previous title on the panel.
@@ -558,6 +566,38 @@ class DisplayService:
             return SCREEN_PLAYING
         return SCREEN_IDLE
 
+    def _apply_brightness(self, screen: str) -> bool:
+        """Set contrast and visibility for the time of day. Returns "draw?".
+
+        Off at night applies to the idle screen alone. Anything the box is
+        actually doing - something playing, a hand on the knob, a figure on the
+        reader - takes the panel back, because a dark panel in those moments
+        looks like a broken box rather than a considerate one.
+        """
+        cfg = self._display_config
+        if cfg is None:
+            return True
+        brightness = cfg.brightness
+        night = is_night(
+            datetime.now().time(), brightness.night_from, brightness.night_to
+        )
+
+        level = brightness.night if night else brightness.day
+        if level != self._contrast:
+            self._contrast = level
+            set_contrast(level)
+            logger.info("display_contrast_set", level=level, night=night)
+
+        if self._idle_animation is not None:
+            self._idle_animation.set_asleep(night)
+
+        visible = not (night and brightness.off_at_night and screen == SCREEN_IDLE)
+        if visible != self._panel_visible:
+            self._panel_visible = visible
+            set_visible(visible)
+            logger.info("display_visibility_set", visible=visible)
+        return visible
+
     def _idle_marks(self) -> tuple[str, ...]:
         """What is true but not worth a screen of its own.
 
@@ -681,6 +721,10 @@ class DisplayService:
                     continue
 
                 screen = self._current_screen(now)
+                if not self._apply_brightness(screen):
+                    # Panel off for the night, and nothing is going on. Whatever
+                    # was last drawn is still in its buffer for when it wakes.
+                    continue
                 if screen == SCREEN_TEST:
                     # It was asked for and is drawn elsewhere; leave it alone.
                     last_fingerprint = None

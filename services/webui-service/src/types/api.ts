@@ -457,10 +457,25 @@ export interface Button {
  * now, and each screen picks its own sizes, so all of that stopped reaching
  * the panel. The display service ignores those keys; nothing here sends them.
  */
+/** Panel brightness, and the window in which the box turns itself down. */
+export interface DisplayBrightness {
+  /** Contrast by day, 0-255. */
+  day: number;
+  /** Contrast at night, 0-255. */
+  night: number;
+  /** Start of night, HH:MM. */
+  night_from: string;
+  /** End of night, HH:MM. */
+  night_to: string;
+  /** Switch the panel off at night while nothing is happening. */
+  off_at_night: boolean;
+}
+
 export interface DisplayConfig {
   enabled: boolean;
   i2c_bus: number;
   i2c_address: number;
+  brightness?: DisplayBrightness;
 }
 
 // ============================================================================

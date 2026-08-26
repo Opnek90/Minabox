@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Paper,
+  Slider,
   Switch,
   TextField,
   Typography,
@@ -12,7 +13,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
-import type { DisplayConfig } from '@/types/api';
+import type { DisplayBrightness, DisplayConfig } from '@/types/api';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 /**
@@ -53,6 +54,22 @@ export const DisplayConfigPanel: React.FC = () => {
 
   if (error) return <Alert severity="error">{error}</Alert>;
   if (!config) return <Typography>…</Typography>;
+
+  // The service fills these in when the file leaves them out, so the form has
+  // to as well - otherwise the first save would write nulls over them.
+  const brightness: DisplayBrightness = {
+    day: 255,
+    night: 40,
+    night_from: '20:00',
+    night_to: '07:00',
+    off_at_night: false,
+    ...(config.brightness ?? {}),
+  };
+
+  const setBrightness = (patch: Partial<DisplayBrightness>) =>
+    setConfig((prev) =>
+      prev ? { ...prev, brightness: { ...brightness, ...patch } } : prev
+    );
 
   return (
     <Box>
@@ -107,6 +124,69 @@ export const DisplayConfigPanel: React.FC = () => {
                 inputProps={{ min: 0, max: 127 }}
                 sx={{ width: { xs: '100%', sm: 100 } }}
               />
+            </Box>
+          </Box>
+        </Paper>
+
+      </SettingsBlock>
+
+      <SettingsBlock
+        title={t('display.brightness')}
+        description={t('display.brightness_hint')}
+      >
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Box display="flex" flexDirection="column" gap={2}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                {t('display.brightness_day')}
+              </Typography>
+              <Slider
+                value={brightness.day}
+                min={0}
+                max={255}
+                valueLabelDisplay="auto"
+                onChange={(_, value) => setBrightness({ day: value as number })}
+              />
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                {t('display.brightness_night')}
+              </Typography>
+              <Slider
+                value={brightness.night}
+                min={0}
+                max={255}
+                valueLabelDisplay="auto"
+                onChange={(_, value) => setBrightness({ night: value as number })}
+              />
+            </Box>
+            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+              <TextField
+                label={t('display.night_from')}
+                type="time"
+                size="small"
+                value={brightness.night_from}
+                onChange={(e) => setBrightness({ night_from: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: { xs: '100%', sm: 140 } }}
+              />
+              <TextField
+                label={t('display.night_to')}
+                type="time"
+                size="small"
+                value={brightness.night_to}
+                onChange={(e) => setBrightness({ night_to: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: { xs: '100%', sm: 140 } }}
+              />
+            </Box>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Switch
+                checked={brightness.off_at_night}
+                onChange={(_, checked) => setBrightness({ off_at_night: checked })}
+                color="primary"
+              />
+              <Typography variant="body2">{t('display.off_at_night')}</Typography>
             </Box>
           </Box>
         </Paper>

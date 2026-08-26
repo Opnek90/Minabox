@@ -152,6 +152,28 @@ class DisplayRenderer:
                 packed.append(byte)
         return packed
 
+    def set_contrast(self, level: int) -> None:
+        """Set the panel brightness. One command, two bytes on the bus."""
+        try:
+            self._device.contrast(max(0, min(255, level)))
+        except Exception as exc:
+            logger.warning("display_contrast_failed", level=level, error=str(exc))
+
+    def set_visible(self, visible: bool) -> None:
+        """Switch the panel on or off without closing it.
+
+        Off is genuinely off - luma puts the device into low-power sleep - and
+        the frame buffer survives, so switching back on shows what was there.
+        Which is why the record of it is kept rather than forgotten.
+        """
+        try:
+            if visible:
+                self._device.show()
+            else:
+                self._device.hide()
+        except Exception as exc:
+            logger.warning("display_visibility_failed", visible=visible, error=str(exc))
+
     def forget_frame(self) -> None:
         """Drop the record of what is on the glass, forcing a whole frame next.
 
@@ -246,6 +268,18 @@ def show_image(img: Any) -> None:
     """Push a pre-rendered frame. No-op if display unavailable."""
     if _renderer is not None:
         _renderer.show_image(img)
+
+
+def set_contrast(level: int) -> None:
+    """Set the panel brightness. No-op if display unavailable."""
+    if _renderer is not None:
+        _renderer.set_contrast(level)
+
+
+def set_visible(visible: bool) -> None:
+    """Switch the panel on or off. No-op if display unavailable."""
+    if _renderer is not None:
+        _renderer.set_visible(visible)
 
 
 def show_lines(lines: list[str]) -> None:

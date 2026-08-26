@@ -35,13 +35,14 @@ display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
 ├── VERSION                     # Own version number (docs/Versionierung.md)
-├── tests/                      # 236 tests, no hardware needed
+├── tests/                      # 272 tests, no hardware needed
 │   ├── display_test_doubles.py # FakePanel
 │   ├── conftest.py             # A service wired to neither panel nor broker
 │   ├── test_config_reload.py   # Device lifetime and the render loop
 │   ├── test_display_config_schema.py
 │   ├── test_display_health_endpoint.py
 │   ├── test_display_idle_animation.py # How Knuffel behaves
+│   ├── test_display_night.py         # Dimming, and the window that wraps
 │   ├── test_display_partial_update.py # Sending only what changed
 │   ├── test_display_playing.py       # The playing screen: what it says and draws
 │   ├── test_display_playing_screen.py # Where its numbers come from
@@ -68,6 +69,7 @@ display-service/
     ├── core/
     │   ├── __init__.py
     │   ├── idle_animation.py   # How Knuffel behaves while nothing plays
+    │   ├── night.py            # Whether the clock is inside the night window
     │   └── state_manager.py    # In-memory cache: audio, sleep timer, session, error flag
     ├── render/                 # Whole-frame screens: pure PIL, no device
     │   ├── __init__.py
@@ -297,6 +299,27 @@ out if the strip appears while he is standing there - and it takes the clock as
 an argument, because starting a walk without setting its step deadline leaves
 the one from the previous walk, a time already past.
 
+### Brightness and the night
+
+This device stands in a child's bedroom, and at full contrast at eight in the
+evening it is a light source. `device.contrast()` is one command and two bytes,
+so doing something about it costs nothing.
+
+Dimming alone is not enough for a dark room - luma says so itself, that a low
+level "will not necessarily dim the display to nearly off" - which is what
+`off_at_night` is for. It switches the panel off outright, **and only while the
+idle screen is showing**: something playing, a hand on the knob or a figure on
+the reader takes it back, because a dark panel in those moments reads as a
+broken box rather than a considerate one. Knuffel sleeps for the night either
+way, since a bright thing wandering about a dark room is the opposite of what
+the setting is for.
+
+The interesting part is not the dimming but the window. Every useful night runs
+past midnight, and `20:00`–`07:00` compared as a plain interval is never true.
+`core/night.py` is a pure function of two strings and a clock reading for that
+reason, and equal ends mean *no* night rather than a permanent one - reading it
+the other way would darken a box for a setting that looks like it does nothing.
+
 ### The unknown figure
 
 Knuffel again, puzzled, held for `UNKNOWN_TAG_SECONDS` and then gone - it
@@ -483,6 +506,7 @@ backend owns the file and publishes `display/config/reload` after every write.
 | `enabled` | bool | Global on/off. When false, nothing is drawn. |
 | `i2c_bus` | int > 0 | Bus number, `1` for `/dev/i2c-1`. |
 | `i2c_address` | int ≥ 0 | Device address, `60` = `0x3C` for the SSD1306. |
+| `brightness` | object | `day` and `night` contrast (0–255), `night_from` and `night_to` as `HH:MM`, and `off_at_night`. Absent means the defaults: 255, 40, 20:00, 07:00, off. |
 
 That is the whole file. What used to be here - `elements`, `area`, `order`,
 `font`, `font_size` - configured a layout that no longer exists.

@@ -298,6 +298,7 @@ real panel, everything else follows the same pattern.
 5. **The remaining screens and the playing styles.**
 6. **Small schema, backend and WebUI.**
 7. **Brightness and night**, independent of the rest and shippable on its own.
+   *Built.*
 
 Steps 1, 2 and 7 are safe to build and try at any point. Step 4 is the one that
 wants careful testing on real hardware.
@@ -314,8 +315,13 @@ screen is the same creature looking puzzled. Both are described in
 
 What that leaves, and it is the larger half:
 
-- **Screens not built:** `boot`, `paused` as its own screen, `tag_removed`,
-  `sleep`, `offline`. Everything that is not playing falls through to Knuffel.
+- **Screens not built, and why each is left alone.** `boot`: the loop draws the
+  idle screen inside a second, so it would answer a question nobody can still
+  ask. `tag_removed`: playback ends, the idle screen returns and Knuffel waves
+  - a screen would flash and add nothing. `sleep`: a timer runs for hours, and
+  a full screen would displace Knuffel all evening to say what a corner mark
+  says. `offline`: `backend/unreachable` has no publisher anywhere in this
+  repository, though the display could tell from its own failing polls.
 - **The status strip is partly there.** Error and sleep timer are back as marks
   on the idle screen, mute is drawn on the playing screen. Bluetooth, repeat
   and shuffle are not shown anywhere.

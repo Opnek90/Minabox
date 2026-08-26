@@ -131,11 +131,18 @@
     "title": "Language & Colours"
   },
   "display": {
+    "brightness": "Brightness",
+    "brightness_day": "By day",
+    "brightness_hint": "Dimmer at night, so the panel is not a light source in a child's bedroom. Knuffel sleeps then too.",
+    "brightness_night": "At night",
     "enabled": "Display enabled",
     "hardware": "Connection",
     "hardware_hint": "Turn the display on or off and set the I2C connection. What it shows is decided by the box itself, from whatever it is doing.",
     "i2c_address": "I2C Address",
     "i2c_bus": "I2C Bus",
+    "night_from": "Night from",
+    "night_to": "Night until",
+    "off_at_night": "Off at night while nothing is happening",
     "save_button": "Save",
     "save_error": "Save failed",
     "save_success": "Display settings saved",

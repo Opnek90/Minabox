@@ -131,11 +131,18 @@
     "title": "Sprache & Farben"
   },
   "display": {
+    "brightness": "Helligkeit",
+    "brightness_day": "Tagsueber",
+    "brightness_hint": "Nachts dunkler, damit das Display im Kinderzimmer keine Lichtquelle ist. Knuffel schlaeft dann auch.",
+    "brightness_night": "Nachts",
     "enabled": "Display aktiv",
     "hardware": "Anschluss",
     "hardware_hint": "Display an- oder ausschalten und den I2C-Anschluss festlegen. Was angezeigt wird, entscheidet die Box selbst - je nachdem, was sie gerade tut.",
     "i2c_address": "I2C-Adresse",
     "i2c_bus": "I2C-Bus",
+    "night_from": "Nacht ab",
+    "night_to": "Nacht bis",
+    "off_at_night": "Nachts ganz aus, solange nichts passiert",
     "save_button": "Speichern",
     "save_error": "Speichern fehlgeschlagen",
     "save_success": "Display-Einstellungen gespeichert",

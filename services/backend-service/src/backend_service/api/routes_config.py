@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -464,6 +465,44 @@ def _as_int(value: object) -> int | None:
     return None
 
 
+_CLOCK_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _display_brightness_errors(brightness: object) -> list[str]:
+    """What is wrong with the brightness block, if anything.
+
+    A bad time here is the failure this whole area exists for: the running
+    display service keeps its old config, the WebUI reports success, and the
+    next container start dies on the file.
+    """
+    if brightness is None:
+        return []
+    if not isinstance(brightness, dict):
+        return ["'brightness' must be an object"]
+
+    errors: list[str] = []
+    for key in ("day", "night"):
+        if key not in brightness:
+            continue
+        level = _as_int(brightness[key])
+        if level is None or not 0 <= level <= 255:
+            errors.append(f"'brightness.{key}' must be between 0 and 255")
+
+    for key in ("night_from", "night_to"):
+        value = brightness.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not _CLOCK_TIME.match(value):
+            errors.append(f"'brightness.{key}' must be a time of day as HH:MM")
+
+    if "off_at_night" in brightness and not isinstance(
+        brightness["off_at_night"], bool
+    ):
+        errors.append("'brightness.off_at_night' must be true or false")
+
+    return errors
+
+
 def _validate_display_config(body: dict) -> None:
     """Reject a display config the display service would refuse to load.
 
@@ -485,6 +524,8 @@ def _validate_display_config(body: dict) -> None:
     address = _as_int(body.get("i2c_address"))
     if body.get("i2c_address") is not None and (address is None or address < 0):
         errors.append("'i2c_address' must be a non-negative integer")
+
+    errors.extend(_display_brightness_errors(body.get("brightness")))
 
     if errors:
         logger.warning("display_config_rejected", errors=errors)
