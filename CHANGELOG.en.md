@@ -22,6 +22,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.3 - 2026-08-26
+
+#### Improved
+- The display settings are down to the connection and the brightness. The old
+  element list is still accepted and ignored, so existing boxes keep running
+  unchanged.
 ### 0.2.2 - 2026-08-25
 
 #### Fixed
@@ -162,6 +168,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.1.15 - 2026-08-26
+
+#### Improved
+- The volume reading in the player shows the same number as the display on the
+  device.
+- The display settings are down to the connection and the brightness; the
+  element editor is gone, because it no longer affected anything.
 ### 0.1.14 - 2026-08-25
 
 #### Improved
@@ -370,6 +383,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## audio
 
+### 0.2.1 - 2026-08-26
+
+#### Fixed
+- The reported volume briefly jumped to a wrong value at the start and end of a
+  track, which sent the slider in the interface to its left edge after every
+  stop.
+- Seeking within a track briefly reported the position from before the jump.
 ### 0.2.0 - 2026-08-23
 
 #### Fixed
@@ -486,6 +506,26 @@ A version without a visible change may stay empty - the interface then says
 
 ## display
 
+### 0.1.2 - 2026-08-26
+
+#### Added
+- The display now shows a picture for each situation instead of a row of tiny
+  icons: title, progress and remaining time while playing, and a small creature
+  that wanders, blinks and waves while nothing does.
+- Turning the volume knob briefly shows a large reading, one block per detent.
+- An unknown figure, a blocked one and a reached daily limit each get their own
+  picture - the display used to say nothing at all.
+- At night the panel dims, and can switch off entirely while nothing happens.
+
+#### Improved
+- The volume reading shows the position within the allowed range. On a box with
+  a maximum of 40 it used to read "40 %" while the knob was at its stop.
+- Only the part of the picture that changed is sent to the panel. The reader on
+  the same connection is blocked far less often as a result.
+
+#### Fixed
+- Taking a figure off, and putting one on, briefly raised the volume reading
+  although nothing had changed.
 ### 0.1.1 - 2026-08-23
 
 ### 0.1.0 - 2026-08-20
