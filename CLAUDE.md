@@ -24,7 +24,7 @@ Arbeiten, Conventional-Commit-Betreffe. Prüfen — erst ohne Container:
 ```bash
 PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest -q
 .venv/bin/ruff check <berührte .py-Dateien>
-cd services/webui-service && npx tsc --noEmit     # 8 Altfehler sind Bestand
+cd services/webui-service && npx tsc --noEmit     # muss fehlerfrei durchlaufen
 ```
 
 Dann nur die **berührten** Dienste bauen und ausprobieren (nie alle neun):

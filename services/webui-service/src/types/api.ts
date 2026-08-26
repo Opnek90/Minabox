@@ -54,8 +54,16 @@ export interface TagCreate {
 
 export interface TagUpdate {
   name?: string | null;
-  content_type?: ContentType;
-  content_id?: number;
+  /**
+   * An omitted field is left unchanged; an explicit `null` clears it.
+   *
+   * The backend tells the two apart by looking at the raw request body, and
+   * unassigning a tag needs `content_type` AND `content_id` set to null -
+   * clearing only one leaves a tag that still claims to point at a track
+   * while pointing at nothing.
+   */
+  content_type?: ContentType | null;
+  content_id?: number | null;
   disabled?: boolean;
 }
 

@@ -3,7 +3,6 @@ import {
   Box,
   Card,
   CardActionArea,
-  CardContent,
   IconButton,
   Menu,
   MenuItem,
