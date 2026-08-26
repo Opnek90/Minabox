@@ -40,6 +40,12 @@ def test_default_rejects_youtube(settings_file):
     assert exc_info.value.code == "domain_not_allowed"
 
 
+def test_default_allows_www_subdomain(settings_file):
+    """A user adding "bandcamp.com" must not have to also add "www.bandcamp.com"."""
+    settings_file()
+    _check_allowed_domain("https://www.bandcamp.com/track/example")  # must not raise
+
+
 def test_admin_added_domain_is_enforced_without_restart(settings_file):
     settings_file()
     with pytest.raises(ApiError):

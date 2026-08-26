@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import structlog
+import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
@@ -17,6 +18,7 @@ from media_downloader_service.downloader import DownloadError, MediaDownloader
 from media_downloader_service.models import (
     DownloadRequest,
     DownloadResponse,
+    ProgressResponse,
     VideoInfoResponse,
 )
 
@@ -50,6 +52,12 @@ _start_time = time.monotonic()
 # other for the same cores instead of the previous, accidental
 # serialization.
 _download_semaphore = asyncio.Semaphore(1)
+
+# In-memory stage/percent for a download in flight, keyed by the caller's
+# job_id (the backend uses str(track_id)). Only one download runs at a time
+# (see the semaphore above), so this never holds more than one entry; it is
+# removed as soon as that download finishes, successfully or not.
+_progress: dict[str, tuple[str, float | None]] = {}
 
 
 def _resolve_output_dir(output_dir: str | None) -> Path:
@@ -119,13 +127,28 @@ async def download_video(request: DownloadRequest) -> DownloadResponse:
     keys are accepted, so only sources that are readable without them can be
     imported.
     """
+    job_id = request.job_id
+
+    def on_progress(stage: str, percent: float | None) -> None:
+        # Called from the worker thread running download_video (below), via
+        # yt-dlp's own hooks - a plain dict item assignment is safe to make
+        # from another thread under the GIL.
+        if job_id is not None:
+            _progress[job_id] = (stage, percent)
+
     try:
         output_dir = _resolve_output_dir(request.output_dir)
         downloader = MediaDownloader(
             audio_quality=config.audio_quality, max_filesize_mb=config.max_filesize_mb
         )
         async with _download_semaphore:
-            result = await asyncio.to_thread(downloader.download_video, request.url, output_dir)
+            try:
+                result = await asyncio.to_thread(
+                    downloader.download_video, request.url, output_dir, on_progress
+                )
+            finally:
+                if job_id is not None:
+                    _progress.pop(job_id, None)
     except DownloadError as exc:
         logger.warning("download_request_failed", url=request.url, error=str(exc))
         raise HTTPException(
@@ -140,6 +163,17 @@ async def download_video(request: DownloadRequest) -> DownloadResponse:
         ) from exc
 
     return DownloadResponse(**result)
+
+
+@app.get("/download/progress/{job_id}", response_model=ProgressResponse)
+async def get_download_progress(job_id: str) -> ProgressResponse:
+    """Poll the stage of a download started with a matching job_id.
+
+    Returns "done" for any job_id not currently tracked - either it finished
+    already, or a caller never set job_id on the /download request.
+    """
+    stage, percent = _progress.get(job_id, ("done", None))
+    return ProgressResponse(stage=stage, percent=percent)
 
 
 @app.get("/info", response_model=VideoInfoResponse)
@@ -168,3 +202,18 @@ async def get_video_info(url: str = Query(..., description="Media URL")) -> Vide
         thumbnail=info["thumbnail"],
         video_id=info["video_id"],
     )
+
+
+def run() -> None:
+    # log_config=None: without it, uvicorn installs its own plain-text
+    # formatter for "uvicorn"/"uvicorn.access" and every request (including
+    # health checks every 30s) prints a line in a different format from our
+    # structlog JSON. With no config, those loggers fall through to the
+    # interpreter's default (silent below WARNING, so routine access logs
+    # disappear; an actual error still reaches stderr) - the same pattern
+    # host-helper-service uses.
+    uvicorn.run(app, host="0.0.0.0", port=8007, log_config=None)
+
+
+if __name__ == "__main__":
+    run()

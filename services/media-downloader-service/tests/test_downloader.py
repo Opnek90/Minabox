@@ -32,6 +32,11 @@ class _FakeYoutubeDL:
 
     def extract_info(self, url: str, download: bool = True) -> dict:
         if download and type(self).write_mp3:
+            for hook in type(self).captured_opts.get("progress_hooks", []):
+                hook({"status": "downloading", "downloaded_bytes": 50, "total_bytes": 100})
+            for hook in type(self).captured_opts.get("postprocessor_hooks", []):
+                hook({"status": "started", "postprocessor": "FFmpegExtractAudio"})
+                hook({"status": "started", "postprocessor": "EmbedThumbnail"})
             mp3_path = Path(type(self).captured_opts["outtmpl"].replace("%(ext)s", "mp3"))
             mp3_path.parent.mkdir(parents=True, exist_ok=True)
             mp3_path.write_bytes(b"fake mp3 data")
@@ -119,6 +124,32 @@ def test_download_video_raises_download_error_when_mp3_missing(tmp_path):
     _FakeYoutubeDL.write_mp3 = False  # extractor "succeeds" but no file appears
     with pytest.raises(DownloadError):
         MediaDownloader().download_video("https://example.org/t", tmp_path)
+
+
+def test_download_video_reports_stages_via_on_progress(tmp_path):
+    """fetching_info before extraction starts, then downloading (with a real
+    percent from yt-dlp's own hook data), then converting, then finalizing -
+    in that order, straight from yt-dlp's hooks rather than simulated."""
+    _FakeYoutubeDL.info = {
+        "id": "x",
+        "title": "T",
+        "duration": 1,
+        "thumbnails": [],
+        "thumbnail": "",
+    }
+    _FakeYoutubeDL.write_mp3 = True
+    calls: list[tuple[str, float | None]] = []
+
+    MediaDownloader().download_video(
+        "https://example.org/t", tmp_path, on_progress=lambda stage, pct: calls.append((stage, pct))
+    )
+
+    assert calls == [
+        ("fetching_info", None),
+        ("downloading", 50.0),
+        ("converting", None),
+        ("finalizing", None),
+    ]
 
 
 def test_embed_thumbnail_fallback_embeds_and_removes_sidecar(tmp_path):

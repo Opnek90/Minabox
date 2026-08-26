@@ -15,6 +15,10 @@ export interface DownloadStatusResponse {
   /** "pending" | "downloading" | "done" | "error" | "unknown" */
   status: string;
   error: string | null;
+  /** "fetching_info" | "downloading" | "converting" | "finalizing" | "saving", while status is "downloading" */
+  stage?: string | null;
+  /** 0-100, only meaningful while stage is "downloading" */
+  percent?: number | null;
 }
 
 export const trackFoldersApi = {

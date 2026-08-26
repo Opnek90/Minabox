@@ -19,7 +19,6 @@ from backend_service.core.general_settings import read_general_settings
 # rights for a specific source can still add it in the WebUI.
 DEFAULT_ALLOWED_DOMAINS: frozenset[str] = frozenset({
     "soundcloud.com",
-    "www.soundcloud.com",
     "bandcamp.com",
 })
 
@@ -56,8 +55,24 @@ def read_allowed_domains() -> frozenset[str]:
     return frozenset(clamp_allowed_domains(raw))
 
 
+def is_domain_allowed(hostname: str, allowed_domains: frozenset[str]) -> bool:
+    """Whether *hostname* matches an allowed entry or one of its subdomains.
+
+    A user adding "bandcamp.com" clearly means to cover
+    "www.bandcamp.com" too - matching only the exact string they typed
+    was a real point of confusion (a URL only worked in whichever form
+    happened to be in the list). "evilbandcamp.com" must not match
+    "bandcamp.com", so the suffix check requires the "." separator.
+    """
+    hostname = hostname.lower()
+    return any(
+        hostname == domain or hostname.endswith(f".{domain}") for domain in allowed_domains
+    )
+
+
 __all__ = [
     "DEFAULT_ALLOWED_DOMAINS",
     "clamp_allowed_domains",
+    "is_domain_allowed",
     "read_allowed_domains",
 ]

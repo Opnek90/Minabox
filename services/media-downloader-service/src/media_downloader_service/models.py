@@ -8,6 +8,7 @@ class DownloadRequest(BaseModel):
 
     url: str
     output_dir: str | None = None  # optional: absolute path inside the container
+    job_id: str | None = None  # optional: correlation id for GET /download/progress/{job_id}
 
     @field_validator("url")
     @classmethod
@@ -37,3 +38,16 @@ class DownloadResponse(BaseModel):
     duration_ms: int
     video_id: str
     thumbnail_embedded: bool
+
+
+class ProgressResponse(BaseModel):
+    """Response for GET /download/progress/{job_id}.
+
+    stage: one of "fetching_info", "downloading", "converting",
+    "finalizing", "done" - see downloader.py's _STAGE_* callbacks.
+    percent: 0-100 while stage is "downloading"; None otherwise (the other
+    stages have no natural progress fraction to report).
+    """
+
+    stage: str
+    percent: float | None = None

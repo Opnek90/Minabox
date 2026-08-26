@@ -58,4 +58,4 @@ ENV APP_VERSION=${APP_VERSION} \
     GIT_SHA=${GIT_SHA} \
     BUILD_DATE=${BUILD_DATE}
 
-CMD ["python", "-m", "uvicorn", "media_downloader_service.main:app", "--host", "0.0.0.0", "--port", "8007"]
+CMD ["python", "-m", "media_downloader_service.main"]

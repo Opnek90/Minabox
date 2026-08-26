@@ -139,6 +139,59 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
     expect(importButton()).toBeDisabled();
   });
 
+  // Real POLL_INTERVAL_MS (2s) plus the waitFor budget below exceeds
+  // vitest's 5s default test timeout, hence the explicit timeout argument.
+  it('zeigt die gemeldete Import-Stufe an, nicht nur einen Spinner', async () => {
+    const user = userEvent.setup();
+    fromUrl.mockResolvedValue({ track_id: 7, status: 'pending' });
+    getDownloadStatus.mockResolvedValue({
+      track_id: 7,
+      status: 'downloading',
+      error: null,
+      stage: 'converting',
+      percent: null,
+    });
+    renderDialog();
+
+    await user.type(screen.getByLabelText(text('media_import.url_label')), 'https://example.org/media');
+    await user.click(confirmCheckbox());
+    await user.click(importButton());
+
+    // fetching_info and downloading are behind us (stage: converting) -
+    // their label is still rendered, converting is the active one.
+    await waitFor(
+      () => expect(screen.getByText(text('media_import.stage_converting'))).toBeInTheDocument(),
+      { timeout: 4000 },
+    );
+    expect(screen.getByText(text('media_import.stage_finalizing'))).toBeInTheDocument();
+    expect(screen.getByText(text('media_import.stage_saving'))).toBeInTheDocument();
+  }, 8000);
+
+  it('haengt den Prozentsatz an, solange die Stufe "downloading" laeuft', async () => {
+    const user = userEvent.setup();
+    fromUrl.mockResolvedValue({ track_id: 7, status: 'pending' });
+    getDownloadStatus.mockResolvedValue({
+      track_id: 7,
+      status: 'downloading',
+      error: null,
+      stage: 'downloading',
+      percent: 42.3,
+    });
+    renderDialog();
+
+    await user.type(screen.getByLabelText(text('media_import.url_label')), 'https://example.org/media');
+    await user.click(confirmCheckbox());
+    await user.click(importButton());
+
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText(`${text('media_import.stage_downloading')} (42%)`),
+        ).toBeInTheDocument(),
+      { timeout: 4000 },
+    );
+  }, 8000);
+
   it('verknuepft die Checkbox mit dem Hilfetext, solange nicht bestaetigt ist', async () => {
     const user = userEvent.setup();
     renderDialog();

@@ -15,6 +15,7 @@ import pytest
 from backend_service.core.media_settings import (
     DEFAULT_ALLOWED_DOMAINS,
     clamp_allowed_domains,
+    is_domain_allowed,
     read_allowed_domains,
 )
 
@@ -70,3 +71,18 @@ def test_clamp_allowed_domains_empty_list_falls_back_to_default():
 
 def test_clamp_allowed_domains_malformed_input_falls_back_to_default():
     assert clamp_allowed_domains("not-a-list") == sorted(DEFAULT_ALLOWED_DOMAINS)
+
+
+def test_is_domain_allowed_matches_exact_and_subdomains():
+    allowed = frozenset({"bandcamp.com"})
+    assert is_domain_allowed("bandcamp.com", allowed)
+    assert is_domain_allowed("www.bandcamp.com", allowed)
+    assert is_domain_allowed("Some.Sub.bandcamp.com", allowed)
+
+
+def test_is_domain_allowed_rejects_lookalike_domains():
+    """"evilbandcamp.com" must not match "bandcamp.com" - the suffix check
+    needs the "." separator, not a bare string suffix."""
+    allowed = frozenset({"bandcamp.com"})
+    assert not is_domain_allowed("evilbandcamp.com", allowed)
+    assert not is_domain_allowed("bandcamp.com.evil.org", allowed)

@@ -10,13 +10,14 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
-  LinearProgress,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DownloadIcon from '@mui/icons-material/Download';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useTranslation } from 'react-i18next';
 import { tracksApi } from '@/api/tracks';
@@ -31,6 +32,16 @@ const CONFIRM_HINT_ID = 'media-import-confirm-hint';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 300_000; // 5 minutes
+
+// Mirrors the stage names media-downloader-service/backend report - see
+// downloader.py's STAGE_* constants and routes_tracks.py's "saving" stage.
+const IMPORT_STAGES = [
+  'fetching_info',
+  'downloading',
+  'converting',
+  'finalizing',
+  'saving',
+] as const;
 
 interface MediaPreview {
   valid: boolean;
@@ -60,6 +71,8 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
   const [validating, setValidating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
+  const [downloadStage, setDownloadStage] = useState<string | null>(null);
+  const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   // Mandatory lawful-use confirmation. Gates both "check" and "import"; kept in
   // component state only – it is never persisted or reported anywhere, so it is
@@ -103,6 +116,8 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
     setValidating(false);
     setImporting(false);
     setDownloadStatus(null);
+    setDownloadStage(null);
+    setDownloadPercent(null);
     setEditTitle('');
     setEditArtist('');
     setEditAlbum('');
@@ -130,6 +145,8 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
         try {
           const statusData = await tracksApi.getDownloadStatus(trackId);
           setDownloadStatus(statusData.status);
+          setDownloadStage(statusData.stage ?? null);
+          setDownloadPercent(statusData.percent ?? null);
 
           if (statusData.status === 'done') {
             // Fetch the fully-populated track and notify parent
@@ -352,18 +369,37 @@ export const MediaImportDialog: React.FC<MediaImportDialogProps> = ({
           </>
         )}
 
-        {/* Download progress */}
+        {/* Download progress: five real stages reported by the media
+            downloader / backend (see IMPORT_STAGES), not a simulated
+            timer - a stalled or restarted download shows up as such
+            instead of a spinner nobody can learn anything from. */}
         {isDownloading && (
           <Box>
-            <Box display="flex" alignItems="center" gap={1.5} mb={0.75}>
-              <CircularProgress size={16} />
-              <Typography variant="caption" color="text.secondary">
-                {downloadStatus === 'pending'
-                  ? t('media_import.download_queued')
-                  : t('media_import.downloading')}
-              </Typography>
-            </Box>
-            <LinearProgress variant="indeterminate" sx={{ borderRadius: 1 }} />
+            {IMPORT_STAGES.map((s, i) => {
+              const activeIndex = downloadStage ? IMPORT_STAGES.indexOf(downloadStage as never) : 0;
+              const isDone = activeIndex >= 0 && i < activeIndex;
+              const isActive = i === activeIndex || (activeIndex === -1 && i === 0);
+              return (
+                <Box key={s} display="flex" alignItems="center" gap={1.5} mb={0.5}>
+                  {isDone ? (
+                    <CheckCircleIcon fontSize="small" color="success" />
+                  ) : isActive ? (
+                    <CircularProgress size={16} />
+                  ) : (
+                    <RadioButtonUncheckedIcon fontSize="small" sx={{ color: 'text.disabled' }} />
+                  )}
+                  <Typography
+                    variant="caption"
+                    color={isDone || isActive ? 'text.secondary' : 'text.disabled'}
+                  >
+                    {t(`media_import.stage_${s}`)}
+                    {isActive && s === 'downloading' && downloadPercent != null
+                      ? ` (${Math.round(downloadPercent)}%)`
+                      : ''}
+                  </Typography>
+                </Box>
+              );
+            })}
           </Box>
         )}
 

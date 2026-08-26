@@ -88,8 +88,11 @@ Reads the media, stores the audio track as `audio.mp3` under the given
 **Request body:**
 
 ```json
-{ "url": "https://example.org/media", "output_dir": "/mnt/audio/tracks/42" }
+{ "url": "https://example.org/media", "output_dir": "/mnt/audio/tracks/42", "job_id": "42" }
 ```
+
+`job_id` is optional. If given, `GET /download/progress/{job_id}` can be
+polled on a separate connection while this request is in flight – see below.
 
 **Response (201):**
 
@@ -115,6 +118,31 @@ service – see section 8. The file size limit (`max_filesize`, from
 
 > `video_id` is the identifier assigned by the source. The field name is from
 > the first version of the API and stays for compatibility.
+
+---
+
+### `GET /download/progress/{job_id}`
+
+Reports the stage of a download started with a matching `job_id`, straight
+from `yt-dlp`'s own `progress_hooks`/`postprocessor_hooks` – not a simulated
+timer, so a stalled or restarted download shows up as such.
+
+**Response (200):**
+
+```json
+{ "stage": "downloading", "percent": 42.3 }
+```
+
+`stage` is one of `fetching_info`, `downloading`, `converting`,
+`finalizing`, or `done` (reported for any `job_id` not currently tracked –
+either it finished already, or the `/download` request never set one).
+`percent` is only meaningful while `stage` is `downloading`; `null`
+otherwise. The backend adds one more stage of its own, `saving`, for the DB
+write and cover-art resolution that happen after this service returns – see
+`routes_tracks.py`.
+
+Only one download runs at a time (`asyncio.Semaphore(1)`, section 1), so at
+most one `job_id` is ever tracked.
 
 ---
 

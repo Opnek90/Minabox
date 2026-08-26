@@ -5,6 +5,7 @@ option dict from scratch for every call, so no credential, cookie, session or
 key material can reach the extractor through this service.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +25,41 @@ _YT_EXTRACTOR_ARGS: dict[str, Any] = {
     }
 }
 
+# The stage names reported through on_progress / GET /download/progress/{job_id}.
+STAGE_FETCHING_INFO = "fetching_info"
+STAGE_DOWNLOADING = "downloading"
+STAGE_CONVERTING = "converting"
+STAGE_FINALIZING = "finalizing"
+
+OnProgress = Callable[[str, float | None], None]
+
 
 class DownloadError(Exception):
     """Raised when a download or metadata operation fails."""
+
+
+class _YtDlpLogger:
+    """Routes yt-dlp's own text output through structlog.
+
+    Without this, yt-dlp prints its progress bar and any debug/warning text
+    straight to stdout as plain lines, interleaved with this service's own
+    structured JSON log lines - two different formats in the same stream.
+    `noprogress` below silences the (now redundant, see progress_hooks)
+    percentage spam; this catches everything else yt-dlp would otherwise
+    print itself.
+    """
+
+    def debug(self, msg: str) -> None:
+        logger.debug("yt_dlp_message", message=msg)
+
+    def info(self, msg: str) -> None:
+        logger.debug("yt_dlp_message", message=msg)
+
+    def warning(self, msg: str) -> None:
+        logger.warning("yt_dlp_warning", message=msg)
+
+    def error(self, msg: str) -> None:
+        logger.error("yt_dlp_error", message=msg)
 
 
 class MediaDownloader:
@@ -36,14 +69,44 @@ class MediaDownloader:
         self.audio_quality = audio_quality
         self.max_filesize_mb = max_filesize_mb
 
-    def download_video(self, url: str, output_dir: Path) -> dict[str, Any]:
+    def download_video(
+        self, url: str, output_dir: Path, on_progress: OnProgress | None = None
+    ) -> dict[str, Any]:
         """Download audio from *url* as ``audio.mp3`` into *output_dir*.
 
         The caller is responsible for creating an appropriate output_dir
         (e.g. ``tracks/<track_id>/``) so the file layout stays consistent
         with manually uploaded tracks.
+
+        *on_progress*, if given, is called from yt-dlp's own hook threads with
+        a stage name (see the STAGE_* constants) and, while downloading, a
+        percentage - real numbers straight from yt-dlp, not a simulated
+        stepper, so a stalled or restarted download shows up as such.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        def report(stage: str, percent: float | None = None) -> None:
+            if on_progress is not None:
+                on_progress(stage, percent)
+
+        def progress_hook(d: dict[str, Any]) -> None:
+            if d.get("status") != "downloading":
+                return
+            total = d.get("total_bytes") or d.get("total_bytes_estimate")
+            downloaded = d.get("downloaded_bytes")
+            percent = 100.0 * downloaded / total if total and downloaded is not None else None
+            report(STAGE_DOWNLOADING, percent)
+
+        def postprocessor_hook(d: dict[str, Any]) -> None:
+            if d.get("status") != "started":
+                return
+            name = d.get("postprocessor")
+            if name == "FFmpegExtractAudio":
+                report(STAGE_CONVERTING)
+            elif name in ("EmbedThumbnail", "FFmpegMetadata"):
+                report(STAGE_FINALIZING)
+
+        report(STAGE_FETCHING_INFO)
 
         ydl_opts: dict[str, Any] = {
             "format": "bestaudio/best",
@@ -60,8 +123,12 @@ class MediaDownloader:
             "writethumbnail": True,
             "quiet": True,
             "no_warnings": True,
+            "noprogress": True,
+            "logger": _YtDlpLogger(),
             "extractor_args": _YT_EXTRACTOR_ARGS,
             "max_filesize": self.max_filesize_mb * 1024 * 1024,
+            "progress_hooks": [progress_hook],
+            "postprocessor_hooks": [postprocessor_hook],
         }
 
         try:
@@ -117,6 +184,7 @@ class MediaDownloader:
             "skip_download": True,
             "quiet": True,
             "no_warnings": True,
+            "logger": _YtDlpLogger(),
             "extractor_args": _YT_EXTRACTOR_ARGS,
         }
 
