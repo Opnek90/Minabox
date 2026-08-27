@@ -22,6 +22,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.7 - 2026-08-27
+
+#### Improved
+- Optional components not selected during installation (RFID, LEDs, buttons,
+  display, media download) are recognised server-side. Direct calls for them
+  are rejected immediately and clearly instead of failing after a long wait.
+
 ### 0.2.6 - 2026-08-27
 
 #### Added
@@ -197,6 +204,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.21 - 2026-08-27
+
+#### Improved
+- The web interface hides navigation, settings and actions for components
+  that were not selected during installation. An installed component that is
+  currently unreachable stays visible.
 
 ### 0.1.20 - 2026-08-27
 

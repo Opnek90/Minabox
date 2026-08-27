@@ -121,8 +121,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.6",
+      "latest": "0.2.7",
       "releases": [
+        {
+          "version": "0.2.7",
+          "date": "2026-08-27",
+          "notes": {
+            "improved": {
+              "de": [
+                "Optionale Komponenten, die bei der Installation nicht ausgewaehlt wurden (RFID, LEDs, Taster, Display, Medien-Download), werden serverseitig erkannt. Direktaufrufe dafuer werden sofort und eindeutig abgewiesen statt nach langem Warten fehlzuschlagen."
+              ],
+              "en": [
+                "Optional components not selected during installation (RFID, LEDs, buttons, display, media download) are recognised server-side. Direct calls for them are rejected immediately and clearly instead of failing after a long wait."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.6",
           "date": "2026-08-27",
@@ -991,8 +1005,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.20",
+      "latest": "0.1.21",
       "releases": [
+        {
+          "version": "0.1.21",
+          "date": "2026-08-27",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Weboberflaeche blendet Navigation, Einstellungen und Aktionen fuer Komponenten aus, die bei der Installation nicht ausgewaehlt wurden. Eine installierte, aber gerade nicht erreichbare Komponente bleibt sichtbar."
+              ],
+              "en": [
+                "The web interface hides navigation, settings and actions for components that were not selected during installation. An installed component that is currently unreachable stays visible."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.20",
           "date": "2026-08-27",
