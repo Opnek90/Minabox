@@ -18,10 +18,18 @@
  * prüft diese und alle anderen t()-Aufrufe gegen die echten JSON-Keys.
  */
 
+import type { FeatureKey } from '@/api/capabilities';
+
 export interface SettingsSectionMeta {
   key: string;
   titleKey: string;
   searchKeys: string[];
+  /**
+   * Optionale Komponente, an der dieser Abschnitt haengt. Ist sie nicht
+   * installiert, blendet `AdminPage` den Abschnitt (und die leer gewordene
+   * Gruppe) aus und die Suche findet ihn nicht.
+   */
+  requiresFeature?: FeatureKey;
 }
 
 export interface SettingsGroupMeta {
@@ -126,6 +134,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         key: 'media_import_domains',
         titleKey: 'general.media_import_domains_title',
         searchKeys: ['general.media_import_domains_title', 'general.media_import_domains_label'],
+        requiresFeature: 'media_downloader',
       },
       {
         key: 'usb',
@@ -142,21 +151,25 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         key: 'rfid',
         titleKey: 'rfid.title',
         searchKeys: ['rfid.title'],
+        requiresFeature: 'rfid',
       },
       {
         key: 'buttons',
         titleKey: 'buttons.title',
         searchKeys: ['buttons.title', 'buttons.add_button', 'buttons.test_button'],
+        requiresFeature: 'button',
       },
       {
         key: 'leds',
         titleKey: 'leds.title',
         searchKeys: ['leds.title', 'leds.add_led', 'leds.test_led', 'system.stealth_mode'],
+        requiresFeature: 'led',
       },
       {
         key: 'display',
         titleKey: 'display.title',
         searchKeys: ['display.title', 'display.enabled', 'display.brightness', 'display.off_at_night'],
+        requiresFeature: 'display',
       },
     ],
   },

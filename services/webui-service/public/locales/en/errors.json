@@ -42,6 +42,7 @@
   "export_in_progress": "An export is already running - please wait a moment",
   "export_rate_limited": "Please wait a moment before creating another export",
   "factory_reset_failed": "Factory reset failed",
+  "feature_not_installed": "This component is not installed on this box",
   "folder_not_found": "Folder not found",
   "general_settings_write_failed": "Could not save general settings",
   "generic_error": "An error occurred",

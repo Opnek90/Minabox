@@ -30,6 +30,7 @@ import {
   type SettingsGroupMeta, type SettingsSectionMeta,
 } from '@/config/settingsIndex';
 import { useLayout } from '@/hooks/useLayout';
+import { useCapabilities } from '@/contexts/CapabilitiesContext';
 
 /**
  * Formular je Section. Der Zuschnitt der Gruppen/Sections selbst liegt in
@@ -192,16 +193,17 @@ const MobileLayout: React.FC<LayoutProps> = ({
  * Eingabe trifft fast alle Sections, und die gleichzeitig zu mounten würde auf
  * dem Pi elf Panels samt ihrer API-Calls auf einmal starten.
  */
-const SearchResults: React.FC<{ query: string; onSelect: (sectionKey: string) => void }> = ({
-  query,
-  onSelect,
-}) => {
+const SearchResults: React.FC<{
+  query: string;
+  sections: typeof SETTINGS_SECTIONS;
+  onSelect: (sectionKey: string) => void;
+}> = ({ query, sections, onSelect }) => {
   const { t } = useTranslation(['admin', 'setup']);
   const q = query.trim().toLowerCase();
 
   const matches = useMemo(
     () =>
-      SETTINGS_SECTIONS.map((section) => {
+      sections.map((section) => {
         const groupLabel = t(section.groupLabelKey);
         const sectionTitle = t(section.titleKey);
         const matchedFields = section.searchKeys
@@ -211,7 +213,7 @@ const SearchResults: React.FC<{ query: string; onSelect: (sectionKey: string) =>
           groupLabel.toLowerCase().includes(q) || sectionTitle.toLowerCase().includes(q);
         return { section, matchedFields, hit: titleMatch || matchedFields.length > 0 };
       }).filter((m) => m.hit),
-    [q, t]
+    [q, t, sections]
   );
 
   if (matches.length === 0) {
@@ -253,7 +255,35 @@ const SearchResults: React.FC<{ query: string; onSelect: (sectionKey: string) =>
 export const AdminPage: React.FC = () => {
   const { t } = useTranslation(['admin', 'setup']);
   const isMobile = useLayout().isMobile;
+  const { capabilities } = useCapabilities();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Abschnitte, die an einer nicht installierten Komponente haengen, ganz
+  // weglassen - samt der Gruppe, die dadurch leer wird. Gilt fuer Navigation,
+  // Formulare und Suche gleichermassen (eine Quelle).
+  const visibleGroups = useMemo<SettingsGroupMeta[]>(
+    () =>
+      SETTINGS_INDEX.map((group) => ({
+        ...group,
+        sections: group.sections.filter(
+          (section) =>
+            !section.requiresFeature ||
+            capabilities[section.requiresFeature]?.installed !== false,
+        ),
+      })).filter((group) => group.sections.length > 0),
+    [capabilities],
+  );
+  const visibleSections = useMemo(
+    () =>
+      visibleGroups.flatMap((group) =>
+        group.sections.map((section) => ({
+          ...section,
+          groupKey: group.key,
+          groupLabelKey: group.labelKey,
+        })),
+      ),
+    [visibleGroups],
+  );
   const [query, setQuery] = useState('');
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const [highlightedSection, setHighlightedSection] = useState<string | null>(null);
@@ -262,7 +292,7 @@ export const AdminPage: React.FC = () => {
   // Eine Section anspringen: Gruppe öffnen, Suche schließen, hinscrollen und
   // kurz hervorheben. Wird von der Trefferliste und vom Deep-Link genutzt.
   const jumpToSection = useCallback((sectionKey: string) => {
-    const target = SETTINGS_SECTIONS.find((s) => s.key === sectionKey);
+    const target = visibleSections.find((s) => s.key === sectionKey);
     if (!target) return;
     setActiveGroupKey(target.groupKey);
     setQuery('');
@@ -275,7 +305,7 @@ export const AdminPage: React.FC = () => {
       });
     }, 100);
     window.setTimeout(() => setHighlightedSection(null), 2500);
-  }, []);
+  }, [visibleSections]);
 
   // Deep-Link `/admin?section=<key>`, z. B. aus der CommandPalette.
   const deepLinkSection = searchParams.get('section');
@@ -287,7 +317,7 @@ export const AdminPage: React.FC = () => {
   }, [deepLinkSection, jumpToSection, searchParams, setSearchParams]);
 
   const layoutProps: LayoutProps = {
-    groups: SETTINGS_INDEX,
+    groups: visibleGroups,
     activeGroupKey,
     onActiveGroupChange: setActiveGroupKey,
     highlightedSection,
@@ -311,7 +341,7 @@ export const AdminPage: React.FC = () => {
         }}
       />
       {isSearching ? (
-        <SearchResults query={query} onSelect={jumpToSection} />
+        <SearchResults query={query} sections={visibleSections} onSelect={jumpToSection} />
       ) : isMobile ? (
         <MobileLayout {...layoutProps} />
       ) : (

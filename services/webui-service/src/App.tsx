@@ -17,6 +17,7 @@ import { MiniPlayer, MINI_PLAYER_HEIGHT } from '@/components/common/MiniPlayer';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { ConnectionLostScreen } from '@/components/common/ConnectionLostScreen';
 import { RfidScanDrawer } from '@/components/rfid/RfidScanDrawer';
+import { CapabilitiesProvider } from '@/contexts/CapabilitiesContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { UserPrefsProvider } from '@/contexts/UserPrefsContext';
 import { useWebSocket } from '@/contexts/WebSocketContext';
@@ -25,6 +26,7 @@ import type { AudioConfig } from '@/types/api';
 import { useTranslation } from 'react-i18next';
 import { useLayout } from '@/hooks/useLayout';
 import { useSetupStatus } from '@/hooks/useSetupStatus';
+import { useFeatureInstalled } from '@/contexts/CapabilitiesContext';
 
 const PlayerPage = React.lazy(() =>
   import('@/pages/PlayerPage').then((m) => ({ default: m.PlayerPage }))
@@ -127,6 +129,9 @@ const MainLayout: React.FC = () => {
   // auf 220px-Drawer – dazwischen lag kein Zustand fuer Tablet-Breiten.
   const { isMobile, isTablet } = useLayout();
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
+  // Ohne Kartenleser gibt es keine Karten-Seite. Ein Deep-Link darauf landet
+  // beim Player statt auf einer toten Seite.
+  const rfidInstalled = useFeatureInstalled('rfid');
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -237,12 +242,16 @@ const MainLayout: React.FC = () => {
                 <Route
                   path="/rfid"
                   element={
-                    <ProtectedRoute path="/rfid">
-                      <RfidPage
-                        pendingTagId={pendingTagId}
-                        onPendingTagHandled={() => setPendingTagId(null)}
-                      />
-                    </ProtectedRoute>
+                    rfidInstalled ? (
+                      <ProtectedRoute path="/rfid">
+                        <RfidPage
+                          pendingTagId={pendingTagId}
+                          onPendingTagHandled={() => setPendingTagId(null)}
+                        />
+                      </ProtectedRoute>
+                    ) : (
+                      <Navigate to="/player" replace />
+                    )
                   }
                 />
                 <Route
@@ -304,7 +313,14 @@ const App: React.FC = () => (
             </Suspense>
           }
         />
-        <Route path="/*" element={<MainLayout />} />
+        <Route
+          path="/*"
+          element={
+            <CapabilitiesProvider>
+              <MainLayout />
+            </CapabilitiesProvider>
+          }
+        />
       </Routes>
     </UserPrefsProvider>
   </ToastProvider>

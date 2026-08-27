@@ -42,6 +42,7 @@
   "export_in_progress": "Es läuft bereits ein Export – bitte kurz warten",
   "export_rate_limited": "Bitte kurz warten, bevor ein neuer Export erstellt wird",
   "factory_reset_failed": "Zurücksetzen auf Werkseinstellungen fehlgeschlagen",
+  "feature_not_installed": "Diese Komponente ist auf dieser Box nicht installiert",
   "folder_not_found": "Ordner nicht gefunden",
   "general_settings_write_failed": "Allgemeine Einstellungen konnten nicht gespeichert werden",
   "generic_error": "Ein Fehler ist aufgetreten",

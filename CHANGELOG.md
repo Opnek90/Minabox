@@ -23,6 +23,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.7 - 2026-08-27
+
+#### Verbessert
+- Optionale Komponenten, die bei der Installation nicht ausgewaehlt wurden
+  (RFID, LEDs, Taster, Display, Medien-Download), werden serverseitig
+  erkannt. Direktaufrufe dafuer werden sofort und eindeutig abgewiesen statt
+  nach langem Warten fehlzuschlagen.
+
 ### 0.2.6 - 2026-08-27
 
 #### Neu
@@ -207,6 +215,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.21 - 2026-08-27
+
+#### Verbessert
+- Die Weboberflaeche blendet Navigation, Einstellungen und Aktionen fuer
+  Komponenten aus, die bei der Installation nicht ausgewaehlt wurden. Eine
+  installierte, aber gerade nicht erreichbare Komponente bleibt sichtbar.
 
 ### 0.1.20 - 2026-08-27
 

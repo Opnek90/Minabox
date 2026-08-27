@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
+from backend_service.core.capabilities import require_feature
 from backend_service.core.db_manager import get_db
 from backend_service.core.media_settings import is_domain_allowed, read_allowed_domains
 from backend_service.core.uploads import (
@@ -374,6 +375,7 @@ async def validate_media_url(
     Whether the caller is entitled to import the source is a legal question the
     service cannot answer – see the lawful-use notice in the WebUI.
     """
+    require_feature("media_downloader")
     clean_url = _strip_playlist_params(url)
     _check_allowed_domain(clean_url)
     if clean_url != url:
@@ -457,6 +459,8 @@ async def create_track_from_url(
     guard against arbitrary fetch targets – it says nothing about whether the
     caller holds the rights to the individual piece of content.
     """
+    require_feature("media_downloader")
+
     title = title.strip() if title and title.strip() else None
     artist = artist.strip() if artist and artist.strip() else None
     album = album.strip() if album and album.strip() else None
