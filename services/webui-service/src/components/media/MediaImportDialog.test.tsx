@@ -163,11 +163,12 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
       () => expect(screen.getByText(text('media_import.stage_converting'))).toBeInTheDocument(),
       { timeout: 4000 },
     );
-    expect(screen.getByText(text('media_import.stage_finalizing'))).toBeInTheDocument();
+    expect(screen.getByText(text('media_import.stage_embedding_thumbnail'))).toBeInTheDocument();
+    expect(screen.getByText(text('media_import.stage_embedding_metadata'))).toBeInTheDocument();
     expect(screen.getByText(text('media_import.stage_saving'))).toBeInTheDocument();
   }, 8000);
 
-  it('haengt den Prozentsatz an, solange die Stufe "downloading" laeuft', async () => {
+  it('haengt den Prozentsatz und die Geschwindigkeit/ETA an, solange die Stufe "downloading" laeuft', async () => {
     const user = userEvent.setup();
     fromUrl.mockResolvedValue({ track_id: 7, status: 'pending' });
     getDownloadStatus.mockResolvedValue({
@@ -176,6 +177,8 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
       error: null,
       stage: 'downloading',
       percent: 42.3,
+      speed_bytes_per_sec: 1_258_291, // 1.2 MB/s
+      eta_seconds: 5,
     });
     renderDialog();
 
@@ -190,6 +193,10 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
         ).toBeInTheDocument(),
       { timeout: 4000 },
     );
+    // The mocked t() above does plain key lookup, not real interpolation, so
+    // this checks the eta key was used and rendered alongside the speed -
+    // real {{time}} substitution is i18next's own job, not this dialog's.
+    expect(screen.getByText(`1.2 MB/s · ${text('media_import.eta')}`)).toBeInTheDocument();
   }, 8000);
 
   it('verknuepft die Checkbox mit dem Hilfetext, solange nicht bestaetigt ist', async () => {

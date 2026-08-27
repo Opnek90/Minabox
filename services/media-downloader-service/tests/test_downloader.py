@@ -33,7 +33,15 @@ class _FakeYoutubeDL:
     def extract_info(self, url: str, download: bool = True) -> dict:
         if download and type(self).write_mp3:
             for hook in type(self).captured_opts.get("progress_hooks", []):
-                hook({"status": "downloading", "downloaded_bytes": 50, "total_bytes": 100})
+                hook(
+                    {
+                        "status": "downloading",
+                        "downloaded_bytes": 50,
+                        "total_bytes": 100,
+                        "speed": 512_000.0,
+                        "eta": 7,
+                    }
+                )
             # postprocessor names are each PP's pp_key(), not its class name -
             # verified against the installed yt-dlp package. Using the wrong
             # ("FFmpegExtractAudio") name here once let this test pass while
@@ -136,10 +144,10 @@ def test_postprocessor_hook_names_match_the_real_yt_dlp_classes():
         downloader_module.STAGE_CONVERTING
     )
     assert downloader_module.postprocessor_stage_for(EmbedThumbnailPP.pp_key()) == (
-        downloader_module.STAGE_FINALIZING
+        downloader_module.STAGE_EMBEDDING_THUMBNAIL
     )
     assert downloader_module.postprocessor_stage_for(FFmpegMetadataPP.pp_key()) == (
-        downloader_module.STAGE_FINALIZING
+        downloader_module.STAGE_EMBEDDING_METADATA
     )
 
 
@@ -152,8 +160,9 @@ def test_download_video_raises_download_error_when_mp3_missing(tmp_path):
 
 def test_download_video_reports_stages_via_on_progress(tmp_path):
     """fetching_info before extraction starts, then downloading (with a real
-    percent from yt-dlp's own hook data), then converting, then finalizing -
-    in that order, straight from yt-dlp's hooks rather than simulated."""
+    percent/speed/eta from yt-dlp's own hook data), then converting, then the
+    two embedding stages - in that order, straight from yt-dlp's hooks
+    rather than simulated."""
     _FakeYoutubeDL.info = {
         "id": "x",
         "title": "T",
@@ -162,17 +171,17 @@ def test_download_video_reports_stages_via_on_progress(tmp_path):
         "thumbnail": "",
     }
     _FakeYoutubeDL.write_mp3 = True
-    calls: list[tuple[str, float | None]] = []
+    calls: list[downloader_module.ProgressUpdate] = []
 
     MediaDownloader().download_video(
-        "https://example.org/t", tmp_path, on_progress=lambda stage, pct: calls.append((stage, pct))
+        "https://example.org/t", tmp_path, on_progress=calls.append
     )
 
     assert calls == [
-        ("fetching_info", None),
-        ("downloading", 50.0),
-        ("converting", None),
-        ("finalizing", None),
+        downloader_module.ProgressUpdate("fetching_info", None, None, None),
+        downloader_module.ProgressUpdate("downloading", 50.0, 512_000.0, 7),
+        downloader_module.ProgressUpdate("converting", None, None, None),
+        downloader_module.ProgressUpdate("embedding_thumbnail", None, None, None),
     ]
 
 
@@ -193,3 +202,53 @@ def test_embed_thumbnail_fallback_no_sidecar_is_a_noop(tmp_path):
     mp3_path = tmp_path / "audio.mp3"
     mp3_path.write_bytes(b"fake mp3 data")
     assert MediaDownloader()._embed_thumbnail_fallback(mp3_path, tmp_path) is True
+
+
+class _LoggerSpy:
+    """Records logger.debug/.warning calls made through downloader_module.logger.
+
+    Spies directly rather than using structlog.testing.capture_logs():
+    main.py's module-level structlog.configure() sets a filtering bound
+    logger at INFO globally (as soon as anything imports main, including
+    other test modules in the same session), which silently drops the
+    .debug() call before any capturing processor would ever see it - exactly
+    the production behaviour these tests mean to confirm, but it defeats
+    capture_logs().
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.debug_calls: list[tuple] = []
+        self.warning_calls: list[tuple] = []
+        monkeypatch.setattr(downloader_module.logger, "debug", self._record(self.debug_calls))
+        monkeypatch.setattr(downloader_module.logger, "warning", self._record(self.warning_calls))
+
+    @staticmethod
+    def _record(sink: list[tuple]):
+        return lambda *a, **kw: sink.append((a, kw))
+
+
+def test_yt_dlp_logger_downgrades_the_known_sabr_warning(monkeypatch):
+    """The "android client formats skipped" warning fires on every single
+    YouTube import (see _YT_EXTRACTOR_ARGS) and is not actionable - it must
+    not show up as an operator-facing warning."""
+    spy = _LoggerSpy(monkeypatch)
+
+    downloader_module._YtDlpLogger().warning(
+        "[youtube] abc: Some android client https formats have been skipped "
+        "as they are missing a URL. YouTube may have enabled the SABR-only "
+        "streaming experiment for the current session. See "
+        "https://github.com/yt-dlp/yt-dlp/issues/12482 for more details"
+    )
+
+    assert spy.warning_calls == []
+    assert len(spy.debug_calls) == 1
+    assert spy.debug_calls[0][0][0] == "yt_dlp_warning"
+
+
+def test_yt_dlp_logger_keeps_other_warnings_at_warning_level(monkeypatch):
+    spy = _LoggerSpy(monkeypatch)
+
+    downloader_module._YtDlpLogger().warning("some unrelated, real problem")
+
+    assert spy.debug_calls == []
+    assert spy.warning_calls == [(("yt_dlp_warning",), {"text": "some unrelated, real problem"})]

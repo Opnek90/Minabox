@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from media_downloader_service.config import load_config
-from media_downloader_service.downloader import DownloadError, MediaDownloader
+from media_downloader_service.downloader import DownloadError, MediaDownloader, ProgressUpdate
 from media_downloader_service.models import (
     DownloadRequest,
     DownloadResponse,
@@ -53,11 +53,11 @@ _start_time = time.monotonic()
 # serialization.
 _download_semaphore = asyncio.Semaphore(1)
 
-# In-memory stage/percent for a download in flight, keyed by the caller's
-# job_id (the backend uses str(track_id)). Only one download runs at a time
-# (see the semaphore above), so this never holds more than one entry; it is
-# removed as soon as that download finishes, successfully or not.
-_progress: dict[str, tuple[str, float | None]] = {}
+# In-memory progress for a download in flight, keyed by the caller's job_id
+# (the backend uses str(track_id)). Only one download runs at a time (see the
+# semaphore above), so this never holds more than one entry; it is removed as
+# soon as that download finishes, successfully or not.
+_progress: dict[str, ProgressUpdate] = {}
 
 
 def _resolve_output_dir(output_dir: str | None) -> Path:
@@ -129,12 +129,12 @@ async def download_video(request: DownloadRequest) -> DownloadResponse:
     """
     job_id = request.job_id
 
-    def on_progress(stage: str, percent: float | None) -> None:
+    def on_progress(update: ProgressUpdate) -> None:
         # Called from the worker thread running download_video (below), via
         # yt-dlp's own hooks - a plain dict item assignment is safe to make
         # from another thread under the GIL.
         if job_id is not None:
-            _progress[job_id] = (stage, percent)
+            _progress[job_id] = update
 
     try:
         output_dir = _resolve_output_dir(request.output_dir)
@@ -172,8 +172,13 @@ async def get_download_progress(job_id: str) -> ProgressResponse:
     Returns "done" for any job_id not currently tracked - either it finished
     already, or a caller never set job_id on the /download request.
     """
-    stage, percent = _progress.get(job_id, ("done", None))
-    return ProgressResponse(stage=stage, percent=percent)
+    update = _progress.get(job_id, ProgressUpdate(stage="done"))
+    return ProgressResponse(
+        stage=update.stage,
+        percent=update.percent,
+        speed_bytes_per_sec=update.speed_bytes_per_sec,
+        eta_seconds=update.eta_seconds,
+    )
 
 
 @app.get("/info", response_model=VideoInfoResponse)

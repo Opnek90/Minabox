@@ -225,8 +225,10 @@
     "stage_fetching_info": "Reading metadata",
     "stage_downloading": "Downloading video/audio",
     "stage_converting": "Converting to MP3",
-    "stage_finalizing": "Embedding cover and metadata",
+    "stage_embedding_thumbnail": "Embedding cover",
+    "stage_embedding_metadata": "Embedding metadata",
     "stage_saving": "Saving track",
+    "eta": "{{time}} left",
     "success": "\"{{title}}\" imported successfully.",
     "error": "Import failed. Please check the URL and try again."
   },

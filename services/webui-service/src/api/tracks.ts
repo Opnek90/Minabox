@@ -15,10 +15,14 @@ export interface DownloadStatusResponse {
   /** "pending" | "downloading" | "done" | "error" | "unknown" */
   status: string;
   error: string | null;
-  /** "fetching_info" | "downloading" | "converting" | "finalizing" | "saving", while status is "downloading" */
+  /** "fetching_info" | "downloading" | "converting" | "embedding_thumbnail" | "embedding_metadata" | "saving" */
   stage?: string | null;
-  /** 0-100, only meaningful while stage is "downloading" */
+  /** 0-100, only meaningful while stage is "downloading" - yt-dlp reports no percentage for any other stage */
   percent?: number | null;
+  /** bytes/sec, only meaningful while stage is "downloading" */
+  speed_bytes_per_sec?: number | null;
+  /** seconds remaining, only meaningful while stage is "downloading" */
+  eta_seconds?: number | null;
 }
 
 export const trackFoldersApi = {

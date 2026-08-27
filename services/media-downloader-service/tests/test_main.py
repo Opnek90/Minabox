@@ -12,6 +12,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from media_downloader_service import main as main_module
+from media_downloader_service.downloader import ProgressUpdate
 from media_downloader_service.main import app
 
 client = TestClient(app)
@@ -44,7 +45,7 @@ def test_download_accepts_output_dir_inside_audio_volume(monkeypatch, tmp_path):
     def fake_download_video(self, url, output_dir, on_progress=None):
         called["output_dir"] = output_dir
         if on_progress:
-            on_progress("downloading", 50.0)
+            on_progress(ProgressUpdate("downloading", 50.0))
         return {
             "file_path": str(output_dir / "audio.mp3"),
             "title": "T",
@@ -76,7 +77,7 @@ def test_download_progress_reachable_while_job_runs(monkeypatch, tmp_path):
 
     def fake_download_video(self, url, output_dir, on_progress=None):
         if on_progress:
-            on_progress("converting", None)
+            on_progress(ProgressUpdate("converting"))
         seen_mid_flight["progress"] = dict(main_module._progress)
         return {
             "file_path": str(output_dir / "audio.mp3"),
@@ -96,11 +97,16 @@ def test_download_progress_reachable_while_job_runs(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 201
-    assert seen_mid_flight["progress"] == {"42": ("converting", None)}
+    assert seen_mid_flight["progress"] == {"42": ProgressUpdate("converting")}
     assert "42" not in main_module._progress  # cleaned up after the request finished
 
 
 def test_download_progress_unknown_job_reports_done():
     response = client.get("/download/progress/does-not-exist")
     assert response.status_code == 200
-    assert response.json() == {"stage": "done", "percent": None}
+    assert response.json() == {
+        "stage": "done",
+        "percent": None,
+        "speed_bytes_per_sec": None,
+        "eta_seconds": None,
+    }

@@ -44,10 +44,15 @@ class ProgressResponse(BaseModel):
     """Response for GET /download/progress/{job_id}.
 
     stage: one of "fetching_info", "downloading", "converting",
-    "finalizing", "done" - see downloader.py's _STAGE_* callbacks.
-    percent: 0-100 while stage is "downloading"; None otherwise (the other
-    stages have no natural progress fraction to report).
+    "embedding_thumbnail", "embedding_metadata", "done" - see downloader.py's
+    STAGE_* constants.
+    percent, speed_bytes_per_sec, eta_seconds: only meaningful while stage is
+    "downloading" - straight from yt-dlp's own progress_hooks. yt-dlp reports
+    no percentage for any postprocessor, so "converting" and the embedding
+    stages never carry one; there is no number to give.
     """
 
     stage: str
     percent: float | None = None
+    speed_bytes_per_sec: float | None = None
+    eta_seconds: int | None = None

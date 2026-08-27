@@ -139,19 +139,24 @@ def _set_download_status(
                 del _download_status[done_id]
 
 
-def _update_download_stage(track_id: int, stage: str | None, percent: float | None) -> None:
-    """Update only the stage/percent of an in-progress download.
+def _update_download_stage(track_id: int, progress: dict) -> None:
+    """Update only the stage/percent/speed/eta of an in-progress download.
 
-    Called from the progress-polling loop every ~1 second - must not disturb
-    `status`/`error`, and must be a no-op once the entry has moved to a
-    terminal state (the poll loop's last tick can race the task's own final
-    `_set_download_status` call).
+    *progress* is media-downloader-service's GET /download/progress/{job_id}
+    body (or MediaDownloaderClient.get_progress()'s "unknown"-stage fallback
+    on a network hiccup - never raises, so this always has something to
+    read). Called from the progress-polling loop every ~1 second - must not
+    disturb `status`/`error`, and must be a no-op once the entry has moved to
+    a terminal state (the poll loop's last tick can race the task's own
+    final `_set_download_status` call).
     """
     entry = _download_status.get(track_id)
     if entry is None or entry.get("status") != "downloading":
         return
-    entry["stage"] = stage
-    entry["percent"] = percent
+    entry["stage"] = progress.get("stage")
+    entry["percent"] = progress.get("percent")
+    entry["speed_bytes_per_sec"] = progress.get("speed_bytes_per_sec")
+    entry["eta_seconds"] = progress.get("eta_seconds")
 
 
 def _stored_track_dir(track: Track) -> Path | None:
@@ -283,7 +288,7 @@ async def _run_download_task(
             done, _ = await asyncio.wait({download_task}, timeout=1.2)
             if download_task not in done:
                 progress = await client.get_progress(str(track_id))
-                _update_download_stage(track_id, progress.get("stage"), progress.get("percent"))
+                _update_download_stage(track_id, progress)
         result = await download_task
         logger.info("download_task_saving", track_id=track_id)
         _set_download_status(track_id, "downloading", stage="saving")

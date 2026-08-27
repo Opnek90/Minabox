@@ -7,7 +7,7 @@ key material can reach the extractor through this service.
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import structlog
 import yt_dlp
@@ -26,29 +26,56 @@ _YT_EXTRACTOR_ARGS: dict[str, Any] = {
 }
 
 # The stage names reported through on_progress / GET /download/progress/{job_id}.
+# yt-dlp does not report a percentage for any postprocessor (checked against
+# the installed package: no postprocessor.py calls report_progress with a
+# fraction) - "converting" is a real step but can only ever be an indefinite
+# spinner, never a percentage, no matter what this service does.
 STAGE_FETCHING_INFO = "fetching_info"
 STAGE_DOWNLOADING = "downloading"
 STAGE_CONVERTING = "converting"
-STAGE_FINALIZING = "finalizing"
+STAGE_EMBEDDING_THUMBNAIL = "embedding_thumbnail"
+STAGE_EMBEDDING_METADATA = "embedding_metadata"
 
-OnProgress = Callable[[str, float | None], None]
+
+class ProgressUpdate(NamedTuple):
+    stage: str
+    percent: float | None = None
+    speed_bytes_per_sec: float | None = None
+    eta_seconds: int | None = None
+
+
+OnProgress = Callable[[ProgressUpdate], None]
 
 # d["postprocessor"] in a postprocessor_hooks callback is each PP's
 # pp_key(), not its class name - e.g. FFmpegExtractAudioPP reports
 # "ExtractAudio", FFmpegMetadataPP reports "Metadata" (verified against the
 # installed yt-dlp package - see test_postprocessor_hook_names_match_the_
 # real_yt_dlp_classes, which pulls the real values rather than hardcoding a
-# second, previously-wrong, copy of this mapping).
+# second, previously-wrong, copy of this mapping). EmbedThumbnail and
+# Metadata get their own stages, not a merged "finalizing" - yt-dlp already
+# tells them apart, so there is no reason to throw that away.
 _POSTPROCESSOR_STAGES: dict[str, str] = {
     "ExtractAudio": STAGE_CONVERTING,
-    "EmbedThumbnail": STAGE_FINALIZING,
-    "Metadata": STAGE_FINALIZING,
+    "EmbedThumbnail": STAGE_EMBEDDING_THUMBNAIL,
+    "Metadata": STAGE_EMBEDDING_METADATA,
 }
 
 
 def postprocessor_stage_for(pp_key: str) -> str | None:
     """The STAGE_* this service reports for a given postprocessor, or None."""
     return _POSTPROCESSOR_STAGES.get(pp_key)
+
+
+# Known-benign yt-dlp warnings that would otherwise show up as an operator-
+# facing "warning" for every single YouTube import. This one is a side
+# effect of _YT_EXTRACTOR_ARGS trying the "android" client as a fallback for
+# a different, real bug (see the comment there) - YouTube's evolving
+# SABR-only rollout means "android" frequently contributes nothing, and
+# yt-dlp says so, loudly, every time. Downgraded to debug rather than
+# dropped entirely, and matched narrowly (yt-dlp's own tracking issue
+# number) so an unrelated future warning is not silently swallowed by
+# accident.
+_BENIGN_WARNING_MARKERS = ("yt-dlp/yt-dlp/issues/12482",)
 
 
 class DownloadError(Exception):
@@ -82,6 +109,9 @@ class _YtDlpLogger:
         logger.debug("yt_dlp_message", text=msg)
 
     def warning(self, msg: str) -> None:
+        if any(marker in msg for marker in _BENIGN_WARNING_MARKERS):
+            logger.debug("yt_dlp_warning", text=msg)
+            return
         logger.warning("yt_dlp_warning", text=msg)
 
     def error(self, msg: str) -> None:
@@ -105,9 +135,10 @@ class MediaDownloader:
         with manually uploaded tracks.
 
         *on_progress*, if given, is called from yt-dlp's own hook threads with
-        a stage name (see the STAGE_* constants) and, while downloading, a
-        percentage - real numbers straight from yt-dlp, not a simulated
-        stepper, so a stalled or restarted download shows up as such.
+        a ProgressUpdate - stage plus, while downloading, percent/speed/eta.
+        Real numbers straight from yt-dlp, not a simulated stepper, so a
+        stalled or restarted download shows up as such. yt-dlp reports no
+        percentage for any postprocessor, so "converting" never carries one.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -119,19 +150,19 @@ class MediaDownloader:
         last_stage: str | None = None
         last_percent_milestone = -1
 
-        def report(stage: str, percent: float | None = None) -> None:
+        def report(update: ProgressUpdate) -> None:
             nonlocal last_stage, last_percent_milestone
-            if stage != last_stage:
-                last_stage = stage
+            if update.stage != last_stage:
+                last_stage = update.stage
                 last_percent_milestone = -1
-                logger.info("download_stage", stage=stage)
-            elif stage == STAGE_DOWNLOADING and percent is not None:
-                milestone = int(percent // 25) * 25
+                logger.info("download_stage", stage=update.stage)
+            elif update.stage == STAGE_DOWNLOADING and update.percent is not None:
+                milestone = int(update.percent // 25) * 25
                 if milestone > last_percent_milestone:
                     last_percent_milestone = milestone
-                    logger.info("download_stage", stage=stage, percent=milestone)
+                    logger.info("download_stage", stage=update.stage, percent=milestone)
             if on_progress is not None:
-                on_progress(stage, percent)
+                on_progress(update)
 
         def progress_hook(d: dict[str, Any]) -> None:
             if d.get("status") != "downloading":
@@ -139,16 +170,16 @@ class MediaDownloader:
             total = d.get("total_bytes") or d.get("total_bytes_estimate")
             downloaded = d.get("downloaded_bytes")
             percent = 100.0 * downloaded / total if total and downloaded is not None else None
-            report(STAGE_DOWNLOADING, percent)
+            report(ProgressUpdate(STAGE_DOWNLOADING, percent, d.get("speed"), d.get("eta")))
 
         def postprocessor_hook(d: dict[str, Any]) -> None:
             if d.get("status") != "started":
                 return
             stage = postprocessor_stage_for(d.get("postprocessor", ""))
             if stage is not None:
-                report(stage)
+                report(ProgressUpdate(stage))
 
-        report(STAGE_FETCHING_INFO)
+        report(ProgressUpdate(STAGE_FETCHING_INFO))
 
         ydl_opts: dict[str, Any] = {
             "format": "bestaudio/best",
