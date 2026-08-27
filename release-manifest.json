@@ -848,10 +848,10 @@
       ]
     },
     "media-downloader": {
-      "latest": "0.1.4",
+      "latest": "0.2.0",
       "releases": [
         {
-          "version": "0.1.4",
+          "version": "0.2.0",
           "date": "2026-08-27",
           "notes": {
             "added": {
