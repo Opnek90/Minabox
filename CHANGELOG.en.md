@@ -374,7 +374,7 @@ A version without a visible change may stay empty - the interface then says
 
 ## media-downloader
 
-### 0.1.4 - 2026-08-27
+### 0.2.0 - 2026-08-27
 
 #### Added
 - Importing now shows real progress steps (reading metadata, downloading

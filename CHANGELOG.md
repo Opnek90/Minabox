@@ -392,7 +392,7 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## media-downloader
 
-### 0.1.4 - 2026-08-27
+### 0.2.0 - 2026-08-27
 
 #### Neu
 - Der Import zeigt jetzt echte Fortschrittsschritte an (Metadaten lesen,
