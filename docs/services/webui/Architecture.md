@@ -294,6 +294,12 @@ Vollbild-Ansicht für Anzeige/Steuerung (z.B. nur Player oder vereinfachte UI).
 9. **Bluetooth** – `BluetoothSection`: Geräte scannen, paaren, verbinden/trennen, entfernen
 10. **Eltern-Einstellungen** – Daily-Limit (ParentSettingsForm) oder in Dashboard integriert
 
+Die Abschnitte fuer optionale Komponenten (RFID, LEDs, Taster, Display) und der
+Abschnitt „Erlaubte Import-Quellen" erscheinen nur, wenn die Komponente
+installiert ist – gefiltert ueber `settingsIndex.ts` (`requiresFeature`) gegen
+`GET /system/capabilities`. Details:
+[Component-Capabilities.md](Component-Capabilities.md).
+
 #### 4.4.1 System-Status-Tab
 
 **Features:**

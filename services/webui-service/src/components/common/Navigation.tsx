@@ -21,6 +21,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useFeatureInstalled } from '@/contexts/CapabilitiesContext';
 
 const DRAWER_WIDTH = 220;
 /**
@@ -59,6 +60,16 @@ const navItems: NavItem[] = [
   { path: '/admin', labelKey: 'navigation.admin', icon: <SettingsIcon /> },
 ];
 
+/**
+ * `navItems` gefiltert nach installierten Komponenten. Aktuell haengt nur der
+ * Karten-Eintrag (`/rfid`) an einer optionalen Komponente; ohne Leser fuehrt er
+ * nur auf eine Seite, deren Kernfunktionen (Lernmodus, Scan) nichts tun.
+ */
+const useVisibleNavItems = (): NavItem[] => {
+  const rfidInstalled = useFeatureInstalled('rfid');
+  return navItems.filter((item) => item.path !== '/rfid' || rfidInstalled);
+};
+
 interface NavigationProps {
   /**
    * `full` zeigt Icon + Beschriftung nebeneinander (Desktop), `rail` stapelt
@@ -76,6 +87,7 @@ export const Navigation: React.FC<NavigationProps> = ({ variant = 'full' }) => {
   const location = useLocation();
   const isRail = variant === 'rail';
   const width = isRail ? RAIL_WIDTH : DRAWER_WIDTH;
+  const visibleItems = useVisibleNavItems();
 
   return (
     <Drawer
@@ -93,7 +105,7 @@ export const Navigation: React.FC<NavigationProps> = ({ variant = 'full' }) => {
       <Box>
         <Toolbar />
         <List>
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = location.pathname.startsWith(item.path);
             return (
               <ListItem key={item.path} disablePadding sx={isRail ? { justifyContent: 'center' } : undefined}>
@@ -171,7 +183,8 @@ export const MobileBottomNav: React.FC = () => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
   const location = useLocation();
-  const activeIndex = navItems.findIndex((item) => location.pathname.startsWith(item.path));
+  const visibleItems = useVisibleNavItems();
+  const activeIndex = visibleItems.findIndex((item) => location.pathname.startsWith(item.path));
 
   return (
     <Paper
@@ -193,7 +206,7 @@ export const MobileBottomNav: React.FC = () => {
         value={activeIndex === -1 ? false : activeIndex}
         sx={{ height: MOBILE_BOTTOM_NAV_HEIGHT }}
       >
-        {navItems.map((item) => (
+        {visibleItems.map((item) => (
           <BottomNavigationAction
             key={item.path}
             label={t(item.labelKey)}

@@ -34,6 +34,7 @@ import { PageShell } from '@/components/common/PageShell';
 import { SectionTabs } from '@/components/common/SectionTabs';
 import { useToast } from '@/contexts/ToastContext';
 import { useUserPrefs } from '@/contexts/UserPrefsContext';
+import { useFeatureInstalled } from '@/contexts/CapabilitiesContext';
 import { playlistsApi } from '@/api/playlists';
 import { podcastFoldersApi, podcastsApi } from '@/api/podcasts';
 import { streamFoldersApi, streamsApi } from '@/api/streams';
@@ -87,6 +88,7 @@ export const MediaPage: React.FC = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [remoteTrackOpen, setRemoteTrackOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const mediaDownloaderInstalled = useFeatureInstalled('media_downloader');
   const [streamOpen, setStreamOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
   const [playlistCreateOpen, setPlaylistCreateOpen] = useState(false);
@@ -602,15 +604,17 @@ export const MediaPage: React.FC = () => {
       />
       <RemoteTrackDialog open={remoteTrackOpen} onClose={() => setRemoteTrackOpen(false)}
         onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added')); }} />
-      <MediaImportDialog
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onSuccess={(track) => {
-          setTracks((prev) => [...prev, track]);
-          setImportOpen(false);
-          showSuccess(t('tracks.imported'));
-        }}
-      />
+      {mediaDownloaderInstalled && (
+        <MediaImportDialog
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onSuccess={(track) => {
+            setTracks((prev) => [...prev, track]);
+            setImportOpen(false);
+            showSuccess(t('tracks.imported'));
+          }}
+        />
+      )}
       <StreamDialog open={streamOpen} onClose={() => setStreamOpen(false)}
         onSuccess={(stream) => { setStreams((prev) => [...prev, stream]); setStreamOpen(false); showSuccess(t('tracks.stream_added')); }} />
       <PodcastDialog open={podcastOpen} onClose={() => setPodcastOpen(false)}

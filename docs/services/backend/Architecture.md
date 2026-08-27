@@ -258,6 +258,7 @@ is not cut off a minute early.
 | GET | `/health` (root, outside `/api/v1`) | Liveness for the container health check |
 | GET | `/system/health` | Health with DB and MQTT state |
 | GET | `/system/status` | One entry per container: state, version, CPU, RAM, database schema state |
+| GET | `/system/capabilities` | Per optional component (rfid, led, button, display, media_downloader): installed / running / healthy — see [webui/Component-Capabilities.md](../webui/Component-Capabilities.md) |
 | GET | `/system/logs?service=&tail=` | Container logs (host-helper, then Docker, then file) |
 | GET | `/system/update-check?force=` | Running versions against the release manifest |
 | GET | `/system/alerts` | All active system alerts, most severe first |

@@ -33,6 +33,7 @@ import { podcastsApi } from '@/api/podcasts';
 import { SETTINGS_SECTIONS } from '@/config/settingsIndex';
 import type { Playlist, Podcast, Stream, Track } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
+import { useCapabilities } from '@/contexts/CapabilitiesContext';
 
 type CommandGroup =
   | 'navigation' | 'playback' | 'sleep_timer' | 'settings'
@@ -60,6 +61,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
   const { t } = useTranslation('common');
   const { t: tAdmin } = useTranslation(['admin', 'setup']);
   const fullScreen = useLayout().isMobile;
+  const { capabilities } = useCapabilities();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
@@ -125,7 +127,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
   // ohne dass man weiß, in welcher Gruppe sie liegt.
   const settingsCommands: CommandItem[] = useMemo(
     () =>
-      SETTINGS_SECTIONS.map((section) => ({
+      SETTINGS_SECTIONS.filter(
+        (section) =>
+          !section.requiresFeature ||
+          capabilities[section.requiresFeature]?.installed !== false,
+      ).map((section) => ({
         id: `settings-${section.key}`,
         group: 'settings' as CommandGroup,
         label: tAdmin(section.titleKey),
@@ -134,7 +140,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
         keywords: section.searchKeys.map((key) => tAdmin(key)),
         run: () => navigate(`/admin?section=${section.key}`),
       })),
-    [tAdmin, navigate]
+    [tAdmin, navigate, capabilities]
   );
 
   const mediaCommands: CommandItem[] = useMemo(() => [

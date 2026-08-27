@@ -18,6 +18,7 @@ import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
+import { useFeatureInstalled } from '@/contexts/CapabilitiesContext';
 import { useLayout } from '@/hooks/useLayout';
 import { MINI_PLAYER_HEIGHT } from '@/components/common/MiniPlayer';
 import { MOBILE_BOTTOM_NAV_HEIGHT, SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
@@ -64,6 +65,10 @@ export const MediaFab: React.FC<MediaFabProps> = ({
   const isMiniPlayerVisible =
     audioStatus !== null && audioStatus.state !== 'stopped';
 
+  // „Von URL importieren" laedt ueber den Media-Downloader herunter. Ohne die
+  // Komponente faellt die Aktion weg; „Remote-Track" (Stream-URL) bleibt.
+  const mediaDownloaderInstalled = useFeatureInstalled('media_downloader');
+
   // Shift the FAB above the MiniPlayer bar (if visible) and the mobile
   // BottomNavigation (always present on mobile, MediaPage has no /player route)
   const fabBottomPx =
@@ -85,7 +90,9 @@ export const MediaFab: React.FC<MediaFabProps> = ({
     1: [
       { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new'), onClick: onCreateFolder },
       { icon: <LinkIcon fontSize="small" />, name: t('tracks.add_remote'), onClick: onRemoteTrack },
-      { icon: <DownloadIcon fontSize="small" />, name: t('tracks.import_from_url'), onClick: onImport },
+      ...(mediaDownloaderInstalled
+        ? [{ icon: <DownloadIcon fontSize="small" />, name: t('tracks.import_from_url'), onClick: onImport }]
+        : []),
       { icon: <CloudUploadIcon fontSize="small" />, name: t('tracks.upload'), onClick: onUpload },
     ],
     2: [
