@@ -208,6 +208,19 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.1.20 - 2026-08-27
+
+#### Behoben
+- Im Medien-Bereich wurde eine Aktion im Plus-Menue beim Ueberfahren mit der
+  Maus durchsichtig, sodass Bedienelemente der Liste dahinter durchschienen.
+- Nach einem Update ueber die Weboberflaeche erschien die Meldung
+  "Aktualisierung gestartet" nach dem Neustart wiederholt statt nur einmal.
+
+#### Verbessert
+- Die Einstellungen haben einen eigenen Bereich "Medien" (Musik-Ordner,
+  Upload-Limit, erlaubte Import-Quellen, USB-Uebertragung); "Wartung"
+  enthaelt nur noch Updates, Sicherung und den Ersteinrichtungs-Assistenten.
+
 ### 0.1.19 - 2026-08-27
 
 #### Neu
