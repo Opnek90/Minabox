@@ -23,6 +23,17 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.6 - 2026-08-27
+
+#### Neu
+- Die erlaubten Quellen fuer den Medien-Import sind jetzt in der
+  Weboberflaeche einstellbar (Admin -> Allgemein -> Medien-Import). YouTube
+  ist im Standard nicht mehr enthalten.
+
+#### Verbessert
+- Eine erlaubte Domain wie "bandcamp.com" deckt jetzt automatisch auch
+  "www.bandcamp.com" ab, statt nur die exakt eingetragene Schreibweise.
+
 ### 0.2.5 - 2026-08-26
 
 #### Neu
@@ -197,6 +208,16 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.1.19 - 2026-08-27
+
+#### Neu
+- Der Dialog fuer den Medien-Import zeigt beim Import jetzt die einzelnen
+  Schritte an (Metadaten lesen, Herunterladen mit Geschwindigkeit und
+  Restzeit, Umwandeln, Cover/Metadaten einbetten, Speichern) statt eines
+  einzelnen Ladebalkens.
+- Neue Einstellung unter Admin -> Allgemein: erlaubte Domains fuer den
+  Medien-Import.
+
 ### 0.1.18 - 2026-08-26
 
 #### Neu
@@ -370,6 +391,24 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## media-downloader
+
+### 0.1.4 - 2026-08-27
+
+#### Neu
+- Der Import zeigt jetzt echte Fortschrittsschritte an (Metadaten lesen,
+  Herunterladen mit Geschwindigkeit und Restzeit, Umwandeln, Cover und
+  Metadaten einbetten, Speichern) statt eines einzelnen Ladebalkens.
+
+#### Verbessert
+- Ein Import hat jetzt eine Obergrenze fuer die Dateigroesse (Standard
+  200 MB).
+
+#### Behoben
+- Ein laengerer Import konnte den Dienst so lange blockieren, dass der
+  eigene Gesundheitscheck fehlschlug und der Import mitten drin abgebrochen
+  wurde.
+- Ein Import ohne bekannte Laufzeit (z. B. ein Livestream) schlug mit einem
+  unklaren Fehler fehl statt mit einer verstaendlichen Meldung.
 
 ### 0.1.3 - 2026-08-26
 
