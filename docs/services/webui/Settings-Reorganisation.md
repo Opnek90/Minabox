@@ -54,18 +54,21 @@ Zweite Leitlinie: **Bezeichnungen in Alltagssprache.** Fachbegriffe nur, wo es k
 
 ## 4. Einstellungen (`/admin`)
 
-Acht Gruppen, absteigend nach Alltagsrelevanz. Auf dem Mobilgerät ist jede Gruppe eine Accordion-Zeile – eine Liste aus acht verständlichen Wörtern statt einer Formularwand.
+Neun Gruppen, absteigend nach Alltagsrelevanz. Auf dem Mobilgerät ist jede Gruppe eine Accordion-Zeile – eine Liste aus verständlichen Wörtern statt einer Formularwand.
 
 | Gruppe | Sections | Inhalt |
 |---|---|---|
 | **Abspielen** | Beim Auflegen einer Karte · Einschlafen | Verhalten beim Abnehmen/erneuten Auflegen, Verhalten am Ende des Inhalts samt Schleifen-Sperre · Einschlaf-Timer |
 | **Ton** | Lautsprecher & Kopfhörer | Ausgabegerät, Bluetooth, Ein-/Ausblenden |
 | **Aussehen** | Sprache & Farben | Sprache, Hell/Dunkel, Akzentfarbe, eigenes Logo |
+| **Medien** | Musik-Ordner · Upload-Limit · Erlaubte Import-Quellen · Vom USB-Stick übertragen | Speicherort der Musik, maximale Upload-Größe, Domain-Allowlist für den URL-Import, USB-Import |
 | **Angeschlossene Geräte** | Kartenleser · Knöpfe & Drehregler · Lichter · Display am Gerät | RFID-Leser, GPIO-Knöpfe, LEDs inkl. Status-Lichter des Pi, OLED |
 | **Netzwerk** | WLAN & Adresse | WLAN, Hotspot, Gerätename, DHCP/feste IP |
-| **Wartung** | Musik-Ordner · Vom USB-Stick übertragen · Updates & Sicherung | Speicherort der Musik, USB-Import, Updates, Backup, Neustart, Zurücksetzen |
+| **Wartung** | Updates & Sicherung · Ersteinrichtungs-Assistent | Updates, Backup, Aufräumen, Neustart, Zurücksetzen · Onboarding erneut durchlaufen |
 | **Sicherheit** | Passwörter & Zugriff | SSH, System-Passwort, geschützte Bereiche |
 | **Technische Details** | Erweiterte Einstellungen · Status & Protokolle | Geräte-ID, Log-Level, MQTT · Host-Status, Container, Syslog |
+
+**Nachtrag 2026-08-27 – „Medien" als eigene Gruppe (Issue #133).** Upload-Limit und die Domain-Allowlist für den URL-Import kamen nachträglich dazu und wurden mangels besserem Ort unter „Wartung" abgelegt, wo sie – neben Musik-Ordner und USB-Import – einen faktischen Medien-Block bildeten, den die Überschrift „Wartung" verdeckte. Die vier Sections bilden jetzt die Gruppe „Medien" (zwischen „Aussehen" und „Angeschlossene Geräte"). „Wartung" enthält nur noch echte Wartung; der ebenfalls nachträglich unter „Technische Details" gelandete Neustart des Ersteinrichtungs-Assistenten sitzt jetzt dort neben Sicherung und Werksreset. Reiner `settingsIndex.ts`-Zuschnitt plus ein neuer Gruppen-Key/-Icon, keine Komponenten berührt.
 
 ### Komponenten-Zuschnitt
 

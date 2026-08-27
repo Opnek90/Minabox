@@ -1,6 +1,7 @@
 import React from 'react';
 import BuildIcon from '@mui/icons-material/Build';
 import CableIcon from '@mui/icons-material/Cable';
+import LibraryMusicIcon from '@mui/icons-material/LibraryMusic';
 import LockIcon from '@mui/icons-material/Lock';
 import PaletteIcon from '@mui/icons-material/Palette';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
@@ -20,6 +21,7 @@ export const SETTINGS_GROUP_ICONS: Record<string, React.ReactNode> = {
   playback: <PlayCircleOutlineIcon />,
   sound: <VolumeUpIcon />,
   appearance: <PaletteIcon />,
+  media: <LibraryMusicIcon />,
   devices: <CableIcon />,
   network: <WifiIcon />,
   maintenance: <BuildIcon />,
