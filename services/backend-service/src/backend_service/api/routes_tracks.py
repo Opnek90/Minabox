@@ -285,6 +285,7 @@ async def _run_download_task(
                 progress = await client.get_progress(str(track_id))
                 _update_download_stage(track_id, progress.get("stage"), progress.get("percent"))
         result = await download_task
+        logger.info("download_task_saving", track_id=track_id)
         _set_download_status(track_id, "downloading", stage="saving")
 
         mp3_path = Path(result["file_path"])

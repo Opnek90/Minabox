@@ -34,8 +34,12 @@ class _FakeYoutubeDL:
         if download and type(self).write_mp3:
             for hook in type(self).captured_opts.get("progress_hooks", []):
                 hook({"status": "downloading", "downloaded_bytes": 50, "total_bytes": 100})
+            # postprocessor names are each PP's pp_key(), not its class name -
+            # verified against the installed yt-dlp package. Using the wrong
+            # ("FFmpegExtractAudio") name here once let this test pass while
+            # the real code silently never reported "converting".
             for hook in type(self).captured_opts.get("postprocessor_hooks", []):
-                hook({"status": "started", "postprocessor": "FFmpegExtractAudio"})
+                hook({"status": "started", "postprocessor": "ExtractAudio"})
                 hook({"status": "started", "postprocessor": "EmbedThumbnail"})
             mp3_path = Path(type(self).captured_opts["outtmpl"].replace("%(ext)s", "mp3"))
             mp3_path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,6 +121,26 @@ def test_download_video_falls_back_to_top_level_thumbnail(tmp_path):
     _FakeYoutubeDL.write_mp3 = True
     result = MediaDownloader().download_video("https://example.org/t", tmp_path)
     assert result["thumbnail"] == "fallback.jpg"
+
+
+def test_postprocessor_hook_names_match_the_real_yt_dlp_classes():
+    """downloader.py compares d["postprocessor"] against literal strings.
+    yt-dlp reports each PP's pp_key(), not its class name - e.g.
+    FFmpegExtractAudioPP reports "ExtractAudio". Pulling the real values from
+    the installed package, rather than hardcoding them a second time, is the
+    whole point: a hardcoded pair here once matched a hardcoded-but-wrong pair
+    in downloader.py and both passed."""
+    from yt_dlp.postprocessor import EmbedThumbnailPP, FFmpegExtractAudioPP, FFmpegMetadataPP
+
+    assert downloader_module.postprocessor_stage_for(FFmpegExtractAudioPP.pp_key()) == (
+        downloader_module.STAGE_CONVERTING
+    )
+    assert downloader_module.postprocessor_stage_for(EmbedThumbnailPP.pp_key()) == (
+        downloader_module.STAGE_FINALIZING
+    )
+    assert downloader_module.postprocessor_stage_for(FFmpegMetadataPP.pp_key()) == (
+        downloader_module.STAGE_FINALIZING
+    )
 
 
 def test_download_video_raises_download_error_when_mp3_missing(tmp_path):

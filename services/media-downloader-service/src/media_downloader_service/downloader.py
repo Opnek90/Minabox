@@ -33,6 +33,23 @@ STAGE_FINALIZING = "finalizing"
 
 OnProgress = Callable[[str, float | None], None]
 
+# d["postprocessor"] in a postprocessor_hooks callback is each PP's
+# pp_key(), not its class name - e.g. FFmpegExtractAudioPP reports
+# "ExtractAudio", FFmpegMetadataPP reports "Metadata" (verified against the
+# installed yt-dlp package - see test_postprocessor_hook_names_match_the_
+# real_yt_dlp_classes, which pulls the real values rather than hardcoding a
+# second, previously-wrong, copy of this mapping).
+_POSTPROCESSOR_STAGES: dict[str, str] = {
+    "ExtractAudio": STAGE_CONVERTING,
+    "EmbedThumbnail": STAGE_FINALIZING,
+    "Metadata": STAGE_FINALIZING,
+}
+
+
+def postprocessor_stage_for(pp_key: str) -> str | None:
+    """The STAGE_* this service reports for a given postprocessor, or None."""
+    return _POSTPROCESSOR_STAGES.get(pp_key)
+
 
 class DownloadError(Exception):
     """Raised when a download or metadata operation fails."""
@@ -47,19 +64,28 @@ class _YtDlpLogger:
     `noprogress` below silences the (now redundant, see progress_hooks)
     percentage spam; this catches everything else yt-dlp would otherwise
     print itself.
+
+    The extra field is named "text", not "message": the WebUI's log viewer
+    (ServiceLogsModal.tsx) treats "message"/"msg" as alternate spellings of
+    "event" and drops them from the displayed data, on the assumption that
+    every other structlog call in this codebase puts the actual content in
+    the event itself (e.g. logger.warning("api_domain_not_allowed",
+    hostname=...)) rather than behind a generic event name plus a duplicate
+    "message" field - which is what this class did at first, and which made
+    every yt-dlp warning show up with nothing in its data column.
     """
 
     def debug(self, msg: str) -> None:
-        logger.debug("yt_dlp_message", message=msg)
+        logger.debug("yt_dlp_message", text=msg)
 
     def info(self, msg: str) -> None:
-        logger.debug("yt_dlp_message", message=msg)
+        logger.debug("yt_dlp_message", text=msg)
 
     def warning(self, msg: str) -> None:
-        logger.warning("yt_dlp_warning", message=msg)
+        logger.warning("yt_dlp_warning", text=msg)
 
     def error(self, msg: str) -> None:
-        logger.error("yt_dlp_error", message=msg)
+        logger.error("yt_dlp_error", text=msg)
 
 
 class MediaDownloader:
@@ -85,7 +111,25 @@ class MediaDownloader:
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Stage transitions and, while downloading, 25% milestones go to the
+        # log too - not just on_progress()/the polling endpoint - so someone
+        # watching the log (rather than the WebUI) can also see what a
+        # multi-minute import is doing instead of silence between
+        # yt_dlp_warning lines and the final download_complete.
+        last_stage: str | None = None
+        last_percent_milestone = -1
+
         def report(stage: str, percent: float | None = None) -> None:
+            nonlocal last_stage, last_percent_milestone
+            if stage != last_stage:
+                last_stage = stage
+                last_percent_milestone = -1
+                logger.info("download_stage", stage=stage)
+            elif stage == STAGE_DOWNLOADING and percent is not None:
+                milestone = int(percent // 25) * 25
+                if milestone > last_percent_milestone:
+                    last_percent_milestone = milestone
+                    logger.info("download_stage", stage=stage, percent=milestone)
             if on_progress is not None:
                 on_progress(stage, percent)
 
@@ -100,11 +144,9 @@ class MediaDownloader:
         def postprocessor_hook(d: dict[str, Any]) -> None:
             if d.get("status") != "started":
                 return
-            name = d.get("postprocessor")
-            if name == "FFmpegExtractAudio":
-                report(STAGE_CONVERTING)
-            elif name in ("EmbedThumbnail", "FFmpegMetadata"):
-                report(STAGE_FINALIZING)
+            stage = postprocessor_stage_for(d.get("postprocessor", ""))
+            if stage is not None:
+                report(stage)
 
         report(STAGE_FETCHING_INFO)
 
