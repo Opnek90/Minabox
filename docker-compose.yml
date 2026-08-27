@@ -498,10 +498,10 @@ services:
   # ============================================================
   # Media-Downloader Service
   # ------------------------------------------------------------
-  # Importiert die Tonspur einer URL in die lokale Bibliothek.
-  # ALLOWED_DOMAINS ist ein technischer Schutz vor beliebigen
-  # Abrufzielen, keine rechtliche Freigabe der dort liegenden
-  # Inhalte - zur zulaessigen Nutzung siehe README.md.
+  # Imports the audio track of a URL into the local library. The domain
+  # allow-list lives in the backend (Admin UI -> General -> media import),
+  # not here - it is a technical guard against arbitrary fetch targets, not
+  # a legal clearance of the content hosted there. See README.md.
   # ============================================================
   media-downloader:
     profiles: ["media"]
@@ -520,9 +520,8 @@ services:
       - "127.0.0.1:8007:8007"
     environment:
       - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
-      - DOWNLOAD_PATH=/mnt/audio/tracks
+      - AUDIO_TRACKS_DIR=/mnt/audio/tracks
       - MAX_FILESIZE_MB=${MEDIA_DOWNLOADER_MAX_FILESIZE_MB:-200}
-      - ALLOWED_DOMAINS=${MEDIA_DOWNLOADER_ALLOWED_DOMAINS:-youtube.com,youtu.be,soundcloud.com,bandcamp.com,vimeo.com}
     volumes:
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio
     networks:

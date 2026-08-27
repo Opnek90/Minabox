@@ -3,6 +3,7 @@ export { RFIDConfigForm } from './RFIDConfigForm';
 export { PlaybackSettingsForm } from './PlaybackSettingsForm';
 export { SleepTimerSettingsForm } from './SleepTimerSettingsForm';
 export { DesignSettingsForm } from './DesignSettingsForm';
+export { MediaImportDomainsForm } from './MediaImportDomainsForm';
 export { MediaPathForm } from './MediaPathForm';
 export { UploadLimitForm } from './UploadLimitForm';
 export { AdvancedSettingsForm } from './AdvancedSettingsForm';

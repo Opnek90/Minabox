@@ -8,6 +8,7 @@ class DownloadRequest(BaseModel):
 
     url: str
     output_dir: str | None = None  # optional: absolute path inside the container
+    job_id: str | None = None  # optional: correlation id for GET /download/progress/{job_id}
 
     @field_validator("url")
     @classmethod
@@ -37,3 +38,21 @@ class DownloadResponse(BaseModel):
     duration_ms: int
     video_id: str
     thumbnail_embedded: bool
+
+
+class ProgressResponse(BaseModel):
+    """Response for GET /download/progress/{job_id}.
+
+    stage: one of "fetching_info", "downloading", "converting",
+    "embedding_thumbnail", "embedding_metadata", "done" - see downloader.py's
+    STAGE_* constants.
+    percent, speed_bytes_per_sec, eta_seconds: only meaningful while stage is
+    "downloading" - straight from yt-dlp's own progress_hooks. yt-dlp reports
+    no percentage for any postprocessor, so "converting" and the embedding
+    stages never carry one; there is no number to give.
+    """
+
+    stage: str
+    percent: float | None = None
+    speed_bytes_per_sec: float | None = None
+    eta_seconds: int | None = None

@@ -1,212 +1,304 @@
-# Media-Downloader-Service – Architecture
+# Media Downloader Service – Architecture
 
-## 1. Zweck & Verantwortung
+## 1. Purpose & Responsibility
 
-Der Media-Downloader-Service ist ein eigenständiger Microservice für den lokalen Medienimport: Er
-liest die Tonspur einer übergebenen Medien-URL, konvertiert sie in eine MP3-Datei und legt sie im
-gemeinsamen Audio-Storage ab. Er wird ausschließlich über das Backend aufgerufen – der WebUI-Client
-spricht nie direkt mit ihm.
+The media downloader service is a standalone microservice for local media
+import: it reads the audio track of a given media URL, converts it to an MP3
+file, and stores it in the shared audio storage. It is called exclusively by
+the backend – the WebUI client never talks to it directly.
 
-**Ziele:**
+**Goals:**
 
-- Bereitstellung einer einfachen REST-API für das Backend (`/validate-url`, `/download`)
-- Isolation der Lese-/Konvertierungs-Werkzeuge (yt-dlp, ffmpeg) in einem eigenen Container
-- Schutz vor missbräuchlicher Nutzung (Domain-Whitelist, Dateigrößen-Limit)
-- Asynchrone Verarbeitung mit Timeout-Handling
-- Retry-Logik bei transienten Fehlern
+- A simple REST API for the backend (`GET /info`, `POST /download`)
+- Isolating the read/convert tooling (yt-dlp, ffmpeg) in its own container
+- No support for credentials, cookies, sessions or decryption key material –
+  and therefore no built-in way to bypass access or protection mechanisms
+  (see section 8)
 
-**Nicht-Ziele:**
-
-- Keine MQTT-Kommunikation
-- Keine Datenbank
-- Keine direkte Kommunikation mit dem WebUI
-- Keine Unterstützung für Zugangsdaten, Cookies, Sessions oder Schlüsselmaterial – und damit keine
-  Funktion zum Umgehen von Zugangs- oder Schutzmechanismen (siehe Abschnitt 8)
+The service does not use MQTT and has no database, deliberately, so it stays
+easy to extract as a standalone Python package later. The actual `yt-dlp`/
+`ffmpeg` work runs via `asyncio.to_thread`, one download at a time
+(`asyncio.Semaphore(1)`) – ffmpeg is CPU-heavy and this runs on a Raspberry
+Pi, so a second concurrent conversion would fight the first for the same
+cores rather than genuinely run in parallel. This also keeps `GET /health`
+answering while a download is in progress – see the
+[Go-Live review](GoLive-Review.md#1-functional-defects) for what it looked
+like before.
 
 ---
 
-## 2. Technologie-Stack
+## 2. Technology Stack
 
-| Komponente | Technologie |
+| Component | Technology |
 |---|---|
-| Laufzeit | Python 3.12 |
-| Web-Framework | FastAPI + Uvicorn |
-| Downloader | yt-dlp (regelmäßig aktualisiert) |
-| Konvertierung | ffmpeg (Alpine-Paket) |
-| Container | Docker (Alpine-basiert) |
+| Runtime | Python 3.13 |
+| Web framework | FastAPI + Uvicorn |
+| Downloader | yt-dlp (updated frequently) |
+| Conversion | ffmpeg (Debian package) |
+| Container | Docker, `python:3.13-slim` (Debian), multi-stage build |
 
 ---
 
-## 3. API-Endpunkte
+## 3. API Endpoints
+
+Two different services expose endpoints in this flow. The table below is the
+media downloader's own API – the one this document describes. The backend's
+public API (`GET /api/v1/tracks/validate-url`, `POST /api/v1/tracks/from-url`)
+is a separate, thin proxy documented in `backend-service`.
 
 ### `GET /health`
 
-Healthcheck für Docker.
+Docker health check.
 
-**Response:** `{"status": "ok"}`
+**Response:** `{"status": "healthy", "service": "media-downloader-service", "version": "...", "uptime_seconds": ...}`
 
 ---
 
-### `GET /validate-url?url=<url>`
+### `GET /info?url=<url>`
 
-Prüft eine URL und gibt Metadaten zurück, ohne den Import zu starten.
+Reads the media metadata without starting an import.
 
-**Query-Parameter:**
-
-| Parameter | Pflicht | Beschreibung |
+| Parameter | Required | Description |
 |---|---|---|
-| `url` | ✓ | Die zu prüfende Medien-URL |
+| `url` | ✓ | The media URL to inspect |
 
 **Response (200):**
 
 ```json
 {
-  "valid": true,
   "title": "Beethoven Symphony No. 5",
   "artist": "Berlin Philharmonic",
   "duration_ms": 1980000,
-  "thumbnail_url": "https://example.org/media/cover.jpg",
+  "thumbnail": "https://example.org/media/cover.jpg",
   "video_id": "abc123"
 }
 ```
 
-**Fehler:**
+**Errors:**
 
-- `400` – Domain nicht auf Whitelist
-- `422` – URL ungültig oder Medium nicht lesbar
+- `422` – URL invalid or the media could not be read
 
 ---
 
-### `POST /download?url=<url>`
+### `POST /download`
 
-Liest das Medium, legt die Tonspur als MP3 unter
-`DOWNLOAD_PATH/<sanitized_title>.mp3` ab und gibt die Metadaten zurück.
+Reads the media, stores the audio track as `audio.mp3` under the given
+`output_dir` (or `AUDIO_TRACKS_DIR` if omitted), and returns its metadata.
 
-**Query-Parameter:**
+**Request body:**
 
-| Parameter | Pflicht | Beschreibung |
-|---|---|---|
-| `url` | ✓ | Die zu importierende Medien-URL |
+```json
+{ "url": "https://example.org/media", "output_dir": "/mnt/audio/tracks/42", "job_id": "42" }
+```
+
+`job_id` is optional. If given, `GET /download/progress/{job_id}` can be
+polled on a separate connection while this request is in flight – see below.
+
+**Response (201):**
+
+```json
+{
+  "file_path": "/mnt/audio/tracks/42/audio.mp3",
+  "title": "Beethoven Symphony No. 5",
+  "artist": "Berlin Philharmonic",
+  "album": "Downloads",
+  "duration_ms": 1980000,
+  "video_id": "abc123",
+  "thumbnail_embedded": true
+}
+```
+
+**Errors:**
+
+- `422` – import failed (`DOWNLOAD_FAILED`)
+
+The domain allow-list is enforced by the backend, before it ever calls this
+service – see section 8. The file size limit (`max_filesize`, from
+`MAX_FILESIZE_MB`) is enforced here, inside the `yt-dlp` call itself.
+
+> `video_id` is the identifier assigned by the source. The field name is from
+> the first version of the API and stays for compatibility.
+
+---
+
+### `GET /download/progress/{job_id}`
+
+Reports the stage of a download started with a matching `job_id`, straight
+from `yt-dlp`'s own `progress_hooks`/`postprocessor_hooks` – not a simulated
+timer, so a stalled or restarted download shows up as such.
 
 **Response (200):**
 
 ```json
-{
-  "filename": "beethoven_symphony_5.mp3",
-  "path": "/mnt/audio/tracks/beethoven_symphony_5.mp3",
-  "title": "Beethoven Symphony No. 5",
-  "artist": "Berlin Philharmonic",
-  "duration_ms": 1980000,
-  "thumbnail_url": "https://example.org/media/cover.jpg"
-}
+{ "stage": "downloading", "percent": 42.3 }
 ```
 
-**Fehler:**
+`stage` is one of `fetching_info`, `downloading`, `converting`,
+`finalizing`, or `done` (reported for any `job_id` not currently tracked –
+either it finished already, or the `/download` request never set one).
+`percent` is only meaningful while `stage` is `downloading`; `null`
+otherwise. The backend adds one more stage of its own, `saving`, for the DB
+write and cover-art resolution that happen after this service returns – see
+`routes_tracks.py`.
 
-- `400` – Domain nicht auf Whitelist
-- `413` – Datei überschreitet `MAX_FILESIZE_MB`
-- `422` – Import fehlgeschlagen
-- `504` – Timeout
-
----
-
-## 4. Retry-Logik
-
-Der Backend-seitige `MediaDownloaderClient` implementiert eine automatische Retry-Logik für beide Endpoints (`/download` und `/info`):
-
-- **Max. Versuche:** 3 (`_MAX_RETRIES = 3`)
-- **Backoff:** linear – `2 * attempt` Sekunden zwischen den Versuchen (2 s, 4 s)
-- **Retryable Fehler:** HTTP 5xx, `httpx.TimeoutException`, `httpx.RequestError`
-- **Nicht retryable:** HTTP 4xx (z. B. ungültige URL, Domain-Whitelist) – sofortiger Abbruch
-- **Logging:** Jeder Retry-Versuch wird mit `structlog` als Warning geloggt (`media_downloader_download_5xx_retry`, `media_downloader_download_transient_retry`)
-
-Die Logik liegt in `services/backend-service/src/backend_service/infrastructure/media_downloader_client.py`.
+Only one download runs at a time (`asyncio.Semaphore(1)`, section 1), so at
+most one `job_id` is ever tracked.
 
 ---
 
-## 5. Cover-Art-Download (Fallback)
+## 4. Retry Logic
 
-Nach einem erfolgreichen Download versucht das Backend, ein Cover-Bild für den Track zu ermitteln.
-Die Logik liegt in `services/backend-service/src/backend_service/api/routes_tracks.py`:
+The backend's `MediaDownloaderClient` implements automatic retries for both
+endpoints (`/download` and `/info`):
 
-1. **Primär – eingebettetes Cover:** `_extract_cover_art()` liest mit `mutagen` eingebettete APIC-Frames (MP3/ID3) oder `pictures` (FLAC/OGG) aus der heruntergeladenen MP3-Datei.
-2. **Fallback – Remote-Thumbnail:** Ist kein eingebettetes Cover vorhanden, lädt `_download_thumbnail()` die `thumbnail`-URL aus dem yt-dlp-Ergebnis asynchron via `httpx` herunter.
-3. Das Cover wird unter `STATIC_DIR/covers/track_{id}.jpg|.png` gespeichert und als `/static/covers/track_{id}.jpg|.png` in `cover_art_url` des Track-DB-Eintrags geschrieben.
+- **Max. attempts:** 3 (`_MAX_RETRIES = 3`)
+- **Backoff:** linear – `2 * attempt` seconds between attempts (2 s, 4 s)
+- **Retryable errors:** HTTP 5xx, `httpx.TimeoutException`, `httpx.RequestError`
+- **Not retryable:** HTTP 4xx (e.g. invalid URL) – fails immediately
+- **Logging:** every retry attempt is logged as a warning via `structlog`
+  (`media_downloader_download_5xx_retry`, `media_downloader_download_transient_retry`)
 
-**Filesystem-Struktur nach Download:**
+The logic lives in
+`services/backend-service/src/backend_service/infrastructure/media_downloader_client.py`.
+
+---
+
+## 5. Cover Art
+
+Two independent fallback chains exist, one in each service:
+
+1. **In this service (`downloader.py`):** yt-dlp's `EmbedThumbnail`
+   postprocessor embeds the cover into the MP3 during conversion. If that step
+   left a stray thumbnail file behind, `_embed_thumbnail_fallback()` embeds it
+   manually via `mutagen` as an ID3 `APIC` frame and reports whether the MP3
+   ends up with cover art (`thumbnail_embedded` in the response).
+2. **In the backend (`routes_tracks.py`):** after a successful download, the
+   backend tries to resolve a cover for the track regardless of what the
+   downloader reported:
+   1. **Primary – embedded cover:** `_extract_cover_art()` reads an embedded
+      APIC frame (MP3/ID3) or `pictures` (FLAC/OGG) from the downloaded file
+      with `mutagen`.
+   2. **Fallback – remote thumbnail:** if no embedded cover is found,
+      `_download_thumbnail()` fetches the `thumbnail` URL from the
+      media downloader's response asynchronously via `httpx`.
+   3. The cover is stored as `STATIC_DIR/covers/track_{id}.jpg|.png` and
+      written to `cover_art_url` on the track's DB row.
+
+**Filesystem layout after a download:**
 
 ```
 /mnt/audio/
   tracks/
     {track_id}/
-      <title>.mp3
+      audio.mp3
 
 /data/static/
   covers/
-    track_{track_id}.jpg   ← Cover Art (eingebettet oder Thumbnail-Fallback)
+    track_{track_id}.jpg   ← cover art (embedded, or the thumbnail fallback)
 ```
 
-Fehler beim Cover-Download sind nicht kritisch und werden nur als Warning geloggt (`track_cover_extract_failed`, `track_thumbnail_download_failed`). Der Track-Import schlägt dadurch nicht fehl.
+Cover download errors are not critical and are only logged as warnings
+(`track_cover_extract_failed`, `track_thumbnail_download_failed`) – a failed
+cover fetch never fails the track import.
 
 ---
 
-## 6. Umgebungsvariablen
+## 6. Environment Variables
 
-| Variable | Default | Beschreibung |
+Read by this service (`config.py`):
+
+| Variable | Default | Description |
 |---|---|---|
-| `LOG_LEVEL` | `INFO` | Logging-Level |
-| `DOWNLOAD_PATH` | `/mnt/audio/tracks` | Zielverzeichnis für MP3-Dateien |
-| `MAX_FILESIZE_MB` | `200` | Maximale Dateigröße in MB |
-| `ALLOWED_DOMAINS` | `youtube.com,youtu.be,soundcloud.com,bandcamp.com,vimeo.com` | Erlaubte Domains (Komma-getrennt) |
+| `AUDIO_TRACKS_DIR` | `/mnt/audio/tracks/downloads` | Default target directory for MP3 files, used only when the caller omits `output_dir` |
+| `AUDIO_BASE_DIR` | `/mnt/audio` | Shared audio volume mount point; `output_dir` must resolve inside it – anything else is rejected with `422` |
+| `AUDIO_QUALITY` | `192` | MP3 bitrate in kbps |
+| `MAX_FILESIZE_MB` | `200` | Wired into `yt-dlp`'s own `max_filesize` option; a download exceeding it fails with `422` |
+| `LOG_LEVEL` | `INFO` | Filters log output and switches the renderer (`DEBUG` -> human-readable console, otherwise structured JSON) |
+
+The domain allow-list is **not** configured on this container – it lives
+entirely in the backend, is user-editable (Admin UI -> General -> media
+import), and is enforced before the backend ever calls this service. See
+section 8.
+
+No other variables exist, deliberately – in particular none for credentials
+or cookies (see section 8).
 
 ---
 
-## 7. Datenfluss
+## 7. Data Flow
 
 ```
 WebUI
   │
-  │  POST /api/v1/tracks/from-url?url=...  →  HTTP 202 (sofort)
+  │  POST /api/v1/tracks/from-url?url=...  →  HTTP 202 (immediately)
   ▼
 Backend
-  │  (Background Task)
-  │  POST http://media-downloader:8007/download?url=...
-  │  └─ Retry bis zu 3× bei 5xx/Timeout
+  │  (background task)
+  │  POST http://media-downloader:8007/download  {"url": ..., "output_dir": ...}
+  │  └─ retries up to 3× on 5xx/timeout
   ▼
-Media-Downloader
+Media Downloader
   │
   │  yt-dlp → ffmpeg → MP3
   ▼
-/mnt/audio/tracks/{track_id}/<title>.mp3
+/mnt/audio/tracks/{track_id}/audio.mp3
   │
-  │  Backend: mutagen → Cover aus ID3 extrahieren
-  │  (Fallback: thumbnail_url via httpx herunterladen)
+  │  Backend: mutagen → extract cover from ID3
+  │  (fallback: download thumbnail_url via httpx)
   │  → /data/static/covers/track_{id}.jpg
   │
-  │  Backend registriert Track in SQLite (title, artist, cover_art_url)
+  │  Backend registers the track in SQLite (title, artist, cover_art_url)
   ▼
-WebUI: Polling GET /tracks/{id}/download-status → status "done"
+WebUI: polls GET /tracks/{id}/download-status until status is "done"
 ```
 
 ---
 
-## 8. Sicherheit und Nutzungsgrenzen
+## 8. Security and Usage Limits
 
-- **Domain-Whitelist:** Nur explizit erlaubte Hosts können verwendet werden (`_ALLOWED_DOMAINS` im Backend). Das ist ein technischer Schutz vor beliebigen Abrufzielen und keine rechtliche Freigabe der dort liegenden Inhalte.
-- **Dateigrößen-Limit:** Importe über `MAX_FILESIZE_MB` werden abgebrochen
-- **Kein direkter Zugriff vom WebUI:** Der Service ist nur innerhalb des Docker-Netzwerks erreichbar
-- **Keine Zugangsparameter:** Weder API, UI noch Umgebungsvariablen bieten Felder für Cookie-Dateien, Browser-Cookies, Login-Daten, OAuth, Session-Tokens oder Entschlüsselungsschlüssel. An yt-dlp wird ausschließlich die URL (und optional das Zielverzeichnis) weitergereicht; die Option-Dicts werden pro Aufruf im Code aufgebaut und sind von außen nicht erweiterbar.
-- **Keine Umgehungsfunktionen:** Das Projekt implementiert und dokumentiert keine Unterstützung für das Umgehen von DRM, Paywalls, Geoblocking oder vergleichbaren Zugriffssperren. Die eingesetzte Bibliothek kann eigene Fähigkeiten mitbringen; welche Schutzmechanismen im Einzelfall greifen, bewertet das Projekt nicht.
-- **Bestätigung zur rechtmäßigen Nutzung:** Die WebUI zeigt vor jedem Import einen Hinweis zur rechtmäßigen Nutzung und verlangt eine ausdrückliche Bestätigung des Nutzers, bevor Prüfung oder Import möglich sind. Die Bestätigung wird nur im UI-Zustand gehalten und nicht gespeichert.
+- **Lawful use:** import is only permitted if the user holds the necessary
+  usage and reproduction rights, or a statutory exception applies. Neither
+  this service nor the backend can verify that for a given URL – see
+  `README.md`.
+- **Domain allow-list:** only explicitly allowed hosts can be used. The list
+  is user-editable in the backend (Admin UI -> General -> media import,
+  `core/media_settings.py`), read fresh on every request, and defaults to
+  SoundCloud and Bandcamp only – **not** YouTube: unlike the other two,
+  YouTube has no built-in download feature a rights holder opts into, which
+  makes importing from it a meaningfully bigger legal question. This is a
+  technical guard against arbitrary fetch targets, not a legal clearance of
+  the content hosted there. It is enforced by the backend only – this
+  service accepts any URL it is given, so reaching it directly (see below)
+  bypasses the check.
+- **File size limit:** `MAX_FILESIZE_MB` (default 200) is enforced here via
+  `yt-dlp`'s own `max_filesize` option.
+- **No credential parameters:** neither the API, the UI, nor any environment
+  variable offers fields for cookie files, browser cookies, login
+  credentials, OAuth, session tokens, or decryption keys. Only the URL (and
+  optionally the target directory) reaches yt-dlp; the option dict is built
+  from scratch on every call in code and cannot be extended from outside.
+- **No circumvention features:** the project implements and documents no
+  support for bypassing DRM, paywalls, geoblocking, or comparable access
+  restrictions. The underlying library may have its own capabilities; which
+  protection mechanisms apply in a given case is not something this project
+  evaluates.
+- **No authentication on the API itself:** this service trusts whoever can
+  reach it on the Docker network or the bound host port. See section 9 for
+  where that port is exposed.
+- **User confirmation:** the WebUI shows a lawful-use notice before every
+  import and requires explicit user confirmation before a check or import can
+  start. The confirmation is held only in UI state and not persisted.
 
 ---
 
-## 9. Docker-Integration
+## 9. Docker Integration
 
-Der Service ist als `media-downloader` in `docker-compose.yml` definiert:
+The service is defined as `media-downloader` in `docker-compose.yml`:
 
-- **Port:** `8007` (intern), auf dem Host nur auf `127.0.0.1:8007` - die
-  Download-API kennt keine Authentifizierung
-- **Volume:** Teilt `/mnt/audio` mit dem Backend und Audio-Service
-- **depends_on:** Backend (healthy)
-- **Optionale .env-Variablen:** `MEDIA_DOWNLOADER_MAX_FILESIZE_MB`, `MEDIA_DOWNLOADER_ALLOWED_DOMAINS`
+- **Port:** `8007` (internal), bound on the host to `127.0.0.1:8007` only –
+  the download API has no authentication of its own.
+- **Volume:** shares `/mnt/audio` with the backend and the audio service.
+- **depends_on:** backend (healthy).
+- **Optional `.env` variable:** `MEDIA_DOWNLOADER_MAX_FILESIZE_MB`. The
+  allowed-domains list is not a `.env` setting – it is configured in the
+  WebUI and stored in `general_settings.json` (backend), see section 8.

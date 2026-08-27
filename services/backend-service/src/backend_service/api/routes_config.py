@@ -19,6 +19,10 @@ from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
 from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 from backend_service.core.json_store import write_json_atomic
+from backend_service.core.media_settings import (
+    DEFAULT_ALLOWED_DOMAINS,
+    clamp_allowed_domains,
+)
 from backend_service.core.playback_settings import (
     DEFAULT_END_BEHAVIOR,
     DEFAULT_LOOP_GUARD_MINUTES,
@@ -140,6 +144,7 @@ def _general_settings_read() -> dict:
     # Read through the same helper the upload path uses, so the value shown in
     # the WebUI is exactly the one that will be enforced.
     upload_size_mb = max_upload_size_mb()
+    media_import_allowed_domains = sorted(DEFAULT_ALLOWED_DOMAINS)
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -162,6 +167,10 @@ def _general_settings_read() -> dict:
             playlist_shuffle = bool(data.get("playlist_shuffle", DEFAULT_PLAYLIST_SHUFFLE))
             if "max_upload_size_mb" in data:
                 upload_size_mb = clamp_upload_size_mb(data["max_upload_size_mb"])
+            if "media_import_allowed_domains" in data:
+                media_import_allowed_domains = clamp_allowed_domains(
+                    data["media_import_allowed_domains"]
+                )
             raw_times = data.get("allowed_usage_times")
             if isinstance(raw_times, list):
                 allowed_usage_times = [
@@ -193,6 +202,7 @@ def _general_settings_read() -> dict:
         "allowed_usage_times": allowed_usage_times,
         "auto_update_check_enabled": auto_update_check_enabled,
         "max_upload_size_mb": upload_size_mb,
+        "media_import_allowed_domains": media_import_allowed_domains,
     }
 
 
@@ -234,6 +244,7 @@ async def update_general_config(body: dict) -> dict:
         "allowed_usage_times",
         "auto_update_check_enabled",
         "max_upload_size_mb",
+        "media_import_allowed_domains",
         # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
         # keys the filter below drops them silently, and the wizard would come
         # back on every visit.
@@ -284,6 +295,10 @@ async def update_general_config(body: dict) -> dict:
         data["auto_update_check_enabled"] = bool(data["auto_update_check_enabled"])
     if "max_upload_size_mb" in data:
         data["max_upload_size_mb"] = clamp_upload_size_mb(data["max_upload_size_mb"])
+    if "media_import_allowed_domains" in data:
+        data["media_import_allowed_domains"] = clamp_allowed_domains(
+            data["media_import_allowed_domains"]
+        )
     try:
         GENERAL_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
         # Merge with existing file so partial updates (e.g. from Child or Control tab) do not drop other keys

@@ -11,13 +11,20 @@ class MediaDownloaderConfig(BaseModel):
 
     audio_tracks_dir: Path = Field(
         default=Path("/mnt/audio/tracks/downloads"),
-        description="Target directory for downloaded MP3 files",
+        description="Default target directory for MP3 files, used when the caller omits output_dir",
+    )
+    audio_base_dir: Path = Field(
+        default=Path("/mnt/audio"),
+        description="Shared audio volume mount point; output_dir must resolve inside it",
     )
     audio_quality: str = Field(
         default="192",
         description="MP3 bitrate in kbps",
     )
-    service_port: int = Field(default=8000)
+    max_filesize_mb: int = Field(
+        default=200,
+        description="Maximum size of a downloaded file, in megabytes",
+    )
     log_level: str = Field(default="INFO")
 
 
@@ -27,7 +34,8 @@ def load_config() -> MediaDownloaderConfig:
         audio_tracks_dir=Path(
             os.environ.get("AUDIO_TRACKS_DIR", "/mnt/audio/tracks/downloads")
         ),
+        audio_base_dir=Path(os.environ.get("AUDIO_BASE_DIR", "/mnt/audio")),
         audio_quality=os.environ.get("AUDIO_QUALITY", "192"),
-        service_port=int(os.environ.get("SERVICE_PORT", "8000")),
+        max_filesize_mb=int(os.environ.get("MAX_FILESIZE_MB", "200")),
         log_level=os.environ.get("LOG_LEVEL", "INFO"),
     )

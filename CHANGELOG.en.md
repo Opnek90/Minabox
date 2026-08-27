@@ -22,6 +22,17 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.6 - 2026-08-27
+
+#### Added
+- The allowed sources for media import are now configurable in the WebUI
+  (Admin -> General -> media import). YouTube is no longer included by
+  default.
+
+#### Improved
+- An allowed domain like "bandcamp.com" now automatically covers
+  "www.bandcamp.com" too, instead of only the exact spelling entered.
+
 ### 0.2.5 - 2026-08-26
 
 #### Added
@@ -186,6 +197,14 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.19 - 2026-08-27
+
+#### Added
+- The media import dialog now shows the individual steps while importing
+  (reading metadata, downloading with speed and time remaining, converting,
+  embedding cover/metadata, saving) instead of a single loading bar.
+- New setting under Admin -> General: allowed domains for media import.
 
 ### 0.1.18 - 2026-08-26
 
@@ -354,6 +373,22 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## media-downloader
+
+### 0.1.4 - 2026-08-27
+
+#### Added
+- Importing now shows real progress steps (reading metadata, downloading
+  with speed and time remaining, converting, embedding cover and metadata,
+  saving) instead of a single loading bar.
+
+#### Improved
+- An import now has an upper limit on file size (200 MB by default).
+
+#### Fixed
+- A longer import could block the service long enough for its own health
+  check to fail, aborting the import partway through.
+- An import with no known duration (e.g. a livestream) failed with an
+  unclear error instead of an understandable message.
 
 ### 0.1.3 - 2026-08-26
 

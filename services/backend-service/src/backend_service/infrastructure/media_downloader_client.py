@@ -31,7 +31,9 @@ class MediaDownloaderClient:
     def __init__(self, base_url: str = "http://media-downloader:8007") -> None:
         self.base_url = base_url.rstrip("/")
 
-    async def download_video(self, url: str, output_dir: str | None = None) -> dict[str, Any]:
+    async def download_video(
+        self, url: str, output_dir: str | None = None, job_id: str | None = None
+    ) -> dict[str, Any]:
         """POST /download – import the audio of *url* as MP3.
 
         Args:
@@ -39,11 +41,15 @@ class MediaDownloaderClient:
             output_dir: Optional absolute container path for the MP3.
                         When provided the media-downloader writes directly
                         into that directory (e.g. /mnt/audio/tracks/{id}/).
+            job_id: Optional correlation id; if given, `get_progress(job_id)`
+                    can be polled concurrently while this call is in flight.
         """
         logger.info("media_downloader_download_requested", url=url, output_dir=output_dir)
         payload: dict[str, Any] = {"url": url}
         if output_dir:
             payload["output_dir"] = output_dir
+        if job_id:
+            payload["job_id"] = job_id
 
         last_exc: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
@@ -86,6 +92,25 @@ class MediaDownloaderClient:
                 await asyncio.sleep(_RETRY_BACKOFF_BASE * attempt)
 
         raise last_exc or MediaDownloaderError("Download failed after retries")
+
+    async def get_progress(self, job_id: str) -> dict[str, Any]:
+        """GET /download/progress/{job_id} - best-effort, never raises.
+
+        Meant to be polled from a separate task while `download_video(...,
+        job_id=...)` is in flight. A failure here (service momentarily slow
+        to answer /health-adjacent traffic, network hiccup) must not affect
+        the download itself, so this returns a neutral "unknown" stage
+        instead of propagating the error.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(f"{self.base_url}/download/progress/{job_id}")
+                response.raise_for_status()
+                data: dict[str, Any] = response.json()
+                return data
+        except (httpx.TimeoutException, httpx.RequestError, httpx.HTTPStatusError) as exc:
+            logger.debug("media_downloader_progress_unavailable", job_id=job_id, error=str(exc))
+            return {"stage": "unknown", "percent": None}
 
     async def get_video_info(self, url: str) -> dict[str, Any]:
         """GET /info – fetch metadata without downloading."""

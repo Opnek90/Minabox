@@ -1,38 +1,84 @@
 """FastAPI application entry point for the Media Downloader Service."""
 
+import asyncio
+import logging
 import os
 import time
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
 
 import structlog
+import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from media_downloader_service.config import load_config
-from media_downloader_service.downloader import DownloadError, MediaDownloader
+from media_downloader_service.downloader import DownloadError, MediaDownloader, ProgressUpdate
 from media_downloader_service.models import (
     DownloadRequest,
     DownloadResponse,
+    ProgressResponse,
     VideoInfoResponse,
 )
 
+config = load_config()
+
+# DEBUG -> human-readable console output; INFO and above -> structured JSON,
+# the format the rest of the fleet's log aggregation expects. Mirrors
+# shared_lib.logging.setup_structlog(), inlined rather than imported so this
+# service keeps no dependency on shared-lib (see README.md).
+_log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+_renderer = (
+    structlog.dev.ConsoleRenderer()
+    if config.log_level.upper() == "DEBUG"
+    else structlog.processors.JSONRenderer()
+)
 structlog.configure(
     processors=[
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.stdlib.add_log_level,
-        structlog.dev.ConsoleRenderer(),
-    ]
+        _renderer,
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(_log_level),
 )
 logger = structlog.get_logger("media_downloader_service")
 
-config = load_config()
 _start_time = time.monotonic()
+
+# Only one conversion at a time: ffmpeg is CPU-heavy and this runs on a
+# Raspberry Pi. Without this, moving the blocking yt-dlp/ffmpeg call off the
+# event loop (below) would let concurrent /download requests fight each
+# other for the same cores instead of the previous, accidental
+# serialization.
+_download_semaphore = asyncio.Semaphore(1)
+
+# In-memory progress for a download in flight, keyed by the caller's job_id
+# (the backend uses str(track_id)). Only one download runs at a time (see the
+# semaphore above), so this never holds more than one entry; it is removed as
+# soon as that download finishes, successfully or not.
+_progress: dict[str, ProgressUpdate] = {}
+
+
+def _resolve_output_dir(output_dir: str | None) -> Path:
+    """Resolve the caller-supplied output_dir, or the configured default.
+
+    Raises DownloadError if the path would land outside the shared audio
+    volume - the API has no authentication, so nothing else stops a caller
+    from pointing a download anywhere the container user can write to.
+    """
+    path = Path(output_dir) if output_dir else config.audio_tracks_dir
+    base = config.audio_base_dir.resolve()
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(base)
+    except ValueError as exc:
+        raise DownloadError(f"output_dir must be inside {base}") from exc
+    return resolved
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info(
         "service_startup",
         audio_tracks_dir=str(config.audio_tracks_dir),
@@ -62,8 +108,8 @@ async def health_check() -> JSONResponse:
         {
             "status": "healthy",
             "service": "media-downloader-service",
-            # Dieser Dienst bindet shared-lib nicht ein; die Variable setzt der
-            # Dockerfile aus dem Build-Arg (docs/Versionierung.md).
+            # This service does not depend on shared-lib; the Dockerfile sets
+            # this variable from its build arg (docs/Versionierung.md).
             "version": os.environ.get("APP_VERSION", "0.0.0-dev"),
             "uptime_seconds": round(time.monotonic() - _start_time, 1),
         }
@@ -81,10 +127,28 @@ async def download_video(request: DownloadRequest) -> DownloadResponse:
     keys are accepted, so only sources that are readable without them can be
     imported.
     """
-    output_dir = Path(request.output_dir) if request.output_dir else config.audio_tracks_dir
-    downloader = MediaDownloader(audio_quality=config.audio_quality)
+    job_id = request.job_id
+
+    def on_progress(update: ProgressUpdate) -> None:
+        # Called from the worker thread running download_video (below), via
+        # yt-dlp's own hooks - a plain dict item assignment is safe to make
+        # from another thread under the GIL.
+        if job_id is not None:
+            _progress[job_id] = update
+
     try:
-        result = downloader.download_video(request.url, output_dir)
+        output_dir = _resolve_output_dir(request.output_dir)
+        downloader = MediaDownloader(
+            audio_quality=config.audio_quality, max_filesize_mb=config.max_filesize_mb
+        )
+        async with _download_semaphore:
+            try:
+                result = await asyncio.to_thread(
+                    downloader.download_video, request.url, output_dir, on_progress
+                )
+            finally:
+                if job_id is not None:
+                    _progress.pop(job_id, None)
     except DownloadError as exc:
         logger.warning("download_request_failed", url=request.url, error=str(exc))
         raise HTTPException(
@@ -101,12 +165,28 @@ async def download_video(request: DownloadRequest) -> DownloadResponse:
     return DownloadResponse(**result)
 
 
+@app.get("/download/progress/{job_id}", response_model=ProgressResponse)
+async def get_download_progress(job_id: str) -> ProgressResponse:
+    """Poll the stage of a download started with a matching job_id.
+
+    Returns "done" for any job_id not currently tracked - either it finished
+    already, or a caller never set job_id on the /download request.
+    """
+    update = _progress.get(job_id, ProgressUpdate(stage="done"))
+    return ProgressResponse(
+        stage=update.stage,
+        percent=update.percent,
+        speed_bytes_per_sec=update.speed_bytes_per_sec,
+        eta_seconds=update.eta_seconds,
+    )
+
+
 @app.get("/info", response_model=VideoInfoResponse)
 async def get_video_info(url: str = Query(..., description="Media URL")) -> VideoInfoResponse:
     """Return the media metadata without importing anything."""
-    downloader = MediaDownloader()
     try:
-        info = downloader.get_video_info(url)
+        downloader = MediaDownloader()
+        info = await asyncio.to_thread(downloader.get_video_info, url)
     except DownloadError as exc:
         logger.warning("info_request_failed", url=url, error=str(exc))
         raise HTTPException(
@@ -127,3 +207,18 @@ async def get_video_info(url: str = Query(..., description="Media URL")) -> Vide
         thumbnail=info["thumbnail"],
         video_id=info["video_id"],
     )
+
+
+def run() -> None:
+    # log_config=None: without it, uvicorn installs its own plain-text
+    # formatter for "uvicorn"/"uvicorn.access" and every request (including
+    # health checks every 30s) prints a line in a different format from our
+    # structlog JSON. With no config, those loggers fall through to the
+    # interpreter's default (silent below WARNING, so routine access logs
+    # disappear; an actual error still reaches stderr) - the same pattern
+    # host-helper-service uses.
+    uvicorn.run(app, host="0.0.0.0", port=8007, log_config=None)
+
+
+if __name__ == "__main__":
+    run()

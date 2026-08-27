@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import get_db
+from backend_service.core.media_settings import is_domain_allowed, read_allowed_domains
 from backend_service.core.uploads import (
     copy_upload_limited,
     max_audio_upload_bytes,
@@ -36,19 +37,6 @@ COVERS_DIR = STATIC_DIR / "covers"
 AUDIO_STORAGE_PATH = Path(os.environ.get("AUDIO_STORAGE_PATH", "/mnt/audio/tracks"))
 
 MEDIA_DOWNLOADER_URL = os.environ.get("MEDIA_DOWNLOADER_URL", "http://media-downloader:8007")
-
-_ALLOWED_DOMAINS: frozenset[str] = frozenset({
-    "youtube.com",
-    "www.youtube.com",
-    "youtu.be",
-    "music.youtube.com",
-    "m.youtube.com",
-    "soundcloud.com",
-    "www.soundcloud.com",
-    "bandcamp.com",
-    "vimeo.com",
-    "www.vimeo.com",
-})
 
 _PLAYLIST_PARAMS = {"list", "start_radio", "index", "t"}
 
@@ -71,14 +59,19 @@ router = APIRouter()
 
 
 def _check_allowed_domain(url: str) -> None:
-    """Raise HTTP 400 if the URL's hostname is not on the allow-list."""
+    """Raise HTTP 400 if the URL's hostname is not on the allow-list.
+
+    The list is user-configurable (Admin UI -> General -> media import) and
+    read fresh on every call - see core/media_settings.py.
+    """
     try:
         hostname = urlparse(url).hostname or ""
     except Exception:  # noqa: BLE001
         hostname = ""
-    if hostname not in _ALLOWED_DOMAINS:
+    allowed_domains = read_allowed_domains()
+    if not is_domain_allowed(hostname, allowed_domains):
         logger.warning("api_domain_not_allowed", hostname=hostname, url=url)
-        raise ApiError(status_code=400, code="domain_not_allowed", detail=f"Domain '{hostname}' is not supported. Allowed: {', '.join(sorted(_ALLOWED_DOMAINS))}")
+        raise ApiError(status_code=400, code="domain_not_allowed", detail=f"Domain '{hostname}' is not supported. Allowed: {', '.join(sorted(allowed_domains))}")
 
 
 def _strip_playlist_params(url: str) -> str:
@@ -126,15 +119,44 @@ def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
         return None
 
 
-def _set_download_status(track_id: int, status: str, error: str | None = None) -> None:
-    """Record an import's state, dropping the oldest finished ones."""
-    _download_status[track_id] = {"status": status, "error": error}
+def _set_download_status(
+    track_id: int, status: str, error: str | None = None, stage: str | None = None
+) -> None:
+    """Record an import's state, dropping the oldest finished ones.
+
+    *stage* is one of media-downloader-service's STAGE_* names, or "saving"
+    for the part that happens here in the backend after it returns - a coarse
+    "what is it doing right now" for the WebUI's progress display, distinct
+    from *status* (pending/downloading/done/error), which is what everything
+    else in this module already keys off.
+    """
+    _download_status[track_id] = {"status": status, "error": error, "stage": stage}
     if len(_download_status) > _MAX_DOWNLOAD_STATUS_ENTRIES:
         for done_id, entry in list(_download_status.items()):
             if len(_download_status) <= _MAX_DOWNLOAD_STATUS_ENTRIES:
                 break
             if entry.get("status") in ("done", "error") and done_id != track_id:
                 del _download_status[done_id]
+
+
+def _update_download_stage(track_id: int, progress: dict) -> None:
+    """Update only the stage/percent/speed/eta of an in-progress download.
+
+    *progress* is media-downloader-service's GET /download/progress/{job_id}
+    body (or MediaDownloaderClient.get_progress()'s "unknown"-stage fallback
+    on a network hiccup - never raises, so this always has something to
+    read). Called from the progress-polling loop every ~1 second - must not
+    disturb `status`/`error`, and must be a no-op once the entry has moved to
+    a terminal state (the poll loop's last tick can race the task's own
+    final `_set_download_status` call).
+    """
+    entry = _download_status.get(track_id)
+    if entry is None or entry.get("status") != "downloading":
+        return
+    entry["stage"] = progress.get("stage")
+    entry["percent"] = progress.get("percent")
+    entry["speed_bytes_per_sec"] = progress.get("speed_bytes_per_sec")
+    entry["eta_seconds"] = progress.get("eta_seconds")
 
 
 def _stored_track_dir(track: Track) -> Path | None:
@@ -251,11 +273,25 @@ async def _run_download_task(
     engine = create_engine(db_url)
     SessionLocal = sessionmaker(bind=engine)
 
-    _set_download_status(track_id, "downloading")
+    _set_download_status(track_id, "downloading", stage="fetching_info")
     client = MediaDownloaderClient(base_url=MEDIA_DOWNLOADER_URL)
     db = SessionLocal()
     try:
-        result = await client.download_video(clean_url, output_dir=str(track_dir))
+        download_task = asyncio.create_task(
+            client.download_video(clean_url, output_dir=str(track_dir), job_id=str(track_id))
+        )
+        # Poll media-downloader-service's real yt-dlp progress while the
+        # request above is in flight - a separate connection, since the
+        # download call itself blocks on the single HTTP response until the
+        # whole import (download + convert + embed) is done.
+        while not download_task.done():
+            done, _ = await asyncio.wait({download_task}, timeout=1.2)
+            if download_task not in done:
+                progress = await client.get_progress(str(track_id))
+                _update_download_stage(track_id, progress)
+        result = await download_task
+        logger.info("download_task_saving", track_id=track_id)
+        _set_download_status(track_id, "downloading", stage="saving")
 
         mp3_path = Path(result["file_path"])
         track = db.query(Track).filter(Track.id == track_id).first()

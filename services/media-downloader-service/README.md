@@ -95,13 +95,17 @@ nicht treffen.
 
 | Variable | Default | Beschreibung |
 |----------|---------|--------------|
-| `AUDIO_TRACKS_DIR` | `/mnt/audio/tracks/downloads` | Zielverzeichnis für MP3-Dateien |
+| `AUDIO_TRACKS_DIR` | `/mnt/audio/tracks/downloads` | Zielverzeichnis für MP3-Dateien, falls kein `output_dir` mitgegeben wird |
+| `AUDIO_BASE_DIR` | `/mnt/audio` | Gemeinsames Audio-Volume; `output_dir` muss darin liegen, sonst `422` |
 | `AUDIO_QUALITY` | `192` | MP3-Bitrate in kbps |
-| `SERVICE_PORT` | `8000` | HTTP-Port |
+| `MAX_FILESIZE_MB` | `200` | Maximale Dateigröße eines Downloads in MB (yt-dlp `max_filesize`) |
 | `LOG_LEVEL` | `INFO` | Log-Level |
 
 Weitere Variablen gibt es bewusst nicht – insbesondere keine für Zugangsdaten
-oder Cookies (siehe *Technische Grenzen*).
+oder Cookies (siehe *Technische Grenzen*). Die erlaubten Domains sind keine
+Umgebungsvariable dieses Dienstes: Sie werden im Backend verwaltet und sind
+in der WebUI unter *Admin → Allgemein → Medien-Import* editierbar (Default
+ohne YouTube – siehe Begründung dort).
 
 ## Abhängigkeiten
 

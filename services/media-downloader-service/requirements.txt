@@ -1,6 +1,13 @@
 # Core Framework
 fastapi>=0.126.0,<0.127.0
-uvicorn[standard]>=0.34.0,<0.35.0
+# Plain uvicorn, not [standard]: that extra pulls in uvloop, PyYAML,
+# websockets, watchfiles and httptools - none of it is used here (no
+# WebSocket endpoint, no YAML config, no --reload). uvloop would actually
+# apply in this service (started via "python -m uvicorn", not a custom
+# loop), but the event loop's job is limited to HTTP handling and
+# dispatching to a thread for the real work - not enough traffic for
+# uvloop's throughput gains to matter.
+uvicorn>=0.34.0,<0.35.0
 pydantic>=2.12.0,<2.13.0
 
 # Logging
@@ -13,5 +20,8 @@ tenacity>=9.0.0,<10.0.0
 httpx>=0.28.0,<0.29.0
 
 # Download & Metadata
+# No upper bound, unlike everything else in this file: yt-dlp ships releases
+# purely to track upstream site changes, so pinning a ceiling would mean
+# extractors going stale instead of a controlled version bump.
 yt-dlp>=2025.3.31
 mutagen>=1.47.0,<2.0.0

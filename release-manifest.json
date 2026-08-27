@@ -121,8 +121,30 @@
       ]
     },
     "backend": {
-      "latest": "0.2.5",
+      "latest": "0.2.6",
       "releases": [
+        {
+          "version": "0.2.6",
+          "date": "2026-08-27",
+          "notes": {
+            "added": {
+              "de": [
+                "Die erlaubten Quellen fuer den Medien-Import sind jetzt in der Weboberflaeche einstellbar (Admin -> Allgemein -> Medien-Import). YouTube ist im Standard nicht mehr enthalten."
+              ],
+              "en": [
+                "The allowed sources for media import are now configurable in the WebUI (Admin -> General -> media import). YouTube is no longer included by default."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Eine erlaubte Domain wie \"bandcamp.com\" deckt jetzt automatisch auch \"www.bandcamp.com\" ab, statt nur die exakt eingetragene Schreibweise."
+              ],
+              "en": [
+                "An allowed domain like \"bandcamp.com\" now automatically covers \"www.bandcamp.com\" too, instead of only the exact spelling entered."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.5",
           "date": "2026-08-26",
@@ -826,8 +848,40 @@
       ]
     },
     "media-downloader": {
-      "latest": "0.1.3",
+      "latest": "0.1.4",
       "releases": [
+        {
+          "version": "0.1.4",
+          "date": "2026-08-27",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Import zeigt jetzt echte Fortschrittsschritte an (Metadaten lesen, Herunterladen mit Geschwindigkeit und Restzeit, Umwandeln, Cover und Metadaten einbetten, Speichern) statt eines einzelnen Ladebalkens."
+              ],
+              "en": [
+                "Importing now shows real progress steps (reading metadata, downloading with speed and time remaining, converting, embedding cover and metadata, saving) instead of a single loading bar."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Ein Import hat jetzt eine Obergrenze fuer die Dateigroesse (Standard 200 MB)."
+              ],
+              "en": [
+                "An import now has an upper limit on file size (200 MB by default)."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Ein laengerer Import konnte den Dienst so lange blockieren, dass der eigene Gesundheitscheck fehlschlug und der Import mitten drin abgebrochen wurde.",
+                "Ein Import ohne bekannte Laufzeit (z. B. ein Livestream) schlug mit einem unklaren Fehler fehl statt mit einer verstaendlichen Meldung."
+              ],
+              "en": [
+                "A longer import could block the service long enough for its own health check to fail, aborting the import partway through.",
+                "An import with no known duration (e.g. a livestream) failed with an unclear error instead of an understandable message."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.3",
           "date": "2026-08-26",
@@ -937,8 +991,24 @@
       ]
     },
     "webui": {
-      "latest": "0.1.18",
+      "latest": "0.1.19",
       "releases": [
+        {
+          "version": "0.1.19",
+          "date": "2026-08-27",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Dialog fuer den Medien-Import zeigt beim Import jetzt die einzelnen Schritte an (Metadaten lesen, Herunterladen mit Geschwindigkeit und Restzeit, Umwandeln, Cover/Metadaten einbetten, Speichern) statt eines einzelnen Ladebalkens.",
+                "Neue Einstellung unter Admin -> Allgemein: erlaubte Domains fuer den Medien-Import."
+              ],
+              "en": [
+                "The media import dialog now shows the individual steps while importing (reading metadata, downloading with speed and time remaining, converting, embedding cover/metadata, saving) instead of a single loading bar.",
+                "New setting under Admin -> General: allowed domains for media import."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.18",
           "date": "2026-08-26",
