@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -137,6 +137,10 @@ export const SystemMaintenanceSection: React.FC = () => {
   const [updateOsDialogOpen, setUpdateOsDialogOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updatingOs, setUpdatingOs] = useState(false);
+  // Merkt sich, dass der Abschluss dieses Update-Laufs bereits gemeldet wurde.
+  // Ohne diesen Riegel feuert die 2-Sekunden-Abfrage die Erfolgsmeldung bei
+  // jedem weiteren Durchlauf erneut (#137).
+  const updateOutcomeNotifiedRef = useRef(false);
   const [dockerPruneDialogOpen, setDockerPruneDialogOpen] = useState(false);
   const [dockerPrunePending, setDockerPrunePending] = useState(false);
   const [updateOsLogOpen, setUpdateOsLogOpen] = useState(false);
@@ -253,6 +257,7 @@ export const SystemMaintenanceSection: React.FC = () => {
     setUpdateDialogOpen(false);
     setUpdating(true);
     setUpdateStatus(null);
+    updateOutcomeNotifiedRef.current = false;
     try {
       await systemApi.updateMinabox(targets);
       // Der Aufruf kehrt sofort zurueck; ab hier zeigt das Fortschrittsfenster,
@@ -279,6 +284,8 @@ export const SystemMaintenanceSection: React.FC = () => {
   useEffect(() => {
     if (!updateProgressOpen) return;
     let active = true;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const stop = () => { if (interval) { clearInterval(interval); interval = undefined; } };
     const poll = async () => {
       try {
         const status = await systemApi.getUpdateStatus();
@@ -286,11 +293,17 @@ export const SystemMaintenanceSection: React.FC = () => {
         setUpdateStatus(status);
         if (!status.running && status.exit_code !== null) {
           setUpdating(false);
-          if (status.exit_code === 0) {
-            showSuccess(t('system.update_success'));
-            loadCheck(true);
-          } else {
-            showError(t('system.update_failed'));
+          // Endzustand nur einmal je Update-Lauf melden und danach nicht mehr
+          // abfragen - sonst wiederholt sich die Meldung im Sekundentakt (#137).
+          stop();
+          if (!updateOutcomeNotifiedRef.current) {
+            updateOutcomeNotifiedRef.current = true;
+            if (status.exit_code === 0) {
+              showSuccess(t('system.update_success'));
+              loadCheck(true);
+            } else {
+              showError(t('system.update_failed'));
+            }
           }
         }
       } catch {
@@ -298,8 +311,8 @@ export const SystemMaintenanceSection: React.FC = () => {
       }
     };
     poll();
-    const interval = setInterval(poll, 2000);
-    return () => { active = false; clearInterval(interval); };
+    interval = setInterval(poll, 2000);
+    return () => { active = false; stop(); };
   }, [updateProgressOpen, showSuccess, showError, t, loadCheck]);
 
   const handleUpdateOs = async () => {

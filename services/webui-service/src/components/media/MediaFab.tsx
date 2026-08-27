@@ -146,8 +146,13 @@ export const MediaFab: React.FC<MediaFabProps> = ({
                 bgcolor: 'background.paper',
                 color: 'text.primary',
                 whiteSpace: 'nowrap',
+                // Hover-Toenung als Overlay auf das deckende Papier legen, nicht
+                // die Hintergrundfarbe ersetzen -- sonst wird die Aktion
+                // durchscheinend und die Liste dahinter blitzt durch (#134).
                 '&:hover': {
-                  bgcolor: 'action.hover',
+                  bgcolor: 'background.paper',
+                  backgroundImage: (theme) =>
+                    `linear-gradient(${theme.palette.action.hover}, ${theme.palette.action.hover})`,
                 },
               }}
             >

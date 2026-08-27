@@ -198,6 +198,19 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.1.20 - 2026-08-27
+
+#### Fixed
+- In the media area, an action in the plus menu turned transparent on hover,
+  letting controls from the list behind it show through.
+- After an update from the web interface, the "Update started" message
+  appeared repeatedly after the restart instead of only once.
+
+#### Improved
+- Settings now have their own "Media" section (music folder, upload limit,
+  allowed import sources, USB transfer); "Maintenance" only holds updates,
+  backup and the setup wizard.
+
 ### 0.1.19 - 2026-08-27
 
 #### Added

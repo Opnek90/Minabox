@@ -105,6 +105,36 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     ],
   },
   {
+    // Alles rund um die Musiksammlung: wo sie liegt, wie viel auf einmal
+    // hochgeladen werden darf, von welchen Quellen importiert werden darf und
+    // der Weg ueber den USB-Stick. Kam schrittweise dazu und lag vorher
+    // verstreut unter „Wartung", wo es niemand vermutet.
+    key: 'media',
+    labelKey: 'groups.media',
+    sections: [
+      {
+        key: 'media_path',
+        titleKey: 'general.media_path_title',
+        searchKeys: ['general.media_path_current', 'general.media_path_new'],
+      },
+      {
+        key: 'upload_limit',
+        titleKey: 'general.upload_limit',
+        searchKeys: ['general.upload_limit', 'general.upload_limit_mb'],
+      },
+      {
+        key: 'media_import_domains',
+        titleKey: 'general.media_import_domains_title',
+        searchKeys: ['general.media_import_domains_title', 'general.media_import_domains_label'],
+      },
+      {
+        key: 'usb',
+        titleKey: 'system.usb',
+        searchKeys: ['system.usb_devices', 'system.usb_import'],
+      },
+    ],
+  },
+  {
     key: 'devices',
     labelKey: 'groups.devices',
     sections: [
@@ -152,26 +182,6 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     labelKey: 'groups.maintenance',
     sections: [
       {
-        key: 'media_path',
-        titleKey: 'general.media_path_title',
-        searchKeys: ['general.media_path_current', 'general.media_path_new'],
-      },
-      {
-        key: 'upload_limit',
-        titleKey: 'general.upload_limit',
-        searchKeys: ['general.upload_limit', 'general.upload_limit_mb'],
-      },
-      {
-        key: 'media_import_domains',
-        titleKey: 'general.media_import_domains_title',
-        searchKeys: ['general.media_import_domains_title', 'general.media_import_domains_label'],
-      },
-      {
-        key: 'usb',
-        titleKey: 'system.usb',
-        searchKeys: ['system.usb_devices', 'system.usb_import'],
-      },
-      {
         key: 'maintenance',
         titleKey: 'system.maintenance_section_title',
         searchKeys: [
@@ -186,6 +196,13 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'system.shutdown',
           'system.factory_reset',
         ],
+      },
+      {
+        // Onboarding erneut durchlaufen ist eine grosse, einmalige Aktion -
+        // gehoert neben Sicherung und Werksreset, nicht zu „Technische Details".
+        key: 'setup_wizard',
+        titleKey: 'setup:title',
+        searchKeys: ['setup:subtitle'],
       },
     ],
   },
@@ -218,11 +235,6 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'general.mqtt_broker',
           'general.mqtt_port',
         ],
-      },
-      {
-        key: 'setup_wizard',
-        titleKey: 'setup:title',
-        searchKeys: ['setup:subtitle'],
       },
       {
         key: 'diagnose',

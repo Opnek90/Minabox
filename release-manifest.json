@@ -991,8 +991,32 @@
       ]
     },
     "webui": {
-      "latest": "0.1.19",
+      "latest": "0.1.20",
       "releases": [
+        {
+          "version": "0.1.20",
+          "date": "2026-08-27",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Einstellungen haben einen eigenen Bereich \"Medien\" (Musik-Ordner, Upload-Limit, erlaubte Import-Quellen, USB-Uebertragung); \"Wartung\" enthaelt nur noch Updates, Sicherung und den Ersteinrichtungs-Assistenten."
+              ],
+              "en": [
+                "Settings now have their own \"Media\" section (music folder, upload limit, allowed import sources, USB transfer); \"Maintenance\" only holds updates, backup and the setup wizard."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Im Medien-Bereich wurde eine Aktion im Plus-Menue beim Ueberfahren mit der Maus durchsichtig, sodass Bedienelemente der Liste dahinter durchschienen.",
+                "Nach einem Update ueber die Weboberflaeche erschien die Meldung \"Aktualisierung gestartet\" nach dem Neustart wiederholt statt nur einmal."
+              ],
+              "en": [
+                "In the media area, an action in the plus menu turned transparent on hover, letting controls from the list behind it show through.",
+                "After an update from the web interface, the \"Update started\" message appeared repeatedly after the restart instead of only once."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.19",
           "date": "2026-08-27",
