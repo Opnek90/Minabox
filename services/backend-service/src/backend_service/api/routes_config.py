@@ -17,6 +17,7 @@ from shared_lib.mqtt import get_mqtt_topic
 from backend_service.api.websocket import ws_manager
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
+from backend_service.core.capabilities import require_feature
 from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
 from backend_service.core.json_store import write_json_atomic
 from backend_service.core.media_settings import (
@@ -631,6 +632,7 @@ async def get_leds_config() -> dict:
 @router.put("/leds")
 async def update_leds_config(body: dict) -> dict:
     """Update LED service config."""
+    require_feature("led")
     path = _config_path("leds")
     if not path or not path.exists():
         raise ApiError(status_code=503, code="led_config_unavailable", detail="LED config not available")
@@ -651,6 +653,7 @@ async def update_leds_config(body: dict) -> dict:
 @router.post("/leds/test")
 async def test_led(body: dict) -> dict:
     """Trigger a brief LED flash for testing via the LED service REST API."""
+    require_feature("led")
     led_id = body.get("led_id")
     if not led_id:
         raise ApiError(status_code=422, code="led_id_required", detail="led_id is required")
@@ -693,6 +696,7 @@ async def get_buttons_config() -> dict:
 @router.put("/buttons")
 async def update_buttons_config(body: dict) -> dict:
     """Update button service config."""
+    require_feature("button")
     path = _config_path("buttons")
     if not path or not path.exists():
         raise ApiError(status_code=503, code="button_config_unavailable", detail="Button config not available")
@@ -714,6 +718,7 @@ async def update_buttons_config(body: dict) -> dict:
 @router.post("/display/test")
 async def test_display() -> dict:
     """Show a brief test pattern on the OLED via the display service REST API."""
+    require_feature("display")
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post("http://display:8000/test")
@@ -759,6 +764,7 @@ async def get_display_config() -> dict:
 @router.put("/display")
 async def update_display_config(body: dict) -> dict:
     """Update display service config."""
+    require_feature("display")
     path = _config_path("display")
     if path is None:
         raise ApiError(status_code=503, code="display_config_unavailable", detail="Display config not available")
@@ -832,6 +838,7 @@ async def get_rfid_config() -> dict:
 @router.put("/rfid")
 async def update_rfid_config(body: dict) -> dict:
     """Update RFID service config (accepts flat body, writes nested reader)."""
+    require_feature("rfid")
     path = _config_path("rfid")
     if not path or not path.exists():
         raise ApiError(status_code=503, code="rfid_config_unavailable", detail="RFID config not available")

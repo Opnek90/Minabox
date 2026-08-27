@@ -102,6 +102,10 @@ services:
       - ALLOWED_AUDIO_PATHS=${ALLOWED_AUDIO_PATHS:-/media,/mnt,/home/pi}
       - MEDIA_DOWNLOADER_URL=http://media-downloader:8007
       - HOST_DIAG_ROOT=/host
+      # Which optional components this box has. Compose reads this from .env to
+      # decide which services to start; the backend reads it to hide what is not
+      # installed from the WebUI (docs/services/webui/Component-Capabilities.md).
+      - COMPOSE_PROFILES=${COMPOSE_PROFILES:-}
     volumes:
       - ./data:/data
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio

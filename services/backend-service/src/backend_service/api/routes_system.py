@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from backend_service.api.routes_host import _host_helper_api_key, _host_helper_url
 from backend_service.api.websocket import ws_manager
 from backend_service.config import get_config
+from backend_service.core import capabilities as capabilities_service
 from backend_service.core import container_registry
 from backend_service.core import update_check as update_check_service
 from backend_service.core.api_errors import ApiError
@@ -290,6 +291,14 @@ async def system_status() -> dict:
         "database": _schema_state(),
         "services": services,
     }
+
+
+@router.get("/capabilities")
+async def system_capabilities() -> dict:
+    """Per optional component: installed (from COMPOSE_PROFILES) plus the live
+    running/healthy state. The WebUI renders navigation, settings and feature
+    actions only for what is installed here."""
+    return await capabilities_service.feature_states()
 
 
 # A service name has to be a possible Docker name - anything else never even
