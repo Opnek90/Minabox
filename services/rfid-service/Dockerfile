@@ -53,7 +53,12 @@ USER minabox
 
 EXPOSE ${API_PORT}
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+# start-period matches every other service (10s). Hardware never delays this
+# check: MQTT connects in the background, the RFID manager start only sets a
+# flag, and the reader is initialised inside the scan loop after uvicorn is
+# already listening. /health always answers 200, so the check passes as soon
+# as the port is bound.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:${API_PORT}/health || exit 1
 
 # -- Version (build args; docs/Versionierung.md) ------------------------------

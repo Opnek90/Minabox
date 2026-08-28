@@ -601,6 +601,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## rfid
 
+### 0.2.2 - 2026-08-28
+
+#### Verbessert
+- Docker meldet den Dienst nach einem Neustart rund zehn Sekunden frueher als
+  betriebsbereit, im Gleichlauf mit den uebrigen Diensten.
+
 ### 0.2.1 - 2026-08-26
 
 #### Verbessert

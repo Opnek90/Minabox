@@ -946,8 +946,22 @@
       ]
     },
     "rfid": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Docker meldet den Dienst nach einem Neustart rund zehn Sekunden frueher als betriebsbereit, im Gleichlauf mit den uebrigen Diensten."
+              ],
+              "en": [
+                "After a restart Docker reports the service ready about ten seconds sooner, in step with the other services."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-26",
