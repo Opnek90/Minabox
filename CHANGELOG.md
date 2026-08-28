@@ -668,6 +668,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## button
 
+### 0.2.3 - 2026-08-28
+
+#### Verbessert
+- Die Zustandspruefung des Containers laeuft wieder wie bei allen anderen
+  Diensten und braucht dabei weniger Rechenzeit; das Abbild wird etwas kleiner.
+
 ### 0.2.2 - 2026-08-28
 
 #### Verbessert
@@ -713,6 +719,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## led
+
+### 0.2.3 - 2026-08-28
+
+#### Verbessert
+- Die Zustandspruefung des Containers laeuft wieder wie bei allen anderen
+  Diensten und braucht dabei weniger Rechenzeit; das Abbild wird etwas kleiner.
 
 ### 0.2.2 - 2026-08-28
 

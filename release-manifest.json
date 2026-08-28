@@ -517,8 +517,22 @@
       ]
     },
     "button": {
-      "latest": "0.2.2",
+      "latest": "0.2.3",
       "releases": [
+        {
+          "version": "0.2.3",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Zustandspruefung des Containers laeuft wieder wie bei allen anderen Diensten und braucht dabei weniger Rechenzeit; das Abbild wird etwas kleiner."
+              ],
+              "en": [
+                "The container health check runs the same way as on every other service again and uses less processing time doing so; the image gets a little smaller."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.2",
           "date": "2026-08-28",
@@ -844,8 +858,22 @@
       ]
     },
     "led": {
-      "latest": "0.2.2",
+      "latest": "0.2.3",
       "releases": [
+        {
+          "version": "0.2.3",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Zustandspruefung des Containers laeuft wieder wie bei allen anderen Diensten und braucht dabei weniger Rechenzeit; das Abbild wird etwas kleiner."
+              ],
+              "en": [
+                "The container health check runs the same way as on every other service again and uses less processing time doing so; the image gets a little smaller."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.2",
           "date": "2026-08-28",
