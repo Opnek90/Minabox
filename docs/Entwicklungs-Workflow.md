@@ -157,6 +157,35 @@ das Update bereitsteht. **Dann aufhören.** Er drückt selbst.
 
 ---
 
+## Konventionen
+
+### Container-Healthcheck
+
+Jeder Dienst prüft seine Gesundheit mit **`curl -f`** gegen den eigenen
+`/health`-Endpunkt — im `HEALTHCHECK` des Dockerfiles **und** im
+`healthcheck:`-Block der `docker-compose.yml` (der Compose-Eintrag überschreibt
+den des Images, beide müssen also übereinstimmen):
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:<port>/health || exit 1
+```
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:<port>/health"]
+```
+
+Basiert das Image auf `python:3.13-slim` und braucht sonst keine apt-Schicht,
+kostet `curl` rund 15 MB — die eine Ausnahme, die bewusst in Kauf genommen wird.
+Der naheliegende Ersatz, ein `python -c`-Einzeiler, ist **keine Option**:
+`python:3.13-slim` liefert keinen kompilierten stdlib-Bytecode aus und die
+Container laufen unprivilegiert gegen root-eigene Verzeichnisse, können also
+kein `__pycache__` anlegen. Jede Prüfung übersetzt dann `ssl`, `email` und
+`http.client` neu — gemessen rund 6 % eines Kerns, dauerhaft, mehr als der
+Dienst selbst verbraucht. Hintergrund:
+[Offene-Punkte 1.4](services/Offene-Punkte.md).
+
 ## Die Wächter
 
 Der Ablauf verlässt sich nicht auf Disziplin. Wer einen Schritt vergisst, merkt es:

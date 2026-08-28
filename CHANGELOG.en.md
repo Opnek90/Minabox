@@ -638,6 +638,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## button
 
+### 0.2.3 - 2026-08-28
+
+#### Improved
+- The container health check runs the same way as on every other service
+  again and uses less processing time doing so; the image gets a little smaller.
+
 ### 0.2.2 - 2026-08-28
 
 #### Improved
@@ -682,6 +688,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## led
+
+### 0.2.3 - 2026-08-28
+
+#### Improved
+- The container health check runs the same way as on every other service
+  again and uses less processing time doing so; the image gets a little smaller.
 
 ### 0.2.2 - 2026-08-28
 

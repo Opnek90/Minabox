@@ -181,6 +181,14 @@ stdlib, der Import faellt von 2,05 s auf 0,53 s, das Image waechst von 229 MB
 auf 256 MB. `interval` bleibt bei 30 s - die schnellere Erkennung eines
 haengenden Dienstes ist die 1,5 % eines Kerns wert, die jetzt noch anfallen.
 
+**Revidiert** am 2026-08-28 (Issue #141). Statt zwei Healthcheck-Strategien im
+Baum gilt jetzt eine: `curl -f` in allen neun Diensten. `button` und `led`
+holen `curl` zurueck und lassen den `compileall`-Schritt fallen — lokal
+nachgemessen sind die Images damit **248 MB** gegen 256 MB mit `compileall`,
+und der Healthcheck kostet 0,8 % statt 1,5 % eines Kerns. Die Regel steht jetzt
+in [Entwicklungs-Workflow.md](../Entwicklungs-Workflow.md), Abschnitt
+„Container-Healthcheck".
+
 ### [x] [H] 1.5 Der Audio-Dienst meldet `healthy`, waehrend gar kein Ton moeglich ist
 
 Aufgefallen am 2026-08-25 an einer echten Stoerung, nicht beim Lesen von Code.
