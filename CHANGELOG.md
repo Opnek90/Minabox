@@ -23,6 +23,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.8 - 2026-08-28
+
+#### Verbessert
+- Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist
+  nicht mehr anmeldbar (Haerten des Abbilds).
+
 ### 0.2.7 - 2026-08-27
 
 #### Verbessert
@@ -420,6 +426,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## media-downloader
 
+### 0.2.1 - 2026-08-28
+
+#### Verbessert
+- Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist
+  nicht mehr anmeldbar (Haerten des Abbilds).
+
 ### 0.2.0 - 2026-08-27
 
 #### Neu
@@ -540,6 +552,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## audio
 
+### 0.2.4 - 2026-08-28
+
+#### Verbessert
+- Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist
+  nicht mehr anmeldbar (Haerten des Abbilds).
+
 ### 0.2.3 - 2026-08-26
 
 #### Behoben
@@ -601,6 +619,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## rfid
 
+### 0.2.3 - 2026-08-28
+
+#### Verbessert
+- Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist
+  nicht mehr anmeldbar (Haerten des Abbilds).
+
 ### 0.2.2 - 2026-08-28
 
 #### Verbessert
@@ -644,6 +668,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## button
 
+### 0.2.2 - 2026-08-28
+
+#### Verbessert
+- Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist
+  nicht mehr anmeldbar (Haerten des Abbilds).
+
 ### 0.2.1 - 2026-08-26
 
 #### Verbessert
@@ -684,6 +714,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## led
 
+### 0.2.2 - 2026-08-28
+
+#### Verbessert
+- Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist
+  nicht mehr anmeldbar (Haerten des Abbilds).
+
 ### 0.2.1 - 2026-08-26
 
 #### Verbessert
@@ -722,6 +758,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## display
+
+### 0.2.2 - 2026-08-28
+
+#### Verbessert
+- Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist
+  nicht mehr anmeldbar (Haerten des Abbilds).
 
 ### 0.2.1 - 2026-08-26
 
