@@ -95,3 +95,36 @@ journalctl -u wayvnc.service -n 100 --no-pager
 
 Wird er nicht gebraucht: `sudo systemctl disable --now wayvnc.service`. Das ist
 eine Entscheidung ueber den Host, nicht ueber Minabox.
+
+## Box nach WLAN-Wechsel nicht mehr erreichbar
+
+**Bild:** Die Box lief, dann wurde der Router getauscht, das WLAN-Passwort
+geaendert oder die Box an einen anderen Ort gebracht. Sie ist unter der
+gewohnten Adresse und unter `minabox.local` nicht mehr zu finden.
+
+**Verhalten heute:** Der Connectivity-Watchdog im Host-Helper
+(`services/host-helper-service/src/host_helper/netwatch.py`) prueft alle
+~20 Sekunden ueber den NetworkManager, ob die Box eine brauchbare Verbindung
+hat. Ist sie laenger als 90 Sekunden ohne Verbindung und haengt auch kein
+Netzwerkkabel, oeffnet die Box selbst ein WLAN:
+
+- **SSID:** `Minabox-Setup`
+- **Passwort:** steht am Display; sonst per Diagnose-Paket im Host-Helper-Log
+  (`hotspot_up`) oder auf dem Host mit
+  `nmcli -s -g 802-11-wireless-security.psk connection show Minabox-Setup`
+- **Adresse:** `http://10.42.0.1`
+
+Ueber die WebUI dort unter *Wartung -> Netzwerk* das neue WLAN eintragen. Sobald
+die Box wieder online ist, schaltet der Watchdog den Hotspot von selbst ab
+(er probiert die gespeicherten Profile alle paar Minuten neu).
+
+**Woran man sieht, dass es wirkt:** `GET /api/v1/system/network-status` (ohne
+Login erreichbar) meldet `"mode": "hotspot"` mit SSID und Passwort. Am OLED
+steht der Netz-Screen mit denselben Angaben. Im Host-Helper-Log stehen
+`netwatch_offline_grace_started` und `netwatch_starting_fallback_hotspot`.
+
+**Wenn kein Hotspot kommt:** `nmcli` fehlt auf dem Host (NetworkManager nicht
+installiert), oder `wlan0` ist im AP-Modus nicht nutzbar. `netwatch_op_failed`
+im Log zeigt den `nmcli`-Fehler. Ein per Kabel angeschlossenes, aber nicht
+routendes `eth0` unterdrueckt den Hotspot bewusst - das ist ein LAN-/DHCP-
+Problem, kein Grund, ein WLAN aufzumachen.

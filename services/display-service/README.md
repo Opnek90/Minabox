@@ -29,8 +29,9 @@ nothing to replace on disk.
 
 - **MQTT:** `audio/status`, `audio/error`, `system/service-error`,
   `display/config/reload`, `config/general`.
-- **Backend REST:** `GET /api/v1/audio/sleep-timer` (every 5 s) and
-  `GET /api/v1/audio/session` (every 15 s).
+- **Backend REST:** `GET /api/v1/audio/sleep-timer` (every 5 s),
+  `GET /api/v1/audio/session` (every 15 s) and
+  `GET /api/v1/system/network-status` (every 20 s, for the network screen).
 
 The render loop ticks once a second but only pushes a frame when the content
 actually changed — the panel shares `/dev/i2c-1` with the RFID reader, so an

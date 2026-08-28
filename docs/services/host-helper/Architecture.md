@@ -279,19 +279,53 @@ for an answer is looking at exactly that page.
 | ------ | ------------------------ | --------------------------------------------------------- |
 | GET    | `/wifi/scan`             | Rescan and list networks, deduplicated by SSID.            |
 | POST   | `/wifi/connect`          | Body `{ssid, password}`. Empty password means open network. |
-| POST   | `/wifi/hotspot/start`    | Body `{ssid, password}`, both optional.                    |
+| POST   | `/wifi/hotspot/start`    | Body `{ssid, password}`, both optional. Reuses the profile. |
 | POST   | `/wifi/hotspot/stop`     | Brings `wlan0` back to client mode.                        |
 | GET    | `/wifi/hotspot/status`   | `{active, ssid}`.                                          |
+| GET    | `/network/status`        | Full state for the WebUI and the display (see below).      |
 
-All of these drive `nmcli` on the host through
-`nsenter -t 1 -n -- chroot /host … nmcli`. The network namespace of PID 1 is
-required, otherwise `wlan0` is simply not visible from inside the container.
+The low-level plumbing for all of these lives in `network_ops.py`; the route
+module and the background monitor call the same functions. Everything drives
+`nmcli` on the host through `nsenter -t 1 -n -- chroot /host … nmcli`. The
+network namespace of PID 1 is required, otherwise `wlan0` is simply not
+visible from inside the container.
 
 Client profiles are named `Minabox-<sanitised SSID>` and are created with an
 explicit `wifi-sec.key-mgmt` (`wpa-psk` or `none`); without it NetworkManager
 refuses the connection with "property is missing". The hotspot profile is
-always called `Minabox-Setup`; when no password is given, a random one is
-generated and returned in the response so the WebUI can display it.
+always called `Minabox-Setup`; when no password is given a random one is
+generated. `hotspot_up()` reuses an existing profile rather than rebuilding
+it, so the password shown on the display and in the WebUI keeps working — only
+an explicit password in the request body forces a rebuild.
+
+`/network/status` returns a stable shape: `mode`
+(`online` | `local_only` | `hotspot` | `no_network` | `unknown`), `internet`,
+`interface`, `interface_type`, `ipv4`, `ssid`, `hotspot` (`{active, ssid,
+password}` — the password only while the hotspot is up), `manage_url`,
+`fallback_enabled`, and `stale`. When the monitor is running it is served from
+its last probe, so a polled endpoint costs no `nmcli` calls.
+
+### netwatch: the connectivity watchdog
+
+`netwatch.py` runs a background task (started from the FastAPI lifespan) that
+solves a chicken-and-egg problem: every other way of starting the hotspot
+assumes you can already reach the box. Every ~20 s it probes NetworkManager
+and decides:
+
+- connectivity is present (or a cable is carrying `eth0`) → make sure the
+  hotspot is down, reset the offline timer;
+- no connectivity, no hotspot, offline for more than 90 s, no ethernet link →
+  bring `Minabox-Setup` up so the box is reachable at `http://10.42.0.1`;
+- no connectivity but the hotspot is already up → every ~3 min try the saved
+  client profiles again; a successful one keeps the hotspot down.
+
+After any switch between AP and client mode nothing else happens for 60 s
+(anti-flap). The recovery attempt costs one short AP outage every few minutes
+while the box is genuinely offline. There is no on/off switch yet — the only
+things that suppress the hotspot are a working connection or a cable. Tunable
+through `NETWATCH_ENABLED`, `NETWATCH_GRACE_SECONDS`,
+`NETWATCH_CHECK_INTERVAL`, `NETWATCH_RECOVERY_INTERVAL` and
+`NETWATCH_HOTSPOT_SSID`.
 
 ### USB
 
