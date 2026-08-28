@@ -199,6 +199,10 @@ class MediaDownloader:
             "noprogress": True,
             "logger": _YtDlpLogger(),
             "extractor_args": _YT_EXTRACTOR_ARGS,
+            # Der Container-User hat kein Home-Verzeichnis (useradd -M), also
+            # laeuft yt-dlps Cache-Schreibversuch nach ~/.cache/yt-dlp ins Leere.
+            # Abschalten statt jedes Mal eine Warnung zu provozieren.
+            "cachedir": False,
             "max_filesize": self.max_filesize_mb * 1024 * 1024,
             "progress_hooks": [progress_hook],
             "postprocessor_hooks": [postprocessor_hook],
@@ -259,6 +263,7 @@ class MediaDownloader:
             "no_warnings": True,
             "logger": _YtDlpLogger(),
             "extractor_args": _YT_EXTRACTOR_ARGS,
+            "cachedir": False,
         }
 
         try:

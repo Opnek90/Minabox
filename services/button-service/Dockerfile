@@ -128,7 +128,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 
 # /app has to stay writable: lgpio creates a notification file (.lgd-nfy0)
 # in the working directory.
-RUN useradd -m -u 1000 minabox && chown -R minabox:minabox /app
+RUN useradd -u 1000 -M -d /nonexistent -s /usr/sbin/nologin minabox && chown -R minabox:minabox /app
 
 USER minabox
 

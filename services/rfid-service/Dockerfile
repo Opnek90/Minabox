@@ -46,7 +46,7 @@ COPY rfid-service/src/ ./src/
 COPY rfid-service/config/ ./config/
 
 # Non-root user
-RUN useradd -m -u 1000 minabox && \
+RUN useradd -u 1000 -M -d /nonexistent -s /usr/sbin/nologin minabox && \
     chown -R minabox:minabox /app
 
 USER minabox

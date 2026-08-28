@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd -m -u 1000 minabox \
+    && useradd -u 1000 -M -d /nonexistent -s /usr/sbin/nologin minabox \
     && mkdir -p /mnt/audio/tracks/downloads \
     && chown minabox:minabox /mnt/audio/tracks/downloads
 

@@ -72,7 +72,7 @@ COPY display-service/config/ ./config/
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD curl -f "http://localhost:${API_PORT:-8000}/health" || exit 1
 
-RUN useradd -m -u 1000 minabox && chown -R minabox:minabox /app
+RUN useradd -u 1000 -M -d /nonexistent -s /usr/sbin/nologin minabox && chown -R minabox:minabox /app
 
 # Compose overrides this with ${HOST_UID}:${I2C_GID}; the numeric i2c group id
 # does not belong in the image, where it would be wrong on any box that numbers
