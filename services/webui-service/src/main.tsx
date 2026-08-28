@@ -13,6 +13,7 @@ import { WebSocketProvider } from '@/contexts/WebSocketContext';
 import { ThemeContextProvider, useThemeContext } from '@/contexts/ThemeContext';
 import App from '@/App';
 import '@/i18n';
+import { activateI18nDebugModeFromConfig } from '@/i18n/debugMode';
 
 // ============================================================================
 // React Query Client
@@ -181,6 +182,11 @@ if (!rootElement) throw new Error('Root element not found');
 // Muss vor dem ersten Render laufen, sonst entgehen uns genau die
 // Fehler, die beim Start auftreten.
 installGlobalErrorCapture();
+
+// Parallel zum Render: Steht der Server auf log_level "debug", schaltet das den
+// i18n-Fallback ab, damit fehlende Uebersetzungen sofort als Rohschluessel
+// auffallen. Bei jedem anderen Log-Level passiert nichts.
+void activateI18nDebugModeFromConfig();
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
