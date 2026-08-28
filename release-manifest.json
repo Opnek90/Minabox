@@ -1145,8 +1145,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.21",
+      "latest": "0.1.22",
       "releases": [
+        {
+          "version": "0.1.22",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Steht der Log-Level auf \"debug\", zeigt die Weboberflaeche fehlende Uebersetzungen als Rohschluessel an und meldet sie in der Browser-Konsole, statt still auf Englisch auszuweichen. Bei jedem anderen Log-Level aendert sich nichts."
+              ],
+              "en": [
+                "With the log level set to \"debug\", the web interface shows missing translations as raw keys and reports them in the browser console instead of silently falling back to English. Nothing changes at any other log level."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.21",
           "date": "2026-08-27",

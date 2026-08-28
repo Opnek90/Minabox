@@ -211,6 +211,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.1.22 - 2026-08-28
+
+#### Improved
+- With the log level set to "debug", the web interface shows missing
+  translations as raw keys and reports them in the browser console instead of
+  silently falling back to English. Nothing changes at any other log level.
+
 ### 0.1.21 - 2026-08-27
 
 #### Improved

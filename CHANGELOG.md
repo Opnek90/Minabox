@@ -222,6 +222,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.1.22 - 2026-08-28
+
+#### Verbessert
+- Steht der Log-Level auf "debug", zeigt die Weboberflaeche fehlende
+  Uebersetzungen als Rohschluessel an und meldet sie in der Browser-Konsole,
+  statt still auf Englisch auszuweichen. Bei jedem anderen Log-Level aendert
+  sich nichts.
+
 ### 0.1.21 - 2026-08-27
 
 #### Verbessert
