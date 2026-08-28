@@ -11,6 +11,9 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
+    // Phase 1: immer mit englischem Fallback starten. Bei log_level "debug"
+    // schaltet applyI18nDebugMode() (i18n/debugMode.ts) den Fallback nach dem
+    // ersten GET /config/general wieder ab, damit fehlende Schluessel auffallen.
     fallbackLng: DEFAULT_LANGUAGE,
     lng: localStorage.getItem(LANGUAGE_STORAGE_KEY) ?? DEFAULT_LANGUAGE,
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
