@@ -572,6 +572,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## rfid
 
+### 0.2.2 - 2026-08-28
+
+#### Improved
+- After a restart Docker reports the service ready about ten seconds sooner,
+  in step with the other services.
+
 ### 0.2.1 - 2026-08-26
 
 #### Improved
