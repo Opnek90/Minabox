@@ -55,6 +55,11 @@ _PUBLIC_PATHS: frozenset[str] = frozenset({
     "/api/v1/auth/password",
     "/api/v1/system/debug-export",
     "/api/v1/system/debug-export/options",
+    # Read-only network state, polled by the display service without a session
+    # so it can show the address/hotspot to reach the box on. The hotspot
+    # password it may carry is only set while that hotspot is the box's only
+    # network, i.e. everyone who can reach this already has it.
+    "/api/v1/system/network-status",
 })
 
 

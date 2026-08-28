@@ -19,7 +19,7 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
-import { systemApi, type NetworkResponse } from '@/api/system';
+import { systemApi, type NetworkResponse, type NetworkStatusResponse } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { translateApiError } from '@/utils/apiError';
@@ -34,6 +34,7 @@ export const NetworkPanel: React.FC = () => {
   const [wifiConnectPassword, setWifiConnectPassword] = useState('');
   const [wifiConnecting, setWifiConnecting] = useState(false);
   const [hotspotStatus, setHotspotStatus] = useState<{ active: boolean; ssid: string | null }>({ active: false, ssid: null });
+  const [netStatus, setNetStatus] = useState<NetworkStatusResponse | null>(null);
   const [hotspotInfo, setHotspotInfo] = useState<{ ssid: string; password: string } | null>(null);
   const [hotspotLoading, setHotspotLoading] = useState(false);
   const [network, setNetwork] = useState<NetworkResponse | null>(null);
@@ -53,12 +54,14 @@ export const NetworkPanel: React.FC = () => {
   const loadData = useCallback(async () => {
     setError(null);
     try {
-      const [hotspot, net, hostnameRes] = await Promise.all([
+      const [hotspot, net, hostnameRes, status] = await Promise.all([
         systemApi.wifiHotspotStatus().catch(() => ({ active: false, ssid: null })),
         systemApi.getNetwork().catch(() => null),
         systemApi.getHostname().catch(() => null),
+        systemApi.getNetworkStatus().catch(() => null),
       ]);
       setHotspotStatus(hotspot ?? { active: false, ssid: null });
+      setNetStatus(status);
       if (net) {
         setNetwork(net);
         setNetworkMethod(net.method);
@@ -193,9 +196,53 @@ export const NetworkPanel: React.FC = () => {
 
   if (loading) return null;
 
+  const modeLabel = netStatus
+    ? t(`system.net_status_${netStatus.mode}`, { defaultValue: t('system.net_status_unknown') })
+    : null;
+  const modeSeverity: 'success' | 'info' | 'warning' =
+    netStatus?.mode === 'online'
+      ? 'success'
+      : netStatus?.mode === 'no_network'
+        ? 'warning'
+        : 'info';
+
   return (
     <Box>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      {/* ── Aktueller Status ─────────────────────────────────────────────────── */}
+      {netStatus && (
+        <SettingsBlock title={t('system.net_status_title')}>
+          <Stack spacing={1} sx={{ mt: 0.5 }}>
+            <Alert severity={modeSeverity} sx={{ py: 0.25 }}>
+              {modeLabel}
+              {netStatus.stale && ` — ${t('system.net_status_stale')}`}
+            </Alert>
+            {netStatus.manage_url && (
+              <Typography variant="body2">
+                {t('system.net_status_reach')}:{' '}
+                <Box component="span" sx={{ fontFamily: 'monospace' }}>{netStatus.manage_url}</Box>
+              </Typography>
+            )}
+            {netStatus.hotspot.active && netStatus.hotspot.ssid && (
+              <Typography variant="body2">
+                {t('system.net_status_ssid')}: <strong>{netStatus.hotspot.ssid}</strong>
+                {netStatus.hotspot.password && (
+                  <> · {t('system.wifi_password')}: <strong>{netStatus.hotspot.password}</strong></>
+                )}
+              </Typography>
+            )}
+            {!netStatus.hotspot.active && netStatus.ssid && (
+              <Typography variant="body2">
+                {t('system.net_status_ssid')}: <strong>{netStatus.ssid}</strong>
+              </Typography>
+            )}
+            <Typography variant="caption" color="text.secondary">
+              {t('system.net_status_fallback_hint', { ssid: netStatus.hotspot.ssid || 'Minabox-Setup' })}
+            </Typography>
+          </Stack>
+        </SettingsBlock>
+      )}
 
       {/* ── WLAN ─────────────────────────────────────────────────────────────── */}
       <SettingsBlock title={t('system.wifi')}>

@@ -687,7 +687,17 @@
       "preview_back": "Zurück zur Auswahl",
       "preview_expired": "Die Vorschau ist abgelaufen. Bitte das Paket neu erstellen."
     },
-    "debug_export_short": "Diagnose-Paket"
+    "debug_export_short": "Diagnose-Paket",
+    "net_status_title": "Aktueller Status",
+    "net_status_online": "Online",
+    "net_status_local_only": "Lokales Netz, kein Internet",
+    "net_status_hotspot": "Setup-Hotspot aktiv",
+    "net_status_no_network": "Kein Netzwerk",
+    "net_status_unknown": "Unbekannt",
+    "net_status_reach": "Erreichbar unter",
+    "net_status_ssid": "WLAN",
+    "net_status_stale": "Status möglicherweise veraltet.",
+    "net_status_fallback_hint": "Fällt das WLAN aus, öffnet die Box nach kurzer Zeit selbst das Setup-WLAN „{{ssid}}“. Am Display stehen dann SSID, Passwort und Adresse."
   },
   "title": "Einstellungen"
 }

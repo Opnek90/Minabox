@@ -160,6 +160,32 @@ async def test_optional_fallback_is_copied_not_shared(api_key, no_api_key):
     assert second == {"devices": []}
 
 
+@pytest.mark.asyncio
+async def test_network_status_passes_the_helper_payload_through(api_key, fake_helper):
+    state = fake_helper(
+        lambda r: httpx.Response(
+            200,
+            json={
+                "mode": "hotspot",
+                "hotspot": {"active": True, "ssid": "Minabox-Setup", "password": "pw"},
+                "manage_url": "http://10.42.0.1",
+            },
+        )
+    )
+    got = await rh.get_network_status()
+    assert got["mode"] == "hotspot"
+    assert got["hotspot"]["password"] == "pw"
+    assert state["requests"][0].url.path == "/network/status"
+
+
+@pytest.mark.asyncio
+async def test_network_status_falls_back_when_helper_is_down(api_key, fake_helper):
+    fake_helper(lambda r: httpx.Response(503))
+    got = await rh.get_network_status()
+    assert got["mode"] == "unknown"
+    assert got["stale"] is True
+
+
 # ── Regression: config must stay lazy ────────────────────────────────────────
 
 
