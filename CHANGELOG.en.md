@@ -22,6 +22,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.8 - 2026-08-28
+
+#### Improved
+- The container's service user no longer has a home directory and can no
+  longer be logged into (image hardening).
+
 ### 0.2.7 - 2026-08-27
 
 #### Improved
@@ -401,6 +407,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## media-downloader
 
+### 0.2.1 - 2026-08-28
+
+#### Improved
+- The container's service user no longer has a home directory and can no
+  longer be logged into (image hardening).
+
 ### 0.2.0 - 2026-08-27
 
 #### Added
@@ -513,6 +525,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## audio
 
+### 0.2.4 - 2026-08-28
+
+#### Improved
+- The container's service user no longer has a home directory and can no
+  longer be logged into (image hardening).
+
 ### 0.2.3 - 2026-08-26
 
 #### Fixed
@@ -572,6 +590,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## rfid
 
+### 0.2.3 - 2026-08-28
+
+#### Improved
+- The container's service user no longer has a home directory and can no
+  longer be logged into (image hardening).
+
 ### 0.2.2 - 2026-08-28
 
 #### Improved
@@ -614,6 +638,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## button
 
+### 0.2.2 - 2026-08-28
+
+#### Improved
+- The container's service user no longer has a home directory and can no
+  longer be logged into (image hardening).
+
 ### 0.2.1 - 2026-08-26
 
 #### Improved
@@ -653,6 +683,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## led
 
+### 0.2.2 - 2026-08-28
+
+#### Improved
+- The container's service user no longer has a home directory and can no
+  longer be logged into (image hardening).
+
 ### 0.2.1 - 2026-08-26
 
 #### Improved
@@ -688,6 +724,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## display
+
+### 0.2.2 - 2026-08-28
+
+#### Improved
+- The container's service user no longer has a home directory and can no
+  longer be logged into (image hardening).
 
 ### 0.2.1 - 2026-08-26
 

@@ -3,8 +3,22 @@
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
-      "latest": "0.2.3",
+      "latest": "0.2.4",
       "releases": [
+        {
+          "version": "0.2.4",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist nicht mehr anmeldbar (Haerten des Abbilds)."
+              ],
+              "en": [
+                "The container's service user no longer has a home directory and can no longer be logged into (image hardening)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.3",
           "date": "2026-08-26",
@@ -121,8 +135,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.7",
+      "latest": "0.2.8",
       "releases": [
+        {
+          "version": "0.2.8",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist nicht mehr anmeldbar (Haerten des Abbilds)."
+              ],
+              "en": [
+                "The container's service user no longer has a home directory and can no longer be logged into (image hardening)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.7",
           "date": "2026-08-27",
@@ -489,8 +517,22 @@
       ]
     },
     "button": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist nicht mehr anmeldbar (Haerten des Abbilds)."
+              ],
+              "en": [
+                "The container's service user no longer has a home directory and can no longer be logged into (image hardening)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-26",
@@ -560,8 +602,22 @@
       ]
     },
     "display": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist nicht mehr anmeldbar (Haerten des Abbilds)."
+              ],
+              "en": [
+                "The container's service user no longer has a home directory and can no longer be logged into (image hardening)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-26",
@@ -788,8 +844,22 @@
       ]
     },
     "led": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist nicht mehr anmeldbar (Haerten des Abbilds)."
+              ],
+              "en": [
+                "The container's service user no longer has a home directory and can no longer be logged into (image hardening)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-26",
@@ -862,8 +932,22 @@
       ]
     },
     "media-downloader": {
-      "latest": "0.2.0",
+      "latest": "0.2.1",
       "releases": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist nicht mehr anmeldbar (Haerten des Abbilds)."
+              ],
+              "en": [
+                "The container's service user no longer has a home directory and can no longer be logged into (image hardening)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "date": "2026-08-27",
@@ -946,8 +1030,22 @@
       ]
     },
     "rfid": {
-      "latest": "0.2.2",
+      "latest": "0.2.3",
       "releases": [
+        {
+          "version": "0.2.3",
+          "date": "2026-08-28",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Dienst-Benutzer im Container hat kein Home-Verzeichnis mehr und ist nicht mehr anmeldbar (Haerten des Abbilds)."
+              ],
+              "en": [
+                "The container's service user no longer has a home directory and can no longer be logged into (image hardening)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.2",
           "date": "2026-08-28",
