@@ -8,51 +8,27 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from host_helper.api.routes.deps import (
-    _check_api_key,
-    _host_root,
-    _host_tool,
-    _nsenter_bin,
-)
+from host_helper import network_ops
+from host_helper.api.routes.deps import _check_api_key
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-
-# ── WLAN & Hotspot ─────────────────────────────────────────────────────────
+# Re-exported for maintenance.py, which drives the same hotspot profile during a
+# factory reset. The nmcli runner and the hotspot id live in network_ops now so
+# the background monitor can share them.
+HOTSPOT_CONN_ID = network_ops.HOTSPOT_CONN_ID
 
 
 def _run_nmcli_host_network(
     args: list[str], timeout: int = 30
 ) -> subprocess.CompletedProcess:
     """Run nmcli in the host network namespace so it sees wlan0. Needs pid=host."""
-    root_path = _host_root()
-    if _host_tool("usr/bin/nmcli") is None:
-        raise HTTPException(
-            status_code=503, detail="nmcli not found on host (install NetworkManager)"
-        )
-    nsenter = _nsenter_bin()
-    dbus_addr = "unix:path=/var/run/dbus/system_bus_socket"  # path inside chroot
-    # nsenter -t 1 -n: enter the network namespace of host PID 1, where wlan0 is.
-    cmd = [
-        str(nsenter),
-        "-t",
-        "1",
-        "-n",
-        "--",
-        "chroot",
-        str(root_path),
-        "env",
-        f"DBUS_SYSTEM_BUS_ADDRESS={dbus_addr}",
-        "nmcli",
-    ] + args
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    return network_ops.run_nmcli(args, timeout=timeout)
+
+
+# ── WLAN & Hotspot ─────────────────────────────────────────────────────────
 
 
 class WifiConnectBody(BaseModel):
@@ -183,91 +159,30 @@ def wifi_connect(
     return {"ok": True, "message": "Connected", "ssid": ssid}
 
 
-HOTSPOT_CONN_ID = "Minabox-Setup"
-
-
 @router.post("/wifi/hotspot/start")
 def wifi_hotspot_start(
     body: HotspotStartBody | None = None,
     _: None = Depends(_check_api_key),
 ) -> dict:
-    """Start AP (hotspot). Default SSID Minabox-Setup, optional password."""
-    ssid = (body.ssid if body else "Minabox-Setup").strip() or "Minabox-Setup"
-    password = (body.password if body else "").strip()
-    if not password:
-        import secrets
+    """Start AP (hotspot). Default SSID Minabox-Setup, optional password.
 
-        password = secrets.token_hex(4)
+    An existing profile is reused, so the password the user was shown a moment
+    ago still works; only an explicit password in the body forces a rebuild.
+    """
+    ssid = (body.ssid if body else HOTSPOT_CONN_ID).strip() or HOTSPOT_CONN_ID
+    password = (body.password if body else "").strip()
     try:
-        _run_nmcli_host_network(["con", "delete", HOTSPOT_CONN_ID], timeout=5)
-    except Exception:
-        pass
-    try:
-        _run_nmcli_host_network(
-            [
-                "con",
-                "add",
-                "type",
-                "wifi",
-                "ifname",
-                "wlan0",
-                "autoconnect",
-                "no",
-                "con-name",
-                HOTSPOT_CONN_ID,
-                "ssid",
-                ssid,
-            ],
-            timeout=10,
-        )
-    except HTTPException:
-        raise
-    _run_nmcli_host_network(
-        [
-            "con",
-            "modify",
-            HOTSPOT_CONN_ID,
-            "802-11-wireless.mode",
-            "ap",
-            "ipv4.method",
-            "shared",
-        ],
-        timeout=5,
-    )
-    _run_nmcli_host_network(
-        [
-            "con",
-            "modify",
-            HOTSPOT_CONN_ID,
-            "wifi-sec.key-mgmt",
-            "wpa-psk",
-            "wifi-sec.psk",
-            password,
-        ],
-        timeout=5,
-    )
-    r = _run_nmcli_host_network(["con", "up", HOTSPOT_CONN_ID], timeout=15)
-    if r.returncode != 0:
-        raise HTTPException(
-            status_code=502,
-            detail=(r.stderr or r.stdout or "Hotspot start failed")[:500],
-        )
-    logger.info("wifi_hotspot_started", ssid=ssid)
-    return {
-        "ok": True,
-        "ssid": ssid,
-        "password": password,
-        "message": "Hotspot started",
-    }
+        result = network_ops.hotspot_up(ssid, password or None)
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(status_code=504, detail="Hotspot start timed out") from e
+    logger.info("wifi_hotspot_started", ssid=result["ssid"])
+    return {"ok": True, "message": "Hotspot started", **result}
 
 
 @router.post("/wifi/hotspot/stop")
 def wifi_hotspot_stop(_: None = Depends(_check_api_key)) -> dict:
     """Stop the hotspot and bring wlan0 back to client mode."""
-    try:
-        _run_nmcli_host_network(["con", "down", HOTSPOT_CONN_ID], timeout=10)
-    except HTTPException:
-        raise
+    network_ops.hotspot_down()
     logger.info("wifi_hotspot_stopped")
     return {"ok": True, "message": "Hotspot stopped"}
 
@@ -275,15 +190,26 @@ def wifi_hotspot_stop(_: None = Depends(_check_api_key)) -> dict:
 @router.get("/wifi/hotspot/status")
 def wifi_hotspot_status(_: None = Depends(_check_api_key)) -> dict:
     """Return whether the hotspot is currently active."""
-    try:
-        r = _run_nmcli_host_network(
-            ["-t", "-f", "NAME,STATE", "con", "show", "--active"], timeout=5
-        )
-    except HTTPException:
-        return {"active": False, "ssid": None}
-    out = (r.stdout or "").strip()
-    active = HOTSPOT_CONN_ID in out and "activated" in out.lower()
-    return {"active": active, "ssid": HOTSPOT_CONN_ID if active else None}
+    return network_ops.hotspot_status()
+
+
+@router.get("/network/status")
+def network_status(_: None = Depends(_check_api_key)) -> dict:
+    """Where the box stands on the network: mode, address, hotspot, manage URL.
+
+    Served from the background monitor's last probe when it is running (no
+    extra nmcli calls on a polled endpoint); falls back to a fresh probe
+    otherwise, e.g. in tests or right after startup.
+    """
+    from host_helper.netwatch import get_monitor
+
+    monitor = get_monitor()
+    if monitor is not None:
+        return monitor.get_state()
+    state = network_ops.probe()
+    state["fallback_enabled"] = True
+    state["stale"] = False
+    return state
 
 
 # ── Network (IP config: DHCP / static) ────────────────────────────────────
