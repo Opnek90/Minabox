@@ -38,6 +38,24 @@ def sleep_timer(canvas: Any, x: int, y: int, size: int = SIZE) -> None:
     )
 
 
+def no_internet(canvas: Any, x: int, y: int, size: int = SIZE) -> None:
+    """A small globe with a stroke through it: on the LAN, but no way out."""
+    line = max(1, size // 10)
+    canvas.ellipse([x, y, x + size - 1, y + size - 1], outline=1, width=line)
+    mid = y + size // 2
+    canvas.line([x, mid, x + size - 1, mid], fill=1, width=line)
+    canvas.ellipse(
+        [x + size * 30 // 100, y, x + size * 70 // 100, y + size - 1],
+        outline=1,
+        width=line,
+    )
+    canvas.line(
+        [(x + size - 1, y), (x, y + size - 1)],
+        fill=1,
+        width=max(2, size // 6),
+    )
+
+
 def barred(canvas: Any, x: int, y: int, size: int) -> None:
     """A circle with a stroke through it: this one, no."""
     line = max(2, size // 8)

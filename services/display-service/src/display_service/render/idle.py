@@ -23,8 +23,9 @@ from .primitives import WIDTH, new_frame
 MARK_DRAWERS = {
     "error": marks.error,
     "sleep_timer": marks.sleep_timer,
+    "no_internet": marks.no_internet,
 }
-MARK_ORDER = ("error", "sleep_timer")
+MARK_ORDER = ("error", "no_internet", "sleep_timer")
 MARK_TOP = 2
 
 

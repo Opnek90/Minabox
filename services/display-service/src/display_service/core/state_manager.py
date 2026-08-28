@@ -72,6 +72,15 @@ class StateManager:
             "bluetooth_sink_available": False,
         }
         self._sleep_timer: dict[str, Any] = {"active": False, "remaining_ms": None}
+        # Where the box stands on the network, from the backend poll. "unknown"
+        # until the first answer - which is also what it falls back to when the
+        # poll fails, so a stale hotspot screen does not outlive the hotspot.
+        self._network: dict[str, Any] = {
+            "mode": "unknown",
+            "ssid": None,
+            "manage_url": None,
+            "hotspot": {"active": False, "ssid": None, "password": None},
+        }
         self._session: dict[str, Any] = {
             "repeat_mode": "none",
             "shuffle": False,
@@ -148,6 +157,33 @@ class StateManager:
     def get_sleep_timer(self) -> dict[str, Any]:
         """Return current sleep timer state (active, remaining_ms)."""
         return dict(self._sleep_timer)
+
+    def update_network(self, data: dict[str, Any]) -> None:
+        """Update cached network state (from the backend /network-status poll)."""
+        hotspot = data.get("hotspot") or {}
+        self._network = {
+            "mode": data.get("mode", "unknown"),
+            "ssid": data.get("ssid"),
+            "manage_url": data.get("manage_url"),
+            "hotspot": {
+                "active": bool(hotspot.get("active")),
+                "ssid": hotspot.get("ssid"),
+                "password": hotspot.get("password"),
+            },
+        }
+
+    def get_network(self) -> dict[str, Any]:
+        """Return cached network state (mode, ssid, manage_url, hotspot)."""
+        return dict(self._network)
+
+    def wants_network_screen(self) -> bool:
+        """True while the box cannot be reached the usual way and should say so.
+
+        Only the two states a person can act on: the fallback hotspot is up
+        (here are the credentials), or there is no network at all. "Local
+        network only" is a mark on the idle screen, not a screen.
+        """
+        return self._network.get("mode") in ("hotspot", "no_network")
 
     def update_session(
         self, repeat_mode: str, shuffle: bool, current_title: str = ""
