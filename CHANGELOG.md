@@ -23,6 +23,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.9 - 2026-08-29
+
+#### Neu
+- Neuer Netzwerk-Statuswert (Modus, Adresse, Setup-Hotspot), den die
+  Oberflaeche und das Display auslesen.
+
 ### 0.2.8 - 2026-08-28
 
 #### Verbessert
@@ -221,6 +227,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.1.23 - 2026-08-29
+
+#### Neu
+- Die Netzwerk-Einstellungen zeigen den aktuellen Zustand: Modus, Adresse zum
+  Erreichen der Box und ob der Setup-Hotspot laeuft.
 
 ### 0.1.22 - 2026-08-28
 
@@ -480,6 +492,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.2.2 - 2026-08-29
+
+#### Neu
+- Verliert die Box laenger ihre Verbindung und haengt kein Netzwerkkabel,
+  oeffnet sie selbst das Setup-WLAN "Minabox-Setup" (erreichbar unter
+  http://10.42.0.1) und schaltet es wieder ab, sobald ein bekanntes WLAN
+  erreichbar ist.
 
 ### 0.2.1 - 2026-08-26
 
@@ -778,6 +798,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## display
+
+### 0.2.3 - 2026-08-29
+
+#### Neu
+- Zeigt einen eigenen Bildschirm, wenn die Box nicht auf dem gewohnten Weg
+  erreichbar ist - mit SSID, Passwort und Adresse des Setup-WLANs.
 
 ### 0.2.2 - 2026-08-28
 
