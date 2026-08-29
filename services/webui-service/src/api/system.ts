@@ -286,6 +286,12 @@ export const systemApi = {
     return response.data;
   },
 
+  /** Current network mode, address, and fallback-hotspot state. Requires Host-Helper. */
+  getNetworkStatus: async (): Promise<NetworkStatusResponse> => {
+    const response = await apiClient.get<NetworkStatusResponse>('/system/network-status');
+    return response.data;
+  },
+
   /** Set IP config (DHCP or manual). Requires Host-Helper. */
   setNetwork: async (config: NetworkConfig): Promise<{ ok: boolean; method: string }> => {
     const response = await apiClient.put<{ ok: boolean; method: string }>(
@@ -530,6 +536,21 @@ export interface WifiHotspotResponse {
 export interface WifiHotspotStatusResponse {
   active: boolean;
   ssid: string | null;
+}
+
+export type NetworkMode = 'online' | 'local_only' | 'hotspot' | 'no_network' | 'unknown';
+
+export interface NetworkStatusResponse {
+  mode: NetworkMode;
+  internet: boolean;
+  interface: string | null;
+  interface_type: 'ethernet' | 'wifi' | null;
+  ipv4: string | null;
+  ssid: string | null;
+  hotspot: { active: boolean; ssid: string | null; password: string | null };
+  manage_url: string | null;
+  fallback_enabled: boolean;
+  stale: boolean;
 }
 
 export interface TimeStatusResponse {

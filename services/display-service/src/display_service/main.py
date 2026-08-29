@@ -40,6 +40,9 @@ from .infrastructure import (
 )
 from .render.idle import render as render_idle
 from .render.idle import strip_width as idle_strip_width
+from .render.network import render_hotspot as render_net_hotspot
+from .render.network import render_no_network as render_net_no_network
+from .render.network import wander_offset as net_wander_offset
 from .render.playing import PAUSED_SLEEP_PHASE_SECONDS, PlayingView
 from .render.playing import render as render_playing
 from .render.quota_over import render as render_quota_over
@@ -57,6 +60,10 @@ SLEEP_TIMER_POLL_INTERVAL = 5.0
 # them as a single icon. One request every 5 seconds bought a latency nobody can
 # perceive at a measured 12 ms of CPU per request.
 SESSION_POLL_INTERVAL = 15.0
+# The network state changes on the scale of a router rebooting or a box being
+# carried to another house. Polling it is only so the panel can show where to
+# reach the box when the usual way is gone.
+NETWORK_POLL_INTERVAL = 20.0
 RENDER_INTERVAL = 1.0
 # The render loop ticks every second, but the OLED shares /dev/i2c-1 with the
 # PN532 RFID reader. Redrawing identical content just adds bus contention on the
@@ -112,6 +119,7 @@ SCREEN_TEST = "test_pattern"
 SCREEN_HUD = "volume"
 SCREEN_NOTICE = "notice"
 SCREEN_PLAYING = "playing"
+SCREEN_NETWORK = "network"
 SCREEN_IDLE = "idle"
 
 
@@ -143,6 +151,7 @@ class DisplayService:
         self._render_task: asyncio.Task | None = None
         self._sleep_poll_task: asyncio.Task | None = None
         self._session_poll_task: asyncio.Task | None = None
+        self._network_poll_task: asyncio.Task | None = None
         self._uvicorn_task: asyncio.Task | None = None
         self._api_server: uvicorn.Server | None = None
         self._display_config: DisplayServiceConfig | None = None
@@ -193,6 +202,7 @@ class DisplayService:
         self._render_task = asyncio.create_task(self._render_loop())
         self._sleep_poll_task = asyncio.create_task(self._sleep_timer_poll_loop())
         self._session_poll_task = asyncio.create_task(self._session_poll_loop())
+        self._network_poll_task = asyncio.create_task(self._network_poll_loop())
         await self._start_api_server()
         logger.info("display_service_started")
 
@@ -223,6 +233,7 @@ class DisplayService:
         await _cancel_task(self._render_task)
         await _cancel_task(self._sleep_poll_task)
         await _cancel_task(self._session_poll_task)
+        await _cancel_task(self._network_poll_task)
         await _cancel_task(self._mqtt_task)
         await self.mqtt_client.disconnect()
         # Blanks the panel and closes the I2C handle; a plain clear() left the
@@ -499,6 +510,20 @@ class DisplayService:
             wake=self._session_refresh,
         )
 
+    async def _network_poll_loop(self) -> None:
+        def _update(data: dict) -> None:
+            self.state_manager.update_network(data)
+            # Switch to (or away from) the network screen without waiting out
+            # the render tick.
+            self._wake.set()
+
+        await self._poll_backend(
+            endpoint="/api/v1/system/network-status",
+            interval=NETWORK_POLL_INTERVAL,
+            update_fn=_update,
+            error_event="network_poll_error",
+        )
+
     @staticmethod
     def _playing_fingerprint(view: PlayingView) -> str:
         """Everything visible on the playing screen, and nothing else.
@@ -569,6 +594,8 @@ class DisplayService:
             return SCREEN_NOTICE
         if self.state_manager.is_playing():
             return SCREEN_PLAYING
+        if self.state_manager.wants_network_screen():
+            return SCREEN_NETWORK
         return SCREEN_IDLE
 
     def _apply_brightness(self, screen: str) -> bool:
@@ -596,7 +623,11 @@ class DisplayService:
         if self._idle_animation is not None:
             self._idle_animation.set_asleep(night)
 
-        visible = not (night and brightness.off_at_night and screen == SCREEN_IDLE)
+        # The network screen blanks at night with the idle screen: if nobody is
+        # awake to read the address, an hour-long lit panel is only burn-in. It
+        # comes back in the morning, or the moment anything else takes over.
+        night_off_screen = screen in (SCREEN_IDLE, SCREEN_NETWORK)
+        visible = not (night and brightness.off_at_night and night_off_screen)
         if visible != self._panel_visible:
             self._panel_visible = visible
             set_visible(visible)
@@ -615,6 +646,10 @@ class DisplayService:
             showing.append("error")
         if self.state_manager.get_sleep_timer()["active"]:
             showing.append("sleep_timer")
+        if self.state_manager.get_network().get("mode") == "local_only":
+            # Connected to the LAN but no way out. Not a screen - the box works
+            # fine for local playback - but worth a corner mark.
+            showing.append("no_internet")
         return tuple(showing)
 
     def _idle(self, now: float) -> IdleAnimation:
@@ -679,6 +714,19 @@ class DisplayService:
                     sleep_phase=int(now / PAUSED_SLEEP_PHASE_SECONDS),
                 )
             return self._playing_fingerprint(view), render_playing(view)
+        if screen == SCREEN_NETWORK:
+            net = self.state_manager.get_network()
+            offset = net_wander_offset(now)
+            if net.get("mode") == "hotspot":
+                hs = net.get("hotspot") or {}
+                ssid = hs.get("ssid") or net.get("ssid") or "Minabox-Setup"
+                password = hs.get("password")
+                url = net.get("manage_url")
+                return (
+                    f"net:hotspot:{ssid}:{password}:{url}:{offset}",
+                    render_net_hotspot(ssid, password, url, offset=offset),
+                )
+            return f"net:no_network:{offset}", render_net_no_network(offset=offset)
         if screen == SCREEN_IDLE:
             animation = self._idle(now)
             showing = self._idle_marks()

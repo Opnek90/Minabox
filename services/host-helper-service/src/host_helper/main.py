@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import sys
+from collections.abc import AsyncIterator
 
 import structlog
 import uvicorn
@@ -13,6 +16,7 @@ from shared_lib.version import get_version as get_build_version
 
 from host_helper.api.routes import router, set_config
 from host_helper.config import Config, load_config
+from host_helper.netwatch import NetworkMonitor, set_monitor
 
 logger = structlog.get_logger(__name__)
 
@@ -48,12 +52,31 @@ def create_app(config: Config) -> FastAPI:
     the same way they turn on the readable log format.
     """
     debug = config.log_level == "DEBUG"
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        # The connectivity watchdog: it brings up the setup hotspot when the
+        # box loses its configured Wi-Fi, so a stranded user can still reach
+        # the WebUI. Runs here rather than as a host service because the nmcli
+        # plumbing it needs already lives in this container.
+        monitor = NetworkMonitor()
+        set_monitor(monitor)
+        task = asyncio.create_task(monitor.run_forever(), name="netwatch")
+        try:
+            yield
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            set_monitor(None)
+
     app = FastAPI(
         title="Minabox Host-Helper",
         version=get_build_version(),
         docs_url="/docs" if debug else None,
         redoc_url=None,
         openapi_url="/openapi.json" if debug else None,
+        lifespan=lifespan,
     )
     app.include_router(router)
     return app

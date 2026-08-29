@@ -109,6 +109,7 @@ picking its own sizes for what it has to say.
 | paused | paused | title, progress bar, Knuffel asleep with Zs |
 | volume | the knob was turned, or mute | blocks, one per detent |
 | notice | an unknown, blocked or over-quota figure | a picture and a few words |
+| network | the fallback hotspot is up, or there is no network | SSID, password, URL — or "Kein Netz" |
 | test pattern | `POST /test` | two lines of text |
 
 What replaced the grid, and why, is in [Redesign.md](Redesign.md). The short
@@ -198,7 +199,19 @@ actually sees, so it is written down in one place:
 | `volume` | it reports a gesture with a hand still on the knob |
 | `notice` | a figure was put on and the box is not going to play it |
 | `playing` | something is playing |
+| `network` | the box cannot be reached the usual way and should say how |
 | `idle` | nothing else applies |
+
+The **network** screen appears in exactly two states, from the 20 s poll of
+the backend's `/system/network-status`: the fallback hotspot is up (it shows
+the SSID, the password and `http://10.42.0.1` — the panel is the only place
+those are written down) or there is no network at all (a short "Kein Netz";
+the host-helper brings the hotspot up on its own within a minute). "Local
+network, no internet" is a corner mark, not a screen. The screen blanks at
+night with the idle screen — an hour-long lit panel nobody is reading is only
+burn-in — and its text block creeps through a few vertical positions for the
+same reason. A failed poll falls back to "unknown", so a stale hotspot screen
+cannot outlive the hotspot.
 
 A **notice** is one of three: an unknown figure, a blocked one, or the daily
 limit. They share a screen slot because they share a shape - something was put
@@ -284,7 +297,9 @@ panel is also the cheapest thing this service can do.
 The widget grid used to carry the error flag and the sleep timer in a corner,
 and both went with it. They come back as small glyphs top right - drawn only
 when there is something to say, so the ordinary idle screen is still Knuffel
-and nothing else.
+and nothing else. A third mark, a struck-through globe, means the box is on
+the LAN but has no way to the wider internet (`mode == local_only`): the box
+still plays local files fine, so it is a mark, not a screen.
 
 An error is worth a mark and not a screen. `audio/error` and
 `system/service-error` fire on failures that have usually recovered by the time

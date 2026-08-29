@@ -687,7 +687,17 @@
       "preview_back": "Back to selection",
       "preview_expired": "The preview has expired. Please create the package again."
     },
-    "debug_export_short": "Diagnostic package"
+    "debug_export_short": "Diagnostic package",
+    "net_status_title": "Current status",
+    "net_status_online": "Online",
+    "net_status_local_only": "Local network, no internet",
+    "net_status_hotspot": "Setup hotspot active",
+    "net_status_no_network": "No network",
+    "net_status_unknown": "Unknown",
+    "net_status_reach": "Reachable at",
+    "net_status_ssid": "Wi-Fi",
+    "net_status_stale": "Status may be out of date.",
+    "net_status_fallback_hint": "If Wi-Fi drops, the box brings up its own “{{ssid}}” setup network after a short wait. The display then shows the SSID, password and address."
   },
   "title": "Settings"
 }

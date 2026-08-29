@@ -143,6 +143,13 @@ Moment. Zustand pruefen mit:
 cd ~/minabox && docker compose ps
 ```
 
+**Box im Netzwerk verschwunden** (Router aus, WLAN-Passwort geaendert, Box
+umgezogen). Nach etwa einer Minute ohne Verbindung oeffnet die Box selbst ein
+WLAN namens `Minabox-Setup`. Damit verbinden und `http://10.42.0.1` aufrufen;
+das Passwort steht am Display. Unter *Wartung → Netzwerk* das neue WLAN
+eintragen — sobald die Box wieder online ist, verschwindet der Hotspot von
+selbst. Details in [Troubleshooting.md](Troubleshooting.md).
+
 **Weitere Hilfe.** [Troubleshooting.md](Troubleshooting.md), und fuer eine
 Supportanfrage das Diagnose-Paket aus der Oberflaeche
 (*Einstellungen → Diagnose*) mitschicken — siehe [DebugExport.md](DebugExport.md).

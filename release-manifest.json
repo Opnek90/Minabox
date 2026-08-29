@@ -135,8 +135,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.8",
+      "latest": "0.2.9",
       "releases": [
+        {
+          "version": "0.2.9",
+          "date": "2026-08-29",
+          "notes": {
+            "added": {
+              "de": [
+                "Neuer Netzwerk-Statuswert (Modus, Adresse, Setup-Hotspot), den die Oberflaeche und das Display auslesen."
+              ],
+              "en": [
+                "A new network status value (mode, address, setup hotspot) that the web UI and the display read."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.8",
           "date": "2026-08-28",
@@ -616,8 +630,22 @@
       ]
     },
     "display": {
-      "latest": "0.2.2",
+      "latest": "0.2.3",
       "releases": [
+        {
+          "version": "0.2.3",
+          "date": "2026-08-29",
+          "notes": {
+            "added": {
+              "de": [
+                "Zeigt einen eigenen Bildschirm, wenn die Box nicht auf dem gewohnten Weg erreichbar ist - mit SSID, Passwort und Adresse des Setup-WLANs."
+              ],
+              "en": [
+                "Shows a dedicated screen when the box cannot be reached the usual way, with the SSID, password and address of the setup Wi-Fi."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.2",
           "date": "2026-08-28",
@@ -714,8 +742,22 @@
       ]
     },
     "host-helper": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-08-29",
+          "notes": {
+            "added": {
+              "de": [
+                "Verliert die Box laenger ihre Verbindung und haengt kein Netzwerkkabel, oeffnet sie selbst das Setup-WLAN \"Minabox-Setup\" (erreichbar unter http://10.42.0.1) und schaltet es wieder ab, sobald ein bekanntes WLAN erreichbar ist."
+              ],
+              "en": [
+                "When the box loses its connection for a while and has no network cable, it opens the \"Minabox-Setup\" Wi-Fi on its own (reachable at http://10.42.0.1) and shuts it down again once a known network is in reach."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-26",
@@ -1145,8 +1187,22 @@
       ]
     },
     "webui": {
-      "latest": "0.1.22",
+      "latest": "0.1.23",
       "releases": [
+        {
+          "version": "0.1.23",
+          "date": "2026-08-29",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Netzwerk-Einstellungen zeigen den aktuellen Zustand: Modus, Adresse zum Erreichen der Box und ob der Setup-Hotspot laeuft."
+              ],
+              "en": [
+                "The network settings now show the current state: mode, the address to reach the box on, and whether the setup hotspot is running."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.22",
           "date": "2026-08-28",

@@ -22,6 +22,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.9 - 2026-08-29
+
+#### Added
+- A new network status value (mode, address, setup hotspot) that the web UI
+  and the display read.
+
 ### 0.2.8 - 2026-08-28
 
 #### Improved
@@ -210,6 +216,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.1.23 - 2026-08-29
+
+#### Added
+- The network settings now show the current state: mode, the address to reach
+  the box on, and whether the setup hotspot is running.
 
 ### 0.1.22 - 2026-08-28
 
@@ -458,6 +470,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.2.2 - 2026-08-29
+
+#### Added
+- When the box loses its connection for a while and has no network cable, it
+  opens the "Minabox-Setup" Wi-Fi on its own (reachable at http://10.42.0.1)
+  and shuts it down again once a known network is in reach.
 
 ### 0.2.1 - 2026-08-26
 
@@ -743,6 +762,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## display
+
+### 0.2.3 - 2026-08-29
+
+#### Added
+- Shows a dedicated screen when the box cannot be reached the usual way, with
+  the SSID, password and address of the setup Wi-Fi.
 
 ### 0.2.2 - 2026-08-28
 

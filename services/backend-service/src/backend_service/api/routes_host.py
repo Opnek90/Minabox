@@ -565,6 +565,32 @@ async def put_board_leds(body: BoardLedsBody) -> dict:
     )
 
 
+@router.get("/network-status")
+async def get_network_status() -> dict:
+    """Where the box stands on the network right now. Proxied to Host-Helper.
+
+    Public (see middleware/auth.py): the display service polls this without a
+    session, and the hotspot password it can carry is only present while the
+    fallback hotspot is the box's only network anyway.
+    """
+    return await _proxy_optional(
+        "/network/status",
+        fallback={
+            "mode": "unknown",
+            "internet": False,
+            "interface": None,
+            "interface_type": None,
+            "ipv4": None,
+            "ssid": None,
+            "hotspot": {"active": False, "ssid": None, "password": None},
+            "manage_url": None,
+            "fallback_enabled": True,
+            "stale": True,
+        },
+        log_event="host_helper_network_status_failed",
+    )
+
+
 @router.get("/network")
 async def get_network() -> dict:
     """Return current IP config (DHCP/manual). Proxied to Host-Helper."""
