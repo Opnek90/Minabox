@@ -43,8 +43,8 @@ about MQTT, the database or the hardware.
 | i18n             | i18next + `i18next-http-backend`            | 7 namespaces fetched at runtime from `/locales/`.                 |
 | PWA              | `vite-plugin-pwa` (`autoUpdate`)            | Manifest, icons, precached shell.                                 |
 | Compression      | `vite-plugin-compression` → `gzip_static`   | Pre-built `.gz`, so the Pi does not compress per request.         |
-| Web server       | Nginx (Alpine)                              | SPA fallback, reverse proxy, caching.                             |
-| Tests            | Vitest + Testing Library                    | 6 files, 21 tests — regression pins, not coverage.                |
+| Web server       | Nginx (`alpine-slim`)                       | SPA fallback, reverse proxy, caching, security headers.           |
+| Tests            | Vitest + Testing Library                    | 8 files, 30 tests — regression pins, not coverage.                |
 
 ---
 
@@ -54,8 +54,10 @@ Relevant path: `services/webui-service/`
 
 ```text
 webui-service/
-├── Dockerfile                 # node:20-alpine (build) → nginx:alpine (serve)
-├── nginx/nginx.conf           # SPA fallback, /api + /ws proxy, caching
+├── Dockerfile                 # node:20-alpine (build) → nginx:alpine-slim (serve)
+├── nginx/
+│   ├── nginx.conf             # SPA fallback, /api + /ws proxy, caching
+│   └── security-headers.conf  # Included per location; see section 7.1
 ├── vite.config.ts             # PWA, gzip, manual chunks, BUILD_ID
 ├── VERSION                    # Own version number (docs/Versionierung.md)
 ├── scripts/
@@ -64,7 +66,7 @@ webui-service/
 ├── public/locales/{de,en}/    # common, player, rfid, media, admin, errors, setup
 └── src/
     ├── api/                   # One module per backend resource
-    │   ├── client.ts          # Axios instance, retry, 401 hook, debug buffer
+    │   ├── client.ts          # Axios instance, retry, timeouts, 401 hook, debug buffer
     │   ├── auth.ts  capabilities.ts  config.ts  system.ts
     │   ├── audio.ts  tags.ts  tracks.ts  playlists.ts
     │   └── streams.ts  podcasts.ts  scanHistory.ts  stats.ts
@@ -79,6 +81,7 @@ webui-service/
     ├── config/settingsIndex.ts # The settings tree — data, not JSX
     ├── types/api.ts           # Mirrors the backend Pydantic schemas
     ├── i18n/                  # init, language list, namespaces, debug mode
+    ├── fonts.css              # Roboto, latin subset, woff2 only
     └── utils/                 # apiError, formatTime, validators, debugRingBuffer
 ```
 
@@ -230,16 +233,40 @@ consolidation is item C2 in [Redesign.md](Redesign.md).
 ### 5.4 API layer
 
 `api/client.ts` is a single Axios instance with `baseURL: /api/v1`,
-`withCredentials: true` and a 15-second timeout. Two interceptors do the work:
+`withCredentials: true` and a 15-second default timeout. Two interceptors do the
+work:
 
-- **Retry.** Network errors are retried; server errors (5xx, 408) are retried
-  only for `GET` and `HEAD`. Up to 3 attempts, exponential backoff 1 s → 10 s.
+- **Retry.** Only `GET` and `HEAD` are ever repeated — network errors and server
+  errors (5xx, 408) alike. Up to 3 attempts, exponential backoff 1 s → 10 s. A
+  timeout, a dropped Wi-Fi link and a 502 all look identical from the client, so
+  a repeated `POST` may well have reached the backend and been carried out; the
+  method is the only thing that distinguishes a safe repeat from uploading the
+  same file twice. `client.test.ts` pins this down.
 - **Failure recording.** Every finally-failed request is written into the debug
   ring buffer (method, URL, status, duration) so the diagnostics export can
   show what the browser saw. Retries are not recorded individually.
 
+The 15 seconds are enough for plain JSON, and wrong for everything else. Calls
+that legitimately run longer take their value from the `TIMEOUT` table in the
+same file:
+
+| Value             |         | Used by                                                       |
+| ----------------- | ------- | ------------------------------------------------------------- |
+| `NONE`            | none    | `tracksApi.upload` — `onUploadProgress` is the sign of life, and a large file over Wi-Fi has no upper bound worth guessing. |
+| `HOST_ACTION`     |  30 s   | Wi-Fi scan and connect, Bluetooth scan, factory reset, update check. The Host-Helper's Bluetooth scan alone runs 12 seconds. |
+| `UPLOAD`          | 120 s   | Cover and logo uploads. Nginx cuts the connection at 120 s anyway. |
+| `LONG_RUNNING`    | 180 s   | Backup download and restore, USB import, debug export.         |
+
 A `401` calls a registered callback, which `AuthContext` uses to drop the
 session and let `ProtectedRoute` show the password dialog again.
+
+The web password must be at least eight characters (`MIN_PASSWORD_LENGTH` in
+`utils/validators.ts`). It is the only lock in front of the media library, the
+parent dashboard and maintenance — and maintenance holds the factory reset, the
+OS update and the backup download with the whole database. The backend enforces
+the same number in `routes_auth.py`; a limit that lives only in the frontend is
+decoration. An existing shorter password keeps working for login, only setting a
+new one is affected.
 
 Errors are translated, never passed through. The backend sends a stable `code`
 plus an English `detail` meant for logs; `translateApiError()` looks the code up
@@ -325,10 +352,36 @@ version number (`docs/Versionierung.md`).
 
 The Dockerfile is two-stage: `node:20-alpine` installs and runs
 `npm run build:fast` (Vite only — `tsc` is deliberately skipped, it costs
-minutes on an ARM runner), then the resulting `dist/` is copied into
-`nginx:alpine`. Version metadata is set as OCI labels from build args at the end
-of the file, so a version change invalidates only the last layers. The defaults
-are `0.0.0-dev`: a locally built image must not pass itself off as a release.
+minutes on an ARM runner and the CI check job below runs it instead), then the
+resulting `dist/` is copied into `nginx:alpine-slim`. Version metadata is set as
+OCI labels from build args at the end of the file, so a version change
+invalidates only the last layers. The defaults are `0.0.0-dev`: a locally built
+image must not pass itself off as a release.
+
+**`alpine-slim`, not `alpine`.** The full image carries njs, XSLT, GeoIP and the
+image filter — 92.8 MB against 21.8 MB — and none of it is used here. The whole
+image goes from 97.7 MB to 24.5 MB. Two things had to be checked first, because
+everything hangs on them: `alpine-slim` is still built
+`--with-http_gzip_static_module`, so the pre-compressed files below keep being
+served, and it has no `curl` at all.
+
+That last point makes the health check part of the base image choice. It asks
+`wget -q -O /dev/null http://127.0.0.1:80/health` — `wget` because BusyBox is
+all there is, and `127.0.0.1` because BusyBox `wget` resolves `localhost` to
+`::1` first and gives up when that is refused, while Nginx listens on IPv4 only.
+`curl` used to paper over this by falling back. The same line stands in
+`docker-compose.yml`, which overrides the Dockerfile's health check either way,
+so the two must not drift apart. This is the one service in the stack that does
+not use `curl` for its health check.
+
+**Fonts.** `src/fonts.css` declares the four Roboto weights MUI uses (300, 400,
+500, 700) as `latin` `woff2` only. The `@fontsource` entry points would pull
+every subset — latin-ext, cyrillic, greek, vietnamese, math, symbols — as both
+`.woff2` and `.woff`: 64 files for an interface that ships German and English.
+Thanks to `unicode-range` the browser only ever downloaded what it needed, so
+this was never a load-time problem, but it took `dist/` from 3.0 MB to 2.1 MB.
+Media titles with eastern European names would want a second `latin-ext` block
+here.
 
 `depends_on` is deliberately asymmetric. The backend is **not** waited for —
 Nginx resolves the name at request time (below), so the UI can come up first and
@@ -369,6 +422,32 @@ which looks exactly like "the translations are broken".
 `gzip_static on` serves the `.gz` files that `vite-plugin-compression` produced
 at build time, rather than compressing on every request; dynamic `gzip` remains
 as the fallback for anything without a pre-built sibling.
+
+**Security headers.** `X-Content-Type-Options: nosniff`, `X-Frame-Options:
+SAMEORIGIN` and `Referrer-Policy: no-referrer` go out on every response, and
+`server_tokens off` keeps the exact Nginx version out of the `Server` header and
+off the error pages. The three headers live in `nginx/security-headers.conf` and
+are included six times, not written once: Nginx does **not** inherit `add_header`
+into a block that sets one of its own, so every location in the table above with
+a `Cache-Control` header would silently have dropped them.
+
+`Content-Security-Policy` is deliberately absent. MUI and Emotion write inline
+styles at runtime, so a policy needs at least `style-src 'self' 'unsafe-inline'`,
+and streams pull audio and cover art from arbitrary hosts. A wrong policy whites
+out the entire interface with nothing in the server log to show for it, so it
+belongs in its own change with a click-through, not bundled in with the rest.
+
+### 7.2 Checks before the build
+
+`.github/workflows/checks.yml` runs `tsc --noEmit`, `eslint src`, `vitest run`
+and the two i18n guards on `ubuntu-latest` in about two minutes. It is wired in
+twice: on every pull request, so a failure shows up before the merge, and via
+`workflow_call` from `build-images.yml`, so a red run stops the push to GHCR.
+
+It exists because the CI used to build images and nothing else. With `tsc`
+skipped in the Dockerfile and no test run anywhere, a type error or a broken
+test could travel all the way into the registry unnoticed — which is how a dead
+`window` listener in `PlayerPage` survived as long as it did.
 
 ---
 
