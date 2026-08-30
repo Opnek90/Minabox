@@ -73,7 +73,7 @@ apiClient.interceptors.response.use(
     const startedAt = (config as (InternalAxiosRequestConfig & { __startedAt?: number }) | undefined)?.__startedAt;
     recordFailedRequest({
       method: (config?.method ?? 'get').toUpperCase(),
-      url: config?.url ?? 'unbekannt',
+      url: config?.url ?? 'unknown',
       status: error.response?.status,
       durationMs: startedAt ? Date.now() - startedAt : undefined,
       message: error.message,

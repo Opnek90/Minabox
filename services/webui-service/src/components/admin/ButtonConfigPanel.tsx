@@ -75,7 +75,7 @@ export const ButtonConfigPanel: React.FC = () => {
   );
 
   useEffect(() => {
-    configApi.getButtons().then(setConfig).catch(() => setError('Laden fehlgeschlagen'));
+    configApi.getButtons().then(setConfig).catch(() => setError(t('load_error')));
     configApi.getButtonActions().then(setButtonActions).catch(() => {});
   }, []);
 

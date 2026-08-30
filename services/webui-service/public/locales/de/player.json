@@ -36,7 +36,8 @@
     "title": "Sleep-Timer",
     "preset": "Stopp in {{minutes}} Min.",
     "error": "Sleep-Timer konnte nicht gesetzt werden",
-    "cancel_error": "Sleep-Timer konnte nicht abgebrochen werden"
+    "cancel_error": "Sleep-Timer konnte nicht abgebrochen werden",
+    "remaining_tooltip": "Einschlaf-Timer: noch {{minutes}} Min."
   },
   "kiosk_mode": "Kiosk-Modus",
   "kiosk_exit": "Kiosk-Modus beenden",

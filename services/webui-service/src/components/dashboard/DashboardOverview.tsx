@@ -8,7 +8,6 @@ import {
   DialogTitle,
   Grid,
   Skeleton,
-  Typography,
 } from '@mui/material';
 import AlbumIcon from '@mui/icons-material/Album';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
@@ -22,40 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { useDashboardOverview } from '@/hooks/useDashboardOverview';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { useLayout } from '@/hooks/useLayout';
-
-interface StatTileProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}
-
-const StatTile: React.FC<StatTileProps> = ({ icon, label, value }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 1.5,
-      p: 1.5,
-      borderRadius: 2,
-      bgcolor: 'background.paper',
-      border: '1px solid',
-      borderColor: 'divider',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-    }}
-  >
-    <Box sx={{ color: 'primary.main', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-      {icon}
-    </Box>
-    <Box minWidth={0}>
-      <Typography variant="caption" color="text.secondary" display="block">
-        {label}
-      </Typography>
-      <Typography variant="body2" fontWeight={600} noWrap>
-        {value}
-      </Typography>
-    </Box>
-  </Box>
-);
+import { StatTile } from '@/components/common/StatTile';
 
 export const DashboardOverview: React.FC = () => {
   const { t } = useTranslation('common');
@@ -148,14 +114,14 @@ export const DashboardOverview: React.FC = () => {
           <StatTile
             icon={<HeadphonesIcon fontSize="small" />}
             label={t('dashboard.minutes_today')}
-            value={`${d.minutes_today.toFixed(1)} Min.`}
+            value={t('dashboard.minutes_value', { value: d.minutes_today.toFixed(1) })}
           />
         </Grid>
         <Grid item xs={6} sm={6} md={4}>
           <StatTile
             icon={<AlbumIcon fontSize="small" />}
             label={t('dashboard.minutes_total')}
-            value={`${d.minutes_total.toFixed(1)} Min.`}
+            value={t('dashboard.minutes_value', { value: d.minutes_total.toFixed(1) })}
           />
         </Grid>
         {d.daily_limit_enabled && (
@@ -163,7 +129,9 @@ export const DashboardOverview: React.FC = () => {
             <StatTile
               icon={<HeadphonesIcon fontSize="small" />}
               label={t('dashboard.remaining_minutes')}
-              value={`${Math.max(0, Math.round(d.daily_limit_minutes - d.minutes_today))} Min.`}
+              value={t('dashboard.minutes_value', {
+                value: Math.max(0, Math.round(d.daily_limit_minutes - d.minutes_today)),
+              })}
             />
           </Grid>
         )}

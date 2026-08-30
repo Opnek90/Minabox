@@ -24,6 +24,9 @@ import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 /** Strip ANSI escape sequences (colors/formatting) so terminal output is readable in the UI. */
 function stripAnsi(text: string): string {
+  // ESC (\x1b) steht hier mit Absicht: Container-Logs enthalten
+  // Farbsequenzen, und genau die sollen raus.
+  // eslint-disable-next-line no-control-regex
   return text.replace(/\u001b\[[0-9;]*m/g, '').replace(/\u001b\[?[0-9;]*[a-zA-Z]/g, '');
 }
 

@@ -73,7 +73,7 @@ export const AuthSection: React.FC = () => {
       await updateAuthConfig({ protected_areas: areas });
       await refreshConfig();
       showSuccess(t('auth.areas_saved'));
-    } catch (e) {
+    } catch {
       showError(t('auth.areas_save_failed'));
     } finally {
       setSavingAreas(false);
@@ -199,7 +199,7 @@ export const AuthSection: React.FC = () => {
         />
         <ActionButton
           actionType="primary"
-          onClick={() => {}}
+          type="submit"
           loading={savingPassword}
           disabled={savingPassword}
         >

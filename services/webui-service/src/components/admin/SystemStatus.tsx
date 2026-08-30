@@ -14,7 +14,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Typography,
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ComputerIcon from '@mui/icons-material/Computer';
@@ -37,53 +36,9 @@ import { systemApi, type HostStatusResponse, type TemperatureHistoryResponse } f
 import type { SystemStatus as SystemStatusType } from '@/types/api';
 import { formatUptime } from '@/utils/formatTime';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { StatTile } from '@/components/common/StatTile';
 import { DebugExportDialog } from '@/components/admin/DebugExportDialog';
 import { SoundTroubleshootDialog } from '@/components/admin/SoundTroubleshootDialog';
-
-interface StatTileProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  title?: string;
-  onClick?: () => void;
-}
-
-const StatTile: React.FC<StatTileProps> = ({ icon, label, value, title, onClick }) => (
-  <Box
-    component={onClick ? 'button' : 'div'}
-    type={onClick ? 'button' : undefined}
-    onClick={onClick}
-    sx={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 1.5,
-      p: 1.5,
-      m: 0,
-      borderRadius: 2,
-      bgcolor: 'background.paper',
-      border: '1px solid',
-      borderColor: 'divider',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-      width: '100%',
-      textAlign: 'left',
-      font: 'inherit',
-      cursor: onClick ? 'pointer' : undefined,
-      '&:hover': onClick ? { bgcolor: 'action.hover' } : undefined,
-    }}
-  >
-    <Box sx={{ color: 'primary.main', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-      {icon}
-    </Box>
-    <Box minWidth={0}>
-      <Typography variant="caption" color="text.secondary" display="block">
-        {label}
-      </Typography>
-      <Typography variant="body2" fontWeight={600} noWrap title={title}>
-        {value}
-      </Typography>
-    </Box>
-  </Box>
-);
 
 export const SystemStatusPanel: React.FC = () => {
   const { t } = useTranslation('admin');
@@ -128,7 +83,7 @@ export const SystemStatusPanel: React.FC = () => {
       setHostStatus(host ?? null);
       setTemperatureHistory(history ?? []);
     } catch {
-      setError('Status konnte nicht geladen werden');
+      setError(t('system.status_load_error'));
     } finally {
       setLoading(false);
       setRefreshing(false);

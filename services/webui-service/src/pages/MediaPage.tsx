@@ -50,18 +50,7 @@ import type {
   TrackFolder,
 } from '@/types/api';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  <Box role="tabpanel" hidden={value !== index} sx={{ pt: 2 }}>
-    {value === index && children}
-  </Box>
-);
+import { TabPanel } from '@/components/common/TabPanel';
 
 type DeleteTarget =
   | { type: 'track'; item: Track }

@@ -36,7 +36,8 @@
     "title": "Sleep Timer",
     "preset": "Stop in {{minutes}} min",
     "error": "Could not set sleep timer",
-    "cancel_error": "Could not cancel sleep timer"
+    "cancel_error": "Could not cancel sleep timer",
+    "remaining_tooltip": "Sleep timer: {{minutes}} min left"
   },
   "kiosk_mode": "Kiosk Mode",
   "kiosk_exit": "Exit Kiosk Mode",

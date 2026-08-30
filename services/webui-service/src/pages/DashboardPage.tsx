@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Box } from '@mui/material';
 import GridViewIcon from '@mui/icons-material/GridView';
 import HistoryIcon from '@mui/icons-material/History';
 import InsightsIcon from '@mui/icons-material/Insights';
@@ -11,18 +10,7 @@ import { StatsDashboard } from '@/components/dashboard/StatsDashboard';
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
 import { ScanHistoryPanel } from '@/components/dashboard/ScanHistoryPanel';
 import { ChildSettingsForm } from '@/components/dashboard/ChildSettingsForm';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  <Box role="tabpanel" hidden={value !== index} sx={{ pt: 2 }}>
-    {value === index && children}
-  </Box>
-);
+import { TabPanel } from '@/components/common/TabPanel';
 
 export const DashboardPage: React.FC = () => {
   const { t } = useTranslation('common');

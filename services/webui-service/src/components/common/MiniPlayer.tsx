@@ -29,6 +29,7 @@ interface SleepRingProps {
 }
 
 const SleepRing: React.FC<SleepRingProps> = ({ remainingMs, totalMs, size = 36 }) => {
+  const { t } = useTranslation('player');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ratio = totalMs > 0 ? Math.max(0, Math.min(remainingMs / totalMs, 1)) : 0;
 
@@ -71,7 +72,7 @@ const SleepRing: React.FC<SleepRingProps> = ({ remainingMs, totalMs, size = 36 }
   const minutes = Math.ceil(remainingMs / 60000);
 
   return (
-    <Tooltip title={`Sleep-Timer: noch ${minutes} Min.`}>
+    <Tooltip title={t('sleep_timer.remaining_tooltip', { minutes })}>
       <Box
         sx={{
           position: 'relative',
