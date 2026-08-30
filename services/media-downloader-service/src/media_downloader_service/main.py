@@ -24,24 +24,37 @@ from media_downloader_service.models import (
 
 config = load_config()
 
-# DEBUG -> human-readable console output; INFO and above -> structured JSON,
-# the format the rest of the fleet's log aggregation expects. Mirrors
-# shared_lib.logging.setup_structlog(), inlined rather than imported so this
-# service keeps no dependency on shared-lib (see README.md).
-_log_level = getattr(logging, config.log_level.upper(), logging.INFO)
-_renderer = (
-    structlog.dev.ConsoleRenderer()
-    if config.log_level.upper() == "DEBUG"
-    else structlog.processors.JSONRenderer()
-)
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.stdlib.add_log_level,
-        _renderer,
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(_log_level),
-)
+def setup_structlog() -> None:
+    """Logging einrichten - bewusst als Funktion, nicht beim Import.
+
+    DEBUG -> lesbare Konsolenausgabe; INFO und hoeher -> strukturiertes JSON,
+    das Format, das die Log-Auswertung der uebrigen Dienste erwartet. Spiegelt
+    shared_lib.logging.setup_structlog(); hier ausgeschrieben statt importiert,
+    damit dieser Dienst ohne shared-lib auskommt (siehe README.md).
+
+    Warum keine Modulebene: structlog.configure() wirkt global auf den ganzen
+    Prozess. Als Import-Nebenwirkung setzte es im gemeinsamen pytest-Lauf einen
+    make_filtering_bound_logger(INFO) fuer alle Dienste - und
+    structlog.testing.capture_logs() sieht damit keine debug-Ereignisse mehr.
+    Der Test test_a_disabled_led_never_claims_its_pin im led-service fiel
+    dadurch nur im Gesamtlauf, allein aber nie.
+    """
+    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+    renderer = (
+        structlog.dev.ConsoleRenderer()
+        if config.log_level.upper() == "DEBUG"
+        else structlog.processors.JSONRenderer()
+    )
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.stdlib.add_log_level,
+            renderer,
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
+    )
+
+
 logger = structlog.get_logger("media_downloader_service")
 
 _start_time = time.monotonic()
@@ -79,6 +92,7 @@ def _resolve_output_dir(output_dir: str | None) -> Path:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    setup_structlog()
     logger.info(
         "service_startup",
         audio_tracks_dir=str(config.audio_tracks_dir),
@@ -109,7 +123,7 @@ async def health_check() -> JSONResponse:
             "status": "healthy",
             "service": "media-downloader-service",
             # This service does not depend on shared-lib; the Dockerfile sets
-            # this variable from its build arg (docs/Versionierung.md).
+            # this variable from its build arg.
             "version": os.environ.get("APP_VERSION", "0.0.0-dev"),
             "uptime_seconds": round(time.monotonic() - _start_time, 1),
         }
