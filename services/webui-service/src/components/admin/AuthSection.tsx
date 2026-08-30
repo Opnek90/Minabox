@@ -19,6 +19,7 @@ import { setPassword, updateAuthConfig, resetAuth } from '@/api/auth';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { apiErrorCode, translateApiError } from '@/utils/apiError';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { MIN_PASSWORD_LENGTH } from '@/utils/validators';
 
 // Ein Bereich kann mehrere Seiten abdecken: „Player" schuetzt auch die
 // Karten-Seite, weil beide auf denselben Backend-Routen sitzen.
@@ -82,8 +83,8 @@ export const AuthSection: React.FC = () => {
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 4) {
-      showError(t('auth.password_too_short'));
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      showError(t('auth.password_too_short', { min: MIN_PASSWORD_LENGTH }));
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -187,6 +188,7 @@ export const AuthSection: React.FC = () => {
           onChange={(e) => setNewPassword(e.target.value)}
           margin="dense"
           required
+          helperText={t('auth.password_hint', { min: MIN_PASSWORD_LENGTH })}
         />
         <TextField
           fullWidth

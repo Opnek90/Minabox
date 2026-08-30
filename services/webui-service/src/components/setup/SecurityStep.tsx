@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { getAuthConfig, setPassword, updateAuthConfig } from '@/api/auth';
+import { MIN_PASSWORD_LENGTH } from '@/utils/validators';
 
 const AREAS = ['admin', 'media', 'dashboard', 'player'] as const;
 type Area = (typeof AREAS)[number];
@@ -38,8 +39,8 @@ export const SecurityStep: React.FC<Props> = ({ registerSave }) => {
       // Leer lassen ist erlaubt und bedeutet "uebersprungen" - der Hinweis
       // darauf steht unten sichtbar, es passiert also nichts stillschweigend.
       if (!pw && !pw2) return true;
-      if (pw.length < 4) {
-        setError(t('security.too_short'));
+      if (pw.length < MIN_PASSWORD_LENGTH) {
+        setError(t('security.too_short', { min: MIN_PASSWORD_LENGTH }));
         return false;
       }
       if (pw !== pw2) {
@@ -76,6 +77,7 @@ export const SecurityStep: React.FC<Props> = ({ registerSave }) => {
         size="small"
         fullWidth
         autoComplete="new-password"
+        helperText={t('security.password_hint', { min: MIN_PASSWORD_LENGTH })}
       />
       <TextField
         label={t('security.password_repeat')}

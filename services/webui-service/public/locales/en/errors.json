@@ -82,7 +82,7 @@
   "password_hash_failed": "Could not process password",
   "password_required": "Please enter a password",
   "password_set_failed": "Could not set password",
-  "password_too_short": "New password must be at least 4 characters",
+  "password_too_short": "New password must be at least 8 characters",
   "path_invalid": "Invalid path",
   "path_not_absolute": "Path must be absolute",
   "path_not_allowed": "This path is not allowed",
