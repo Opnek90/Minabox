@@ -208,7 +208,10 @@ pushed twice: into React state (`lastMessage`, plus the two cached shapes
 `cachedAudioStatus` and `sleepTimerStatus`) and onto a module-level
 `EventTarget`. The event target exists so a component can subscribe to one
 message type without re-rendering on every unrelated message; `useWebSocketEvent`
-is the hook for that.
+is the hook for that, and the only correct way to subscribe. Listening on
+`window` compiles, type-checks and does nothing — `PlayerPage` did exactly that,
+and its button-feedback overlay and repeat/shuffle sync were dead for as long as
+it lasted.
 
 Reconnect is exponential — 1 s doubling to a 30 s cap, reset on a successful
 open. `ConnectionLostScreen` waits three seconds before showing its overlay, so
@@ -216,7 +219,12 @@ a reconnect during a tab switch does not flash a full-page error.
 
 Messages the app acts on: `audio_status`, `audio_config`, `sleep_timer_status`,
 `rfid_scanned_learning`, `tag_not_found`, `system_alert`, `system_alert_cleared`,
-`service_status`, `button_raw_event`.
+`service_status`, `button_raw_event`, `button_action`, `repeat_mode`,
+`shuffle_mode`.
+
+The last three are the ones nobody in the browser asked for: someone pressed a
+button on the box, or turned the rotary knob, or changed repeat from a second
+browser session. They are the reason the event target exists at all.
 
 ### 5.3 Server state: two layers
 
@@ -350,7 +358,10 @@ Defined in the root `docker-compose.yml` as the `webui` service. Image
 `ghcr.io/opnek90/minabox-webui:${MINABOX_WEBUI_TAG}`; the service carries its own
 version number (`docs/Versionierung.md`).
 
-The Dockerfile is two-stage: `node:20-alpine` installs and runs
+The Dockerfile is two-stage: `node:20-alpine` runs `npm ci` — from the
+lockfile, so the same source cannot produce a different image four weeks later,
+and without `--omit=dev`, because Vite and TypeScript live in `devDependencies`
+and are what does the building — then
 `npm run build:fast` (Vite only — `tsc` is deliberately skipped, it costs
 minutes on an ARM runner and the CI check job below runs it instead), then the
 resulting `dist/` is copied into `nginx:alpine-slim`. Version metadata is set as
@@ -399,7 +410,7 @@ first seconds after boot.
 | `/ws`         | Proxy with upgrade headers, 3600 s timeouts.                               |
 | `/static/`    | Proxy (user files: logo, covers), `no-cache`. `^~` so the image regex below cannot claim it. |
 | `/locales/`   | `no-cache` — revalidate against the ETag, cheap 304s.                       |
-| `*.js/css/…`  | `expires 1y`, `public, immutable`. Vite content-hashes these names.         |
+| `*.js/css/…`  | `public, max-age=31536000, immutable`. Vite content-hashes these names.      |
 | `/index.html` | `no-store` — the entry point must never be cached.                          |
 | `/health`     | Returns `healthy`.                                                          |
 
