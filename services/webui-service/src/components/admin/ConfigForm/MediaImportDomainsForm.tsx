@@ -1,10 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Box, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { useToast } from '@/contexts/ToastContext';
-import { useFormState } from '@/hooks/useFormState';
-import { configApi } from '@/api/config';
-import type { GeneralConfig } from '@/types/api';
+import { useGeneralConfigField } from '@/hooks/useGeneralConfig';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
@@ -23,42 +20,40 @@ const DEFAULT_DOMAINS = ['soundcloud.com', 'www.soundcloud.com', 'bandcamp.com']
  */
 export const MediaImportDomainsForm: React.FC = () => {
   const { t } = useTranslation('admin');
-  const { showSuccess } = useToast();
-  const { saving, error, setError, run } = useFormState();
-  const [domainsText, setDomainsText] = useState<string | null>(null);
+  const { value: domains, setValue, save, saving, error } = useGeneralConfigField(
+    'media_import_allowed_domains',
+    DEFAULT_DOMAINS,
+  );
+
+  // The only settings field that is edited in a different shape than it is
+  // stored: a comma-separated line here, a list on disk. Re-parsing on every
+  // keystroke would swallow the separator while it is being typed, so the text
+  // is its own state and only the parsed list goes back to the hook.
+  const [text, setText] = useState<string | null>(null);
 
   useEffect(() => {
-    configApi
-      .getGeneral()
-      .then((data) =>
-        setDomainsText(
-          ((data as GeneralConfig).media_import_allowed_domains ?? DEFAULT_DOMAINS).join(', '),
-        ),
-      )
-      .catch(() => setError(t('load_error')));
-  }, []);
+    if (domains !== null && text === null) setText(domains.join(', '));
+  }, [domains, text]);
 
-  const handleSave = () =>
-    run(async () => {
-      if (domainsText === null) return;
-      const domains = domainsText
+  const handleChange = (next: string) => {
+    setText(next);
+    setValue(
+      next
         .split(',')
         .map((d) => d.trim().toLowerCase())
-        .filter(Boolean);
-      await configApi.updateGeneral({ media_import_allowed_domains: domains });
-      setError(null);
-      showSuccess(t('general.save_success'));
-    });
+        .filter(Boolean),
+    );
+  };
 
-  if (domainsText === null) return null;
+  if (text === null) return null;
 
   return (
     <Box>
       <SettingsBlock title={t('general.media_import_domains_title')}>
         <TextField
           label={t('general.media_import_domains_label')}
-          value={domainsText}
-          onChange={(e) => setDomainsText(e.target.value)}
+          value={text}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder="soundcloud.com, bandcamp.com"
           size="small"
           fullWidth
@@ -70,7 +65,7 @@ export const MediaImportDomainsForm: React.FC = () => {
 
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <ActionButton actionType="primary" onClick={handleSave} disabled={saving}>
+        <ActionButton actionType="primary" onClick={save} disabled={saving}>
           {t('save', { ns: 'common' })}
         </ActionButton>
       </Box>

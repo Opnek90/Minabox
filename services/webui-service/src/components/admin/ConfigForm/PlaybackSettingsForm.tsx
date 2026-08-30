@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,10 +12,8 @@ import {
   Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { useToast } from '@/contexts/ToastContext';
-import { useFormState } from '@/hooks/useFormState';
-import { configApi } from '@/api/config';
-import type { GeneralConfig, PlaybackEndBehavior } from '@/types/api';
+import { useGeneralConfigFields } from '@/hooks/useGeneralConfig';
+import type { PlaybackEndBehavior } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
@@ -51,50 +49,20 @@ const END_BEHAVIOR_HINT_KEY = {
 
 export const PlaybackSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');
-  const { showSuccess } = useToast();
-  const { saving, error, setError, run } = useFormState();
-  const [general, setGeneral] = useState<GeneralConfig | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { values, setValue, save, saving, error } = useGeneralConfigFields({
+    stop_playback_on_tag_remove: false,
+    resume_on_tag_rescan: true,
+    playback_end_behavior: 'stop',
+    playlist_shuffle: true,
+    playback_loop_guard_minutes: DEFAULT_GUARD_MINUTES,
+  });
   /** Zuletzt gesehene Minutenzahl, damit das Abschalten den Wert nicht vergisst. */
   const [guardMinutes, setGuardMinutes] = useState(DEFAULT_GUARD_MINUTES);
 
-  useEffect(() => {
-    configApi
-      .getGeneral()
-      .then((data) => {
-        const g = data as GeneralConfig;
-        setGeneral({
-          ...g,
-          stop_playback_on_tag_remove: g.stop_playback_on_tag_remove ?? false,
-          resume_on_tag_rescan: g.resume_on_tag_rescan ?? true,
-          playback_end_behavior: g.playback_end_behavior ?? 'stop',
-          playlist_shuffle: g.playlist_shuffle ?? true,
-          playback_loop_guard_minutes: g.playback_loop_guard_minutes ?? DEFAULT_GUARD_MINUTES,
-        });
-        if (g.playback_loop_guard_minutes) setGuardMinutes(g.playback_loop_guard_minutes);
-      })
-      .catch(() => setError(t('load_error')))
-      .finally(() => setLoading(false));
-  }, []);
+  if (!values) return null;
 
-  const handleSave = () =>
-    run(async () => {
-      if (!general) return;
-      await configApi.updateGeneral({
-        stop_playback_on_tag_remove: general.stop_playback_on_tag_remove,
-        resume_on_tag_rescan: general.resume_on_tag_rescan,
-        playback_end_behavior: general.playback_end_behavior,
-        playlist_shuffle: general.playlist_shuffle,
-        playback_loop_guard_minutes: general.playback_loop_guard_minutes,
-      });
-      setError(null);
-      showSuccess(t('general.save_success'));
-    });
-
-  if (loading || !general) return null;
-
-  const endBehavior = general.playback_end_behavior ?? 'stop';
-  const guardEnabled = (general.playback_loop_guard_minutes ?? 0) > 0;
+  const endBehavior = values.playback_end_behavior;
+  const guardEnabled = values.playback_loop_guard_minutes > 0;
 
   return (
     <Box>
@@ -105,12 +73,8 @@ export const PlaybackSettingsForm: React.FC = () => {
       <FormControlLabel
         control={
           <Switch
-            checked={general.stop_playback_on_tag_remove ?? false}
-            onChange={(e) =>
-              setGeneral((p) =>
-                p ? { ...p, stop_playback_on_tag_remove: e.target.checked } : p
-              )
-            }
+            checked={values.stop_playback_on_tag_remove}
+            onChange={(e) => setValue('stop_playback_on_tag_remove', e.target.checked)}
           />
         }
         label={t('control.stop_playback_on_tag_remove')}
@@ -119,12 +83,8 @@ export const PlaybackSettingsForm: React.FC = () => {
       <FormControlLabel
         control={
           <Switch
-            checked={general.resume_on_tag_rescan ?? true}
-            onChange={(e) =>
-              setGeneral((p) =>
-                p ? { ...p, resume_on_tag_rescan: e.target.checked } : p
-              )
-            }
+            checked={values.resume_on_tag_rescan}
+            onChange={(e) => setValue('resume_on_tag_rescan', e.target.checked)}
           />
         }
         label={t('control.resume_on_tag_rescan')}
@@ -145,7 +105,7 @@ export const PlaybackSettingsForm: React.FC = () => {
         value={endBehavior}
         onChange={(_, v: PlaybackEndBehavior | null) => {
           if (!v) return;
-          setGeneral((p) => (p ? { ...p, playback_end_behavior: v } : p));
+          setValue('playback_end_behavior', v);
         }}
       >
         {END_BEHAVIORS.map((value) => (
@@ -174,14 +134,7 @@ export const PlaybackSettingsForm: React.FC = () => {
               <Switch
                 checked={guardEnabled}
                 onChange={(e) =>
-                  setGeneral((p) =>
-                    p
-                      ? {
-                          ...p,
-                          playback_loop_guard_minutes: e.target.checked ? guardMinutes : 0,
-                        }
-                      : p
-                  )
+                  setValue('playback_loop_guard_minutes', e.target.checked ? guardMinutes : 0)
                 }
               />
             }
@@ -191,12 +144,12 @@ export const PlaybackSettingsForm: React.FC = () => {
             <TextField
               label={t('playback.guard_minutes')}
               type="number"
-              value={general.playback_loop_guard_minutes ?? guardMinutes}
+              value={values.playback_loop_guard_minutes}
               onChange={(e) => {
                 const parsed = parseInt(e.target.value, 10);
                 const minutes = Math.max(5, Math.min(1440, Number.isNaN(parsed) ? DEFAULT_GUARD_MINUTES : parsed));
                 setGuardMinutes(minutes);
-                setGeneral((p) => (p ? { ...p, playback_loop_guard_minutes: minutes } : p));
+                setValue('playback_loop_guard_minutes', minutes);
               }}
               size="small"
               fullWidth
@@ -210,10 +163,8 @@ export const PlaybackSettingsForm: React.FC = () => {
       <FormControlLabel
         control={
           <Switch
-            checked={general.playlist_shuffle ?? true}
-            onChange={(e) =>
-              setGeneral((p) => (p ? { ...p, playlist_shuffle: e.target.checked } : p))
-            }
+            checked={values.playlist_shuffle}
+            onChange={(e) => setValue('playlist_shuffle', e.target.checked)}
           />
         }
         label={t('playback.playlist_shuffle')}
@@ -223,7 +174,7 @@ export const PlaybackSettingsForm: React.FC = () => {
 
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <ActionButton actionType="primary" onClick={handleSave} disabled={saving}>
+        <ActionButton actionType="primary" onClick={save} disabled={saving}>
           {t('save', { ns: 'common' })}
         </ActionButton>
       </Box>
