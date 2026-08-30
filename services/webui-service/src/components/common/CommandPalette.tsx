@@ -153,7 +153,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
     })),
     ...playlists.map((pl) => ({
       id: `playlist-${pl.id}`, group: 'playlists' as CommandGroup,
-      label: pl.name, sublabel: `${pl.tracks?.length ?? 0} Tracks`,
+      label: pl.name, sublabel: t('command_palette.track_count', { count: pl.tracks?.length ?? 0 }),
       icon: <PlaylistPlayIcon fontSize="small" />,
       avatarUrl: pl.cover_art_url ?? undefined,
       run: () => audioApi.play({ playlist_id: pl.id }),
@@ -170,7 +170,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
       icon: <PodcastsIcon fontSize="small" />,
       run: () => navigate('/media'),
     })),
-  ], [tracks, playlists, streams, podcasts, navigate]);
+  ], [tracks, playlists, streams, podcasts, navigate, t]);
 
   const allCommands = useMemo(
     () => [...staticCommands, ...settingsCommands, ...mediaCommands],

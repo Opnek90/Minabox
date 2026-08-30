@@ -57,7 +57,9 @@ export const ServiceStatusCard: React.FC<ServiceStatusProps> = ({ service, onOpe
     service.docker_status,
     service.health,
     service.service_status === 'degraded' ? t('system.status_degraded_hint') : null,
-    service.restart_count ? `${service.restart_count}× neu gestartet` : null,
+    service.restart_count
+      ? t('system.restart_count', { count: service.restart_count })
+      : null,
   ].filter(Boolean).join(' · ') || undefined;
 
   return (

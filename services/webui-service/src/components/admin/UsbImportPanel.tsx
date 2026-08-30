@@ -51,7 +51,7 @@ export const UsbImportPanel: React.FC = () => {
       const data = await systemApi.usbImport(selectedId, selectedPaths);
       showSuccess(t('system.usb_import_success', { count: data.files_copied ?? 0 }));
     } catch {
-      showError(t('system.logs_unavailable'));
+      showError(t('usb_import_failed', { ns: 'errors' }));
     } finally {
       setImporting(false);
     }
@@ -64,7 +64,7 @@ export const UsbImportPanel: React.FC = () => {
       showSuccess(t('system.usb_eject'));
       handleLoadDevices();
     } catch {
-      showError(t('system.logs_unavailable'));
+      showError(t('usb_eject_failed', { ns: 'errors' }));
     }
   };
 

@@ -6,6 +6,25 @@ const RETRY_MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS_INITIAL = 1000;
 const RETRY_DELAY_MS_MAX = 10000;
 
+/**
+ * Timeouts for calls that legitimately run longer than the default. Anything
+ * not listed here uses the default below.
+ *
+ * `NONE` (0) disables the timeout entirely and is reserved for uploads that
+ * report `onUploadProgress`: the progress callback is the sign of life, and a
+ * large file over Wi-Fi has no upper bound worth guessing.
+ */
+export const TIMEOUT = {
+  /** No timeout - only for uploads with a progress callback. */
+  NONE: 0,
+  /** Host-Helper actions that shell out and wait: scans, pairing, connects. */
+  HOST_ACTION: 30_000,
+  /** Cover and logo uploads. nginx cuts the connection at 120s anyway. */
+  UPLOAD: 120_000,
+  /** Backup restore and USB import: copying, unpacking, restarting. */
+  LONG_RUNNING: 180_000,
+} as const;
+
 function isRetryable(error: {
   response?: { status: number };
   request?: unknown;
@@ -17,12 +36,18 @@ function isRetryable(error: {
   const method = (error.config.method ?? 'get').toLowerCase();
   const hasResponse = !!error.response;
   const networkError = !hasResponse && !!error.request;
+
+  // Only GET and HEAD may be repeated. A timeout, a dropped Wi-Fi link and a
+  // 502 all look the same from here - a request without an answer - so a
+  // retried POST can very well have reached the backend and been carried out.
+  // Repeating it would upload the same file twice or restore a backup twice.
+  const idempotent = method === 'get' || method === 'head';
+  if (!idempotent) return false;
+
   if (networkError) return true;
   if (!hasResponse) return false;
   const status = error.response!.status;
-  const serverError = status >= 500 || status === 408;
-  if (serverError && (method === 'get' || method === 'head')) return true;
-  return false;
+  return status >= 500 || status === 408;
 }
 
 function delay(ms: number): Promise<void> {
@@ -31,7 +56,9 @@ function delay(ms: number): Promise<void> {
 
 export const apiClient = axios.create({
   baseURL: '/api/v1',
-  timeout: 15000,
+  // Enough for every plain JSON call. Uploads and host actions set their own
+  // value from TIMEOUT above; see docs/services/webui/Architecture.md.
+  timeout: 15_000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -73,7 +100,7 @@ apiClient.interceptors.response.use(
     const startedAt = (config as (InternalAxiosRequestConfig & { __startedAt?: number }) | undefined)?.__startedAt;
     recordFailedRequest({
       method: (config?.method ?? 'get').toUpperCase(),
-      url: config?.url ?? 'unbekannt',
+      url: config?.url ?? 'unknown',
       status: error.response?.status,
       durationMs: startedAt ? Date.now() - startedAt : undefined,
       message: error.message,

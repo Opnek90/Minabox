@@ -29,7 +29,7 @@ export const BoardLedsToggle: React.FC = () => {
       await systemApi.setBoardLeds(on);
       setBoardLeds(await systemApi.getBoardLeds());
     } catch {
-      showError(t('system.logs_unavailable'));
+      showError(t('board_leds_set_failed', { ns: 'errors' }));
     }
   };
 

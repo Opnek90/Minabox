@@ -6,10 +6,10 @@ import {
   CardContent,
   Chip,
   Collapse,
+  Divider,
   Dialog,
   DialogContent,
   DialogTitle,
-  Divider,
   Fade,
   FormControl,
   List,
@@ -20,6 +20,7 @@ import {
   MenuItem,
   Select,
   Popover,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -44,18 +45,25 @@ import { VolumeControl } from '@/components/player/VolumeControl';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
-import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useWebSocket, useWebSocketEvent } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type {
   AudioDeviceItem,
+  AudioSessionResponse,
   QueueItem,
   RepeatMode,
+  WebSocketMessage,
 } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
 
 
 const SLEEP_PRESETS = [15, 30, 45, 60];
+
+// Grenzen des Backends (SleepTimerRequest: ge=1, le=480). Hier gespiegelt,
+// damit das Feld gar nicht erst einen Wert anbietet, den der Server ablehnt.
+const SLEEP_MIN_MINUTES = 1;
+const SLEEP_MAX_MINUTES = 480;
 
 // `queue` is the full session in list order (past tracks included), so
 // filtering out only `is_current` left already-played tracks ahead of the
@@ -126,6 +134,7 @@ export const PlayerPage: React.FC = () => {
   const optimisticTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [sleepAnchor, setSleepAnchor] = useState<HTMLElement | null>(null);
+  const [sleepCustom, setSleepCustom] = useState('');
   const [sleepRemainingMs, setSleepRemainingMs] = useState<number | null>(null);
   const sleepDisplayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -203,39 +212,43 @@ export const PlayerPage: React.FC = () => {
     }
   }, [sleepTimerStatus]);
 
-  // Hook into generic messages for feedback via custom event
-  useEffect(() => {
-    const handleWsMessage = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const lastMessage = customEvent.detail;
-      
-      if (lastMessage.type === 'button_action') {
-        const action = (lastMessage.data as { action?: string }).action ?? '';
-        const actionKey = action.replace(/-/g, '_');
-        const label = BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action;
-        setButtonFeedback(label);
-        if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
-        buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
-      } else if (lastMessage.type === 'repeat_mode') {
-        const data = lastMessage.data as { repeat_mode?: RepeatMode };
-        if (data?.repeat_mode != null) {
-          queryClient.setQueryData(['audio', 'session'], (old: any) => 
-            old ? { ...old, repeat_mode: data.repeat_mode } : old
-          );
-        }
-      } else if (lastMessage.type === 'shuffle_mode') {
-        const data = lastMessage.data as { shuffle?: boolean };
-        if (data?.shuffle !== undefined) {
-          queryClient.setQueryData(['audio', 'session'], (old: any) => 
-            old ? { ...old, shuffle: Boolean(data.shuffle) } : old
-          );
-        }
-      }
-    };
+  // Messages that arrive without the player having asked for them: someone
+  // pressed a button on the box, or changed repeat/shuffle from the rotary
+  // knob or a second browser session.
+  //
+  // These used to hang on window.addEventListener('ws_message'), while the
+  // context dispatches on its own wsEventTarget - so none of them ever fired.
+  // useWebSocketEvent is the hook the seven other listeners in the app use.
+  // The callbacks are memoised because the hook has `callback` among its
+  // dependencies and would otherwise re-subscribe on every render.
 
-    window.addEventListener('ws_message', handleWsMessage);
-    return () => window.removeEventListener('ws_message', handleWsMessage);
+  const handleButtonAction = useCallback((message: WebSocketMessage) => {
+    const action = (message.data as { action?: string }).action ?? '';
+    // The box sends kebab-case, the label table is keyed snake_case.
+    const actionKey = action.replace(/-/g, '_');
+    setButtonFeedback(BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action);
+    if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
+    buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
+  }, []);
+  useWebSocketEvent('button_action', handleButtonAction);
+
+  const handleRepeatMode = useCallback((message: WebSocketMessage) => {
+    const { repeat_mode } = message.data as { repeat_mode?: RepeatMode };
+    if (repeat_mode == null) return;
+    queryClient.setQueryData<AudioSessionResponse | null>(['audio', 'session'], (old) =>
+      old ? { ...old, repeat_mode } : old
+    );
   }, [queryClient]);
+  useWebSocketEvent('repeat_mode', handleRepeatMode);
+
+  const handleShuffleMode = useCallback((message: WebSocketMessage) => {
+    const { shuffle } = message.data as { shuffle?: boolean };
+    if (shuffle === undefined) return;
+    queryClient.setQueryData<AudioSessionResponse | null>(['audio', 'session'], (old) =>
+      old ? { ...old, shuffle: Boolean(shuffle) } : old
+    );
+  }, [queryClient]);
+  useWebSocketEvent('shuffle_mode', handleShuffleMode);
 
   // Clear session cache when stopped
   useEffect(() => {
@@ -323,8 +336,17 @@ export const PlayerPage: React.FC = () => {
 
   const handleStartSleepTimer = (minutes: number) => {
     setSleepAnchor(null);
+    setSleepCustom('');
     startSleepTimerMutation.mutate(minutes);
   };
+
+  // Freie Eingabe neben den vier Vorgaben: 25 Minuten bis zum Kita-Abholen
+  // oder 90 fuer ein Hoerspiel liessen sich vorher nicht einstellen.
+  const sleepCustomMinutes = parseInt(sleepCustom, 10);
+  const sleepCustomValid =
+    Number.isFinite(sleepCustomMinutes) &&
+    sleepCustomMinutes >= SLEEP_MIN_MINUTES &&
+    sleepCustomMinutes <= SLEEP_MAX_MINUTES;
 
   const handleCancelSleepTimer = () => {
     cancelSleepTimerMutation.mutate();
@@ -412,6 +434,55 @@ export const PlayerPage: React.FC = () => {
               size="small"
             />
             <Box display="flex" alignItems="center" gap={0.5} flexShrink={0}>
+              {/* Repeat und Shuffle standen nur im Ueberlaufmenue - man musste
+                  es oeffnen, um zu sehen, ob sie an sind. Jetzt stehen sie in
+                  der Statuszeile: eingefaerbt heisst an, blass heisst aus, und
+                  ein Tippen schaltet um. Deshalb sind sie unten aus dem Menue
+                  verschwunden statt doppelt zu existieren. */}
+              {session && (
+                <>
+                  <Tooltip
+                    title={
+                      session.repeat_mode === 'all'
+                        ? t('player.repeat_all')
+                        : t('player.repeat_off')
+                    }
+                  >
+                    <span>
+                      <ActionButton
+                        actionType="icon"
+                        aria-label={t('player.repeat_all')}
+                        aria-pressed={session.repeat_mode === 'all'}
+                        onClick={() =>
+                          repeatMutation.mutate(session.repeat_mode === 'all' ? 'none' : 'all')
+                        }
+                      >
+                        <RepeatIcon
+                          fontSize="small"
+                          color={session.repeat_mode === 'all' ? 'primary' : 'disabled'}
+                        />
+                      </ActionButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip
+                    title={session.shuffle ? t('player.shuffle_on') : t('player.shuffle_off')}
+                  >
+                    <span>
+                      <ActionButton
+                        actionType="icon"
+                        aria-label={t('player.shuffle_on')}
+                        aria-pressed={session.shuffle}
+                        onClick={() => shuffleMutation.mutate(!session.shuffle)}
+                      >
+                        <ShuffleIcon
+                          fontSize="small"
+                          color={session.shuffle ? 'primary' : 'disabled'}
+                        />
+                      </ActionButton>
+                    </span>
+                  </Tooltip>
+                </>
+              )}
               {sleepRemainingMs !== null && (
                 <Chip
                   icon={<HotelIcon fontSize="small" />}
@@ -462,41 +533,6 @@ export const PlayerPage: React.FC = () => {
               <ListItemIcon><SpeakerIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t('player.output_device')}</ListItemText>
             </MenuItem>
-            {session && [
-              <Divider key="divider" />,
-              <MenuItem
-                key="repeat"
-                onClick={() => {
-                  setMoreMenuOpen(false);
-                  repeatMutation.mutate(session.repeat_mode === 'all' ? 'none' : 'all');
-                }}
-              >
-                <ListItemIcon>
-                  <RepeatIcon fontSize="small" color={session.repeat_mode === 'all' ? 'primary' : 'inherit'} />
-                </ListItemIcon>
-                <ListItemText>
-                  {session.repeat_mode === 'all'
-                    ? t('player.repeat_all')
-                    : t('player.repeat_off')}
-                </ListItemText>
-              </MenuItem>,
-              <MenuItem
-                key="shuffle"
-                onClick={() => {
-                  setMoreMenuOpen(false);
-                  shuffleMutation.mutate(!session.shuffle);
-                }}
-              >
-                <ListItemIcon>
-                  <ShuffleIcon fontSize="small" color={session.shuffle ? 'primary' : 'inherit'} />
-                </ListItemIcon>
-                <ListItemText>
-                  {session.shuffle
-                    ? t('player.shuffle_on')
-                    : t('player.shuffle_off')}
-                </ListItemText>
-              </MenuItem>,
-            ]}
           </Menu>
 
           {/* Sleep timer popover, anchored to the overflow-menu button */}
@@ -507,7 +543,7 @@ export const PlayerPage: React.FC = () => {
             anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
           >
-            <List dense sx={{ py: 0.5, minWidth: 160 }}>
+            <List dense sx={{ py: 0.5, minWidth: 200 }}>
               {SLEEP_PRESETS.map((min) => (
                 <ListItemButton key={min} onClick={() => handleStartSleepTimer(min)}>
                   <Typography variant="body2">
@@ -515,6 +551,33 @@ export const PlayerPage: React.FC = () => {
                   </Typography>
                 </ListItemButton>
               ))}
+              <Divider sx={{ my: 0.5 }} />
+              <Box
+                component="form"
+                onSubmit={(e: React.FormEvent) => {
+                  e.preventDefault();
+                  if (sleepCustomValid) handleStartSleepTimer(sleepCustomMinutes);
+                }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1 }}
+              >
+                <TextField
+                  type="number"
+                  size="small"
+                  autoComplete="off"
+                  value={sleepCustom}
+                  onChange={(e) => setSleepCustom(e.target.value)}
+                  label={t('sleep_timer.custom_label')}
+                  inputProps={{
+                    min: SLEEP_MIN_MINUTES,
+                    max: SLEEP_MAX_MINUTES,
+                    'aria-label': t('sleep_timer.custom_label'),
+                  }}
+                  sx={{ width: 110 }}
+                />
+                <ActionButton actionType="primary" type="submit" disabled={!sleepCustomValid}>
+                  {t('sleep_timer.custom_start')}
+                </ActionButton>
+              </Box>
             </List>
           </Popover>
 

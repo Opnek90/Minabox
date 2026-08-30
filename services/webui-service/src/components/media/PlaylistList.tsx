@@ -49,6 +49,7 @@ import { CoverUploadField } from './CoverUploadField';
 import { PlaylistTracksDialog } from './PlaylistTracksDialog';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 import { useLayout } from '@/hooks/useLayout';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
 
 type SortKey = 'name' | 'track_count';
 const DEFAULT_SORT_KEY: SortKey = 'name';
@@ -108,6 +109,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
   const [formOpen, setFormOpen] = useState(false);
   const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
   const [formData, setFormData] = useState<PlaylistFormData>({ name: '', description: '', coverFile: null });
+  const coverPreview = useObjectUrl(formData.coverFile);
   const [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
   const [loading, setLoading] = useState(false);
   const [tracksDialogPlaylist, setTracksDialogPlaylist] = useState<PlaylistDetail | null>(null);
@@ -473,7 +475,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           <CoverUploadField
-            displayUrl={formData.coverFile ? URL.createObjectURL(formData.coverFile) : editingPlaylist?.cover_art_url ?? null}
+            displayUrl={coverPreview ?? editingPlaylist?.cover_art_url ?? null}
             coverFile={formData.coverFile}
             onFileSelect={(file) => setFormData((p) => ({ ...p, coverFile: file }))}
             onRemove={editingPlaylist ? handleRemoveCoverInForm : handleClearCoverInForm}

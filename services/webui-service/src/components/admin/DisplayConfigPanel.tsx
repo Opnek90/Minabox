@@ -35,7 +35,7 @@ export const DisplayConfigPanel: React.FC = () => {
     configApi
       .getDisplay()
       .then(setConfig)
-      .catch(() => setError('Laden fehlgeschlagen'));
+      .catch(() => setError(t('load_error')));
   }, []);
 
   const handleSave = async () => {

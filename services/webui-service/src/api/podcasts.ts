@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient, { TIMEOUT } from './client';
 import type {
   Podcast,
   PodcastCreate,
@@ -75,6 +75,7 @@ export const podcastsApi = {
     formData.append('file', file);
     const response = await apiClient.post<Podcast>(`/podcasts/${podcastId}/cover`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: TIMEOUT.UPLOAD,
     });
     return response.data;
   },

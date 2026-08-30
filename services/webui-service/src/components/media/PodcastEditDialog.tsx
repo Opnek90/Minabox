@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Button,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -11,6 +10,8 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Podcast } from '@/types/api';
 import { podcastsApi } from '@/api/podcasts';
 import { isValidUrl } from '@/utils/validators';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
@@ -18,14 +19,18 @@ interface PodcastEditDialogProps {
   open: boolean;
   podcast: Podcast | null;
   onClose: () => void;
-  onSuccess: (podcast: Podcast) => void;
+  /** Saved and done - the caller closes the dialog. */
+  onSaved: (podcast: Podcast) => void;
+  /** The podcast changed while the dialog stays open; see StreamEditDialog. */
+  onChanged: (podcast: Podcast) => void;
 }
 
 export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
   open,
   podcast,
   onClose,
-  onSuccess,
+  onSaved,
+  onChanged,
 }) => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
@@ -33,7 +38,6 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
   const [title, setTitle] = useState(podcast?.title ?? '');
   const [rssUrl, setRssUrl] = useState(podcast?.rss_url ?? '');
   const [description, setDescription] = useState(podcast?.description ?? '');
-  const [coverUrl, setCoverUrl] = useState<string | null>(podcast?.cover_art_url ?? null);
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -42,10 +46,12 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
       setTitle(podcast.title);
       setRssUrl(podcast.rss_url);
       setDescription(podcast.description ?? '');
-      setCoverUrl(podcast.cover_art_url ?? null);
       setPendingCoverFile(null);
     }
   }, [podcast, open]);
+
+  const pendingPreview = useObjectUrl(pendingCoverFile);
+  const displayCoverUrl = pendingPreview ?? podcast?.cover_art_url ?? null;
 
   const urlError = rssUrl && !isValidUrl(rssUrl) ? t('invalid_url', { ns: 'errors' }) : '';
   const isValid = title.trim() && rssUrl && isValidUrl(rssUrl);
@@ -62,9 +68,8 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
       if (pendingCoverFile) {
         updated = await podcastsApi.uploadCover(podcast.id, pendingCoverFile);
       }
-      onSuccess(updated);
       showSuccess(t('podcasts.updated'));
-      onClose();
+      onSaved(updated);
     } catch {
       showError(t('podcasts.update_error'));
     } finally {
@@ -73,39 +78,19 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
   };
 
   const handleRemoveCover = async () => {
-    if (!podcast) return;
-    setCoverUrl(null);
-    setPendingCoverFile(null);
+    if (pendingCoverFile) {
+      setPendingCoverFile(null);
+      return;
+    }
+    if (!podcast?.cover_art_url) return;
     try {
       const updated = await podcastsApi.deleteCover(podcast.id);
-      setCoverUrl(updated.cover_art_url ?? null);
-      onSuccess(updated);
+      onChanged(updated);
       showSuccess(t('podcasts.cover_removed'));
     } catch {
       showError(t('podcasts.cover_error'));
     }
   };
-
-  const handleCoverSelect = (file: File | null) => {
-    if (file) {
-      setPendingCoverFile(file);
-      setCoverUrl(URL.createObjectURL(file));
-    } else {
-      setPendingCoverFile(null);
-      setCoverUrl(podcast?.cover_art_url ?? null);
-    }
-  };
-
-  const handleRemoveCoverInField = () => {
-    if (pendingCoverFile) {
-      setPendingCoverFile(null);
-      setCoverUrl(podcast?.cover_art_url ?? null);
-    } else {
-      handleRemoveCover();
-    }
-  };
-
-  const displayCoverUrl = pendingCoverFile ? coverUrl : (coverUrl ?? podcast?.cover_art_url ?? null);
 
   return (
     <ResponsiveDialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -116,8 +101,8 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
         <CoverUploadField
           displayUrl={displayCoverUrl}
           coverFile={pendingCoverFile}
-          onFileSelect={handleCoverSelect}
-          onRemove={handleRemoveCoverInField}
+          onFileSelect={setPendingCoverFile}
+          onRemove={handleRemoveCover}
         />
 
         <TextField
@@ -149,10 +134,17 @@ export const PodcastEditDialog: React.FC<PodcastEditDialogProps> = ({
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t('cancel', { ns: 'common' })}</Button>
-        <Button onClick={handleSave} variant="contained" disabled={!isValid || loading}>
+        <ActionButton actionType="secondary" onClick={onClose}>
+          {t('cancel', { ns: 'common' })}
+        </ActionButton>
+        <ActionButton
+          actionType="primary"
+          onClick={handleSave}
+          loading={loading}
+          disabled={!isValid || loading}
+        >
           {t('save', { ns: 'common' })}
-        </Button>
+        </ActionButton>
       </DialogActions>
     </ResponsiveDialog>
   );

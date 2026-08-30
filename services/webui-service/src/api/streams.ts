@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient, { TIMEOUT } from './client';
 import type {
   Stream,
   StreamCreate,
@@ -67,6 +67,7 @@ export const streamsApi = {
     formData.append('file', file);
     const response = await apiClient.post<Stream>(`/streams/${streamId}/cover`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: TIMEOUT.UPLOAD,
     });
     return response.data;
   },

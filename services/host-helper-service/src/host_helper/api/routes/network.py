@@ -328,8 +328,22 @@ def set_network(
         # DHCP one.
         _run_nmcli_host_network(["con", "down", con_name], timeout=10)
         if method == "dhcp":
+            # Clearing the three manual fields is not tidiness, it is the
+            # point. NetworkManager in method=auto *adds* whatever sits in
+            # ipv4.addresses on top of the DHCP lease, so a profile that once
+            # had a static address keeps carrying it: the interface ends up
+            # with two addresses, and IP4.ADDRESS[1] - the stale static one -
+            # is what /network/status reports as "reachable at". The box then
+            # names an address the user does not use.
             r = _run_nmcli_host_network(
-                ["con", "modify", con_name, "ipv4.method", "auto"], timeout=10
+                [
+                    "con", "modify", con_name,
+                    "ipv4.method", "auto",
+                    "ipv4.addresses", "",
+                    "ipv4.gateway", "",
+                    "ipv4.dns", "",
+                ],
+                timeout=10,
             )
             if r.returncode != 0:
                 raise HTTPException(

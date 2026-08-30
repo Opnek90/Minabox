@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient, { TIMEOUT } from './client';
 import type { SystemStatus, ServiceLogsResponse } from '@/types/api';
 
 export interface AudioPathResponse {
@@ -177,7 +177,7 @@ export const systemApi = {
     const response = await apiClient.post<Blob>(
       '/system/debug-export',
       { options, client },
-      { responseType: 'blob', timeout: 180000 }
+      { responseType: 'blob', timeout: TIMEOUT.LONG_RUNNING }
     );
     return response.data;
   },
@@ -193,7 +193,7 @@ export const systemApi = {
     const response = await apiClient.post<DebugExportPreview>(
       '/system/debug-export/preview',
       { options, client },
-      { timeout: 180000 }
+      { timeout: TIMEOUT.LONG_RUNNING }
     );
     return response.data;
   },
@@ -202,7 +202,7 @@ export const systemApi = {
   downloadDebugExport: async (exportId: string): Promise<Blob> => {
     const response = await apiClient.get<Blob>(
       `/system/debug-export/download/${encodeURIComponent(exportId)}`,
-      { responseType: 'blob', timeout: 180000 }
+      { responseType: 'blob', timeout: TIMEOUT.LONG_RUNNING }
     );
     return response.data;
   },
@@ -217,6 +217,7 @@ export const systemApi = {
   downloadBackup: async (): Promise<Blob> => {
     const response = await apiClient.get<Blob>('/system/backup/download', {
       responseType: 'blob',
+      timeout: TIMEOUT.LONG_RUNNING,
     });
     return response.data;
   },
@@ -230,6 +231,7 @@ export const systemApi = {
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: TIMEOUT.LONG_RUNNING,
       }
     );
     return response.data;
@@ -338,6 +340,7 @@ export const systemApi = {
     const response = await apiClient.post<{ ok: boolean; message?: string }>(
       '/system/factory-reset',
       { delete_audio: deleteAudio },
+      { timeout: TIMEOUT.HOST_ACTION },
     );
     return response.data;
   },
@@ -371,7 +374,7 @@ export const systemApi = {
   getUpdateCheck: async (force = false): Promise<UpdateCheckResponse> => {
     const response = await apiClient.get<UpdateCheckResponse>('/system/update-check', {
       params: force ? { force: true } : undefined,
-      timeout: 30000,
+      timeout: TIMEOUT.HOST_ACTION,
     });
     return response.data;
   },
@@ -390,7 +393,9 @@ export const systemApi = {
 
   /** Scan for WiFi networks. Requires Host-Helper. */
   wifiScan: async (): Promise<WifiScanResponse> => {
-    const response = await apiClient.get<WifiScanResponse>('/system/wifi/scan');
+    const response = await apiClient.get<WifiScanResponse>('/system/wifi/scan', {
+      timeout: TIMEOUT.HOST_ACTION,
+    });
     return response.data;
   },
 
@@ -399,6 +404,8 @@ export const systemApi = {
     const response = await apiClient.post<{ ok: boolean; ssid?: string }>(
       '/system/wifi/connect',
       { ssid, password },
+      // nmcli waits for DHCP; on a busy router that is well past 15 seconds.
+      { timeout: TIMEOUT.HOST_ACTION },
     );
     return response.data;
   },
@@ -441,6 +448,7 @@ export const systemApi = {
     const response = await apiClient.post<{ ok: boolean; files_copied?: number }>(
       '/system/usb/import',
       { device_id: deviceId, source_paths: sourcePaths },
+      { timeout: TIMEOUT.LONG_RUNNING },
     );
     return response.data;
   },
@@ -453,7 +461,11 @@ export const systemApi = {
 
   /** Scan for Bluetooth devices. Requires Host-Helper. */
   bluetoothScan: async (): Promise<{ devices: Array<{ address: string; name: string | null }> }> => {
-    const response = await apiClient.get<{ devices: Array<{ address: string; name: string | null }> }>('/system/bluetooth/scan');
+    const response = await apiClient.get<{ devices: Array<{ address: string; name: string | null }> }>(
+      '/system/bluetooth/scan',
+      // The Host-Helper scans for 12 seconds, which sits right on the default.
+      { timeout: TIMEOUT.HOST_ACTION },
+    );
     return response.data;
   },
 

@@ -1,10 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Alert, Box, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { useToast } from '@/contexts/ToastContext';
-import { useFormState } from '@/hooks/useFormState';
-import { configApi } from '@/api/config';
-import type { GeneralConfig } from '@/types/api';
+import { useGeneralConfigField } from '@/hooks/useGeneralConfig';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
@@ -22,26 +19,10 @@ const DEFAULT_UPLOAD_MB = 100;
  */
 export const UploadLimitForm: React.FC = () => {
   const { t } = useTranslation('admin');
-  const { showSuccess } = useToast();
-  const { saving, error, setError, run } = useFormState();
-  const [sizeMb, setSizeMb] = useState<number | null>(null);
-
-  useEffect(() => {
-    configApi
-      .getGeneral()
-      .then((data) =>
-        setSizeMb((data as GeneralConfig).max_upload_size_mb ?? DEFAULT_UPLOAD_MB),
-      )
-      .catch(() => setError(t('load_error')));
-  }, []);
-
-  const handleSave = () =>
-    run(async () => {
-      if (sizeMb === null) return;
-      await configApi.updateGeneral({ max_upload_size_mb: sizeMb });
-      setError(null);
-      showSuccess(t('general.save_success'));
-    });
+  const { value: sizeMb, setValue, save, saving, error } = useGeneralConfigField(
+    'max_upload_size_mb',
+    DEFAULT_UPLOAD_MB,
+  );
 
   if (sizeMb === null) return null;
 
@@ -53,7 +34,7 @@ export const UploadLimitForm: React.FC = () => {
           type="number"
           value={sizeMb}
           onChange={(e) =>
-            setSizeMb(
+            setValue(
               Math.max(
                 MIN_UPLOAD_MB,
                 Math.min(MAX_UPLOAD_MB, parseInt(e.target.value, 10) || DEFAULT_UPLOAD_MB),
@@ -69,7 +50,7 @@ export const UploadLimitForm: React.FC = () => {
 
       {error && <Alert severity="error">{error}</Alert>}
       <Box>
-        <ActionButton actionType="primary" onClick={handleSave} disabled={saving}>
+        <ActionButton actionType="primary" onClick={save} disabled={saving}>
           {t('save', { ns: 'common' })}
         </ActionButton>
       </Box>

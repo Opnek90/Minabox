@@ -94,7 +94,7 @@ export function installGlobalErrorCapture(): void {
   window.addEventListener('error', (event) => {
     recordClientError({
       kind: 'error',
-      message: event.message || 'Unbekannter Fehler',
+      message: event.message || 'Unknown error',
       source: event.filename,
       line: event.lineno,
       column: event.colno,

@@ -88,6 +88,16 @@ def reset_login_failures(address: str | None = None) -> None:
         _login_failures.pop(address, None)
 
 
+# Minimum length of the web password. This is the only lock in front of the
+# media library, the parent dashboard and maintenance - and maintenance holds
+# the factory reset, the OS update and the backup download with the whole
+# database. The Host-Helper asks for eight characters for the system password,
+# so this matches it. The WebUI enforces the same value in utils/validators.ts;
+# an existing shorter password keeps working for login, only setting a new one
+# is affected.
+MIN_PASSWORD_LENGTH = 8
+
+
 class LoginBody(BaseModel):
     password: str = ""
 
@@ -183,8 +193,12 @@ async def set_password(body: PasswordBody, request: Request, response: Response)
         auth_enabled = bool((settings.get("web_password_hash") or "").strip())
         new_raw = (body.new_password or "").strip()
 
-        if not new_raw or len(new_raw) < 4:
-            raise ApiError(status_code=400, code="password_too_short", detail="New password must be at least 4 characters")
+        if not new_raw or len(new_raw) < MIN_PASSWORD_LENGTH:
+            raise ApiError(
+                status_code=400,
+                code="password_too_short",
+                detail=f"New password must be at least {MIN_PASSWORD_LENGTH} characters",
+            )
 
         if auth_enabled:
             _require_auth(request)

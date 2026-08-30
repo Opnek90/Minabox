@@ -22,6 +22,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.10 - 2026-08-30
+
+#### Improved
+- The web password asks for eight characters instead of four - the same length
+  as the system password.
+
 ### 0.2.9 - 2026-08-29
 
 #### Added
@@ -216,6 +222,38 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.2.0 - 2026-08-30
+
+#### Added
+- Repeat and shuffle are visible in the player: coloured means on, pale means
+  off, a tap toggles.
+- The sleep timer takes a freely entered duration next to 15, 30, 45 and 60
+  minutes.
+- Changes to lights and buttons can be discarded instead of only being
+  undoable by reloading the page.
+- When a fixed address is still sitting in the network profile despite DHCP,
+  the page now says so - the box was silently answering on two addresses.
+
+#### Improved
+- The interface image shrank from 98 to 25 MB.
+- The interface sends security headers and no longer reveals its web server's
+  version.
+- The web password asks for eight characters instead of four; the rule is
+  stated at the field.
+- "Parents -> Time and rules" is laid out like the settings pages.
+- The icons in the app bar no longer touch the frame around them.
+
+#### Fixed
+- Large uploads no longer break off after 15 seconds - nor get uploaded three
+  more times afterwards.
+- A button press on the box and a change at the rotary knob reach the player
+  again; the repeat and shuffle icons follow along.
+- Editing one podcast no longer overwrites all the others.
+- Removing cover art no longer closes the edit dialog.
+- The network status card no longer goes stale after a hotspot switch.
+- The button that sets the password did nothing.
+- Downloading a backup reported the message meant for restoring one.
 
 ### 0.1.23 - 2026-08-29
 
@@ -470,6 +508,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.2.3 - 2026-08-30
+
+#### Fixed
+- Switching back to DHCP no longer leaves a fixed address in the profile. The
+  box was otherwise reachable on two addresses, and the interface named the
+  wrong one.
 
 ### 0.2.2 - 2026-08-29
 

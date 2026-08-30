@@ -43,7 +43,8 @@
       "col_tag": "Tag",
       "col_media": "Content",
       "col_action": "Action"
-    }
+    },
+    "minutes_value": "{{value}} min"
   },
   "navigation": {
     "player": "Player",
@@ -64,7 +65,9 @@
     "search": "Search",
     "refresh": "Refresh",
     "loading": "Loading...",
-    "retry": "Retry"
+    "retry": "Retry",
+    "apply": "Apply",
+    "discard": "Discard"
   },
   "status": {
     "online": "Online",
@@ -122,6 +125,22 @@
       "cancel": "Cancel sleep timer"
     },
     "placeholder_media": "Track, playlist, stream …",
-    "no_results": "No matches."
+    "no_results": "No matches.",
+    "track_count_one": "{{count}} track",
+    "track_count_other": "{{count}} tracks"
+  },
+  "connection_lost": {
+    "title": "Minabox unreachable",
+    "body": "Lost the connection to the box. Reconnecting automatically …"
+  },
+  "error_boundary": {
+    "title": "Something went wrong",
+    "unknown": "Unknown error",
+    "retry": "Try again"
+  },
+  "debug_export": "Create diagnostics package",
+  "unsaved": {
+    "title": "Unsaved changes",
+    "hint": "The changes exist only in this view. Only “Save” sends them to the box."
   }
 }

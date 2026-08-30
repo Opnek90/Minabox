@@ -696,7 +696,8 @@ export const PodcastList: React.FC<PodcastListProps> = ({
         open={!!podcastToEdit}
         podcast={podcastToEdit}
         onClose={() => setPodcastToEdit(null)}
-        onSuccess={(updated) => { onUpdate(updated); setPodcastToEdit(null); }}
+        onSaved={(updated) => { onUpdate(updated); setPodcastToEdit(null); }}
+        onChanged={(updated) => { onUpdate(updated); setPodcastToEdit(updated); }}
       />
     </Box>
   );

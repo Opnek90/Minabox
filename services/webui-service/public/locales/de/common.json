@@ -43,7 +43,8 @@
       "col_tag": "Tag",
       "col_media": "Inhalt",
       "col_action": "Aktion"
-    }
+    },
+    "minutes_value": "{{value}} Min."
   },
   "navigation": {
     "player": "Wiedergabe",
@@ -64,7 +65,9 @@
     "search": "Suchen",
     "refresh": "Aktualisieren",
     "loading": "Wird geladen...",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "apply": "Übernehmen",
+    "discard": "Verwerfen"
   },
   "status": {
     "online": "Online",
@@ -122,6 +125,22 @@
       "cancel": "Sleep-Timer abbrechen"
     },
     "placeholder_media": "Track, Playlist, Stream …",
-    "no_results": "Keine Treffer."
+    "no_results": "Keine Treffer.",
+    "track_count_one": "{{count}} Track",
+    "track_count_other": "{{count}} Tracks"
+  },
+  "connection_lost": {
+    "title": "Minabox nicht erreichbar",
+    "body": "Verbindung zur Box unterbrochen. Es wird automatisch neu verbunden …"
+  },
+  "error_boundary": {
+    "title": "Ein Fehler ist aufgetreten",
+    "unknown": "Unbekannter Fehler",
+    "retry": "Erneut versuchen"
+  },
+  "debug_export": "Diagnose-Paket erstellen",
+  "unsaved": {
+    "title": "Nicht gespeicherte Änderungen",
+    "hint": "Die Änderungen stehen nur in dieser Ansicht. Erst „Speichern\" schickt sie an die Box."
   }
 }

@@ -12,6 +12,7 @@ import type { Track } from '@/types/api';
 import { tracksApi } from '@/api/tracks';
 import { CoverUploadField } from './CoverUploadField';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
 
 interface RemoteTrackDialogProps {
   open: boolean;
@@ -31,6 +32,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
   const [album, setAlbum] = useState('');
   const [sourceUri, setSourceUri] = useState('');
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const coverPreview = useObjectUrl(coverFile);
   const [loading, setLoading] = useState(false);
 
   const isValid = title.trim() && sourceUri.trim();
@@ -81,7 +83,7 @@ export const RemoteTrackDialog: React.FC<RemoteTrackDialogProps> = ({
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         <CoverUploadField
-          displayUrl={coverFile ? URL.createObjectURL(coverFile) : null}
+          displayUrl={coverPreview}
           coverFile={coverFile}
           onFileSelect={(file) => setCoverFile(file)}
           onRemove={() => setCoverFile(null)}

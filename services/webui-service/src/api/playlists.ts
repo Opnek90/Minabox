@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient, { TIMEOUT } from './client';
 import type { Playlist, PlaylistCreate, PlaylistUpdate, PlaylistDetail } from '@/types/api';
 
 export const playlistsApi = {
@@ -45,30 +45,12 @@ export const playlistsApi = {
     return response.data;
   },
 
-  removeTrack: async (playlistId: number, trackId: number): Promise<Playlist> => {
-    const detail = await playlistsApi.getById(playlistId);
-    const newIds = detail.tracks.map((t) => t.id).filter((id) => id !== trackId);
-    const response = await apiClient.put<Playlist>(`/playlists/${playlistId}`, {
-      track_ids: newIds,
-    });
-    return response.data;
-  },
-
-  reorderTracks: async (
-    playlistId: number,
-    trackIds: number[]
-  ): Promise<Playlist> => {
-    const response = await apiClient.put<Playlist>(`/playlists/${playlistId}/tracks/reorder`, {
-      track_ids: trackIds,
-    });
-    return response.data;
-  },
-
   uploadCover: async (playlistId: number, file: File): Promise<Playlist> => {
     const formData = new FormData();
     formData.append('file', file);
     const response = await apiClient.post<Playlist>(`/playlists/${playlistId}/cover`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: TIMEOUT.UPLOAD,
     });
     return response.data;
   },

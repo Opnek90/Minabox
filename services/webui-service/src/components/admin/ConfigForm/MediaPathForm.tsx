@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -38,9 +38,24 @@ export const MediaPathForm: React.FC = () => {
     error: string | null;
   }>({ status: 'idle', total: 0, current: 0, error: null });
 
+  // Die Abfrage des Umzugs laeuft ausserhalb eines useEffect (sie startet erst
+  // auf Knopfdruck), deshalb muss ihre Id hier liegen - sonst tickt sie nach
+  // einem Wechsel der Einstellungsgruppe weiter und setzt Zustand auf einer
+  // abgebauten Komponente.
+  const movePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopMovePoll = () => {
+    if (movePollRef.current !== null) {
+      clearInterval(movePollRef.current);
+      movePollRef.current = null;
+    }
+  };
+
   useEffect(() => {
     systemApi.getAudioPath().then((r) => setAudioPath(r.path)).catch(() => setAudioPath(null));
   }, []);
+
+  useEffect(() => stopMovePoll, []);
 
   const saveAudioPathAndMaybeRestart = async (doRestart: boolean) => {
     const path = newAudioPath.trim();
@@ -76,12 +91,13 @@ export const MediaPathForm: React.FC = () => {
     setMoveProgress({ status: 'running', total: 0, current: 0, error: null });
     try {
       await systemApi.moveAudio(source, path);
-      const pollId = setInterval(async () => {
+      stopMovePoll();
+      movePollRef.current = setInterval(async () => {
         try {
           const st = await systemApi.getMoveStatus();
           setMoveProgress({ status: st.status, total: st.total, current: st.current, error: st.error ?? null });
           if (st.status === 'done') {
-            clearInterval(pollId);
+            stopMovePoll();
             try {
               await systemApi.putAudioPath(path);
               setAudioPath(path);
@@ -99,7 +115,7 @@ export const MediaPathForm: React.FC = () => {
             }
             setAudioPathSaving(false);
           } else if (st.status === 'error') {
-            clearInterval(pollId);
+            stopMovePoll();
             setAudioPathSaving(false);
           }
         } catch {

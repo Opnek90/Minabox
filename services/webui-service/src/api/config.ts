@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient, { TIMEOUT } from './client';
 import type {
   AudioConfig,
   LEDConfig,
@@ -106,6 +106,7 @@ export const configApi = {
     formData.append('file', file);
     const response = await apiClient.post<{ url: string }>('/config/logo', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: TIMEOUT.UPLOAD,
     });
     return response.data;
   },

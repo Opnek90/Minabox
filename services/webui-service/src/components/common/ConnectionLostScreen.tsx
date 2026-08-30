@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Button, Fade, Typography } from '@mui/material';
 import SensorsOffIcon from '@mui/icons-material/SensorsOff';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import { useTranslation } from 'react-i18next';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { DebugExportDialog } from '@/components/admin/DebugExportDialog';
 
@@ -15,6 +16,7 @@ import { DebugExportDialog } from '@/components/admin/DebugExportDialog';
 const GRACE_PERIOD_MS = 3000;
 
 export const ConnectionLostScreen: React.FC = () => {
+  const { t } = useTranslation('common');
   const { isConnected } = useWebSocket();
   const [showOverlay, setShowOverlay] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -47,10 +49,10 @@ export const ConnectionLostScreen: React.FC = () => {
         <SensorsOffIcon sx={{ fontSize: 72, opacity: 0.4 }} />
         <Box sx={{ textAlign: 'center' }}>
           <Typography variant="h5" fontWeight={600} gutterBottom>
-            Minabox nicht erreichbar
+            {t('connection_lost.title')}
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.7 }}>
-            Verbindung zur Box unterbrochen. Verbinde automatisch wieder …
+            {t('connection_lost.body')}
           </Typography>
           {/* Der WebSocket kann tot sein, waehrend HTTP noch antwortet - dann
               kommt der Nutzer hier trotzdem an sein Diagnose-Paket. */}
@@ -61,7 +63,7 @@ export const ConnectionLostScreen: React.FC = () => {
             sx={{ mt: 3 }}
             onClick={() => setExportOpen(true)}
           >
-            Diagnose-Paket erstellen
+            {t('debug_export')}
           </Button>
           <DebugExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
         </Box>

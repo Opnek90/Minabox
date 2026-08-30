@@ -38,7 +38,8 @@
     "password_prompt": "Dieser Bereich ist geschützt. Bitte Passwort eingeben.",
     "password_required": "Passwort erforderlich",
     "password_saved": "Passwort gespeichert.",
-    "password_too_short": "Passwort muss mindestens 4 Zeichen haben.",
+    "password_hint": "Mindestens {{min}} Zeichen.",
+    "password_too_short": "Passwort muss mindestens {{min}} Zeichen haben.",
     "protected_admin": "Passwort für Admin-Bereich",
     "protected_areas_title": "Geschützte Bereiche",
     "protected_dashboard": "Passwort für Dashboard-Bereich",
@@ -452,6 +453,8 @@
     "network_netmask": "Subnetzmaske / Präfix",
     "network_no_connection": "Keine aktive Verbindung (WLAN oder Ethernet verbinden).",
     "network_section_title": "WLAN & Adresse",
+    "network_stale_static_title": "Im Profil steht noch eine feste Adresse: {{address}}",
+    "network_stale_static_body": "Die Box bezieht ihre Adresse per DHCP, vergibt sich diese feste Adresse aber zusätzlich — deshalb ist sie unter zwei Adressen erreichbar, und die Statuskarte oben nennt die falsche. „Übernehmen\" räumt die feste Adresse weg. Achtung: die Verbindung bricht dabei kurz ab.",
     "network_title": "Verbindungsdetails",
     "no_notes": "Keine Änderungsnotizen hinterlegt.",
     "notes_added": "Neu",
@@ -697,7 +700,11 @@
     "net_status_reach": "Erreichbar unter",
     "net_status_ssid": "WLAN",
     "net_status_stale": "Status möglicherweise veraltet.",
-    "net_status_fallback_hint": "Fällt das WLAN aus, öffnet die Box nach kurzer Zeit selbst das Setup-WLAN „{{ssid}}“. Am Display stehen dann SSID, Passwort und Adresse."
+    "net_status_fallback_hint": "Fällt das WLAN aus, öffnet die Box nach kurzer Zeit selbst das Setup-WLAN „{{ssid}}“. Am Display stehen dann SSID, Passwort und Adresse.",
+    "status_load_error": "Status konnte nicht geladen werden",
+    "restart_count_one": "{{count}}× neu gestartet",
+    "restart_count_other": "{{count}}× neu gestartet",
+    "backup_download_success": "Sicherung heruntergeladen"
   },
   "title": "Einstellungen"
 }

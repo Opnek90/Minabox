@@ -16,6 +16,11 @@ export default defineConfig({
     __BUILD_ID__: JSON.stringify('test'),
   },
   test: {
+    // 5 s (Vitest-Standard) reicht auf einem Raspberry Pi nicht: die
+    // Interaktionstests von MediaImportDialog brauchen dort allein schon
+    // knapp 5 s, unter Last kippen sie darueber. Eine Suite, die zufaellig
+    // rot wird, taugt nicht als Waechter in der CI.
+    testTimeout: 20_000,
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],

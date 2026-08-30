@@ -50,18 +50,8 @@ import type {
   TrackFolder,
 } from '@/types/api';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
-  <Box role="tabpanel" hidden={value !== index} sx={{ pt: 2 }}>
-    {value === index && children}
-  </Box>
-);
+import { useObjectUrl } from '@/hooks/useObjectUrl';
+import { TabPanel } from '@/components/common/TabPanel';
 
 type DeleteTarget =
   | { type: 'track'; item: Track }
@@ -100,6 +90,7 @@ export const MediaPage: React.FC = () => {
   const [editTrack, setEditTrack] = useState<Track | null>(null);
   const [editForm, setEditForm] = useState({ title: '', artist: '', album: '' });
   const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
+  const editCoverPreview = useObjectUrl(editCoverFile);
   const [editSaving, setEditSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
@@ -505,7 +496,7 @@ export const MediaPage: React.FC = () => {
           onFolderDelete={handlePodcastFolderDelete}
           onMovePodcastToFolder={handleMovePodcastToFolder}
           onDelete={(podcast) => void checkAndConfirmDelete({ type: 'podcast', item: podcast })}
-          onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? x : p)))}
+          onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
           sortKey={getSort('podcasts').key}
           sortDir={getSort('podcasts').dir}
           onSortChange={(key, dir) => setSort('podcasts', key, dir)}
@@ -573,7 +564,7 @@ export const MediaPage: React.FC = () => {
         <DialogTitle>{t('tracks.edit')}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           <CoverUploadField
-            displayUrl={editCoverFile ? URL.createObjectURL(editCoverFile) : editTrack?.cover_art_url ?? null}
+            displayUrl={editCoverPreview ?? editTrack?.cover_art_url ?? null}
             coverFile={editCoverFile}
             onFileSelect={(file) => setEditCoverFile(file)}
             onRemove={handleTrackEditRemoveCover}
