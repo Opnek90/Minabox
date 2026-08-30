@@ -22,22 +22,33 @@ COPY . .
 RUN npm run build:fast
 
 # ---- Stage 2: Serve with Nginx ----
-FROM nginx:alpine
+# alpine-slim, not alpine: the full image carries njs, XSLT, GeoIP and the
+# image filter (92.8 MB vs 21.8 MB), none of which is used here. Verified
+# before the switch: alpine-slim is still built --with-http_gzip_static_module,
+# so the pre-compressed .gz files keep being served, and --with-http_v2_module.
+# It has no curl, only BusyBox wget - see the health check below.
+FROM nginx:alpine-slim
 
 # Remove default nginx config
 RUN rm -f /etc/nginx/nginx.conf
 
-# Copy Nginx configuration
+# Copy Nginx configuration (nginx.conf includes security-headers.conf)
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
+COPY nginx/security-headers.conf /etc/nginx/security-headers.conf
 
 # Copy built React app
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 
-# Health check via nginx health endpoint
+# Health check via nginx health endpoint.
+#
+# wget, not curl: alpine-slim ships BusyBox wget and no curl at all.
+# 127.0.0.1, not localhost: BusyBox wget resolves localhost to ::1 first and
+# gives up when that is refused, while nginx above listens on IPv4 only
+# (listen 80). curl used to paper over this by falling back to IPv4.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:80/health || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1:80/health || exit 1
 
 # -- Version (build args; docs/Versionierung.md) ------------------------------
 # The defaults are deliberately "dev": a locally built image must not pass
