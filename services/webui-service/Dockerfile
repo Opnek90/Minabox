@@ -12,9 +12,15 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install dependencies (separate layer for caching; npm cache speeds up rebuilds)
+#
+# npm ci, not npm install: ci installs exactly what package-lock.json pins and
+# fails if the two have drifted apart, while install is free to pick up newer
+# patch versions. An image whose version number promises immutability must not
+# depend on the day it was built. No --omit=dev - Vite and TypeScript live in
+# devDependencies and are what does the building.
 COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --no-audit --no-fund
+    npm ci --no-audit --no-fund
 
 # Copy source and build (build:fast = vite only, no tsc; much faster on Raspberry Pi)
 # Locales werden direkt aus public/locales/ kopiert – kein Generierungsschritt mehr.
