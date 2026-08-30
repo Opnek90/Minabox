@@ -43,6 +43,12 @@ jobs:
       - name: Check changelog and manifest
         run: python3 scripts/build_manifest.py --check
 
+  # ── Typpruefung, Lint, Tests, i18n ────────────────────────────────────────
+  # Derselbe Workflow, den jeder Pull Request faehrt. Haengt vor build, damit
+  # ein roter Lauf kein Image in die Registry schiebt.
+  checks:
+    uses: ./.github/workflows/checks.yml
+
   # ── Welche Dienste muessen gebaut werden? ─────────────────────────────────
   changes:
     runs-on: ubuntu-latest
@@ -66,7 +72,7 @@ jobs:
 
   # ── Bauen und pushen ──────────────────────────────────────────────────────
   build:
-    needs: [validate, changes]
+    needs: [validate, checks, changes]
     if: needs.changes.outputs.any == 'true'
     # Nativer arm64-Runner. Das ist hier nicht Kosmetik: led- und
     # button-service kompilieren lgpio aus dem Quelltext und webui baut mit

@@ -86,9 +86,11 @@ export function useGeneralConfigFields<K extends keyof GeneralConfig>(
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keySignature stands
-    // in for `defaults`, whose identity changes on every render; t and setError
-    // would restart the load on a language switch for no gain.
+    // keySignature stands in for `defaults`, whose identity changes on every
+    // render; t and setError would restart the load on a language switch for
+    // no gain. The directive has to stay the last comment line, otherwise it
+    // points at this comment instead of at the dependency array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keySignature]);
 
   const setValue = useCallback(<P extends K>(key: P, value: NonNullable<GeneralConfig[P]>) => {

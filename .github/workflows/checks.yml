@@ -1,0 +1,61 @@
+name: Checks
+
+# Typpruefung, Lint, Tests und die i18n-Waechter fuer den WebUI-Dienst.
+#
+# Warum eigenstaendig: build-images.yml baut Images und laeuft erst nach dem
+# Merge auf main. Ein Typfehler oder ein kaputter Test kam damit ungebremst bis
+# in die Registry. Dieser Workflow laeuft an zwei Stellen - auf jedem Pull
+# Request, damit der Fehler vor dem Merge sichtbar wird, und per workflow_call
+# aus build-images.yml, damit ein roter Lauf das Pushen verhindert.
+#
+# Laeuft auf ubuntu-latest statt auf dem arm64-Runner: npm ci und tsc brauchen
+# dort keine Sonderbehandlung und der Lauf kostet rund zwei Minuten.
+
+on:
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  webui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/webui-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: services/webui-service/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Der Dockerfile baut bewusst mit build:fast, also ohne tsc - auf dem
+      # arm64-Runner kostet die Typpruefung Minuten. Hier wird sie nachgeholt.
+      - name: Type check
+        run: npm run build:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm run test
+
+      # Fehlende Uebersetzungen fallen sonst erst dem Nutzer auf: der Schluessel
+      # steht dann als roher Text in der Oberflaeche.
+      - name: Locales in sync
+        run: npm run check:locales
+
+      - name: Translation keys exist
+        run: npm run check:i18n-calls
