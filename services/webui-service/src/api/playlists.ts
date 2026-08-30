@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient, { TIMEOUT } from './client';
 import type { Playlist, PlaylistCreate, PlaylistUpdate, PlaylistDetail } from '@/types/api';
 
 export const playlistsApi = {
@@ -50,6 +50,7 @@ export const playlistsApi = {
     formData.append('file', file);
     const response = await apiClient.post<Playlist>(`/playlists/${playlistId}/cover`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: TIMEOUT.UPLOAD,
     });
     return response.data;
   },

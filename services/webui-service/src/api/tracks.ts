@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient, { TIMEOUT } from './client';
 import type { Track, TrackCreate, TrackUpdate, TrackFolder, TrackFolderCreate, TrackFolderUpdate } from '@/types/api';
 
 export interface MediaUrlInfo {
@@ -84,6 +84,9 @@ export const tracksApi = {
 
     const response = await apiClient.post<Track>('/tracks/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      // No timeout: onUploadProgress below is the sign of life. A 30 MB file
+      // over Wi-Fi takes longer than any fixed limit worth guessing.
+      timeout: TIMEOUT.NONE,
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -142,6 +145,7 @@ export const tracksApi = {
     formData.append('file', file);
     const response = await apiClient.post<Track>(`/tracks/${trackId}/cover`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: TIMEOUT.UPLOAD,
     });
     return response.data;
   },
