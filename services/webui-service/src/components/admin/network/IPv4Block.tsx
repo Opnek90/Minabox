@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
+  AlertTitle,
   Box,
   FormControlLabel,
   Radio,
@@ -80,6 +82,11 @@ export const IPv4Block: React.FC<IPv4BlockProps> = ({ onNetworkChanged }) => {
     });
   };
 
+  // Der Server meldet unter DHCP nur dann eine Adresse, wenn sie als feste
+  // Adresse im Profil steht - genau der Fall, den der Hinweis unten meint.
+  const staleStaticAddress =
+    network && network.method === 'dhcp' && network.address ? network.address : null;
+
   const handleApply = async () => {
     if (!draft) return;
     const manual = draft.method === 'manual';
@@ -110,6 +117,19 @@ export const IPv4Block: React.FC<IPv4BlockProps> = ({ onNetworkChanged }) => {
         </Typography>
       ) : (
         <Box display="flex" flexDirection="column" gap={1.5} sx={{ mt: 1 }}>
+          {/* DHCP und trotzdem eine feste Adresse im Profil: NetworkManager
+              vergibt die zusaetzlich zum Lease, die Karte oben nennt dann die
+              falsche. Ohne diesen Hinweis sieht die Seite aus, als sei alles
+              in Ordnung - "Uebernehmen" auf eine scheinbar unveraenderte
+              Auswahl zu druecken kommt niemandem in den Sinn. */}
+          {staleStaticAddress && (
+            <Alert severity="warning">
+              <AlertTitle>
+                {t('system.network_stale_static_title', { address: staleStaticAddress })}
+              </AlertTitle>
+              {t('system.network_stale_static_body')}
+            </Alert>
+          )}
           <Typography variant="caption" color="text.secondary">
             {t('system.network_method_label')}
           </Typography>

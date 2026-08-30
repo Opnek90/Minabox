@@ -453,6 +453,8 @@
     "network_netmask": "Subnetzmaske / Präfix",
     "network_no_connection": "Keine aktive Verbindung (WLAN oder Ethernet verbinden).",
     "network_section_title": "WLAN & Adresse",
+    "network_stale_static_title": "Im Profil steht noch eine feste Adresse: {{address}}",
+    "network_stale_static_body": "Die Box bezieht ihre Adresse per DHCP, vergibt sich diese feste Adresse aber zusätzlich — deshalb ist sie unter zwei Adressen erreichbar, und die Statuskarte oben nennt die falsche. „Übernehmen\" räumt die feste Adresse weg. Achtung: die Verbindung bricht dabei kurz ab.",
     "network_title": "Verbindungsdetails",
     "no_notes": "Keine Änderungsnotizen hinterlegt.",
     "notes_added": "Neu",

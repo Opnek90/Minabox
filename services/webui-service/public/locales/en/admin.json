@@ -453,6 +453,8 @@
     "network_netmask": "Subnet mask / prefix",
     "network_no_connection": "No active connection (connect WLAN or Ethernet).",
     "network_section_title": "Wi-Fi & Address",
+    "network_stale_static_title": "The profile still carries a fixed address: {{address}}",
+    "network_stale_static_body": "The box gets its address over DHCP but assigns this fixed one on top, so it answers on two addresses and the status card above names the wrong one. \"Apply\" clears the fixed address. Note that the connection drops briefly while it does.",
     "network_title": "Connection details",
     "no_notes": "No release notes recorded.",
     "notes_added": "Added",
