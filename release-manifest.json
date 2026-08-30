@@ -135,8 +135,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.9",
+      "latest": "0.2.10",
       "releases": [
+        {
+          "version": "0.2.10",
+          "date": "2026-08-30",
+          "notes": {
+            "improved": {
+              "de": [
+                "Das Webpasswort verlangt acht statt vier Zeichen - dieselbe Laenge wie das Systempasswort."
+              ],
+              "en": [
+                "The web password asks for eight characters instead of four - the same length as the system password."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.9",
           "date": "2026-08-29",
@@ -742,8 +756,22 @@
       ]
     },
     "host-helper": {
-      "latest": "0.2.2",
+      "latest": "0.2.3",
       "releases": [
+        {
+          "version": "0.2.3",
+          "date": "2026-08-30",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Beim Zurueckschalten auf DHCP bleibt keine feste Adresse mehr im Profil stehen. Die Box war sonst unter zwei Adressen erreichbar, und die Oberflaeche nannte die falsche."
+              ],
+              "en": [
+                "Switching back to DHCP no longer leaves a fixed address in the profile. The box was otherwise reachable on two addresses, and the interface named the wrong one."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.2",
           "date": "2026-08-29",
@@ -1187,8 +1215,64 @@
       ]
     },
     "webui": {
-      "latest": "0.1.23",
+      "latest": "0.2.0",
       "releases": [
+        {
+          "version": "0.2.0",
+          "date": "2026-08-30",
+          "notes": {
+            "added": {
+              "de": [
+                "Wiederholen und Zufallswiedergabe stehen sichtbar im Player: eingefaerbt heisst an, blass heisst aus, ein Tippen schaltet um.",
+                "Der Einschlaf-Timer nimmt neben 15, 30, 45 und 60 Minuten auch eine frei eingegebene Dauer.",
+                "Aenderungen an Lichtern und Tastern lassen sich verwerfen, statt sie nur ueber ein Neuladen der Seite loswerden zu koennen.",
+                "Steht trotz DHCP noch eine feste Adresse im Netzwerkprofil, sagt die Seite das jetzt - die Box war sonst unbemerkt unter zwei Adressen erreichbar."
+              ],
+              "en": [
+                "Repeat and shuffle are visible in the player: coloured means on, pale means off, a tap toggles.",
+                "The sleep timer takes a freely entered duration next to 15, 30, 45 and 60 minutes.",
+                "Changes to lights and buttons can be discarded instead of only being undoable by reloading the page.",
+                "When a fixed address is still sitting in the network profile despite DHCP, the page now says so - the box was silently answering on two addresses."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Das Abbild der Oberflaeche ist von 98 auf 25 MB geschrumpft.",
+                "Die Oberflaeche sendet Sicherheits-Kopfzeilen und verraet die Version ihres Webservers nicht mehr.",
+                "Das Webpasswort verlangt acht statt vier Zeichen; die Regel steht am Feld.",
+                "\"Eltern -> Zeit und Regeln\" ist so gegliedert wie die Einstellungsseiten.",
+                "Die Symbole in der Kopfzeile kleben nicht mehr am Rahmen ihrer Umrandung."
+              ],
+              "en": [
+                "The interface image shrank from 98 to 25 MB.",
+                "The interface sends security headers and no longer reveals its web server's version.",
+                "The web password asks for eight characters instead of four; the rule is stated at the field.",
+                "\"Parents -> Time and rules\" is laid out like the settings pages.",
+                "The icons in the app bar no longer touch the frame around them."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Grosse Uploads brechen nicht mehr nach 15 Sekunden ab - und werden nicht mehr drei weitere Male hochgeladen.",
+                "Ein Tastendruck an der Box und ein Umschalten am Drehregler erreichen den Player wieder; die Symbole fuer Wiederholen und Zufall ziehen mit.",
+                "Einen Podcast zu bearbeiten ueberschreibt nicht mehr alle anderen.",
+                "Ein Titelbild zu entfernen schliesst den Bearbeiten-Dialog nicht mehr.",
+                "Die Netzwerk-Statuskarte veraltet nicht mehr nach einem Hotspot-Wechsel.",
+                "Der Knopf zum Setzen des Passworts tat nichts.",
+                "Nach dem Herunterladen einer Sicherung erschien die Meldung der Wiederherstellung."
+              ],
+              "en": [
+                "Large uploads no longer break off after 15 seconds - nor get uploaded three more times afterwards.",
+                "A button press on the box and a change at the rotary knob reach the player again; the repeat and shuffle icons follow along.",
+                "Editing one podcast no longer overwrites all the others.",
+                "Removing cover art no longer closes the edit dialog.",
+                "The network status card no longer goes stale after a hotspot switch.",
+                "The button that sets the password did nothing.",
+                "Downloading a backup reported the message meant for restoring one."
+              ]
+            }
+          }
+        },
         {
           "version": "0.1.23",
           "date": "2026-08-29",

@@ -23,6 +23,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.10 - 2026-08-30
+
+#### Verbessert
+- Das Webpasswort verlangt acht statt vier Zeichen - dieselbe Laenge wie das
+  Systempasswort.
+
 ### 0.2.9 - 2026-08-29
 
 #### Neu
@@ -227,6 +233,38 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.2.0 - 2026-08-30
+
+#### Neu
+- Wiederholen und Zufallswiedergabe stehen sichtbar im Player: eingefaerbt
+  heisst an, blass heisst aus, ein Tippen schaltet um.
+- Der Einschlaf-Timer nimmt neben 15, 30, 45 und 60 Minuten auch eine frei
+  eingegebene Dauer.
+- Aenderungen an Lichtern und Tastern lassen sich verwerfen, statt sie nur
+  ueber ein Neuladen der Seite loswerden zu koennen.
+- Steht trotz DHCP noch eine feste Adresse im Netzwerkprofil, sagt die Seite
+  das jetzt - die Box war sonst unbemerkt unter zwei Adressen erreichbar.
+
+#### Verbessert
+- Das Abbild der Oberflaeche ist von 98 auf 25 MB geschrumpft.
+- Die Oberflaeche sendet Sicherheits-Kopfzeilen und verraet die Version ihres
+  Webservers nicht mehr.
+- Das Webpasswort verlangt acht statt vier Zeichen; die Regel steht am Feld.
+- "Eltern -> Zeit und Regeln" ist so gegliedert wie die Einstellungsseiten.
+- Die Symbole in der Kopfzeile kleben nicht mehr am Rahmen ihrer Umrandung.
+
+#### Behoben
+- Grosse Uploads brechen nicht mehr nach 15 Sekunden ab - und werden nicht
+  mehr drei weitere Male hochgeladen.
+- Ein Tastendruck an der Box und ein Umschalten am Drehregler erreichen den
+  Player wieder; die Symbole fuer Wiederholen und Zufall ziehen mit.
+- Einen Podcast zu bearbeiten ueberschreibt nicht mehr alle anderen.
+- Ein Titelbild zu entfernen schliesst den Bearbeiten-Dialog nicht mehr.
+- Die Netzwerk-Statuskarte veraltet nicht mehr nach einem Hotspot-Wechsel.
+- Der Knopf zum Setzen des Passworts tat nichts.
+- Nach dem Herunterladen einer Sicherung erschien die Meldung der
+  Wiederherstellung.
 
 ### 0.1.23 - 2026-08-29
 
@@ -492,6 +530,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.2.3 - 2026-08-30
+
+#### Behoben
+- Beim Zurueckschalten auf DHCP bleibt keine feste Adresse mehr im Profil
+  stehen. Die Box war sonst unter zwei Adressen erreichbar, und die
+  Oberflaeche nannte die falsche.
 
 ### 0.2.2 - 2026-08-29
 
