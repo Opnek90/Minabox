@@ -25,6 +25,7 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
 import type { Playlist, Track, Stream } from '@/types/api';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
 
 type View = 'list' | 'create';
 
@@ -54,6 +55,7 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const coverPreview = useObjectUrl(coverFile);
   const [saving, setSaving] = useState(false);
 
   const resetCreateForm = () => {
@@ -188,7 +190,7 @@ export const AddToPlaylistDialog: React.FC<AddToPlaylistDialogProps> = ({
         <>
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
             <CoverUploadField
-              displayUrl={coverFile ? URL.createObjectURL(coverFile) : null}
+              displayUrl={coverPreview}
               coverFile={coverFile}
               onFileSelect={(file) => setCoverFile(file)}
               onRemove={() => setCoverFile(null)}

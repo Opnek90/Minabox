@@ -13,6 +13,7 @@ import { isValidUrl } from '@/utils/validators';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
 
 interface StreamDialogProps {
   open: boolean;
@@ -28,6 +29,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const coverPreview = useObjectUrl(coverFile);
   const [loading, setLoading] = useState(false);
 
   const urlError = url && !isValidUrl(url) ? t('invalid_url', { ns: 'errors' }) : '';
@@ -71,7 +73,7 @@ export const StreamDialog: React.FC<StreamDialogProps> = ({ open, onClose, onSuc
       <DialogTitle sx={{ fontSize: '1.25rem', fontWeight: 600 }}>{t('stream.title')}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         <CoverUploadField
-          displayUrl={coverFile ? URL.createObjectURL(coverFile) : null}
+          displayUrl={coverPreview}
           coverFile={coverFile}
           onFileSelect={(file) => setCoverFile(file)}
           onRemove={() => setCoverFile(null)}

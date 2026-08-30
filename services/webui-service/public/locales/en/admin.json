@@ -700,7 +700,8 @@
     "net_status_fallback_hint": "If Wi-Fi drops, the box brings up its own “{{ssid}}” setup network after a short wait. The display then shows the SSID, password and address.",
     "status_load_error": "Could not load the status",
     "restart_count_one": "restarted {{count}}×",
-    "restart_count_other": "restarted {{count}}×"
+    "restart_count_other": "restarted {{count}}×",
+    "backup_download_success": "Backup downloaded"
   },
   "title": "Settings"
 }

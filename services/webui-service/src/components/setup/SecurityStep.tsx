@@ -52,7 +52,7 @@ export const SecurityStep: React.FC<Props> = ({ registerSave }) => {
         setError(null);
         return true;
       } catch {
-        setError(t('hardware.test_failed'));
+        setError(t('password_set_failed', { ns: 'errors' }));
         return false;
       }
     });

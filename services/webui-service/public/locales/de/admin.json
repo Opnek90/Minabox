@@ -700,7 +700,8 @@
     "net_status_fallback_hint": "Fällt das WLAN aus, öffnet die Box nach kurzer Zeit selbst das Setup-WLAN „{{ssid}}“. Am Display stehen dann SSID, Passwort und Adresse.",
     "status_load_error": "Status konnte nicht geladen werden",
     "restart_count_one": "{{count}}× neu gestartet",
-    "restart_count_other": "{{count}}× neu gestartet"
+    "restart_count_other": "{{count}}× neu gestartet",
+    "backup_download_success": "Sicherung heruntergeladen"
   },
   "title": "Einstellungen"
 }

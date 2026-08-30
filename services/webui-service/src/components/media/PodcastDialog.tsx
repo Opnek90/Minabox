@@ -13,6 +13,7 @@ import type { Podcast } from '@/types/api';
 import { isValidUrl } from '@/utils/validators';
 import { CoverUploadField } from './CoverUploadField';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
 
 interface PodcastDialogProps {
   open: boolean;
@@ -30,6 +31,7 @@ export const PodcastDialog: React.FC<PodcastDialogProps> = ({
   const [title, setTitle] = useState('');
   const [rssUrl, setRssUrl] = useState('');
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const coverPreview = useObjectUrl(coverFile);
   const [loading, setLoading] = useState(false);
   const urlError = rssUrl && !isValidUrl(rssUrl) ? t('invalid_url', { ns: 'errors' }) : '';
   const isValid = title.trim() && rssUrl && isValidUrl(rssUrl);
@@ -68,7 +70,7 @@ export const PodcastDialog: React.FC<PodcastDialogProps> = ({
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
         <CoverUploadField
-          displayUrl={coverFile ? URL.createObjectURL(coverFile) : null}
+          displayUrl={coverPreview}
           coverFile={coverFile}
           onFileSelect={(file) => setCoverFile(file)}
           onRemove={() => setCoverFile(null)}

@@ -228,7 +228,7 @@ export const SystemMaintenanceSection: React.FC = () => {
       a.download = `minabox-backup-${new Date().toISOString().slice(0, 10)}.zip`;
       a.click();
       URL.revokeObjectURL(url);
-      showSuccess(t('system.backup_restore_success'));
+      showSuccess(t('system.backup_download_success'));
     } catch (err) {
       showError(translateApiError(t, i18n, err));
     }

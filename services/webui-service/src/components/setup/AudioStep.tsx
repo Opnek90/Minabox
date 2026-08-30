@@ -74,7 +74,7 @@ export const AudioStep: React.FC<Props> = ({ registerSave }) => {
         setError(null);
         return true;
       } catch {
-        setError(t('hardware.test_failed'));
+        setError(t('audio_config_write_failed', { ns: 'errors' }));
         return false;
       }
     });
