@@ -44,13 +44,15 @@ import { VolumeControl } from '@/components/player/VolumeControl';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
-import { useWebSocket } from '@/contexts/WebSocketContext';
+import { useWebSocket, useWebSocketEvent } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
 import type {
   AudioDeviceItem,
+  AudioSessionResponse,
   QueueItem,
   RepeatMode,
+  WebSocketMessage,
 } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
 
@@ -203,39 +205,43 @@ export const PlayerPage: React.FC = () => {
     }
   }, [sleepTimerStatus]);
 
-  // Hook into generic messages for feedback via custom event
-  useEffect(() => {
-    const handleWsMessage = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const lastMessage = customEvent.detail;
-      
-      if (lastMessage.type === 'button_action') {
-        const action = (lastMessage.data as { action?: string }).action ?? '';
-        const actionKey = action.replace(/-/g, '_');
-        const label = BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action;
-        setButtonFeedback(label);
-        if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
-        buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
-      } else if (lastMessage.type === 'repeat_mode') {
-        const data = lastMessage.data as { repeat_mode?: RepeatMode };
-        if (data?.repeat_mode != null) {
-          queryClient.setQueryData(['audio', 'session'], (old: any) => 
-            old ? { ...old, repeat_mode: data.repeat_mode } : old
-          );
-        }
-      } else if (lastMessage.type === 'shuffle_mode') {
-        const data = lastMessage.data as { shuffle?: boolean };
-        if (data?.shuffle !== undefined) {
-          queryClient.setQueryData(['audio', 'session'], (old: any) => 
-            old ? { ...old, shuffle: Boolean(data.shuffle) } : old
-          );
-        }
-      }
-    };
+  // Messages that arrive without the player having asked for them: someone
+  // pressed a button on the box, or changed repeat/shuffle from the rotary
+  // knob or a second browser session.
+  //
+  // These used to hang on window.addEventListener('ws_message'), while the
+  // context dispatches on its own wsEventTarget - so none of them ever fired.
+  // useWebSocketEvent is the hook the seven other listeners in the app use.
+  // The callbacks are memoised because the hook has `callback` among its
+  // dependencies and would otherwise re-subscribe on every render.
 
-    window.addEventListener('ws_message', handleWsMessage);
-    return () => window.removeEventListener('ws_message', handleWsMessage);
+  const handleButtonAction = useCallback((message: WebSocketMessage) => {
+    const action = (message.data as { action?: string }).action ?? '';
+    // The box sends kebab-case, the label table is keyed snake_case.
+    const actionKey = action.replace(/-/g, '_');
+    setButtonFeedback(BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action);
+    if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
+    buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
+  }, []);
+  useWebSocketEvent('button_action', handleButtonAction);
+
+  const handleRepeatMode = useCallback((message: WebSocketMessage) => {
+    const { repeat_mode } = message.data as { repeat_mode?: RepeatMode };
+    if (repeat_mode == null) return;
+    queryClient.setQueryData<AudioSessionResponse | null>(['audio', 'session'], (old) =>
+      old ? { ...old, repeat_mode } : old
+    );
   }, [queryClient]);
+  useWebSocketEvent('repeat_mode', handleRepeatMode);
+
+  const handleShuffleMode = useCallback((message: WebSocketMessage) => {
+    const { shuffle } = message.data as { shuffle?: boolean };
+    if (shuffle === undefined) return;
+    queryClient.setQueryData<AudioSessionResponse | null>(['audio', 'session'], (old) =>
+      old ? { ...old, shuffle: Boolean(shuffle) } : old
+    );
+  }, [queryClient]);
+  useWebSocketEvent('shuffle_mode', handleShuffleMode);
 
   // Clear session cache when stopped
   useEffect(() => {
