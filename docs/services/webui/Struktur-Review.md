@@ -445,15 +445,38 @@ Fehlerbildschirm-Texte aus der GoLive-Pruefung.
 
 Von unten nach oben – jeder Schritt macht den naechsten kleiner.
 
-| # | Schritt | Aufwand | Risiko | Zeilen |
+| # | Schritt | Aufwand | Risiko | Stand |
 | --- | --- | --- | --- | --- |
-| 1 | S6 toter Code weg, S7 `StatTile`/`TabPanel` nach `common/`, deutsche Reste uebersetzen | gering | keins | −300 |
-| 2 | S5.3 falsche Uebersetzungsschluessel, S5.4 Intervall-Leak, S5.5 `useObjectUrl` | gering | gering | ±0 |
-| 3 | S4 `useGeneralConfigField` – sieben Formulare auf ihren Inhalt reduzieren | gering | gering | −250 |
-| 4 | S5.1 „Speichern"-Semantik in `ButtonConfigPanel`/`LEDConfigPanel` klaeren | mittel | gering | ±0 |
-| 5 | S3 `SystemMaintenanceSection` und `NetworkPanel` zerlegen | mittel | gering | ±0 |
-| 6 | S1 `MediaLibraryView` – erst Stream+Podcast, dann Track, dann Playlist | hoch | mittel | −1.800 |
-| 7 | S2 Datenschicht auf React Query (`src/queries/`) | hoch | mittel | −400 |
+| 1 | S6 toter Code weg, S7 `StatTile`/`TabPanel` nach `common/`, deutsche Reste uebersetzen | gering | keins | **erledigt** |
+| 2 | S5.3 falsche Uebersetzungsschluessel, S5.4 Intervall-Leak, S5.5 `useObjectUrl` | gering | gering | **erledigt** |
+| 3 | S4 `useGeneralConfigField` – Formulare auf ihren Inhalt reduzieren | gering | gering | **erledigt** (5 von 7; zwei lesen andere Endpunkte) |
+| 4 | S5.1 „Speichern"-Semantik, S5.2 Cover-Dialog | mittel | gering | **erledigt** |
+| 5 | S3 `SystemMaintenanceSection` und `NetworkPanel` zerlegen | mittel | gering | **erledigt** |
+| 6 | S1 `MediaLibraryView` – erst Stream+Podcast, dann Track, dann Playlist | hoch | mittel | offen |
+| 7 | S2 Datenschicht auf React Query (`src/queries/`) | hoch | mittel | offen |
+
+### Was die Schritte 1–5 gekostet haben
+
+Die Zeilen-Schaetzung in der ersten Fassung war zu optimistisch. Tatsaechlich:
+
+| | Zeilen | groesste Datei | `useState` darin |
+| --- | --- | --- | --- |
+| `SystemMaintenanceSection` | 812 → 1.072 (10 Dateien) | 812 → **198** | 28 → **6** |
+| `NetworkPanel` | 395 → 568 (5 Dateien) | 395 → **191** | 23 → **6** |
+| toter Code | −288 | – | – |
+| Config-Formulare | −195 | – | – |
+
+Das Zerlegen *addiert* Zeilen – vier Import-Bloecke und vier Komponenten-Huellen
+kosten mehr, als der geteilte Zustand einspart. Der Gewinn ist keiner an
+Zeilen, sondern daran, dass keine Datei mehr mehr Zustand traegt, als man beim
+Lesen im Kopf behalten kann. Wer das als Kennzahl braucht: 13 Dateien ueber 400
+Zeilen sind es jetzt 11, und die zwei groessten Zustandshaufen des Projekts
+(28 und 23 `useState`) gibt es nicht mehr.
+
+Nebenbei sind drei Dinge richtig geworden, die vorher falsch waren: die
+Status-Karte im Netzwerk-Bereich veraltete nach jedem Hotspot-Schalten, das
+Fortschritts-Fenster des Updates rechnete mit einem `boolean` neben zwei
+`number | null`, und fuenf gleiche Rueckfrage-Dialoge sind jetzt zwei.
 
 Schritte 1–3 sind eine Sitzung und beruehren die Bedienung nicht. Schritt 6 ist
 der grosse Posten und sollte nicht vor dem GoLive beginnen: die vier Listen
