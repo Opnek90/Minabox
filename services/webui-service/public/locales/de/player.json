@@ -1,6 +1,5 @@
 {
   "title": "Wiedergabe",
-  "now_playing": "Aktuell läuft",
   "nothing_playing": "Nichts wird abgespielt",
   "controls": {
     "play": "Abspielen",
@@ -10,7 +9,6 @@
     "previous": "Vorheriger Track"
   },
   "volume": "Lautstärke",
-  "volume_label": "Lautstärke: {{value}}%",
   "output_device": "Ausgabegerät",
   "output_device_refresh": "Geräte aktualisieren",
   "progress": "Fortschritt",
@@ -26,7 +24,6 @@
   },
   "unknown_track": "Unbekannter Track",
   "unknown_artist": "Unbekannter Künstler",
-  "unknown_album": "Unbekanntes Album",
   "repeat_all": "Alle wiederholen",
   "repeat_off": "Wiederholung aus",
   "shuffle_on": "Zufall an",

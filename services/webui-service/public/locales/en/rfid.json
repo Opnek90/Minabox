@@ -1,11 +1,9 @@
 {
   "title": "RFID Tags",
-  "tag_list": "Tag Overview",
   "no_tags": "No tags yet",
   "learn_mode": "Scan New Tag",
   "learn_mode_active": "Learn Mode active – Please place tag",
   "learn_mode_waiting": "Waiting for tag...",
-  "learn_mode_found": "Tag detected: {{tag_id}}",
   "learn_mode_cancel": "Cancel Learn Mode",
   "new_tag_dialog": {
     "title": "Set Up New Tag",
