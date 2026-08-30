@@ -1,1187 +1,504 @@
-# WebUI-Service – Architecture
+# WebUI Service – Architecture
 
-## 1. Zweck & Verantwortung
+## 1. Purpose & Responsibility
 
-Der WebUI-Service ist das grafische Frontend der Minabox. Er bietet eine benutzerfreundliche Web-Oberfläche zur Steuerung, Verwaltung und Konfiguration aller Minabox-Funktionen.
+The WebUI is the browser front end of the Minabox. It is a static React
+single-page application, built once and served by Nginx, that turns the
+backend's REST API and WebSocket feed into the surface a family actually
+operates: a player, a card manager, a media library, a parent dashboard and a
+settings area.
 
-Ziele:
+Goals:
 
-- Intuitive Bedienung für Endanwender (Eltern, Kinder mit Hilfe)
-- Real-Time-Updates via WebSocket (Audio-Status, RFID-Events, Button-Actions)
-- Responsive Design (Desktop, Tablet, Smartphone)
-- Multi-Language-Support (Deutsch, Englisch, erweiterbar)
-- Verwaltung von Tags, Playlists, Tracks und System-Konfiguration
+- One interface for two very different users. A child taps play and volume; a
+  parent sets time limits, imports media and updates the box. The player page
+  stays deliberately sparse, everything else lives one navigation step away.
+- Immediate feedback. Playback state, RFID scans and system alerts arrive over
+  the WebSocket, not by polling — the box and the browser must never disagree
+  about what is playing.
+- Usable on the device at hand. Phone, tablet and desktop get three different
+  layouts from the same components (section 6), and the German/English
+  translation is loaded at runtime, not compiled in.
+- Never a dead end. A missing optional component hides its menu entry instead of
+  offering a page that does nothing; a lost connection produces an overlay with
+  a diagnostics export rather than a blank screen.
 
-Nicht-Ziele:
-
-- Keine direkte MQTT-Kommunikation (läuft über Backend)
-- Keine Hardware-Logik (nur UI-Layer)
-- Keine Datenbank-Zugriffe (nur via Backend REST-API)
-- Keine User-Authentication in Phase 1 (Single-User-System)
-
----
-
-## 2. Technologie-Stack
-
-### 2.1 Frontend
-
-- **Framework:** React 18+ mit TypeScript
-- **Build-Tool:** Vite (schneller als Create-React-App)
-- **UI-Library:** Material-UI (MUI) v5 oder shadcn/ui (Tailwind-basiert)
-- **Routing:** React Router v6
-- **State-Management:** React Context API + Hooks (Redux/Zustand optional später)
-- **HTTP-Client:** Axios
-- **WebSocket:** native WebSocket API oder socket.io-client
-- **i18n:** i18next + react-i18next
-
-### 2.2 Deployment
-
-- **Web-Server:** Nginx (Alpine-basiert)
-- **Container:** Separater Docker-Container
-- **Reverse-Proxy:** Nginx leitet API-Calls an Backend weiter
-
-### 2.3 Development
-
-- **Package-Manager:** npm oder pnpm
-- **Linting:** ESLint + Prettier
-- **Testing:** Vitest + React Testing Library (optional)
+The service holds no state of its own beyond browser `localStorage`. It talks to
+exactly one host — the backend, through the same origin — and knows nothing
+about MQTT, the database or the hardware.
 
 ---
 
-## 3. Datei- und Ordnerstruktur
+## 2. Technology Stack
 
-Relevanter Pfad: `services/webui-service/src/` (und Root für Dockerfile, nginx, package.json).
+| Layer            | Choice                                    | Note                                                             |
+| ---------------- | ----------------------------------------- | ---------------------------------------------------------------- |
+| Framework        | React 18 + TypeScript 5 (`strict`)         | `noUnusedLocals` and `noUnusedParameters` are on.                 |
+| Build            | Vite 5                                     | `build:fast` (Vite only) is what the Dockerfile runs.             |
+| UI               | MUI v5 + Emotion                           | Deep icon imports only, so the icon set tree-shakes.              |
+| Routing          | React Router v6                            | Pages are `React.lazy` — one chunk per page.                      |
+| Server state     | React Query 5 **and** local `useState`     | Two layers in parallel; see section 5.3.                          |
+| HTTP             | Axios, `baseURL: /api/v1`, `withCredentials` | Session cookie, no token handling in the app.                   |
+| Realtime         | Native `WebSocket` at `/ws`                 | Exponential reconnect, 1 s → 30 s.                                |
+| i18n             | i18next + `i18next-http-backend`            | 7 namespaces fetched at runtime from `/locales/`.                 |
+| PWA              | `vite-plugin-pwa` (`autoUpdate`)            | Manifest, icons, precached shell.                                 |
+| Compression      | `vite-plugin-compression` → `gzip_static`   | Pre-built `.gz`, so the Pi does not compress per request.         |
+| Web server       | Nginx (`alpine-slim`)                       | SPA fallback, reverse proxy, caching, security headers.           |
+| Tests            | Vitest + Testing Library                    | 8 files, 30 tests — regression pins, not coverage.                |
+
+---
+
+## 3. File & Folder Structure
+
+Relevant path: `services/webui-service/`
 
 ```text
-src/
-├── api/                       # Backend-API-Client
-│   ├── client.ts              # Axios-Instance, Base-URL, Interceptors
-│   ├── auth.ts                # Login, Logout, Passwort, geschützte Bereiche
-│   ├── system.ts              # Host-Status, Logs, Restart, WiFi, USB, Backup, Bluetooth, Syslog, Update, etc.
-│   ├── stats.ts               # Stats-API (overview, usage-today, listening-summary)
-│   ├── tags.ts
-│   ├── playlists.ts
-│   ├── tracks.ts
-│   ├── streams.ts
-│   ├── podcasts.ts
-│   ├── audio.ts
-│   └── config.ts
-├── components/
-│   ├── common/                # Generische Komponenten
-│   │   ├── Header.tsx, Navigation.tsx, LoadingSpinner.tsx, ErrorBoundary.tsx
-│   │   ├── CommandPalette.tsx, SystemAlertBar.tsx, MiniPlayer.tsx
-│   │   ├── PageShell.tsx, PasswordDialog.tsx, ProtectedRoute.tsx
-│   ├── player/                # Player: PlaybackControls, VolumeControl, ProgressBar, TrackInfo
-│   ├── rfid/                  # TagList, TagCard, TagEditDialog, LearnModeButton, RfidScanDrawer
-│   ├── media/                 # PlaylistList, TrackList, UploadDialog, StreamList, StreamDialog, StreamEditDialog,
-│   │                           # PodcastList, PodcastDialog, PodcastEditDialog, RemoteTrackDialog, CoverUploadField, PlaylistTracksDialog
-│   ├── admin/                 # SystemStatus, SystemPanel, ServiceStatus, ServiceLogsModal, SyslogModal,
-│   │   ├── StatsDashboard.tsx, BluetoothSection.tsx, DisplayConfigPanel.tsx, LEDConfigPanel.tsx, ButtonConfigPanel.tsx
-│   │   ├── AuthSection.tsx, SecurityPanel.tsx, SystemMaintenanceSection.tsx
-│   │   ├── ParentSettingsForm.tsx, ChildSettingsForm.tsx
-│   │   └── ConfigForm/        # Untermodule: GeneralSettingsForm, ControlSettingsForm, DesignSettingsForm, AudioConfigForm, RFIDConfigForm
-│   └── dashboard/             # DashboardOverview
-├── contexts/                  # React Context: WebSocketContext, AuthContext, ThemeContext, ToastContext
-├── hooks/                     # useWebSocket, useAudioStatus, useApi, useFormState, useSleepTimer, useDashboardOverview, useStatsDashboard, useServiceLogs
-├── pages/                     # PlayerPage, RfidPage, MediaPage, DashboardPage, AdminPage, KioskPage
-├── types/                     # api.ts (Backend-API-Response-Types)
-├── utils/                     # formatTime.ts, validators.ts
-├── App.tsx, main.tsx, i18n.ts
-└── vite-env.d.ts
+webui-service/
+├── Dockerfile                 # node:20-alpine (build) → nginx:alpine-slim (serve)
+├── nginx/
+│   ├── nginx.conf             # SPA fallback, /api + /ws proxy, caching
+│   └── security-headers.conf  # Included per location; see section 7.1
+├── vite.config.ts             # PWA, gzip, manual chunks, BUILD_ID
+├── VERSION                    # Own version number (docs/Versionierung.md)
+├── scripts/
+│   ├── check-locales.mjs      # de/en in sync, plurals complete, dead keys
+│   └── check-i18n-calls.mjs   # every static t() key exists in the JSON
+├── public/locales/{de,en}/    # common, player, rfid, media, admin, errors, setup
+└── src/
+    ├── api/                   # One module per backend resource
+    │   ├── client.ts          # Axios instance, retry, timeouts, 401 hook, debug buffer
+    │   ├── auth.ts  capabilities.ts  config.ts  system.ts
+    │   ├── audio.ts  tags.ts  tracks.ts  playlists.ts
+    │   └── streams.ts  podcasts.ts  scanHistory.ts  stats.ts
+    ├── contexts/              # Six providers, see section 5.1
+    ├── hooks/                 # useAudioStatus, useLayout, useSetupStatus, …
+    ├── pages/                 # One per route, all lazy-loaded
+    ├── components/
+    │   ├── common/            # Shell: Header, Navigation, PageShell, dialogs
+    │   ├── ui/                # ActionButton, VolumeSlider
+    │   ├── player/  rfid/  media/  dashboard/  setup/
+    │   └── admin/             # Settings panels + ConfigForm/ sub-forms
+    ├── config/settingsIndex.ts # The settings tree — data, not JSX
+    ├── types/api.ts           # Mirrors the backend Pydantic schemas
+    ├── i18n/                  # init, language list, namespaces, debug mode
+    ├── fonts.css              # Roboto, latin subset, woff2 only
+    └── utils/                 # apiError, formatTime, validators, debugRingBuffer
 ```
 
-**Hinweis:** i18n-Dateien liegen typisch unter `public/locales/` (de/en mit common, player, rfid, media, admin, errors). Nginx-Config unter `nginx/nginx.conf`; Build unter `dist/`.
+Two files deserve naming here because everything else hangs off them.
+`config/settingsIndex.ts` describes the settings area as plain data — groups,
+sections, the i18n keys of the fields inside them, and which optional component
+a section depends on. `AdminPage` renders forms against it and the command
+palette searches the same structure, so there is exactly one place where the
+settings tree is cut. `api/client.ts` is the only module that talks to the
+network; every `api/*.ts` sibling goes through it and therefore inherits the
+retry, the 401 handling and the debug-buffer recording for free.
 
 ---
 
----
+## 4. Routes & Pages
 
-## 4. Seiten & Features
+| Route        | Page               | Notes                                                                  |
+| ------------ | ------------------ | ---------------------------------------------------------------------- |
+| `/player`    | `PlayerPage`       | Default route. Cover, transport, volume; everything else in an overflow menu. |
+| `/rfid`      | `RfidPage`         | Card list, learn mode, assignment. Hidden entirely without a reader.    |
+| `/media`     | `MediaPage`        | Five tabs: recent, playlists, tracks, streams, podcasts.                |
+| `/dashboard` | `DashboardPage`    | Parent view: overview, rules, statistics, scan history.                 |
+| `/admin`     | `AdminPage`        | Settings, grouped and searchable.                                       |
+| `/setup`     | `SetupWizardPage`  | First-run wizard. Deliberately **not** behind `ProtectedRoute`.         |
+| `/kiosk`     | `KioskPage`        | Full-screen player. Rendered outside the main layout and outside `CapabilitiesProvider`. |
 
-### 4.1 Player-Seite
+Everything else redirects to `/player`, including `/rfid` when no reader is
+installed — a deep link must not land on a page whose central actions do
+nothing.
 
-**Route:** `/player` (Standard-Route)
+The setup wizard is the one route without a password gate, and it has to be:
+step 2 is where the password is set, so gating it would lock the user out of the
+flow that creates the credential.
 
-**Features:**
+### 4.1 Player
 
-- **Aktueller Track:** Titel, Artist, Album, Cover (falls vorhanden)
-- **Playback-Controls:**
-  - Play/Pause-Button
-  - Stop-Button
-  - Previous/Next-Buttons
-- **Fortschrittsbalken:** Aktuelle Position / Gesamtdauer (z.B. `03:45 / 12:30`)
-- **Lautstärkeregler:** Slider (0–100), geclamped auf `max_volume` aus Audio-Config
-- **Playlist-Info:** Name der aktuellen Playlist, Track X von Y
-- **Real-Time-Updates:** WebSocket-Events vom Backend (Audio-Status)
+`useAudioStatus` extrapolates the playback position locally: it takes the last
+`audio_status` message and adds the elapsed time, then ticks once a second while
+playing. The progress bar therefore moves smoothly without a single extra
+request, and a page opened mid-track shows the right position on first render
+rather than jumping when the next message lands.
 
-**Komponenten:**
+The main card is intentionally short — state chip, cover, progress, transport,
+volume. Sleep timer, output device, repeat and shuffle live in an overflow
+menu, because the person using this page most often is a child who wants two
+buttons, not nine.
 
-- `TrackInfo` – Zeigt Metadaten des aktuellen Tracks
-- `PlaybackControls` – Play/Pause/Stop/Next/Prev-Buttons
-- `ProgressBar` – Fortschrittsbalken mit Zeitanzeige
-- `VolumeControl` – Lautstärkeregler
+### 4.2 RFID
 
-**WebSocket-Events:**
+Learn mode is a three-step conversation with the box: the page enables it via
+`POST /rfid/learning-mode`, the reader reports the card as
+`rfid_scanned_learning` over the WebSocket, and the dialog that opens writes the
+assignment. Closing the dialog turns learn mode back off — leaving it on would
+make the next card scanned anywhere in the house open an assignment dialog.
 
-- `audio_status` → Update von Track-Info, Position, Volume, State
+A scan outside learn mode surfaces globally rather than only on this page:
+`RfidScanDrawer` sits in the app shell, and an unknown card produces a snackbar
+with a link to `/rfid`.
 
-**API-Calls:**
+### 4.3 Media
 
-- `POST /api/v1/audio/play` – Play/Resume
-- `POST /api/v1/audio/pause` – Pause
-- `POST /api/v1/audio/stop` – Stop
-- `POST /api/v1/audio/next` – Nächster Track
-- `POST /api/v1/audio/prev` – Vorheriger Track
-- `POST /api/v1/audio/volume` – Lautstärke setzen
+Tracks, streams and podcasts each have their own folder tree, and all three
+lists share one shape: search field, view toggle (cards or list), sort, filter,
+pagination. Folder assignment works by drag and drop onto the tree, with a
+"move to" menu as the fallback for touch devices.
 
-### 4.2 RFID-Seite
+Deleting a media item first asks the backend which cards point at it and, if
+there are any, offers to clear those assignments in the same step. Deleting only
+the media leaves a card pointing at a track that no longer exists; the dialog
+names the affected cards instead of asking the user to remember them.
 
-**Route:** `/rfid`
+### 4.4 Dashboard and Settings
 
-**Features:**
+The dashboard is the parent's everyday view — minutes listened, remaining daily
+limit, library counts, listening statistics, scan history, and the rules that
+produce those numbers. The settings page is the *setup* area, cut by everyday
+question ("Playback", "Sound", "Appearance") rather than by where a value
+happens to live in the backend. Everything technical collects at the bottom
+under "Advanced".
 
-- **Tag-Liste:**
-  - Übersicht aller RFID-Tags (Tag-ID, Name, zugeordneter Content)
-  - Suchfunktion (Filter nach Name, Tag-ID)
-  - Sortierung (Name, Erstellungsdatum)
-- **Tag-Actions:**
-  - **Bearbeiten:** Dialog zum Ändern von Name und Content-Zuordnung
-  - **Löschen:** Bestätigungsdialog, dann DELETE-Call
-- **Learn-Mode:**
-  - Button "Neuen Tag scannen"
-  - Aktiviert RFID-Learn-Mode via `POST /api/v1/rfid/learning-mode`
-  - WebSocket-Event `rfid_scanned_learning` → Dialog zur Content-Zuordnung
-  - User wählt Playlist oder Track aus Dropdown
-  - Speichert Mapping via `POST /api/v1/tags`
+The search field above the settings renders a jump list, not the expanded forms.
+A two-letter query matches almost every section, and mounting eleven panels at
+once would fire eleven API calls on a Raspberry Pi.
 
-**Komponenten:**
-
-- `TagList` – Liste aller Tags
-- `TagCard` – Einzelner Tag mit Actions (Edit, Delete)
-- `TagEditDialog` – Modal zum Bearbeiten von Tag-Name und Content-Zuordnung
-- `LearnModeButton` – Button mit Status-Indicator (Learn-Mode aktiv/inaktiv)
-
-**WebSocket-Events:**
-
-- `rfid_scanned_learning` → Öffnet `RfidScanDrawer` (Tag zuordnen)
-- `rfid_scanned` → Optional: Drawer mit Info (welcher Content abgespielt wird)
-- `tag_not_found` → Snackbar mit Hinweis „Unbekannter Tag“ und Link zur RFID-Seite
-
-**API-Calls:**
-
-- `GET /api/v1/tags` – Liste aller Tags
-- `POST /api/v1/tags` – Neuen Tag anlegen
-- `PUT /api/v1/tags/{tag_id}` – Tag bearbeiten
-- `DELETE /api/v1/tags/{tag_id}` – Tag löschen
-- `POST /api/v1/rfid/learning-mode` – Learn-Mode aktivieren/deaktivieren
-
-### 4.3 Media-Verwaltung
-
-**Route:** `/media`
-
-**Tabs/Sections:**
-
-1. **Playlists** – Erstellen, Bearbeiten, Tracks zuordnen; optional Cover-Upload (`CoverUploadField`)
-2. **Tracks** – Upload, Remote-Track hinzufügen (`RemoteTrackDialog`), Bearbeiten, Cover; Filter nach Quelle (File/Remote)
-3. **Streams** – Eigene Ressource: Stream-Liste (`StreamList`), Anlegen/Bearbeiten (`StreamDialog`, `StreamEditDialog`), Cover-Upload
-4. **Podcasts** – Podcast-Liste (`PodcastList`), Anlegen per RSS-URL (`PodcastDialog`), Bearbeiten (`PodcastEditDialog`), Episoden anzeigen und abspielen
-
-#### 4.3.1 Playlists-Tab
-
-**Features:**
-
-- **Playlist-Liste:**
-  - Übersicht aller Playlists (Name, Beschreibung, Anzahl Tracks)
-  - Suchfunktion
-- **Playlist-Actions:**
-  - **Erstellen:** Dialog mit Name, Beschreibung
-  - **Bearbeiten:** Name, Beschreibung ändern; Tracks hinzufügen/entfernen/neu sortieren
-  - **Löschen:** Bestätigungsdialog
-- **Playlist-Details:**
-  - Liste der Tracks in Reihenfolge
-  - Drag & Drop zum Umsortieren
-  - "Track hinzufügen"-Button → öffnet Track-Auswahl-Dialog
-
-**Komponenten:**
-
-- `PlaylistList` – Übersicht aller Playlists
-- `PlaylistEditDialog` – Modal zum Bearbeiten (Name, Beschreibung, Tracks)
-- `TrackSelector` – Dialog zur Auswahl von Tracks
-
-**API-Calls:**
-
-- `GET /api/v1/playlists` – Liste aller Playlists
-- `POST /api/v1/playlists` – Neue Playlist erstellen
-- `PUT /api/v1/playlists/{playlist_id}` – Playlist bearbeiten
-- `DELETE /api/v1/playlists/{playlist_id}` – Playlist löschen
-
-#### 4.3.2 Tracks-Tab
-
-**Features:**
-
-- **Track-Liste:**
-  - Übersicht aller Tracks (Titel, Artist, Album, Dauer)
-  - Suchfunktion (Titel, Artist, Album)
-  - Filter nach Quelle (File, Stream)
-- **Track-Actions:**
-  - **Upload:** Button "Track hochladen" → `UploadDialog`
-  - **Stream hinzufügen:** Button "Stream hinzufügen" → `StreamDialog`
-  - **Bearbeiten:** Metadaten ändern (Titel, Artist, Album)
-  - **Löschen:** Bestätigungsdialog, löscht auch Datei
-- **Upload-Dialog:**
-  - File-Input (MP3, OGG, FLAC, etc.)
-  - Formular: Titel, Artist, Album (optional, wird aus ID3-Tags vorausgefüllt)
-  - Progress-Bar während Upload
-- **Stream-Dialog:**
-  - Stream-URL (z.B. `https://stream.example.com/radio.mp3`)
-  - Titel (Pflichtfeld)
-  - Artist, Album (optional)
-
-**Komponenten:**
-
-- `TrackList` – Übersicht aller Tracks
-- `UploadDialog` – Modal für Track-Upload
-- `StreamDialog` – Modal für Stream-Hinzufügen
-- `TrackEditDialog` – Modal zum Bearbeiten von Track-Metadaten
-
-**API-Calls:**
-
-- `GET /api/v1/tracks` – Liste aller Tracks
-- `POST /api/v1/tracks/upload` – Track hochladen (multipart/form-data)
-- `POST /api/v1/tracks` – Track anlegen (z.B. Remote-Track)
-- `PUT /api/v1/tracks/{track_id}` – Track bearbeiten
-- `DELETE /api/v1/tracks/{track_id}` – Track löschen
-- `GET /api/v1/streams`, `POST /api/v1/streams`, `PUT /api/v1/streams/{id}`, `DELETE /api/v1/streams/{id}` – Streams
-- `GET /api/v1/podcasts`, `POST /api/v1/podcasts`, `PUT /api/v1/podcasts/{id}`, `DELETE /api/v1/podcasts/{id}` – Podcasts; Episoden über Podcast-Detail
-
-### 4.4 Dashboard-Seite (Parent Dashboard)
-
-**Route:** `/dashboard`
-
-**Features:**
-
-- **Übersicht:** Hörminuten heute/gesamt, Daily-Limit (aktiv/inaktiv, Minuten), Anzahl Tags/Playlists/Tracks/Streams/Podcasts
-- **Statistik:** `StatsDashboard` – Listening-Summary (minutes_per_day, top_tags, top_playlists, heatmap)
-- **Einstellungen:** `ParentSettingsForm` – Daily-Limit ein/aus, daily_limit_minutes (general_settings.json)
-
-**API-Calls:**
-
-- `GET /api/v1/stats/overview` – Übersicht
-- `GET /api/v1/stats/usage-today` – Heute + Limit
-- `GET /api/v1/stats/listening-summary` – Detaillierte Statistik
-- `GET /api/v1/config/general`, `PUT /api/v1/config/general` – Daily-Limit etc.
-
-### 4.5 Kiosk-Modus
-
-**Route:** `/kiosk` (optional)
-
-Vollbild-Ansicht für Anzeige/Steuerung (z.B. nur Player oder vereinfachte UI).
-
-### 4.6 Admin-Seite
-
-**Route:** `/admin`
-
-**Tabs/Sections:**
-
-1. **System-Status** – Service-Liste, Host-Status, Logs (`ServiceLogsModal`), Syslog (`SyslogModal`), Restart, Reboot
-2. **Allgemeine Einstellungen** – Sprache, Theme, Device-ID, MQTT, Sleep-Timer, etc. (config/general)
-3. **Audio-Einstellungen** – output_device_type/name, enabled_output_devices, device_display_names, max_volume, default_volume
-4. **LED-Einstellungen**
-5. **Button-Einstellungen**
-6. **Display-Einstellungen**
-7. **RFID-Einstellungen**
-8. **Wartung (Maintenance)** – `MaintenancePanel`: Update Minabox, Update OS, Factory Reset, Backup herunterladen, Backup wiederherstellen, Docker Prune
-9. **Bluetooth** – `BluetoothSection`: Geräte scannen, paaren, verbinden/trennen, entfernen
-10. **Eltern-Einstellungen** – Daily-Limit (ParentSettingsForm) oder in Dashboard integriert
-
-Die Abschnitte fuer optionale Komponenten (RFID, LEDs, Taster, Display) und der
-Abschnitt „Erlaubte Import-Quellen" erscheinen nur, wenn die Komponente
-installiert ist – gefiltert ueber `settingsIndex.ts` (`requiresFeature`) gegen
-`GET /system/capabilities`. Details:
+Sections that hang off an optional component carry `requiresFeature` in
+`settingsIndex.ts` and disappear — along with a group that becomes empty —
+when `GET /system/capabilities` says the component is not installed. Details:
 [Component-Capabilities.md](Component-Capabilities.md).
 
-#### 4.4.1 System-Status-Tab
+---
 
-**Features:**
+## 5. Application Architecture
 
-- **Service-Übersicht:**
-  - Liste aller Services (backend, mqtt, audio, rfid, button, led, display, webui) mit Status (Online, Offline, Error)
-  - Optional: CPU- und RAM-Auslastung pro Container (wenn vom Backend geliefert)
-  - Letzte Aktualisierung (Timestamp)
-  - Pro Service: **„Logs anzeigen“**-Button → öffnet Log-Modal für diesen Service
-- **Log-Anzeige (ServiceLogsModal):**
-  - Aufruf: `GET /api/v1/system/logs?service=<id>&tail=200`; Anzeige pro Service in einem Modal (Dialog).
-  - **Unterstützte Log-Formate:** Structlog (JSON) mit Level/Zeit/Message/Data; Python-Logging (LEVEL [logger] message); Nginx Access-Log (combined); Mosquitto (Unix-Timestamp: Message). Unbekannte Zeilen werden als eine Zeile (Fallback) angezeigt.
-  - **Darstellung:** Tabelle mit Spalten Level, Zeit, Message, Data. Message-Spalte breit; Data-Spalte als formatierte Struktur (Key-Value für flache Objekte, sonst Pretty-Print-JSON).
-  - **Optionen:** Auto-Refresh (Intervall), manueller Refresh.
-- **Host-Status:**
-  - Anzeige von Host-Infos (Hostname, IP, RAM, CPU, Disk, Load), sofern Backend `GET /api/v1/system/host-status` anbietet und die WebUI es nutzt.
-- **System-Informationen:**
-  - Uptime, Device-ID
-- **Actions:**
-  - „Services neu starten“ (triggert `POST /api/v1/system/restart`)
-  - „Pi neustarten“ (triggert `POST /api/v1/system/reboot`, optional)
+### 5.1 Provider stack
 
-**Komponenten:**
+```text
+QueryClientProvider → BrowserRouter → ThemeContextProvider → ThemedApp
+  └ ThemeProvider (MUI) → AuthProvider → WebSocketProvider → App
+      └ ToastProvider → UserPrefsProvider → Routes
+          └ CapabilitiesProvider → MainLayout   (not on /kiosk)
+```
 
-- `SystemStatus` – Übersicht System-Info, Host-Status, Service-Liste
-- `ServiceStatus` – Status-Karte pro Service inkl. „Logs anzeigen“-Button
-- `ServiceLogsModal` – Modal mit Container-Logs (Level, Zeit, Message, Data; Parser für Structlog, Python, Nginx, Mosquitto)
+| Context             | Holds                                          | Persistence                    |
+| ------------------- | ---------------------------------------------- | ------------------------------ |
+| `ThemeContext`      | Light/dark, accent preset, font scale           | `localStorage`, applied as CSS custom properties on `<html>` |
+| `AuthContext`       | Whether auth is on, which paths are gated, session state | Cookie (backend), config fetched at start |
+| `WebSocketContext`  | Connection, last message, cached audio status   | Memory                          |
+| `ToastContext`      | Notification stack (max 3 visible)               | Memory                          |
+| `UserPrefsContext`  | View mode, sort, filter, page size per list      | `localStorage`                  |
+| `CapabilitiesContext` | Which optional components exist                | `localStorage` cache + refresh  |
 
-**API-Calls:**
+Two of these fail *open* on purpose. `CapabilitiesContext` treats everything as
+installed while loading and when the request fails, and it reads its last known
+answer from `localStorage` synchronously at start — a network hiccup must never
+make a feature disappear, and a returning user must not watch the menu
+rearrange itself. `useSetupStatus` takes the same line in reverse: if the
+backend cannot be reached, it decides the setup wizard is *not* needed, because
+a false "please set up your box" is worse than no hint at all.
 
-- `GET /api/v1/system/status` – Gesamtsystem-Status (alle Services, ggf. CPU/RAM)
-- `GET /api/v1/system/logs?service=<id>&tail=200` – Logs eines Service-Containers
-- `GET /api/v1/system/host-status` – Host-Status (Hostname, IP, RAM, CPU, Disk)
-- `POST /api/v1/system/restart` – Service-Neustart
-- `POST /api/v1/system/reboot` – Pi-Neustart (optional)
+### 5.2 WebSocket
 
-#### 4.4.2 Allgemeine Einstellungen
+`WebSocketContext` holds a single connection for the whole app. Every message is
+pushed twice: into React state (`lastMessage`, plus the two cached shapes
+`cachedAudioStatus` and `sleepTimerStatus`) and onto a module-level
+`EventTarget`. The event target exists so a component can subscribe to one
+message type without re-rendering on every unrelated message; `useWebSocketEvent`
+is the hook for that, and the only correct way to subscribe. Listening on
+`window` compiles, type-checks and does nothing — `PlayerPage` did exactly that,
+and its button-feedback overlay and repeat/shuffle sync were dead for as long as
+it lasted.
 
-**Features:**
+Reconnect is exponential — 1 s doubling to a 30 s cap, reset on a successful
+open. `ConnectionLostScreen` waits three seconds before showing its overlay, so
+a reconnect during a tab switch does not flash a full-page error.
 
-- **Sprache:** Dropdown (Deutsch, Englisch)
-- **Device-ID:** Anzeige der `MINABOX_DEVICE_ID` (read-only oder editierbar?)
-- **Theme:** Light/Dark-Mode (optional)
+Messages the app acts on: `audio_status`, `audio_config`, `sleep_timer_status`,
+`rfid_scanned_learning`, `tag_not_found`, `system_alert`, `system_alert_cleared`,
+`service_status`, `button_raw_event`, `button_action`, `repeat_mode`,
+`shuffle_mode`.
 
-**State:**
+The last three are the ones nobody in the browser asked for: someone pressed a
+button on the box, or turned the rotary knob, or changed repeat from a second
+browser session. They are the reason the event target exists at all.
 
-- Sprach-Wahl wird in `localStorage` gespeichert und via i18next angewendet
+### 5.3 Server state: two layers
 
-#### 4.4.3 Audio-Einstellungen
+React Query is configured globally (`staleTime` 5 min, 2 retries, refetch on
+focus) but is used in only two files — `PlayerPage` and the `AudioConfigSync`
+component in `App.tsx`. Everything else loads with `useState` + `useEffect` and
+carries its own `loading`/`error` pair.
 
-**Features:**
+This is a real split, not a nuance: the same track list is fetched by
+`MediaPage`, by `RfidPage` and again by the command palette, and none of the
+three sees the other's copy. It is recorded here as the current state; the
+consolidation is item C2 in [Redesign.md](Redesign.md).
 
-- **Formular:**
-  - `output_device_type`: Dropdown (z.B. "ALSA")
-  - `output_device_name`: Text-Input (z.B. "hw:1,0")
-  - `max_volume`: Slider (0–100, Kinderschutz)
-  - `default_volume`: Slider (0–100)
-- **Save-Button:** Sendet `PUT /api/v1/config/audio`
-- **Validation:** Frontend validiert Werte, Backend validiert ebenfalls
+### 5.4 API layer
 
-**Komponenten:**
+`api/client.ts` is a single Axios instance with `baseURL: /api/v1`,
+`withCredentials: true` and a 15-second default timeout. Two interceptors do the
+work:
 
-- `ConfigForm` – Generisches Formular-Komponente
+- **Retry.** Only `GET` and `HEAD` are ever repeated — network errors and server
+  errors (5xx, 408) alike. Up to 3 attempts, exponential backoff 1 s → 10 s. A
+  timeout, a dropped Wi-Fi link and a 502 all look identical from the client, so
+  a repeated `POST` may well have reached the backend and been carried out; the
+  method is the only thing that distinguishes a safe repeat from uploading the
+  same file twice. `client.test.ts` pins this down.
+- **Failure recording.** Every finally-failed request is written into the debug
+  ring buffer (method, URL, status, duration) so the diagnostics export can
+  show what the browser saw. Retries are not recorded individually.
 
-**API-Calls:**
+The 15 seconds are enough for plain JSON, and wrong for everything else. Calls
+that legitimately run longer take their value from the `TIMEOUT` table in the
+same file:
 
-- `GET /api/v1/config/audio` – Aktuelle Config laden
-- `PUT /api/v1/config/audio` – Config aktualisieren
+| Value             |         | Used by                                                       |
+| ----------------- | ------- | ------------------------------------------------------------- |
+| `NONE`            | none    | `tracksApi.upload` — `onUploadProgress` is the sign of life, and a large file over Wi-Fi has no upper bound worth guessing. |
+| `HOST_ACTION`     |  30 s   | Wi-Fi scan and connect, Bluetooth scan, factory reset, update check. The Host-Helper's Bluetooth scan alone runs 12 seconds. |
+| `UPLOAD`          | 120 s   | Cover and logo uploads. Nginx cuts the connection at 120 s anyway. |
+| `LONG_RUNNING`    | 180 s   | Backup download and restore, USB import, debug export.         |
 
-#### 4.4.4 LED-Einstellungen
+A `401` calls a registered callback, which `AuthContext` uses to drop the
+session and let `ProtectedRoute` show the password dialog again.
 
-**Features:**
+The web password must be at least eight characters (`MIN_PASSWORD_LENGTH` in
+`utils/validators.ts`). It is the only lock in front of the media library, the
+parent dashboard and maintenance — and maintenance holds the factory reset, the
+OS update and the backup download with the whole database. The backend enforces
+the same number in `routes_auth.py`; a limit that lives only in the frontend is
+decoration. An existing shorter password keeps working for login, only setting a
+new one is affected.
 
-- **LED-Liste:**
-  - Übersicht aller konfigurierten LEDs (ID, Name, GPIO, Bindings)
-- **LED-Actions:**
-  - **Hinzufügen:** Dialog mit Name, GPIO, Bindings (Logical-State → Pattern)
-  - **Bearbeiten:** Bindings anpassen
-  - **Löschen:** LED entfernen
-- **Binding-Editor:**
-  - Dropdown für Logical-State (z.B. `audio_playing`, `system_error`)
-  - Pattern-Auswahl: `solid`, `blink`, `pulse`
-  - Parameter: `interval_ms`, `duration_ms`, `repeat`
+Errors are translated, never passed through. The backend sends a stable `code`
+plus an English `detail` meant for logs; `translateApiError()` looks the code up
+in the `errors` namespace and falls back to `errors:generic_error`. A raw
+backend string never reaches the screen.
 
-**Komponenten:**
+### 5.5 Diagnostics
 
-- `LEDList` – Übersicht aller LEDs
-- `LEDEditDialog` – Modal zum Bearbeiten von LED-Config
-- `BindingEditor` – Komponente zum Bearbeiten von State→Pattern-Mappings
+`utils/debugRingBuffer.ts` keeps the last 100 client errors and the last 100
+failed requests in memory. Uncaught errors and rejected promises are captured
+globally, render crashes by `ErrorBoundary` — a React render crash never reaches
+`window.onerror`, so it has to be recorded where it is caught.
 
-**API-Calls:**
+None of this is persisted; closing the tab clears it. The export dialog is
+reachable from three places on purpose: the settings page, the error boundary,
+and the connection-lost overlay — the two screens where a user is most likely to
+need it are exactly the two from which they can no longer navigate to the
+settings.
 
-- `GET /api/v1/config/leds` – LED-Config laden
-- `PUT /api/v1/config/leds` – LED-Config aktualisieren
+### 5.6 i18n
 
-#### 4.4.5 Button-Einstellungen
+Seven namespaces (`common`, `player`, `rfid`, `media`, `admin`, `errors`,
+`setup`), fetched at runtime from `/locales/{lng}/{ns}.json`. Two mechanisms
+guard against a broken cache, which is the failure mode that turns the whole UI
+into raw key names:
 
-**Features:**
+- Every URL carries `?v=<BUILD_ID>`, a per-build identifier from
+  `vite.config.ts`, so a corrupted entry cannot survive an update; the fetch
+  additionally sends `cache: 'no-cache'`.
+- A `failedLoading` event logs, records into the ring buffer, and retries that
+  one namespace once after two seconds — i18next never retries on its own, so
+  a single hiccup at startup would otherwise be permanent.
 
-- **Button-Liste:**
-  - Übersicht aller konfigurierten Buttons (ID, Name, Typ, GPIO, Actions)
-- **Button-Actions:**
-  - **Hinzufügen:** Dialog mit Name, Typ (Push, Rotary), GPIO(s), Mode (Basic/Advanced), Actions
-  - **Bearbeiten:** Actions anpassen
-  - **Löschen:** Button entfernen
-- **Action-Editor:**
-  - Basic-Mode: Ein Action für alle Events
-  - Advanced-Mode: Event→Action-Mapping (short_press → play_pause, long_press → power_off)
+Language and namespace lists have one source each (`i18n/languages.ts`,
+`i18n/namespaces.ts`). When the server reports `log_level: debug`, the fallback
+is switched off after the first config call so missing keys show up as raw keys
+instead of hiding behind English.
 
-**Komponenten:**
-
-- `ButtonList` – Übersicht aller Buttons
-- `ButtonEditDialog` – Modal zum Bearbeiten von Button-Config
-- `ActionEditor` – Komponente zum Bearbeiten von Event→Action-Mappings
-
-**API-Calls:**
-
-- `GET /api/v1/config/buttons` – Button-Config laden
-- `PUT /api/v1/config/buttons` – Button-Config aktualisieren
-
-#### 4.4.6 RFID-Einstellungen
-
-**Features:**
-
-- **Formular:**
-  - `reader_type`: Dropdown (z.B. "PN532", "Mock")
-  - `interface`: Dropdown (z.B. "I2C", "SPI", "UART")
-  - `scan_interval_ms`: Number-Input
-  - `duplicate_suppression_ms`: Number-Input
-- **Save-Button:** Sendet `PUT /api/v1/config/rfid`
-
-**Komponenten:**
-
-- `ConfigForm` (wiederverwendbar)
-
-**API-Calls:**
-
-- `GET /api/v1/config/rfid` – RFID-Config laden
-- `PUT /api/v1/config/rfid` – RFID-Config aktualisieren
+Two scripts guard the translations and both run in `package.json`:
+`check-locales.mjs` compares de/en for missing keys, plural completeness and
+keys no longer referenced; `check-i18n-calls.mjs` checks every static `t()` call
+against the JSON files.
 
 ---
 
-## 5. WebSocket-Integration
+## 6. Responsive Layout
 
-### 5.1 WebSocket-Context
+`useLayout()` is the single source for layout decisions. Three tiers, cut at
+MUI's `sm` and `lg` so that `sx` breakpoints line up with the same edges:
 
-Ein globaler `WebSocketContext` verwaltet die WebSocket-Verbindung zum Backend.
+| Tier    | Width       | Navigation           | Density              |
+| ------- | ----------- | -------------------- | -------------------- |
+| mobile  | < 600 px    | Bottom bar           | One column, full-screen sheets |
+| tablet  | 600–1199 px | Icon rail (72 px)    | Two columns          |
+| desktop | ≥ 1200 px   | Drawer (220 px)      | Three columns        |
 
-**Datei:** `src/contexts/WebSocketContext.tsx`
+The tablet tier exists because of one concrete device: on a 1024 px iPad in
+portrait, a permanent 220 px drawer plus full desktop density left 804 px for a
+three-column card grid. Two separate switch points used to sit in the code — the
+navigation flipped at 900 px, density and dialogs at 600 px — and the band
+between them belonged to neither layout.
 
-```typescript
-import React, { createContext, useContext, useEffect, useState } from 'react';
+Two derived flags carry most of the call sites: `isCompact` (anything below
+desktop, for spacing) and `hasRoomForInlineControls` (tablet and up, for sort
+and filter controls that would otherwise need a popover).
 
-interface WebSocketContextType {
-  socket: WebSocket | null;
-  isConnected: boolean;
-  lastMessage: any;
-}
-
-const WebSocketContext = createContext<WebSocketContextType>({
-  socket: null,
-  isConnected: false,
-  lastMessage: null,
-});
-
-export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [lastMessage, setLastMessage] = useState<any>(null);
-
-  useEffect(() => {
-    const ws = new WebSocket('ws://localhost:8080/ws');
-
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
-    };
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      setLastMessage(message);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    setSocket(ws);
-
-    return () => {
-      ws.close();
-    };
-  }, []);
-
-  return (
-    <WebSocketContext.Provider value={{ socket, isConnected, lastMessage }}>
-      {children}
-    </WebSocketContext.Provider>
-  );
-};
-
-export const useWebSocket = () => useContext(WebSocketContext);
-```
-
-### 5.2 Audio-Status-Hook
-
-Ein Custom Hook zum Abonnieren von Audio-Status-Updates.
-
-**Datei:** `src/hooks/useAudioStatus.ts`
-
-```typescript
-import { useEffect, useState } from 'react';
-import { useWebSocket } from '../contexts/WebSocketContext';
-import { AudioStatus } from '../types/audio';
-
-export const useAudioStatus = () => {
-  const { lastMessage } = useWebSocket();
-  const [audioStatus, setAudioStatus] = useState<AudioStatus | null>(null);
-
-  useEffect(() => {
-    if (lastMessage?.type === 'audio_status') {
-      setAudioStatus(lastMessage.data);
-    }
-  }, [lastMessage]);
-
-  return audioStatus;
-};
-```
-
-### 5.3 Verwendung in Komponenten
-
-**Beispiel: Player-Seite**
-
-```typescript
-import React from 'react';
-import { useAudioStatus } from '../hooks/useAudioStatus';
-import { PlaybackControls } from '../components/player/PlaybackControls';
-import { TrackInfo } from '../components/player/TrackInfo';
-import { ProgressBar } from '../components/player/ProgressBar';
-
-export const PlayerPage: React.FC = () => {
-  const audioStatus = useAudioStatus();
-
-  if (!audioStatus) {
-    return <div>Lade Audio-Status...</div>;
-  }
-
-  return (
-    <div>
-      <TrackInfo 
-        title={audioStatus.track_id} 
-        artist="..." 
-        album="..." 
-      />
-      <ProgressBar 
-        current={audioStatus.position_ms} 
-        total={audioStatus.duration_ms} 
-      />
-      <PlaybackControls state={audioStatus.state} />
-    </div>
-  );
-};
-```
+Three details matter beyond the breakpoints. `index.html` sets
+`viewport-fit=cover`, so fixed elements must add `env(safe-area-inset-bottom)`
+themselves — `Navigation.tsx` exports it as `SAFE_AREA_BOTTOM` and the mini
+player and FAB offset against it. Selected navigation items use `primary.dark`,
+not `.main`: white text needs 4.5:1 for WCAG AA and `.main` reaches only about
+3.8:1 with the default orange. And the font-size setting scales the root
+`<html>` size rather than MUI's `typography.fontSize`, so text grows while bar
+heights and icons stay put.
 
 ---
 
-## 6. i18n (Multi-Language)
+## 7. Deployment
 
-### 6.1 Ordner-Struktur
+Defined in the root `docker-compose.yml` as the `webui` service. Image
+`ghcr.io/opnek90/minabox-webui:${MINABOX_WEBUI_TAG}`; the service carries its own
+version number (`docs/Versionierung.md`).
 
-```
-src/locales/
-  de/
-    common.json          # Header, Navigation, allgemeine Begriffe
-    player.json          # Player-Seite
-    rfid.json            # RFID-Seite
-    media.json           # Media-Verwaltung
-    admin.json           # Admin-Bereich
-    errors.json          # Fehlermeldungen
-  en/
-    common.json
-    player.json
-    rfid.json
-    media.json
-    admin.json
-    errors.json
-```
+The Dockerfile is two-stage: `node:20-alpine` runs `npm ci` — from the
+lockfile, so the same source cannot produce a different image four weeks later,
+and without `--omit=dev`, because Vite and TypeScript live in `devDependencies`
+and are what does the building — then
+`npm run build:fast` (Vite only — `tsc` is deliberately skipped, it costs
+minutes on an ARM runner and the CI check job below runs it instead), then the
+resulting `dist/` is copied into `nginx:alpine-slim`. Version metadata is set as
+OCI labels from build args at the end of the file, so a version change
+invalidates only the last layers. The defaults are `0.0.0-dev`: a locally built
+image must not pass itself off as a release.
 
-### 6.2 Beispiel-Inhalte
+**`alpine-slim`, not `alpine`.** The full image carries njs, XSLT, GeoIP and the
+image filter — 92.8 MB against 21.8 MB — and none of it is used here. The whole
+image goes from 97.7 MB to 24.5 MB. Two things had to be checked first, because
+everything hangs on them: `alpine-slim` is still built
+`--with-http_gzip_static_module`, so the pre-compressed files below keep being
+served, and it has no `curl` at all.
 
-**de/common.json:**
+That last point makes the health check part of the base image choice. It asks
+`wget -q -O /dev/null http://127.0.0.1:80/health` — `wget` because BusyBox is
+all there is, and `127.0.0.1` because BusyBox `wget` resolves `localhost` to
+`::1` first and gives up when that is refused, while Nginx listens on IPv4 only.
+`curl` used to paper over this by falling back. The same line stands in
+`docker-compose.yml`, which overrides the Dockerfile's health check either way,
+so the two must not drift apart. This is the one service in the stack that does
+not use `curl` for its health check.
 
-```json
-{
-  "app_name": "Minabox",
-  "navigation": {
-    "player": "Wiedergabe",
-    "rfid": "RFID-Tags",
-    "media": "Mediathek",
-    "admin": "Einstellungen"
-  },
-  "actions": {
-    "save": "Speichern",
-    "cancel": "Abbrechen",
-    "delete": "Löschen",
-    "edit": "Bearbeiten",
-    "add": "Hinzufügen"
-  }
-}
-```
+**Fonts.** `src/fonts.css` declares the four Roboto weights MUI uses (300, 400,
+500, 700) as `latin` `woff2` only. The `@fontsource` entry points would pull
+every subset — latin-ext, cyrillic, greek, vietnamese, math, symbols — as both
+`.woff2` and `.woff`: 64 files for an interface that ships German and English.
+Thanks to `unicode-range` the browser only ever downloaded what it needed, so
+this was never a load-time problem, but it took `dist/` from 3.0 MB to 2.1 MB.
+Media titles with eastern European names would want a second `latin-ext` block
+here.
 
-**de/player.json:**
+`depends_on` is deliberately asymmetric. The backend is **not** waited for —
+Nginx resolves the name at request time (below), so the UI can come up first and
+`ConnectionLostScreen` covers the gap. The hardware services *are* waited for
+(`service_healthy`, `required: false`), because they have no equivalent
+fallback: without the wait, features that talk to them failed visibly in the
+first seconds after boot.
 
-```json
-{
-  "title": "Wiedergabe",
-  "now_playing": "Aktuelle Wiedergabe",
-  "controls": {
-    "play": "Abspielen",
-    "pause": "Pausieren",
-    "stop": "Stoppen",
-    "next": "Nächster",
-    "previous": "Vorheriger"
-  },
-  "volume": "Lautstärke",
-  "playlist_info": "Track {{current}} von {{total}}"
-}
-```
+### 7.1 Nginx
 
-**de/rfid.json:**
+| Location      | Behaviour                                                                 |
+| ------------- | ------------------------------------------------------------------------- |
+| `/`           | `try_files` with `index.html` fallback — SPA routing.                       |
+| `/api/`       | Proxy to the backend. Forwards `Set-Cookie`, 120 s timeouts, 100 MB body.   |
+| `/ws`         | Proxy with upgrade headers, 3600 s timeouts.                               |
+| `/static/`    | Proxy (user files: logo, covers), `no-cache`. `^~` so the image regex below cannot claim it. |
+| `/locales/`   | `no-cache` — revalidate against the ETag, cheap 304s.                       |
+| `*.js/css/…`  | `public, max-age=31536000, immutable`. Vite content-hashes these names.      |
+| `/index.html` | `no-store` — the entry point must never be cached.                          |
+| `/health`     | Returns `healthy`.                                                          |
 
-```json
-{
-  "title": "RFID-Tags",
-  "tag_list": "Tag-Übersicht",
-  "learn_mode": "Neuen Tag scannen",
-  "learn_mode_active": "Lern-Modus aktiv - Bitte Tag auflegen",
-  "edit_tag": "Tag bearbeiten",
-  "delete_tag": "Tag löschen",
-  "delete_confirm": "Möchten Sie diesen Tag wirklich löschen?",
-  "fields": {
-    "tag_id": "Tag-ID",
-    "name": "Name",
-    "content": "Zugeordneter Inhalt"
-  }
-}
-```
+Three of these entries encode a bug that was fixed there.
 
-**de/media.json:**
+**The resolver.** `resolver 127.0.0.11` plus a variable in `proxy_pass` forces
+Nginx to resolve `backend` per request instead of once at config load. Without
+it, a rebuilt backend container gets a new IP and Nginx keeps proxying to the
+old one — permanent 502s until the WebUI container is restarted too.
 
-```json
-{
-  "title": "Mediathek",
-  "tabs": {
-    "playlists": "Playlists",
-    "tracks": "Tracks",
-    "streams": "Streams"
-  },
-  "playlists": {
-    "create": "Neue Playlist",
-    "edit": "Playlist bearbeiten",
-    "delete": "Playlist löschen",
-    "add_tracks": "Tracks hinzufügen"
-  },
-  "tracks": {
-    "upload": "Track hochladen",
-    "add_stream": "Stream hinzufügen",
-    "edit": "Track bearbeiten",
-    "delete": "Track löschen"
-  },
-  "upload": {
-    "title": "Track hochladen",
-    "select_file": "Datei auswählen",
-    "uploading": "Wird hochgeladen..."
-  },
-  "stream": {
-    "title": "Stream hinzufügen",
-    "url": "Stream-URL",
-    "url_placeholder": "https://stream.example.com/radio.mp3"
-  }
-}
-```
+**`proxy_pass_header Set-Cookie`.** Without it Nginx silently drops the
+`Set-Cookie` response header from the backend, and login never delivers the
+`minabox_session` cookie.
 
-**Navigation:** Einträge für Player, RFID, Mediathek, Dashboard, Admin, ggf. Kiosk. **Command-Palette** (z.B. Strg+K) für schnelle Navigation und Aktionen.
+**`no-cache` on `/locales/`.** These URLs have no content hash, so they stay
+identical across builds. With no explicit header, browsers fall back to
+heuristic caching and serve a stale `admin.json` long after the file changed —
+which looks exactly like "the translations are broken".
 
-**de/admin.json:**
+`gzip_static on` serves the `.gz` files that `vite-plugin-compression` produced
+at build time, rather than compressing on every request; dynamic `gzip` remains
+as the fallback for anything without a pre-built sibling.
 
-```json
-{
-  "title": "Einstellungen",
-  "tabs": {
-    "system": "System-Status",
-    "general": "Allgemein",
-    "audio": "Audio",
-    "leds": "LEDs",
-    "buttons": "Buttons",
-    "rfid": "RFID"
-  },
-  "system": {
-    "services": "Services",
-    "status_online": "Online",
-    "status_degraded": "Eingeschränkt",
-    "status_offline": "Offline",
-    "status_error": "Fehler",
-    "restart": "Services neu starten"
-  },
-  "general": {
-    "language": "Sprache",
-    "device_id": "Geräte-ID"
-  },
-  "audio": {
-    "output_device": "Ausgabegerät",
-    "max_volume": "Maximale Lautstärke",
-    "default_volume": "Standard-Lautstärke"
-  }
-}
-```
+**Security headers.** `X-Content-Type-Options: nosniff`, `X-Frame-Options:
+SAMEORIGIN` and `Referrer-Policy: no-referrer` go out on every response, and
+`server_tokens off` keeps the exact Nginx version out of the `Server` header and
+off the error pages. The three headers live in `nginx/security-headers.conf` and
+are included six times, not written once: Nginx does **not** inherit `add_header`
+into a block that sets one of its own, so every location in the table above with
+a `Cache-Control` header would silently have dropped them.
 
-**de/errors.json:**
+`Content-Security-Policy` is deliberately absent. MUI and Emotion write inline
+styles at runtime, so a policy needs at least `style-src 'self' 'unsafe-inline'`,
+and streams pull audio and cover art from arbitrary hosts. A wrong policy whites
+out the entire interface with nothing in the server log to show for it, so it
+belongs in its own change with a click-through, not bundled in with the rest.
 
-```json
-{
-  "network_error": "Netzwerkfehler - Bitte prüfen Sie die Verbindung",
-  "tag_not_found": "Tag nicht gefunden",
-  "upload_failed": "Upload fehlgeschlagen",
-  "config_invalid": "Ungültige Konfiguration",
-  "generic_error": "Ein Fehler ist aufgetreten"
-}
-```
+### 7.2 Checks before the build
 
-### 6.3 i18next-Konfiguration
+`.github/workflows/checks.yml` runs `tsc --noEmit`, `eslint src`, `vitest run`
+and the two i18n guards on `ubuntu-latest` in about two minutes. It is wired in
+twice: on every pull request, so a failure shows up before the merge, and via
+`workflow_call` from `build-images.yml`, so a red run stops the push to GHCR.
 
-**Datei:** `src/i18n.ts`
-
-```typescript
-import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
-import Backend from 'i18next-http-backend';
-import LanguageDetector from 'i18next-browser-languagedetector';
-
-i18n
-  .use(Backend)
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    fallbackLng: 'de',
-    supportedLngs: ['de', 'en'],
-    ns: ['common', 'player', 'rfid', 'media', 'admin', 'errors'],
-    defaultNS: 'common',
-    backend: {
-      loadPath: '/locales/{{lng}}/{{ns}}.json',
-    },
-    interpolation: {
-      escapeValue: false,
-    },
-  });
-
-export default i18n;
-```
-
-### 6.4 Verwendung in Komponenten
-
-```typescript
-import { useTranslation } from 'react-i18next';
-
-export const PlayerPage: React.FC = () => {
-  const { t } = useTranslation('player');
-
-  return (
-    <div>
-      <h1>{t('title')}</h1>
-      <button>{t('controls.play')}</button>
-      <button>{t('controls.pause')}</button>
-    </div>
-  );
-};
-```
-
-### 6.5 Sprachwechsel
-
-```typescript
-import { useTranslation } from 'react-i18next';
-
-export const LanguageSelector: React.FC = () => {
-  const { i18n } = useTranslation();
-
-  const changeLanguage = (lng: string) => {
-    i18n.changeLanguage(lng);
-    localStorage.setItem('language', lng);
-  };
-
-  return (
-    <select 
-      value={i18n.language} 
-      onChange={(e) => changeLanguage(e.target.value)}
-    >
-      <option value="de">Deutsch</option>
-      <option value="en">English</option>
-    </select>
-  );
-};
-```
+It exists because the CI used to build images and nothing else. With `tsc`
+skipped in the Dockerfile and no test run anywhere, a type error or a broken
+test could travel all the way into the registry unnoticed — which is how a dead
+`window` listener in `PlayerPage` survived as long as it did.
 
 ---
 
-## 7. Deployment & Nginx-Konfiguration
+## 8. Dependencies
 
-### 7.1 Dockerfile
+**Services:** the backend, and only the backend — REST at `/api/v1`, WebSocket
+at `/ws`, both same-origin through the Nginx proxy in this container. There is
+no direct call to the host-helper, to MQTT or to any hardware service.
 
-**Multi-Stage Build:**
+**Runtime:** Nginx. The built app is static files; the container has no
+environment variables of its own.
 
-```dockerfile
-# Stage 1: Build
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci
-
-COPY . .
-RUN npm run build
-
-# Stage 2: Nginx
-FROM nginx:alpine
-
-# Kopiere Build-Artefakte
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Kopiere Nginx-Config
-COPY nginx/nginx.conf /etc/nginx/nginx.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-### 7.2 Nginx-Konfiguration
-
-**Datei:** `nginx/nginx.conf`
-
-```nginx
-events {
-    worker_connections 1024;
-}
-
-http {
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
-
-    # Logging
-    access_log /var/log/nginx/access.log;
-    error_log /var/log/nginx/error.log;
-
-    # Gzip
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
-
-    server {
-        listen 80;
-        server_name localhost;
-
-        # Root für statische Files
-        root /usr/share/nginx/html;
-        index index.html;
-
-        # SPA-Routing: Alle Requests zu index.html
-        location / {
-            try_files $uri $uri/ /index.html;
-        }
-
-        # API-Reverse-Proxy zum Backend
-        location /api/ {
-            proxy_pass http://backend:8080;
-            proxy_http_version 1.1;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
-        # WebSocket-Reverse-Proxy zum Backend
-        location /ws {
-            proxy_pass http://backend:8080/ws;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
-
-        # Cache für statische Assets
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-    }
-}
-```
-
-### 7.3 Docker-Compose
-
-**Datei:** `docker-compose.yml` (Root-Repository)
-
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    build: ./services/backend-service
-    container_name: minabox-backend
-    ports:
-      - "8080:8080"
-    environment:
-      - MQTT_BROKER=mqtt
-      - MQTT_PORT=1883
-      - DATABASE_PATH=/data/minabox.db
-    volumes:
-      - ./data:/data
-      - ./audio:/mnt/audio
-    networks:
-      - minabox-network
-
-  webui:
-    build: ./services/webui-service
-    container_name: minabox-webui
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - minabox-network
-
-  mqtt:
-    image: eclipse-mosquitto:2
-    container_name: minabox-mqtt
-    ports:
-      - "1883:1883"
-    volumes:
-      - ./infrastructure/mosquitto/config:/mosquitto/config
-    networks:
-      - minabox-network
-
-networks:
-  minabox-network:
-    driver: bridge
-```
+**Build:** Node 20 and npm. The dependency set is small on purpose — React,
+MUI, React Router, React Query, Axios, i18next, dnd-kit and Fontsource Roboto.
 
 ---
 
-## 8. TypeScript-Types
+## 9. Errors & Diagnostics
 
-### 8.1 API-Response-Types
+| Situation                    | What the user sees                                                      |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| API error with a known code  | The translated text from the `errors` namespace.                          |
+| API error, unknown code      | `errors:generic_error`. The English `detail` stays in the console.        |
+| Network error / 5xx on a GET | Up to 3 retries with backoff before anything is shown.                    |
+| `401`                        | Session dropped, password dialog reopens.                                 |
+| WebSocket down > 3 s         | Full-page overlay with a button for the diagnostics export.               |
+| Render crash                 | `ErrorBoundary` with retry and diagnostics export; recorded in the ring buffer. |
+| Missing translation          | Falls back to English — unless `log_level: debug`, then the raw key shows. |
 
-**Datei:** `src/types/api.ts`
-
-```typescript
-export interface Tag {
-  id: number;
-  tag_id: string;
-  name: string | null;
-  content_type: 'playlist' | 'track';
-  content_id: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Playlist {
-  id: number;
-  name: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-  tracks?: PlaylistTrack[];
-}
-
-export interface Track {
-  id: number;
-  title: string;
-  artist: string | null;
-  album: string | null;
-  duration_ms: number | null;
-  source_type: 'file' | 'stream';
-  source_uri: string;
-  created_at: string;
-}
-
-export interface PlaylistTrack {
-  id: number;
-  playlist_id: number;
-  track_id: number;
-  position: number;
-  track: Track;
-}
-
-export interface AudioStatus {
-  state: 'playing' | 'paused' | 'stopped' | 'error';
-  track_id: string | null;
-  source_type: 'file' | 'stream' | null;
-  source_uri: string | null;
-  position_ms: number;
-  duration_ms: number | null;
-  volume: number;
-  timestamp: string;
-}
-
-export interface ServiceStatus {
-  service: string;
-  // 'degraded': der Dienst antwortet, meldet in seinem eigenen /health-Body
-  // aber, dass er seine Aufgabe nicht erfuellen kann. Sein Container laeuft
-  // und Docker nennt ihn healthy - ohne diesen Zustand stand er auf Gruen.
-  state: 'online' | 'degraded' | 'offline' | 'error';
-  service_status?: 'healthy' | 'degraded' | null;
-  timestamp: string;
-}
-
-export interface ButtonConfig {
-  buttons: Button[];
-}
-
-export interface Button {
-  id: string;
-  name: string;
-  mode: 'basic' | 'advanced';
-  type: 'push' | 'rotary';
-  gpio?: number;
-  clk?: number;
-  dt?: number;
-  sw?: number;
-  action?: string;
-  actions?: Record<string, string>;
-}
-
-export interface LEDConfig {
-  leds: LED[];
-}
-
-export interface LED {
-  id: string;
-  name: string;
-  gpio: number;
-  bindings: Record<string, LEDPattern>;
-}
-
-export interface LEDPattern {
-  pattern_type: 'solid' | 'blink' | 'pulse';
-  duration_ms?: number;
-  interval_ms?: number;
-  repeat?: number;
-}
-
-export interface AudioConfig {
-  output_device_type: string;
-  output_device_name: string;
-  max_volume: number;
-  default_volume: number;
-}
-
-export interface RFIDConfig {
-  reader_type: string;
-  interface: string;
-  scan_interval_ms: number;
-  duplicate_suppression_ms: number;
-}
-
-export interface ErrorResponse {
-  error: {
-    code: string;
-    message: string;
-    details?: Record<string, any>;
-  };
-}
-```
+Console output is prefixed `[WebUI]` and limited to `console.error`/`warn` —
+there is no `console.log` in the shipped code.
 
 ---
 
-## 9. Abhängigkeiten
+## 10. Related Documents
 
-**Services:**
-
-- Backend-Service (REST-API & WebSocket)
-
-**Infrastruktur:**
-
-- Nginx (Web-Server)
-- Docker (Container)
-
-**NPM-Packages (Auszug):**
-
-```json
-{
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0",
-    "@mui/material": "^5.14.0",
-    "@emotion/react": "^11.11.0",
-    "@emotion/styled": "^11.11.0",
-    "axios": "^1.6.0",
-    "i18next": "^23.7.0",
-    "react-i18next": "^13.5.0",
-    "i18next-http-backend": "^2.4.0",
-    "i18next-browser-languagedetector": "^7.2.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.3.0",
-    "vite": "^5.0.0",
-    "@vitejs/plugin-react": "^4.2.0",
-    "eslint": "^8.55.0",
-    "prettier": "^3.1.0"
-  }
-}
-```
-
----
-
-## 10. Fehler & Status
-
-### 10.1 Error-Handling
-
-Alle API-Calls verwenden einen zentralen Error-Handler:
-
-```typescript
-import axios from 'axios';
-
-export const apiClient = axios.create({
-  baseURL: '/api/v1',
-  timeout: 10000,
-});
-
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response) {
-      // Backend hat mit Fehler geantwortet
-      const errorData = error.response.data as ErrorResponse;
-      console.error('API Error:', errorData.error);
-      // Zeige User-Notification (z.B. via Toast/Snackbar)
-    } else if (error.request) {
-      // Request wurde gesendet, aber keine Antwort
-      console.error('Network Error:', error.message);
-    } else {
-      // Fehler beim Setup des Requests
-      console.error('Request Error:', error.message);
-    }
-    return Promise.reject(error);
-  }
-);
-```
-
-### 10.2 Logging
-
-Console-Logging für Entwicklung, kann später durch Sentry o.ä. erweitert werden:
-
-```typescript
-console.log('[WebUI] WebSocket connected');
-console.error('[WebUI] API call failed:', error);
-```
-
----
-
-## 11. Nicht-Ziele / Abgrenzung
-
-- Keine direkte MQTT-Kommunikation (nur über Backend)
-- Keine Hardware-Logik oder GPIO-Zugriffe
-- Keine Datenbank-Zugriffe (nur via Backend REST-API)
-- Keine User-Authentication in Phase 1 (Single-User-System)
-- Keine Offline-Funktionalität (WebUI benötigt Backend-Verbindung)
-- Keine Mobile-App (nur Web-basiert, aber responsive)
-
----
-
-## 12. Refactoring-Checkliste
-
-- [ ] **Redesign-Review:** Siehe [Redesign.md](Redesign.md) – vollständige Bewertung (Docker-Randbedingungen, Struktur, Funktionsoptimierungen, neue Features) mit priorisierter Umsetzungsreihenfolge.
-- [ ] **Struktur-Doku angepasst:** Die Datei- und Ordnerstruktur in Abschnitt 3 wurde an die tatsächliche Codebasis angeglichen (z. B. `api/auth.ts`, `api/system.ts`, `components/admin/ConfigForm/` mit GeneralSettingsForm, ControlSettingsForm, DesignSettingsForm, ChildSettingsForm, AudioConfigForm, RFIDConfigForm; AuthSection, SecurityPanel, SystemMaintenanceSection; `contexts/ThemeContext`, `ToastContext`; `hooks/useSleepTimer`, `useDashboardOverview`, `useStatsDashboard`, `useServiceLogs`; `components/dashboard/DashboardOverview`).
-- [ ] **Konsistenz prüfen:** Komponenten- und API-Modulnamen in den Abschnitten „Seiten & Features“ und „Admin“ mit der tatsächlichen Struktur abgleichen (z. B. ParentSettingsForm vs. ChildSettingsForm, ConfigForm vs. ConfigForm/*).
-- [ ] Nach Refactoring: Dateistruktur und „Funktion pro Datei“ in diesem Dokument aktualisieren.
+- [Component-Capabilities.md](Component-Capabilities.md) — how optional
+  components are detected and hidden.
+- [Setup-Wizard.md](Setup-Wizard.md) — the first-run flow.
+- [Settings-Reorganisation.md](Settings-Reorganisation.md) — why the settings
+  are cut the way they are.
+- [Redesign.md](Redesign.md) — the open review items, including the data-layer
+  consolidation named in section 5.3.
