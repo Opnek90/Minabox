@@ -332,7 +332,7 @@ export interface PlayRequest {
 }
 
 /**
- * One rung of the sound-repair chain (docs/services/Offene-Punkte.md 1.7).
+ * One rung of the sound-repair chain.
  *
  * `id` is what the dialog translates into a sentence. `detail` is technical
  * wording for the debug export and is never shown: the user sees no sink

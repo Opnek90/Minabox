@@ -1,4 +1,4 @@
-"""The check chain behind "Fix sound problem" (docs/services/Offene-Punkte.md 1.7).
+"""The check chain behind "Fix sound problem".
 
 Nothing is more annoying than a box that suddenly makes no sound. Both faults
 of that kind we have had so far were findable only with `aplay -l`, `pactl` and

@@ -31,7 +31,7 @@ dependencies = [
 backend-service = "backend_service.main:run"
 
 # Die Version steht in der Datei VERSION - eine Quelle je Dienst
-# (docs/Versionierung.md). Frueher stand sie hier ein zweites Mal
+# Frueher stand sie hier ein zweites Mal
 # und war repo-weit veraltet.
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}
@@ -76,7 +76,7 @@ module = ["alembic.*", "docker.*", "feedparser.*", "mutagen.*", "jose.*"]
 ignore_missing_imports = true
 
 # shared_lib has no py.typed marker yet. Adding one means touching shared-lib,
-# which makes every dependent service a changed service - see docs/Versionierung.md.
+# which makes every dependent service a changed service.
 [[tool.mypy.overrides]]
 module = "shared_lib.*"
 ignore_missing_imports = true

@@ -43,7 +43,7 @@ COPY host-helper-service/src/ ./src/
 
 EXPOSE 8000
 
-# -- Version (build args; docs/Versionierung.md) ------------------------------
+# -- Version (build args) ------------------------------
 # The defaults are deliberately "dev": a locally built image must not pass
 # itself off as a release. The block sits at the end of the file so that a
 # version change only invalidates the last metadata layers.

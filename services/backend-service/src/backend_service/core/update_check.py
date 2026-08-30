@@ -1,6 +1,6 @@
 """Compares the running service versions against the published ones.
 
-The source is `release-manifest.json` in the repository (docs/Versionierung.md):
+The source is `release-manifest.json` in the repository:
 one file, one request, per service the current version and the release notes in
 both languages.
 

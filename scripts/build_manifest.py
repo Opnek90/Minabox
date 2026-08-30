@@ -6,7 +6,7 @@ Version je Dienst aktuell ist und was sich seit der installierten Version
 geaendert hat - in der Sprache, die der Nutzer eingestellt hat.
 
 Warum eine eigene Datei und kein GitHub-Release-Text: mit einer Nummer je
-Dienst (docs/Versionierung.md) passt "ein Release = eine Version" nicht mehr.
+Dienst passt "ein Release = eine Version" nicht mehr.
 Neun Dienste bewegen sich unabhaengig; die Box soll trotzdem *einen* Abruf
 machen.
 

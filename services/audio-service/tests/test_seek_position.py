@@ -197,7 +197,7 @@ async def test_an_ordinary_track_start_does_not_pay_the_wait():
 
 @pytest.mark.asyncio
 async def test_play_unmutes_a_stream_pipewire_handed_back_muted():
-    """A muted box that nobody muted (docs/services/Offene-Punkte.md 1.6).
+    """A muted box that nobody muted.
 
     WirePlumber remembers mute per media role and pushes it onto every stream
     the moment it opens the output - after play(), not before. The service

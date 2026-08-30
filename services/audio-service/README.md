@@ -2,7 +2,7 @@
 
 VLC-based audio playback service for Minabox. It is controlled via MQTT and exposes a small REST API used by the Backend and WebUI (status, device selection, output switching).
 
-For the full interface/flow details (REST endpoints, MQTT topics, payload shapes, and state transitions), see [`docs/services/audio/Architecture.md`](../../docs/services/audio/Architecture.md).
+For the full interface/flow details (REST endpoints, MQTT topics, payload shapes, and state transitions), see [`docs/services/audio/`](../../docs/services/audio/README.md).
 
 ## REST API
 

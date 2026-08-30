@@ -169,7 +169,7 @@ async def switch_device(body: SwitchDeviceBody) -> StatusResponse:
 async def troubleshoot() -> TroubleshootResponse:
     """Walk the sound-repair chain and end with the test tone.
 
-    Steps 2 to 6 of docs/services/Offene-Punkte.md 1.7 - the sink, the stream
+    Steps 2 to 6 of the sound-repair chain - the sink, the stream
     and the service's own volume and mute. Steps 1 and 7 need
     /proc/asound/cards and amixer, which this container cannot reach; the
     backend adds them from the host-helper.

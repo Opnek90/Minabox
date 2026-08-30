@@ -2,7 +2,7 @@
 
 Hardware abstraction and MQTT publisher for RFID tags in Minabox. The RFID service reads tags via a configured reader (real PN532 or a mock), publishes tag events to MQTT, and supports a Backend-driven learning mode.
 
-For the full interface/flow details (MQTT topics, payload shapes, and mode behavior), see [`docs/services/rfid/Architecture.md`](../../docs/services/rfid/Architecture.md).
+For the full interface/flow details (MQTT topics, payload shapes, and mode behavior), see [`docs/services/rfid/`](../../docs/services/rfid/README.md).
 
 ## REST API
 

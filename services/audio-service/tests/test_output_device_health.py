@@ -1,6 +1,6 @@
 """/health has to notice when the configured output is gone.
 
-From a real fault (docs/services/Offene-Punkte.md 1.5): the PN532 held the I2C
+From a real fault: the PN532 held the I2C
 bus after a restart, the wm8960 codec probed once, failed and gave up, and the
 sound card was simply no longer there. No sound came out of the box - while
 /health reported

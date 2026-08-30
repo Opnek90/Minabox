@@ -5,8 +5,8 @@ name: Build & Push Images
 # ohne diesen Workflow gibt es nichts zu pullen.
 #
 # Gebaut wird nur, was sich geaendert hat. Jeder Dienst traegt seine eigene
-# Version in services/<dienst>-service/VERSION (docs/Versionierung.md); ein
-# unveraenderter Dienst darf nicht neu unter seiner alten Nummer landen, sonst
+# Version in services/<dienst>-service/VERSION; ein unveraenderter Dienst darf
+# nicht neu unter seiner alten Nummer landen, sonst
 # zeigt derselbe Tag auf verschiedene Staende und die Versionsanzeige in der
 # WebUI wird wertlos.
 

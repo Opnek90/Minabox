@@ -4,7 +4,7 @@ I2C OLED (SSD1306 128×64) status display for Minabox. Layout: a **header**
 across the full width, then **two columns** below it. What appears where is
 configuration.
 
-Full documentation: [docs/services/display/Architecture.md](../../docs/services/display/Architecture.md).
+Full documentation: [docs/services/display/](../../docs/services/display/README.md).
 
 ## What it shows
 

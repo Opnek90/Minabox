@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Entscheidet, welche Dienste dieser CI-Lauf bauen muss.
 
-Gebaut wird, was sich geaendert hat. Der Grund steht in
-docs/Versionierung.md: jeder Dienst traegt seine eigene Versionsnummer, und
-ein unveraenderter Dienst darf nicht erneut unter seiner alten Nummer in die
-Registry wandern - sonst zeigt derselbe Tag auf verschiedene Staende.
+Gebaut wird, was sich geaendert hat. Der Grund: jeder Dienst traegt seine
+eigene Versionsnummer, und ein unveraenderter Dienst darf nicht erneut unter
+seiner alten Nummer in die Registry wandern - sonst zeigt derselbe Tag auf
+verschiedene Staende.
 
 Im Zweifel wird alles gebaut. Ein zu grosser Lauf kostet Zeit, ein zu kleiner
 laesst ein Image zurueck, das niemand vermisst, bis es fehlt.

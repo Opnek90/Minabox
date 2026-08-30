@@ -14,7 +14,7 @@ GPIO-based button and rotary encoder service for Minabox. Reads physical inputs 
 
 ## Architecture
 
-See [docs/services/button/Architecture.md](../../docs/services/button/Architecture.md) for full architecture.
+See [docs/services/button/](../../docs/services/button/README.md) for full architecture.
 
 ### Event types (raw)
 
@@ -185,8 +185,7 @@ mypy src/
 lgpio's alert thread polls, so every claimed pin costs CPU even when nothing
 happens. The build pins that poll interval via the `LG_ALERT_POLL_NS` build arg
 in the Dockerfile (2 ms, against upstream's 0.5 ms) -- measured at roughly 3 %
-of one core instead of 8 % on a Pi 4. See
-[GoLive-Review, section 5](../../docs/services/button/GoLive-Review.md).
+of one core instead of 8 % on a Pi 4.
 
 **Avoid pin conflicts:** no GPIO pin may appear in both the LED service (`config/leds.json`) and the button service (`config/buttons.json`). Whichever service starts first claims the pin; the other one logs `gpio_input_init_failed` and leaves that button inactive, while every other button keeps working. `/health` then reports `degraded` with `buttons_available` below `buttons_configured`. The example config here only uses pins the default `leds.json` does not (17, 27, 22, 4, 16).
 

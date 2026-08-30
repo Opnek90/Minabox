@@ -1,6 +1,6 @@
 """The host half of the sound-repair chain.
 
-Steps 1 and 7 of docs/services/Offene-Punkte.md 1.7. The audio service walks
+Steps 1 and 7 of the sound-repair chain. The audio service walks
 steps 2 to 6 itself - it talks to PulseAudio over the mounted socket anyway -
 but `/proc/asound/cards` and `amixer` are not reachable from inside that
 container. They need the host, which is this service's whole reason to exist.

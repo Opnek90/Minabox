@@ -31,7 +31,7 @@ import { translateApiError } from '@/utils/apiError';
 import type { AudioTroubleshootResult } from '@/types/api';
 
 /**
- * "Fix sound problem" (docs/services/Offene-Punkte.md 1.7).
+ * "Fix sound problem".
  *
  * The box walks the check chain, repairs what it safely can, plays a tone and
  * then asks the only question that actually settles it: do you hear anything?

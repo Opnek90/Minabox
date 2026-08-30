@@ -139,7 +139,7 @@ export const PlayerPage: React.FC = () => {
   const sleepDisplayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Overflow menu (kiosk, sleep-timer entry, output device, repeat/shuffle) —
-  // keeps the main card to cover + controls + volume, see docs/services/webui/Redesign.md B2
+  // keeps the main card to cover + controls + volume
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [outputDialogOpen, setOutputDialogOpen] = useState(false);
@@ -619,7 +619,7 @@ export const PlayerPage: React.FC = () => {
           />
 
           {/* Up next (collapsible) — Output device, Repeat, Shuffle live in the
-              overflow menu above (see docs/services/webui/Redesign.md B2) */}
+              overflow menu above */}
           {session && upNextQueue(session.queue).length > 0 && (
             <Box sx={{ pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
               <UpNextCollapse queue={upNextQueue(session.queue).slice(0, 8)} />

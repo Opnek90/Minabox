@@ -21,9 +21,7 @@ easy to extract as a standalone Python package later. The actual `yt-dlp`/
 (`asyncio.Semaphore(1)`) – ffmpeg is CPU-heavy and this runs on a Raspberry
 Pi, so a second concurrent conversion would fight the first for the same
 cores rather than genuinely run in parallel. This also keeps `GET /health`
-answering while a download is in progress – see the
-[Go-Live review](GoLive-Review.md#1-functional-defects) for what it looked
-like before.
+answering while a download is in progress.
 
 ---
 

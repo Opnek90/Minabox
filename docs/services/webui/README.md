@@ -59,7 +59,7 @@ webui-service/
 │   ├── nginx.conf             # SPA fallback, /api + /ws proxy, caching
 │   └── security-headers.conf  # Included per location; see section 7.1
 ├── vite.config.ts             # PWA, gzip, manual chunks, BUILD_ID
-├── VERSION                    # Own version number (docs/Versionierung.md)
+├── VERSION                    # Own version number
 ├── scripts/
 │   ├── check-locales.mjs      # de/en in sync, plurals complete, dead keys
 │   └── check-i18n-calls.mjs   # every static t() key exists in the JSON
@@ -168,8 +168,7 @@ once would fire eleven API calls on a Raspberry Pi.
 
 Sections that hang off an optional component carry `requiresFeature` in
 `settingsIndex.ts` and disappear — along with a group that becomes empty —
-when `GET /system/capabilities` says the component is not installed. Details:
-[Component-Capabilities.md](Component-Capabilities.md).
+when `GET /system/capabilities` says the component is not installed.
 
 ---
 
@@ -235,8 +234,8 @@ carries its own `loading`/`error` pair.
 
 This is a real split, not a nuance: the same track list is fetched by
 `MediaPage`, by `RfidPage` and again by the command palette, and none of the
-three sees the other's copy. It is recorded here as the current state; the
-consolidation is item C2 in [Redesign.md](Redesign.md).
+three sees the other's copy. It is recorded here as the current state; folding
+these onto one shared cache is still open.
 
 ### 5.4 API layer
 
@@ -356,7 +355,7 @@ heights and icons stay put.
 
 Defined in the root `docker-compose.yml` as the `webui` service. Image
 `ghcr.io/opnek90/minabox-webui:${MINABOX_WEBUI_TAG}`; the service carries its own
-version number (`docs/Versionierung.md`).
+version number.
 
 The Dockerfile is two-stage: `node:20-alpine` runs `npm ci` — from the
 lockfile, so the same source cannot produce a different image four weeks later,
@@ -495,10 +494,4 @@ there is no `console.log` in the shipped code.
 
 ## 10. Related Documents
 
-- [Component-Capabilities.md](Component-Capabilities.md) — how optional
-  components are detected and hidden.
 - [Setup-Wizard.md](Setup-Wizard.md) — the first-run flow.
-- [Settings-Reorganisation.md](Settings-Reorganisation.md) — why the settings
-  are cut the way they are.
-- [Redesign.md](Redesign.md) — the open review items, including the data-layer
-  consolidation named in section 5.3.

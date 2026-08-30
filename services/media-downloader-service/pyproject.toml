@@ -9,7 +9,7 @@ description = "Minabox Media Downloader Service – local media import from a UR
 requires-python = ">=3.13"
 
 # The version lives in the VERSION file - one source per service
-# (docs/Versionierung.md). It used to be duplicated here and was
+# It used to be duplicated here and was
 # stale repo-wide.
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}

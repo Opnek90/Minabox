@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class BaseHealthResponse(BaseModel):
     """Base health check response schema for all services.
 
-    Status semantics (Framework.md): healthy | degraded | unhealthy.
+    Status semantics: healthy | degraded | unhealthy.
     Services may extend this model or add extra fields when building the response.
     """
 

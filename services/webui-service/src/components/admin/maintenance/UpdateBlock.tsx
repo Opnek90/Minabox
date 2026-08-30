@@ -96,7 +96,7 @@ export const UpdateBlock: React.FC = () => {
 
       {/* Frueher stand hier ein einzelner Commit-Hash des Arbeitsbaums. Der
           sagte nichts darueber, welche Images tatsaechlich laufen - jeder
-          Dienst hat seine eigene Version (docs/Versionierung.md). */}
+          Dienst hat seine eigene Version. */}
       <Box
         sx={{
           display: 'grid',

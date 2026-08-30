@@ -56,7 +56,7 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1:80/health || exit 1
 
-# -- Version (build args; docs/Versionierung.md) ------------------------------
+# -- Version (build args) ------------------------------
 # The defaults are deliberately "dev": a locally built image must not pass
 # itself off as a release. The block sits at the end of the file so that a
 # version change only invalidates the last metadata layers.

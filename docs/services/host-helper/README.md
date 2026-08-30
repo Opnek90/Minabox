@@ -35,7 +35,7 @@ Relevant path: `services/host-helper-service/`
 host-helper-service/
 ├── Dockerfile               # Two-stage build on python:3.13-slim
 ├── requirements.txt         # FastAPI, uvicorn, pydantic, structlog, docker SDK
-├── VERSION                  # Own version number (docs/Versionierung.md)
+├── VERSION                  # Own version number
 ├── tests/
 │   └── test_update_env.py   # The pure helpers: allowlists, .env, log parsing
 └── src/host_helper/
@@ -599,7 +599,7 @@ flowchart LR
 
 Defined in the root `docker-compose.yml` as the `host-helper` service. Image
 `ghcr.io/opnek90/minabox-host-helper:${MINABOX_HOST_HELPER_TAG}`; the service
-carries its own version number (`docs/Versionierung.md`).
+carries its own version number.
 
 - No `ports:` entry — reachable only from within `minabox-network`.
 - `depends_on: backend (service_healthy)`, `restart: unless-stopped`.

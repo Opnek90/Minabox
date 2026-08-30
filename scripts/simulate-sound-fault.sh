@@ -1,8 +1,7 @@
 #!/bin/bash
 # Erzeugt gezielt einen der Fehlerzustaende, die "Ton-Problem beheben"
-# (docs/services/Offene-Punkte.md 1.7/1.8) erkennen und reparieren soll - zum
-# Ausprobieren des Knopfs auf einer echten Box, ohne wirklich am Kabel zu
-# wackeln.
+# erkennen und reparieren soll - zum Ausprobieren des Knopfs auf einer echten
+# Box, ohne wirklich am Kabel zu wackeln.
 #
 # Laeuft direkt auf der Box (nicht im Container): braucht pactl, amixer,
 # curl, jq und mosquitto_pub gegen die lokalen Dienste.
@@ -17,7 +16,7 @@
 # Zwei der sieben Kettenschritte fehlen bewusst:
 #   - Schritt 1 (Soundkarte fehlt) laesst sich ohne Kernel-Modul-Eingriff und
 #     Neustart nicht gefahrlos nachstellen - die App repariert ihn ohnehin
-#     nicht automatisch, siehe docs/services/Offene-Punkte.md 1.7.
+#     nicht automatisch.
 #   - Schritt 6 (Dienst-Lautstaerke unter Minimum) klemmt der Dienst an jedem
 #     Einstiegspunkt (Start, Config-Reload, set_volume) selbst auf min_volume -
 #     mit dem aktuellen Code von aussen nicht reproduzierbar.
@@ -65,7 +64,7 @@ set_config() { curl -sf -X PUT "$BACKEND_URL/api/v1/config/audio" -H 'Content-Ty
 
 mute_role_music() {
   # Direkter Eingriff in WirePlumbers gemerkten Zustand - derselbe Mechanismus
-  # wie der Rueckfall aus Offene-Punkte.md 1.8, nur absichtlich ausgeloest.
+  # wie der Rueckfall im Audio-Dienst, nur absichtlich ausgeloest.
   local target="$1"  # true|false
   [ -f "$WP_STATE" ] || die "WirePlumber-Zustandsdatei nicht gefunden: $WP_STATE"
   systemctl --user stop wireplumber

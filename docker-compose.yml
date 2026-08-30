@@ -104,7 +104,7 @@ services:
       - HOST_DIAG_ROOT=/host
       # Which optional components this box has. Compose reads this from .env to
       # decide which services to start; the backend reads it to hide what is not
-      # installed from the WebUI (docs/services/webui/Component-Capabilities.md).
+      # installed from the WebUI.
       - COMPOSE_PROFILES=${COMPOSE_PROFILES:-}
     volumes:
       - ./data:/data
@@ -424,10 +424,9 @@ services:
       - /dev/i2c-1:/dev/i2c-1
     user: "${HOST_UID:-1000}:${I2C_GID:-988}"
     healthcheck:
-      # curl is the project-wide healthcheck: docs/Entwicklungs-Workflow.md,
-      # "Container-Healthcheck". A Python one-liner would save the ~15 MB curl
-      # layer but cost ~6 % of a core, because python:3.13-slim ships no stdlib
-      # bytecode and this container runs unprivileged.
+      # curl is the project-wide healthcheck. A Python one-liner would save the
+      # ~15 MB curl layer but cost ~6 % of a core, because python:3.13-slim
+      # ships no stdlib bytecode and this container runs unprivileged.
       test: ["CMD-SHELL", "curl -f http://localhost:${DISPLAY_API_PORT:-8000}/health"]
       interval: 30s
       timeout: 5s
@@ -482,9 +481,8 @@ services:
         required: false
     # wget, not curl: the webui image is nginx:alpine-slim, which ships BusyBox
     # wget and no curl at all. It is the one exception to the project-wide curl
-    # healthcheck (docs/Entwicklungs-Workflow.md). This block repeats what the
-    # Dockerfile already declares, because compose overrides it either way -
-    # so the two must not drift apart.
+    # healthcheck. This block repeats what the Dockerfile already declares,
+    # because compose overrides it either way - so the two must not drift apart.
     #
     # 127.0.0.1, not localhost: BusyBox wget tries ::1 first and gives up when
     # it is refused, and nginx listens on IPv4 only.

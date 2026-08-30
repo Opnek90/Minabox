@@ -32,7 +32,7 @@ Relevant path: `services/led-service/`
 led-service/
 ├── Dockerfile               # Two-stage build on python:3.13-slim, liblgpio from source
 ├── requirements.txt         # FastAPI, uvicorn, pydantic, aiomqtt, structlog, gpiozero, lgpio
-├── VERSION                  # Own version number (docs/Versionierung.md)
+├── VERSION                  # Own version number
 ├── tests/                   # Patterns, schema, state derivation, subscriptions
 ├── config/
 │   ├── leds.json            # Live config (not in git, seeded from the example)

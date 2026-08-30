@@ -774,8 +774,8 @@ class AudioService:
     async def check_output_device(self) -> tuple[bool, str | None]:
         """Is the configured output device actually there right now?
 
-        Configured is not the same as usable (docs/services/Offene-Punkte.md
-        1.5). After a restart in which the PN532 held the I2C bus, the wm8960
+        Configured is not the same as usable. After a restart in which the
+        PN532 held the I2C bus, the wm8960
         codec failed to probe once and gave up; the sound card was simply gone
         and the box was silent. /health went on reporting "healthy" the whole
         time, because it only ever asked whether the broker was connected and
@@ -900,7 +900,7 @@ class AudioService:
         )
 
     async def troubleshoot(self) -> dict:
-        """Walk the sound-repair chain (docs/services/Offene-Punkte.md 1.7).
+        """Walk the sound-repair chain.
 
         Steps 2 to 6 only - /proc/asound/cards and amixer are not reachable
         from this container, so steps 1 and 7 are the host-helper's half and

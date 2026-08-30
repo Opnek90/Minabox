@@ -527,7 +527,7 @@ install_docker() {
 
 install_docker_daemon_config() {
     # Begrenzt die Container-Logs. Ohne das laeuft die SD-Karte irgendwann voll.
-    local src="$TARGET_DIR/deploy/docker-daemon.json"
+    local src="$TARGET_DIR/infrastructure/docker-daemon.json"
     [ -f "$src" ] || return 0
     [ -f /etc/docker/daemon.json ] && { log "daemon.json exists, kept"; return 0; }
     run sudo mkdir -p /etc/docker
@@ -730,7 +730,7 @@ ALLOWED_AUDIO_PATHS=/media,/mnt,$HOME
 COMPOSE_PROFILES=$COMPONENTS
 
 # Rueckfallebene: gilt fuer jeden Dienst ohne eigenen MINABOX_<DIENST>_TAG
-# weiter unten. 'latest' folgt dem main-Branch - siehe docs/Versionierung.md.
+# weiter unten. 'latest' folgt dem main-Branch.
 MINABOX_IMAGE_TAG=latest
 
 # Hostspezifisch - hier vom Wizard ermittelt, nicht von Hand raten.
@@ -745,7 +745,7 @@ ENV
         {
             printf '\n# Feste Versionen je Dienst, aus release-manifest.json ermittelt bei der\n'
             printf '# Installation. Ueberschreibt MINABOX_IMAGE_TAG fuer den jeweiligen Dienst;\n'
-            printf '# von Hand aendern, um genau diesen Dienst zurueckzudrehen (Versionierung.md).\n'
+            printf '# von Hand aendern, um genau diesen Dienst zurueckzudrehen.\n'
             local dienst upper
             for dienst in "${PIN_ORDER[@]}"; do
                 upper=$(printf '%s' "$dienst" | tr '[:lower:]-' '[:upper:]_')
