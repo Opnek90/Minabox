@@ -15,9 +15,13 @@ on:
   pull_request:
   workflow_call:
 
+# Dieselbe Ausnahme wie in build-images.yml: auf main darf nicht abgebrochen
+# werden. Dieser Workflow haengt dort als workflow_call vor dem Build - ein
+# abgebrochener Lauf laesst `needs: checks` scheitern und der Build startet
+# gar nicht erst.
 concurrency:
   group: checks-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   webui:
