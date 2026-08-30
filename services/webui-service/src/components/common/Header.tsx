@@ -17,6 +17,20 @@ import SearchIcon from '@mui/icons-material/Search';
 import { CommandPalette } from '@/components/common/CommandPalette';
 import { ALERT_UPDATE_AVAILABLE, useSystemAlerts } from '@/hooks/useSystemAlerts';
 
+/**
+ * The two status chips in the app bar. Outlined on a coloured bar, so both the
+ * text and the border have to be set explicitly.
+ *
+ * The icon margin is not the MUI default: a small chip puts its icon 4px from
+ * the border, which on an outlined chip reads as the icon touching the frame.
+ * 8px gives it the same air the label has on the other side.
+ */
+const STATUS_CHIP_SX = {
+  color: 'white',
+  borderColor: 'rgba(255,255,255,0.5)',
+  '& .MuiChip-icon': { ml: 1, mr: -0.25 },
+} as const;
+
 export const Header: React.FC = () => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
@@ -66,7 +80,7 @@ export const Header: React.FC = () => {
       color="info"
       variant="outlined"
       size="small"
-      sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)', mr: 1.5, cursor: 'pointer' }}
+      sx={{ ...STATUS_CHIP_SX, mr: 1.5, cursor: 'pointer' }}
     />
   </Tooltip>
 )}
@@ -79,7 +93,7 @@ export const Header: React.FC = () => {
     color={isConnected ? 'success' : 'error'}
     variant="outlined"
     size="small"
-    sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
+    sx={STATUS_CHIP_SX}
   />
 </Tooltip>
 
