@@ -1,8 +1,7 @@
 # Minabox installieren
 
-Diese Anleitung richtet sich an Endnutzer. Wer den Stack von Hand aufsetzen
-oder daran entwickeln will, findet den manuellen Weg in
-[DEPLOYMENT.md](DEPLOYMENT.md).
+Diese Anleitung richtet sich an Endnutzer. Sie fuehrt ueber den
+Installationsassistenten zum laufenden Stack.
 
 ## Was du brauchst
 

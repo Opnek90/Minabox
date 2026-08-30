@@ -61,7 +61,7 @@ EXPOSE ${API_PORT}
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:${API_PORT}/health || exit 1
 
-# -- Version (build args; docs/Versionierung.md) ------------------------------
+# -- Version (build args) ------------------------------
 # The defaults are deliberately "dev": a locally built image must not pass
 # itself off as a release. This block sits at the end of the file so that a
 # version change only invalidates the last metadata layers.

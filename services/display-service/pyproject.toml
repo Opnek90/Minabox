@@ -23,7 +23,7 @@ dependencies = [
 display-service = "display_service.main:main"
 
 # Die Version steht in der Datei VERSION - eine Quelle je Dienst
-# (docs/Versionierung.md). Frueher stand sie hier ein zweites Mal
+# Frueher stand sie hier ein zweites Mal
 # und war repo-weit veraltet.
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}

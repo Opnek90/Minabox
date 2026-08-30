@@ -1,7 +1,7 @@
 """Sound-test collector: opt-in only, and the one with a physical side effect.
 
-Runs the same chain as "Fix sound problem" (docs/services/Offene-Punkte.md
-1.7) and records what it found - including whether the test tone actually
+Runs the same chain as "Fix sound problem" and records what it found -
+including whether the test tone actually
 played. Everything else in the export only *reads* the box; this one makes it
 play a tone through the speaker, which is why it is admin-only and never part
 of a preset (see BLOCK_SOUND_TEST in framework.py).

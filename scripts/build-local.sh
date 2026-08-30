@@ -4,8 +4,7 @@
 #
 # Warum ein Skript und nicht "docker compose build": Compose kann keine Datei
 # als Build-Arg lesen. Ohne die Argumente traegt jedes lokal gebaute Image
-# 0.0.0-dev, und die Oberflaeche zeigt "Entwicklungsbuild" statt einer Nummer
-# (docs/Versionierung.md).
+# 0.0.0-dev, und die Oberflaeche zeigt "Entwicklungsbuild" statt einer Nummer.
 #
 #   ./scripts/build-local.sh                # alle Dienste
 #   ./scripts/build-local.sh backend webui  # nur diese
@@ -15,7 +14,7 @@
 #   1. ":latest" zu ueberschreiben wuerde den lokalen Verweis auf das echte
 #      Image aus der Registry verdecken.
 #   2. Nach einem Update ueber die Oberflaeche steht in der .env fuer jeden
-#      Dienst eine feste Version (docs/Versionierung.md). Compose zieht dann
+#      Dienst eine feste Version. Compose zieht dann
 #      genau die - ein lokal gebautes ":latest" wuerde nie benutzt, und man
 #      testet ahnungslos den alten Stand.
 #

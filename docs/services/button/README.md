@@ -5,9 +5,6 @@ normalised raw events, maps those to logical actions and publishes the result
 over MQTT. It never decides what an action *means* – `play_pause` is a name,
 and what happens next is the backend's and the audio service's business.
 
-Known weaknesses and what has already been done about them:
-[GoLive-Review.md](GoLive-Review.md).
-
 ---
 
 ## 1. Files
@@ -95,11 +92,11 @@ Timing constants are compiled in, not configurable:
 
 Because a `short_press` is only emitted once the double-press window has
 expired, **every short press is delayed by 400 ms** – including on buttons that
-have no `double_press` mapping at all. See GoLive-Review 1.5.
+have no `double_press` mapping at all.
 
 The cooldown is keyed on the *entry type*, not on the event type. An encoder's
 switch therefore inherits the rotary setting of 0 ms and gets no cooldown at
-all. See GoLive-Review 1.6.
+all.
 
 ---
 

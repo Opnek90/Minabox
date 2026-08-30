@@ -41,7 +41,7 @@ SERVICE_LABEL = "com.docker.compose.service"
 CONTAINER_NUMBER_LABEL = "com.docker.compose.container-number"
 ONEOFF_LABEL = "com.docker.compose.oneoff"
 
-# OCI labels our Dockerfiles set from build args (docs/Versionierung.md).
+# OCI labels our Dockerfiles set from build args.
 # eclipse-mosquitto ships them too, which is why the broker needs no special
 # case to report a version.
 VERSION_LABEL = "org.opencontainers.image.version"

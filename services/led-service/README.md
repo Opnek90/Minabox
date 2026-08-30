@@ -2,7 +2,7 @@
 
 GPIO-based LED control for Minabox. The service subscribes to MQTT events, derives logical states (e.g. `audio_playing`, `rfid_scanned`, `usage_denied`), and renders LED patterns based on `config/leds.json`.
 
-Detailed MQTT topic mapping, logical state derivation rules, and payload shapes are documented in [`docs/services/led/Architecture.md`](../../docs/services/led/Architecture.md).
+Detailed MQTT topic mapping, logical state derivation rules, and payload shapes are documented in [`docs/services/led/`](../../docs/services/led/README.md).
 
 ## REST API
 

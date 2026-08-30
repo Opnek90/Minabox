@@ -264,7 +264,7 @@ sound server.
 An unknown or non-enabled sink is answered with HTTP 400.
 
 `POST /api/v1/troubleshoot` is the check chain behind the WebUI's "Fix sound
-problem" button (`docs/services/Offene-Punkte.md` 1.7). It walks steps 2 to 6 —
+problem" button. It walks steps 2 to 6 —
 the sink, the stream, and the service's own volume and mute — repairs what it
 can repair safely, and plays the test tone last.
 

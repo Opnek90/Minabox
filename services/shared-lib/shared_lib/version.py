@@ -1,7 +1,7 @@
 """Build-time version information of the running service.
 
 The values come from environment variables that the Dockerfile sets from
-build args (see docs/Versionierung.md). A container built without those args -
+build args. A container built without those args -
 a local ``docker compose build`` during development - reports ``0.0.0-dev``.
 That is deliberate: an unversioned build should be recognisable as such rather
 than pretend to be a release.

@@ -73,8 +73,8 @@ WORKDIR /app
 # one-liner that briefly replaced it re-translated ssl, email and http.client
 # from source on every run - python:3.13-slim ships no stdlib bytecode and the
 # non-root container cannot write __pycache__ - which cost ~6 % of a core.
-# curl is one apt package, and the whole project standardises on it:
-# docs/Entwicklungs-Workflow.md, "Container-Healthcheck".
+# curl is one apt package, and the whole project standardises on it for the
+# container health check.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
     && rm -rf /var/lib/apt/lists/*
@@ -107,7 +107,7 @@ ENV PYTHONPATH=/app/src \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# -- Version (build args; docs/Versionierung.md) ------------------------------
+# -- Version (build args) ------------------------------
 # The defaults are deliberately "dev": a locally built image must not pass
 # itself off as a release. The block sits at the end of the file so that a
 # version change only invalidates the last metadata layers.

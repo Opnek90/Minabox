@@ -1,6 +1,6 @@
 """A service that calls itself degraded has to reach the service overview.
 
-From docs/services/Offene-Punkte.md 1.2: five services (audio, rfid, button,
+From a real fault: five services (audio, rfid, button,
 display, led) answer /health with a status of their own, and nothing ever
 looked at it. The container health check asks only whether the endpoint
 answers with 2xx - and a degraded service answers 2xx on purpose, so a lost

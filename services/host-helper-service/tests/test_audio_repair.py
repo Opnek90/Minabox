@@ -1,4 +1,4 @@
-"""Reading the host's sound card and mixer (docs/services/Offene-Punkte.md 1.7).
+"""Reading the host's sound card and mixer.
 
 Steps 1 and 7 of the sound-repair chain. Everything here is parsing of real
 `/proc/asound/cards` and `amixer` output, taken off a Raspberry Pi with a

@@ -57,7 +57,7 @@ function delay(ms: number): Promise<void> {
 export const apiClient = axios.create({
   baseURL: '/api/v1',
   // Enough for every plain JSON call. Uploads and host actions set their own
-  // value from TIMEOUT above; see docs/services/webui/Architecture.md.
+  // value from TIMEOUT above.
   timeout: 15_000,
   withCredentials: true,
   headers: {

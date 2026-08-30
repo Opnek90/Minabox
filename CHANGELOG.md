@@ -1,8 +1,7 @@
 # Changelog
 
-Aenderungen je Dienst. Jeder Dienst hat seine eigene Versionsnummer
-([docs/Versionierung.md](docs/Versionierung.md)), also auch seine eigene
-Liste.
+Aenderungen je Dienst. Jeder Dienst hat seine eigene Versionsnummer, also
+auch seine eigene Liste.
 
 Die englische Fassung steht in [CHANGELOG.en.md](CHANGELOG.en.md). Beide
 Dateien haben denselben Aufbau; aus ihnen entsteht das Release-Manifest, das

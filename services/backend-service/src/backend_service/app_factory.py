@@ -75,7 +75,7 @@ class BackendService:
 
         # Older code on a newer database: it starts anyway, so the box stays
         # diagnosable - but the notice bar says so unmissably rather than
-        # letting data quietly count as lost (docs/Versionierung.md).
+        # letting data quietly count as lost.
         if self._db.schema_state.get("status") == "too_new":
             set_alert("db_schema_newer", "error", "alerts.db_schema_newer")
 

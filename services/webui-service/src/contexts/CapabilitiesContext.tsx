@@ -12,8 +12,7 @@ import {
  *
  * Quelle ist `GET /system/capabilities` (Backend liest `COMPOSE_PROFILES`).
  * Die WebUI blendet Navigation, Einstellungen und Aktionen fuer nicht
- * installierte Komponenten aus - siehe
- * docs/services/webui/Component-Capabilities.md.
+ * installierte Komponenten aus.
  *
  * **Fail-open an zwei Stellen:** Solange noch nichts geladen ist und wenn der
  * Abruf scheitert, gilt alles als installiert. Ein Feature darf nie wegen eines

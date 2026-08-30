@@ -472,7 +472,7 @@ Dienst-Eintrag in `ServiceStatus`, der `offline` meldet.
 `http://<box>:8080/api/system/debug-export` im Browser aufrufen: laedt das Paket mit den
 Standardoptionen herunter. Das ist der Grund, warum die Route ohne Login funktioniert – hier
 zahlt sich die Entscheidung aus Abschnitt 4.5 aus. **Nicht geheim, sondern dokumentiert** in
-`README`/`DEPLOYMENT.md` und in der Support-Vorlage. Unbedenklich, weil der Aufruf keine
+der Projekt-Doku und in der Support-Vorlage. Unbedenklich, weil der Aufruf keine
 Nebenwirkung hat und eine fremde Website die Antwort wegen CORS nicht auslesen kann.
 
 **Deep-Link fuer den Support.** Das Nuetzliche an der `/debug`-Idee ist nicht die Verborgenheit,

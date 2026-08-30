@@ -1,7 +1,7 @@
 """The sound-repair chain behind the "Fix sound problem" button.
 
-docs/services/Offene-Punkte.md 1.7. Two properties matter more than the
-individual steps, and both are easy to lose in a later edit:
+Two properties matter more than the individual steps, and both are easy to
+lose in a later edit:
 
 - **Idempotent.** The UI offers the button again after a "no, still nothing",
   so a second run must not undo the first one's work.

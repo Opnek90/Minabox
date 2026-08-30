@@ -34,7 +34,7 @@ Relevant path: `services/display-service/`
 display-service/
 ├── Dockerfile                  # Two-stage build on python:3.13-slim
 ├── requirements.txt            # FastAPI, uvicorn, pydantic, aiomqtt, structlog, httpx, luma.oled, Pillow
-├── VERSION                     # Own version number (docs/Versionierung.md)
+├── VERSION                     # Own version number
 ├── tests/                      # 272 tests, no hardware needed
 │   ├── display_test_doubles.py # FakePanel
 │   ├── conftest.py             # A service wired to neither panel nor broker
@@ -112,9 +112,9 @@ picking its own sizes for what it has to say.
 | network | the fallback hotspot is up, or there is no network | SSID, password, URL — or "Kein Netz" |
 | test pattern | `POST /test` | two lines of text |
 
-What replaced the grid, and why, is in [Redesign.md](Redesign.md). The short
-version: 128x64 lets you show *one* thing large or nine things unreadably, and
-the grid chose nine.
+Why the grid went: 128x64 lets you show *one* thing large or nine things
+unreadably, and the grid chose nine. The render layer now produces one finished
+frame at a time instead of tiling widgets.
 
 ### Fonts
 
@@ -306,8 +306,8 @@ An error is worth a mark and not a screen. `audio/error` and
 anyone looks, a full screen would displace Knuffel for minutes, and the flag
 expires by itself precisely because nothing tells this service whether the
 thing is still wrong - a screen would claim more certainty than there is. The
-one error that would deserve a screen is a box that cannot make sound at all
-([Offene-Punkte 1.5](../Offene-Punkte.md)), and nothing publishes that yet.
+one error that would deserve a screen is a box that cannot make sound at all,
+and nothing publishes that yet.
 
 Knuffel keeps out of the strip rather than walking under it: on a one-bit panel
 two lit shapes simply merge. `set_reserved()` narrows his range and walks him
@@ -348,9 +348,9 @@ seconds; see the priority table above.
 ### The volume overlay
 
 A volume or mute change takes the whole panel for `HUD_SECONDS` (1.5 s) and then
-hands it back. It is the first screen built the way
-[Redesign.md](Redesign.md) describes: `render/volume.py` produces a finished
-128x64 frame and `show_image()` pushes it, bypassing the widget grid entirely.
+hands it back. It is the first screen built the new way: `render/volume.py`
+produces a finished 128x64 frame and `show_image()` pushes it, bypassing the
+widget grid entirely.
 
 Three details make it behave:
 
@@ -627,8 +627,7 @@ probe, as the LED and button images did, saves 14.5 MB but costs 6 % of a CPU
 core: `python:3.13-slim` ships no compiled bytecode for the standard library and
 this container runs unprivileged against root-owned directories, so every probe
 recompiles `ssl`, `email` and `http.client` from source — 2.13 s of CPU against
-0.052 s, every 30 seconds. See
-[Offene-Punkte 1.4](../Offene-Punkte.md) and the go-live review.
+0.052 s, every 30 seconds.
 
 Shutdown is handled on `SIGTERM`/`SIGINT`: the API server stops, the MQTT loop
 and the three background loops are cancelled and awaited, then the panel is

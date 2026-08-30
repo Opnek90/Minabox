@@ -52,7 +52,7 @@ WORKDIR /app
 # bytecode for the standard library, and this container runs unprivileged
 # against root-owned directories, so every probe recompiles ssl, email and
 # http.client from source - 2.13 s of CPU versus 0.052 s for curl, every 30
-# seconds, forever. See docs/services/display/GoLive-Review.md section 5.
+# seconds, forever.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     fonts-dejavu-core \
@@ -85,7 +85,7 @@ ENV PYTHONPATH=/app/src \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# -- Version (build args; docs/Versionierung.md) ------------------------------
+# -- Version (build args) ------------------------------
 # The defaults are deliberately "dev": a locally built image must not pass
 # itself off as a release. The block sits at the end of the file so that a
 # version change only invalidates the last metadata layers.

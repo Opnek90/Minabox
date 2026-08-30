@@ -1,8 +1,7 @@
 # Changelog
 
-Changes per service. Every service carries its own version number
-([docs/Versionierung.md](docs/Versionierung.md)), so it also carries its own
-list.
+Changes per service. Every service carries its own version number, so it also
+carries its own list.
 
 The German version lives in [CHANGELOG.md](CHANGELOG.md). Both files share the
 same structure; the release manifest the box reads during an update check is

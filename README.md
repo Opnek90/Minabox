@@ -1,5 +1,15 @@
 # Minabox
 
-Minabox is an experimental project for building a physical media box with audio playback, buttons, RFID, LEDs, and a display.
+Minabox is an alternative to the Toniebox: a child-friendly audio player with
+RFID control, built from small services that run in Docker on a Raspberry Pi —
+audio playback, buttons, RFID, status LEDs and a small display.
 
-> **Status: Under active development — not ready for use.**
+> **Status:** in active development; the first public release is close.
+
+## Getting started
+
+- **Install:** [docs/INSTALLATION.md](docs/INSTALLATION.md) — set Minabox up on
+  a Raspberry Pi with the guided installer.
+- **Documentation:** [docs/](docs/README.md) — architecture per service,
+  troubleshooting, diagnostics.
+- **Changes:** [CHANGELOG.md](CHANGELOG.md) (English: [CHANGELOG.en.md](CHANGELOG.en.md)).
