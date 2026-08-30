@@ -6,6 +6,7 @@ import {
   type FeatureCapability,
   type FeatureKey,
 } from '@/api/capabilities';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 /**
  * Welche optionalen Komponenten diese Box hat.
@@ -24,7 +25,7 @@ import {
  * Feature einmal ausblenden.
  */
 
-const STORAGE_KEY = 'minabox.capabilities';
+const STORAGE_KEY = STORAGE_KEYS.CAPABILITIES;
 
 const ALL_INSTALLED: CapabilitiesResponse = FEATURE_KEYS.reduce((acc, key) => {
   acc[key] = { installed: true, running: true, healthy: true };

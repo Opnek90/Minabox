@@ -42,7 +42,10 @@ RUN rm -f /etc/nginx/nginx.conf
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/security-headers.conf /etc/nginx/security-headers.conf
 
-# Copy built React app
+# Copy built React app. Das Basis-Image legt eine index.html und eine 50x.html
+# in denselben Ordner; COPY ueberschreibt nur die index.html, die 50x.html
+# blieb als fremde Datei im Web-Root liegen und war ueber /50x.html abrufbar.
+RUN rm -rf /usr/share/nginx/html
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
