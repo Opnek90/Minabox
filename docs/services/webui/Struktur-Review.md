@@ -355,7 +355,21 @@ Ein `useObjectUrl(file)`-Hook loest alle sechs.
 `busy(addr)` wieder zusammen. Ein `busy: { address, action } | null` sagt
 dasselbe und macht die Absicht sichtbar.
 
-### 6.7 Doppelte Geraeteabfrage
+### 6.7 Ein Knopf, der nichts tut
+
+`AuthSection.tsx:200` – der Knopf „Passwort festlegen" bzw. „Passwort aendern"
+liegt in einem `<Box component="form" onSubmit={handleSetPassword}>`, traegt
+aber `onClick={() => {}}` und kein `type="submit"`. MUI rendert ohne `type` ein
+`type="button"`, das ein Formular nicht abschickt – und weil das Formular drei
+Eingabefelder hat, greift auch die implizite Absendung per Enter nicht.
+`handleSetPassword` lief damit nie: das WebUI-Passwort liess sich ueber die
+Einstellungen ueberhaupt nicht setzen oder aendern.
+
+`PasswordDialog.tsx:68` macht es zwei Dateien weiter richtig (`type="submit"`).
+Gefunden erst beim Umsetzen von Schritt 1 – die statische Durchsicht hatte den
+leeren `onClick` gesehen, aber nicht zu Ende gedacht.
+
+### 6.8 Doppelte Geraeteabfrage
 
 `AudioConfigForm` laedt die Ausgabegeraete in einem `useEffect` **und** in
 `handleRefreshDevices` – sechs identische Zeilen zweimal. Das `useEffect`
@@ -373,10 +387,14 @@ haengt zudem an `[config]`, sodass jedes Speichern die Geraeteliste neu holt.
 | `components/media/FolderList.tsx` | 47 | nirgends importiert |
 | **Summe** | **288** | |
 
-Dazu drei nie aufgerufene API-Funktionen: `playlistsApi.reorderTracks`,
-`playlistsApi.removeTrack`, `resetAuth`. `PlaylistTracksDialog` sortiert ueber
-`update({ track_ids })` statt ueber `reorderTracks` – eine der beiden Wege
+Dazu zwei nie aufgerufene API-Funktionen: `playlistsApi.reorderTracks` und
+`playlistsApi.removeTrack`. `PlaylistTracksDialog` sortiert ueber
+`update({ track_ids })` statt ueber `reorderTracks` – einer der beiden Wege
 gehoert weg.
+
+> **Korrektur (2026-08-30):** In der ersten Fassung stand hier auch `resetAuth`.
+> Das war falsch – `AuthSection.tsx:125` ruft es auf. Die Suche hatte nur nach
+> `.resetAuth(` gesucht und den freistehenden Aufruf uebersehen.
 
 Und ein Ausblick, der nie eingetreten ist: `AddToPlaylistDialog` nimmt
 `track: Track | Stream`, wird aber ausschliesslich mit `Track` aufgerufen. Der
