@@ -35,7 +35,6 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
-import SaveIcon from '@mui/icons-material/Save';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import { useTranslation } from 'react-i18next';
@@ -43,6 +42,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { configApi } from '@/api/config';
 import type { LEDConfig, LED, LEDPattern, LEDPatternType } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
+import { UnsavedChangesBar } from '@/components/admin/UnsavedChangesBar';
 
 
 export const LEDConfigPanel: React.FC = () => {
@@ -51,6 +51,8 @@ export const LEDConfigPanel: React.FC = () => {
   const isSmall = useLayout().isMobile;
 
   const [config, setConfig] = useState<LEDConfig | null>(null);
+  // Siehe ButtonConfigPanel: der zuletzt bestaetigte Serverstand.
+  const [savedConfig, setSavedConfig] = useState<LEDConfig | null>(null);
   const [ledStates, setLedStates] = useState<string[]>([]);
   const [ledPatterns, setLedPatterns] = useState<LEDPatternType[]>([]);
   const [saving, setSaving] = useState(false);
@@ -71,7 +73,13 @@ export const LEDConfigPanel: React.FC = () => {
   );
 
   useEffect(() => {
-    configApi.getLeds().then(setConfig).catch(() => setError(t('load_error')));
+    configApi
+      .getLeds()
+      .then((data) => {
+        setConfig(data);
+        setSavedConfig(data);
+      })
+      .catch(() => setError(t('load_error')));
     configApi.getLedStates().then(setLedStates).catch(() => {});
     configApi.getLedPatterns().then(setLedPatterns).catch(() => {});
   }, []);
@@ -82,6 +90,7 @@ export const LEDConfigPanel: React.FC = () => {
     try {
       const updated = await configApi.updateLeds(config);
       setConfig(updated);
+      setSavedConfig(updated);
       showSuccess(t('leds.save_success'));
     } catch {
       showError(t('leds.save_error'));
@@ -192,6 +201,8 @@ export const LEDConfigPanel: React.FC = () => {
     return error ? <Alert severity="error">{error}</Alert> : null;
   }
 
+  const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+
   const availableStates = ledStates.filter((s) => !(s in bindingsForm));
 
   // ── Shared action buttons renderer ────────────────────────────────────
@@ -236,12 +247,16 @@ export const LEDConfigPanel: React.FC = () => {
 
   return (
     <Box>
+      <UnsavedChangesBar
+        dirty={dirty}
+        saving={saving}
+        onSave={handleSave}
+        onDiscard={() => setConfig(savedConfig)}
+      />
+
       <Box display="flex" alignItems="center" gap={2} mb={2}>
         <Button variant="outlined" startIcon={<AddIcon />} onClick={openAddLed}>
           {t('leds.add_led')}
-        </Button>
-        <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
-          {t('save', { ns: 'common' })}
         </Button>
       </Box>
 
@@ -514,7 +529,7 @@ export const LEDConfigPanel: React.FC = () => {
               </Button>
             ) : (
               <Button variant="contained" onClick={handleSaveLedDialog} disabled={!isStep0Valid}>
-                {t('save', { ns: 'common' })}
+                {t('actions.apply', { ns: 'common' })}
               </Button>
             )}
           </Box>

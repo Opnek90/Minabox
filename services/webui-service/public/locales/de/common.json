@@ -65,7 +65,9 @@
     "search": "Suchen",
     "refresh": "Aktualisieren",
     "loading": "Wird geladen...",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "apply": "Übernehmen",
+    "discard": "Verwerfen"
   },
   "status": {
     "online": "Online",
@@ -136,5 +138,9 @@
     "unknown": "Unbekannter Fehler",
     "retry": "Erneut versuchen"
   },
-  "debug_export": "Diagnose-Paket erstellen"
+  "debug_export": "Diagnose-Paket erstellen",
+  "unsaved": {
+    "title": "Nicht gespeicherte Änderungen",
+    "hint": "Die Änderungen stehen nur in dieser Ansicht. Erst „Speichern\" schickt sie an die Box."
+  }
 }

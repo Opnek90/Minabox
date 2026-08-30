@@ -32,7 +32,6 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import ScienceIcon from '@mui/icons-material/Science';
-import SaveIcon from '@mui/icons-material/Save';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import { useTranslation } from 'react-i18next';
@@ -41,6 +40,7 @@ import { configApi } from '@/api/config';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 import type { ButtonConfig, Button as ButtonType, ButtonRawEventMessage } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
+import { UnsavedChangesBar } from '@/components/admin/UnsavedChangesBar';
 
 
 export const ButtonConfigPanel: React.FC = () => {
@@ -49,6 +49,9 @@ export const ButtonConfigPanel: React.FC = () => {
   const isSmall = useLayout().isMobile;
 
   const [config, setConfig] = useState<ButtonConfig | null>(null);
+  // Der zuletzt vom Server bestaetigte Stand. Alles, was davon abweicht, steht
+  // nur in dieser Ansicht - die Leiste oben sagt das und traegt das Speichern.
+  const [savedConfig, setSavedConfig] = useState<ButtonConfig | null>(null);
   const [buttonActions, setButtonActions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +78,13 @@ export const ButtonConfigPanel: React.FC = () => {
   );
 
   useEffect(() => {
-    configApi.getButtons().then(setConfig).catch(() => setError(t('load_error')));
+    configApi
+      .getButtons()
+      .then((data) => {
+        setConfig(data);
+        setSavedConfig(data);
+      })
+      .catch(() => setError(t('load_error')));
     configApi.getButtonActions().then(setButtonActions).catch(() => {});
   }, []);
 
@@ -101,6 +110,7 @@ export const ButtonConfigPanel: React.FC = () => {
     try {
       const updated = await configApi.updateButtons(config);
       setConfig(updated);
+      setSavedConfig(updated);
       showSuccess(t('buttons.save_success'));
     } catch (err) {
       // The backend rejects a config the button service could not load, and
@@ -228,6 +238,8 @@ export const ButtonConfigPanel: React.FC = () => {
     return error ? <Alert severity="error">{error}</Alert> : null;
   }
 
+  const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+
   const advancedEvents =
     formType === 'rotary'
       ? (['rotate_cw', 'rotate_ccw', 'press'] as const)
@@ -264,17 +276,16 @@ export const ButtonConfigPanel: React.FC = () => {
 
   return (
     <Box>
+      <UnsavedChangesBar
+        dirty={dirty}
+        saving={saving}
+        onSave={handleSave}
+        onDiscard={() => setConfig(savedConfig)}
+      />
+
       <Box display="flex" alignItems="center" gap={2} mb={2}>
         <Button variant="outlined" startIcon={<AddIcon />} onClick={openAddButton}>
           {t('buttons.add_button')}
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<SaveIcon />}
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {t('save', { ns: 'common' })}
         </Button>
       </Box>
 
@@ -527,7 +538,7 @@ export const ButtonConfigPanel: React.FC = () => {
               </Button>
             ) : (
               <Button variant="contained" onClick={handleSaveButtonDialog} disabled={!isStep1Valid}>
-                {t('save', { ns: 'common' })}
+                {t('actions.apply', { ns: 'common' })}
               </Button>
             )}
           </Box>

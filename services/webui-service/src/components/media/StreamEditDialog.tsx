@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Button,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -11,6 +10,8 @@ import { useToast } from '@/contexts/ToastContext';
 import type { Stream } from '@/types/api';
 import { streamsApi } from '@/api/streams';
 import { isValidUrl } from '@/utils/validators';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from './CoverUploadField';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
@@ -18,14 +19,23 @@ interface StreamEditDialogProps {
   open: boolean;
   stream: Stream | null;
   onClose: () => void;
-  onSuccess: (stream: Stream) => void;
+  /** Saved and done - the caller closes the dialog. */
+  onSaved: (stream: Stream) => void;
+  /**
+   * The stream changed while the dialog stays open (the cover was deleted,
+   * which happens immediately). Separate from `onSaved` because both used to
+   * be the same callback: removing a cover therefore closed the dialog and
+   * threw away an edited title along with it.
+   */
+  onChanged: (stream: Stream) => void;
 }
 
 export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
   open,
   stream,
   onClose,
-  onSuccess,
+  onSaved,
+  onChanged,
 }) => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
@@ -33,7 +43,6 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
   const [title, setTitle] = useState(stream?.title ?? '');
   const [artist, setArtist] = useState(stream?.artist ?? '');
   const [sourceUri, setSourceUri] = useState(stream?.source_uri ?? '');
-  const [coverUrl, setCoverUrl] = useState<string | null>(stream?.cover_art_url ?? null);
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -42,10 +51,16 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
       setTitle(stream.title);
       setArtist(stream.artist ?? '');
       setSourceUri(stream.source_uri);
-      setCoverUrl(stream.cover_art_url ?? null);
       setPendingCoverFile(null);
     }
   }, [stream, open]);
+
+  // A picked file wins over what the server has; once it is uploaded or
+  // dropped, the prop is the truth again. No third piece of state in between -
+  // the previous `coverUrl` shadowed the prop and had to be kept in sync by
+  // hand at four call sites.
+  const pendingPreview = useObjectUrl(pendingCoverFile);
+  const displayCoverUrl = pendingPreview ?? stream?.cover_art_url ?? null;
 
   const urlError = sourceUri && !isValidUrl(sourceUri) ? t('invalid_url', { ns: 'errors' }) : '';
   const isValid = title.trim() && sourceUri && isValidUrl(sourceUri);
@@ -62,9 +77,8 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
       if (pendingCoverFile) {
         updated = await streamsApi.uploadCover(stream.id, pendingCoverFile);
       }
-      onSuccess(updated);
       showSuccess(t('streams.updated'));
-      onClose();
+      onSaved(updated);
     } catch {
       showError(t('streams.update_error'));
     } finally {
@@ -73,39 +87,21 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
   };
 
   const handleRemoveCover = async () => {
-    if (!stream) return;
-    setCoverUrl(null);
-    setPendingCoverFile(null);
+    // A file that was only picked has not been uploaded yet - dropping it needs
+    // no request and leaves the stored cover alone.
+    if (pendingCoverFile) {
+      setPendingCoverFile(null);
+      return;
+    }
+    if (!stream?.cover_art_url) return;
     try {
       const updated = await streamsApi.deleteCover(stream.id);
-      setCoverUrl(updated.cover_art_url ?? null);
-      onSuccess(updated);
+      onChanged(updated);
       showSuccess(t('streams.cover_removed'));
     } catch {
       showError(t('streams.cover_error'));
     }
   };
-
-  const handleCoverSelect = (file: File | null) => {
-    if (file) {
-      setPendingCoverFile(file);
-      setCoverUrl(URL.createObjectURL(file));
-    } else {
-      setPendingCoverFile(null);
-      setCoverUrl(stream?.cover_art_url ?? null);
-    }
-  };
-
-  const handleRemoveCoverInField = () => {
-    if (pendingCoverFile) {
-      setPendingCoverFile(null);
-      setCoverUrl(stream?.cover_art_url ?? null);
-    } else {
-      handleRemoveCover();
-    }
-  };
-
-  const displayCoverUrl = pendingCoverFile ? coverUrl : (coverUrl ?? stream?.cover_art_url ?? null);
 
   return (
     <ResponsiveDialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -116,8 +112,8 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
         <CoverUploadField
           displayUrl={displayCoverUrl}
           coverFile={pendingCoverFile}
-          onFileSelect={handleCoverSelect}
-          onRemove={handleRemoveCoverInField}
+          onFileSelect={setPendingCoverFile}
+          onRemove={handleRemoveCover}
         />
 
         <TextField
@@ -148,10 +144,17 @@ export const StreamEditDialog: React.FC<StreamEditDialogProps> = ({
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t('cancel', { ns: 'common' })}</Button>
-        <Button onClick={handleSave} variant="contained" disabled={!isValid || loading}>
+        <ActionButton actionType="secondary" onClick={onClose}>
+          {t('cancel', { ns: 'common' })}
+        </ActionButton>
+        <ActionButton
+          actionType="primary"
+          onClick={handleSave}
+          loading={loading}
+          disabled={!isValid || loading}
+        >
           {t('save', { ns: 'common' })}
-        </Button>
+        </ActionButton>
       </DialogActions>
     </ResponsiveDialog>
   );

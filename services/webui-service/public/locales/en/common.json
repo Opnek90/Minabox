@@ -65,7 +65,9 @@
     "search": "Search",
     "refresh": "Refresh",
     "loading": "Loading...",
-    "retry": "Retry"
+    "retry": "Retry",
+    "apply": "Apply",
+    "discard": "Discard"
   },
   "status": {
     "online": "Online",
@@ -136,5 +138,9 @@
     "unknown": "Unknown error",
     "retry": "Try again"
   },
-  "debug_export": "Create diagnostics package"
+  "debug_export": "Create diagnostics package",
+  "unsaved": {
+    "title": "Unsaved changes",
+    "hint": "The changes exist only in this view. Only “Save” sends them to the box."
+  }
 }

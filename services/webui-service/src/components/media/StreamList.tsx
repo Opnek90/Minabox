@@ -684,11 +684,14 @@ export const StreamList: React.FC<StreamListProps> = ({
       {MoveMenu}
       {mobileActionsMenu}
 
+      {/* onChanged statt onSaved beim Cover-Loeschen: Liste nachziehen, aber
+          auch den offenen Dialog, sonst zeigte er weiter das entfernte Bild. */}
       <StreamEditDialog
         open={!!streamToEdit}
         stream={streamToEdit}
         onClose={() => setStreamToEdit(null)}
-        onSuccess={(updated) => { onUpdate(updated); setStreamToEdit(null); }}
+        onSaved={(updated) => { onUpdate(updated); setStreamToEdit(null); }}
+        onChanged={(updated) => { onUpdate(updated); setStreamToEdit(updated); }}
       />
     </Box>
   );
