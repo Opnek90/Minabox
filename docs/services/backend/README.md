@@ -656,7 +656,7 @@ container already known to be down has nothing to add and would only spend
 service.
 
 `core/update_check.py` compares the running versions against
-`release-manifest.json` in the repository. Two rules shape it:
+`release/release-manifest.json` in the repository. Two rules shape it:
 
 - **No network never means "update available".** If the fetch fails, the last
   known state is shown together with the error — never an update nobody could

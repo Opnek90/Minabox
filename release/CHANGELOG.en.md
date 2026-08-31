@@ -21,6 +21,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.11 - 2026-08-31
+
+#### Improved
+- The update check now reads the release manifest from the new `release/`
+  folder in the repository.
+
 ### 0.2.10 - 2026-08-30
 
 #### Improved

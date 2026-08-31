@@ -135,8 +135,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.10",
+      "latest": "0.2.11",
       "releases": [
+        {
+          "version": "0.2.11",
+          "date": "2026-08-31",
+          "notes": {
+            "improved": {
+              "de": [
+                "Der Update-Check liest das Release-Manifest jetzt aus dem neuen Ordner `release/` im Repository."
+              ],
+              "en": [
+                "The update check now reads the release manifest from the new `release/` folder in the repository."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.10",
           "date": "2026-08-30",

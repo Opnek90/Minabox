@@ -1,6 +1,6 @@
 """Compares the running service versions against the published ones.
 
-The source is `release-manifest.json` in the repository:
+The source is `release/release-manifest.json` in the repository:
 one file, one request, per service the current version and the release notes in
 both languages.
 
@@ -35,7 +35,7 @@ from backend_service.core.system_alerts import clear_alert, set_alert
 logger = structlog.get_logger(__name__)
 
 DEFAULT_MANIFEST_URL = (
-    "https://raw.githubusercontent.com/Opnek90/Minabox/main/release-manifest.json"
+    "https://raw.githubusercontent.com/Opnek90/Minabox/main/release/release-manifest.json"
 )
 DEFAULT_REGISTRY = "ghcr.io/opnek90"
 
