@@ -21,6 +21,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.12 - 2026-08-31
+
+#### Improved
+- The headers of the filtered log files in the diagnostics package are now in
+  English.
+
 ### 0.2.11 - 2026-08-31
 
 #### Improved

@@ -113,28 +113,28 @@ def test_nothing_is_dropped_when_it_fits():
 def test_header_reports_period_and_dropped_count():
     rendered = logfilter.render_filtered_log(_noisy_log(), 100, source="journalctl kernel")
     header = rendered.split("\n#\n")[0]
-    assert "Abgedeckter Zeitraum" in header
+    assert "Period covered" in header
     assert "2026-08-18T09:00:01+0200" in header
-    assert "verworfen" in header
+    assert "dropped" in header
     assert "journalctl kernel" in header
 
 
 def test_header_warns_against_reading_absence_as_evidence():
     rendered = logfilter.render_filtered_log(_noisy_log(), 100)
-    assert "kein Beleg" in rendered.split("\n#\n")[0]
+    assert "is not evidence that the problem did not occur" in rendered
 
 
 def test_header_handles_unparseable_timestamps():
     result = logfilter.filter_log_lines(["no timestamp here", "nor here"], limit=1)
     header = logfilter.build_header(result)
-    assert "unbekannt" in header
+    assert "unknown" in header
 
 
 def test_truncated_container_log_gets_a_header():
     text = "\n".join(f"2026-08-18T10:00:{i % 60:02d}+0200 line {i}" for i in range(500))
     rendered = logfilter.render_truncated_text(text, 100, source="container audio")
-    assert rendered.startswith("# Quelle: container audio")
-    assert "400 verworfen" in rendered
+    assert rendered.startswith("# Source: container audio")
+    assert "400 dropped" in rendered
     assert rendered.rstrip().endswith("line 499")
 
 
