@@ -1,54 +1,37 @@
 # RFID Service
 
-Hardware abstraction and MQTT publisher for RFID tags in Minabox. The RFID service reads tags via a configured reader (real PN532 or a mock), publishes tag events to MQTT, and supports a Backend-driven learning mode.
+Hardware layer for the RFID reader: it reads card UIDs and publishes placement
+and removal as MQTT events. It does not know what a card means — the backend
+owns that.
 
-For the full interface/flow details (MQTT topics, payload shapes, and mode behavior), see [`docs/services/rfid/`](../../docs/services/rfid/README.md).
+**Full documentation: [docs/services/rfid/](../../docs/services/rfid/README.md)**
 
-## REST API
-
-Service root endpoint:
-- `GET /health`
-
-Learning mode is controlled through the Backend:
-- `POST /api/v1/rfid/learning-mode` (Backend publishes to `minabox/<id>/rfid/cmd/set-mode`)
-
-## MQTT Topics
-
-Topic prefix pattern:
-- `minabox/<device-id>/...`
-
-Published events:
-- `.../rfid/tag-scanned` (payload: `{ tag_id, reader_id, timestamp }`)
-- `.../rfid/tag-scanned-learning` (payload: `{ tag_id, reader_id, timestamp }`)
-- `.../rfid/tag-removed` (payload: `{ tag_id, reader_id, timestamp }`)
-- `.../rfid/presence` (retained; payload: `{ tag_present, tag_id, reader_id, timestamp }`)
-- `.../rfid/status` (retained; payload includes `{ state, reader_id, error, timestamp }`)
-
-Commands (subscribe):
-- `.../rfid/cmd/set-mode` (payload: `{ "mode": "normal" | "learning" }`)
-
-General config (subscribe for runtime log level):
-- `.../config/general` (MQTT payload includes `log_level`)
-
-## Configuration
-
-Main config file: `config/rfid.json`
-
-Every timing and threshold lives in this file; the service hard-codes none of
-them. It is read at startup, so changes take effect on the next container
-restart. The full table is in the architecture document; the ones you are most
-likely to touch:
-
-- `reader.reader_type`: `"pn532"` or `"mock"`
-- `reader.interface`: `"i2c"`, `"spi"`, or `"uart"`
-- `reader.scan_interval_ms`: scan loop interval
-- `reader.duplicate_suppression_ms`: suppression window for repeated scans of the same tag
-- `reader.removal_debounce_reads`: empty reads required before a tag counts as removed
-- `modes.learning_timeout_s`: idle seconds before learning mode reverts to normal
+| | |
+| --- | --- |
+| Image | `ghcr.io/opnek90/minabox-rfid` |
+| Version | see `VERSION` |
+| Compose | `rfid` (profile `rfid`) |
+| Interfaces | publishes `rfid/tag-scanned`, `tag-removed`, retained `presence` and `status`; subscribes `rfid/cmd/set-mode`; `GET /health` |
+| Config | `config/rfid.json` (read once at startup) |
 
 ## Tests
 
 ```bash
-PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') python -m pytest services/rfid-service/tests -q
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest services/rfid-service/tests -q
 ```
 
+No hardware needed. For running the service itself without a reader, set
+`reader_type: "mock"` in `config/rfid.json`.
+
+## Where to make changes
+
+- `src/rfid_service/core/rfid_manager.py` — scan loop, modes, debounce,
+  duplicate suppression, every MQTT publish. Almost all behaviour is here.
+- `src/rfid_service/infrastructure/hardware/` — reader implementations behind
+  the `RFIDReader` interface; add a new reader type in `reader_factory.py`.
+- `src/rfid_service/config_schema.py` — every tunable value. Nothing in the
+  logic is hard-coded; new timings belong here.
+- `src/rfid_service/models/schemas.py` — the MQTT payloads.
+
+Section 9 of the architecture document maps common changes to files and lists
+the invariants a change must not break.
