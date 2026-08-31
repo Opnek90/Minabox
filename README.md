@@ -12,4 +12,4 @@ audio playback, buttons, RFID, status LEDs and a small display.
   a Raspberry Pi with the guided installer.
 - **Documentation:** [docs/](docs/README.md) — architecture per service,
   troubleshooting, diagnostics.
-- **Changes:** [CHANGELOG.md](CHANGELOG.md) (English: [CHANGELOG.en.md](CHANGELOG.en.md)).
+- **Changes:** [release/CHANGELOG.md](release/CHANGELOG.md) (English: [release/CHANGELOG.en.md](release/CHANGELOG.en.md)).

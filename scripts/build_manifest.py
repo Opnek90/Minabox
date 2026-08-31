@@ -10,8 +10,8 @@ Dienst passt "ein Release = eine Version" nicht mehr.
 Neun Dienste bewegen sich unabhaengig; die Box soll trotzdem *einen* Abruf
 machen.
 
-    python3 scripts/build_manifest.py            # schreibt release-manifest.json
-    python3 scripts/build_manifest.py --check    # prueft nur, ob es aktuell ist
+    python3 scripts/build_manifest.py          # schreibt release/release-manifest.json
+    python3 scripts/build_manifest.py --check  # prueft nur, ob es aktuell ist
 """
 
 from __future__ import annotations
@@ -25,12 +25,12 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 SERVICES_DIR = ROOT / "services"
-MANIFEST = ROOT / "release-manifest.json"
+MANIFEST = ROOT / "release" / "release-manifest.json"
 
 # Sprache -> (Changelog-Datei, erlaubte Abschnittsueberschriften)
 LANGUAGES: dict[str, tuple[str, tuple[str, ...]]] = {
-    "de": ("CHANGELOG.md", ("Neu", "Verbessert", "Behoben")),
-    "en": ("CHANGELOG.en.md", ("Added", "Improved", "Fixed")),
+    "de": ("release/CHANGELOG.md", ("Neu", "Verbessert", "Behoben")),
+    "en": ("release/CHANGELOG.en.md", ("Added", "Improved", "Fixed")),
 }
 
 # Die Abschnitte stehen in beiden Sprachen in derselben Reihenfolge; darueber
@@ -164,16 +164,17 @@ def build() -> dict[str, Any]:
 
         # Die aktuelle Version muss beschrieben sein, sonst laeuft ein Update
         # ohne ein Wort Erklaerung durch.
+        de_file, en_file = LANGUAGES["de"][0], LANGUAGES["en"][0]
         if version not in entries:
             problems.append(
-                f"CHANGELOG.md: {service} {version} fehlt "
+                f"{de_file}: {service} {version} fehlt "
                 f"(VERSION sagt {version}, beschrieben sind: "
                 f"{', '.join(sorted(entries, key=sort_key)) or 'keine'})"
             )
         for missing in sorted(set(entries) - set(other)):
-            problems.append(f"CHANGELOG.en.md: {service} {missing} fehlt")
+            problems.append(f"{en_file}: {service} {missing} fehlt")
         for extra in sorted(set(other) - set(entries)):
-            problems.append(f"CHANGELOG.md: {service} {extra} fehlt")
+            problems.append(f"{de_file}: {service} {extra} fehlt")
 
         releases = []
         for release_version in sorted(entries, key=sort_key, reverse=True):
@@ -212,7 +213,7 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Nur pruefen, ob release-manifest.json zu den Changelogs passt",
+        help="Nur pruefen, ob release/release-manifest.json zu den Changelogs passt",
     )
     args = parser.parse_args()
 

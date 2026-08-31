@@ -28,6 +28,7 @@ def test_no_version_change_builds_nothing() -> None:
         "services/backend-service/README.md",
         ".github/workflows/build-images.yml",
         "docs/services/audio/README.md",
+        "release/CHANGELOG.md",
     ]
     names, _ = select(files)
     assert names == []
@@ -46,7 +47,7 @@ def test_several_version_bumps() -> None:
         [
             "services/webui-service/VERSION",
             "services/backend-service/VERSION",
-            "CHANGELOG.md",
+            "release/CHANGELOG.md",
         ]
     )
     assert names == ["backend", "webui"]

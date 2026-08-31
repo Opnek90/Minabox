@@ -34,7 +34,7 @@ REBOOT_REQUIRED=0
 USE_WHIPTAIL=1
 
 # Von pin_service_versions() gefuellt: feste Versionen je Dienst aus
-# release-manifest.json, geordnet nach PIN_ORDER (Arrays sind unsortiert).
+# release/release-manifest.json, geordnet nach PIN_ORDER (Arrays sind unsortiert).
 declare -A PINNED_TAGS=()
 PIN_ORDER=()
 
@@ -567,7 +567,7 @@ setup_hardware_access() {
 }
 
 # manifest_service_version <manifest-datei> <dienst>
-# Gibt die "latest"-Version dieses Dienstes aus release-manifest.json aus,
+# Gibt die "latest"-Version dieses Dienstes aus release/release-manifest.json aus,
 # leer wenn der Dienst dort fehlt oder die Datei kein gueltiges JSON ist.
 manifest_service_version() {
     python3 - "$1" "$2" <<'PY' 2>/dev/null
@@ -609,7 +609,7 @@ except Exception:
 
 # pin_service_versions
 # Ermittelt fuer jeden tatsaechlich aktiven Dienst eine feste Version aus dem
-# gerade geklonten release-manifest.json - aber nur, wenn das zugehoerige
+# gerade geklonten release/release-manifest.json - aber nur, wenn das zugehoerige
 # Image auch wirklich in der Registry liegt. Jeder Fehlschlag (Manifest
 # fehlt, Dienst fehlt darin, Tag noch nicht veroeffentlicht) laesst genau
 # diesen einen Dienst bei MINABOX_IMAGE_TAG=latest: ein fehlgeschlagener Pull
@@ -624,9 +624,9 @@ pin_service_versions() {
         return 0
     fi
 
-    local manifest="$TARGET_DIR/release-manifest.json"
+    local manifest="$TARGET_DIR/release/release-manifest.json"
     if [ ! -r "$manifest" ]; then
-        log "kein release-manifest.json gefunden - bleibe bei latest"
+        log "kein release/release-manifest.json gefunden - bleibe bei latest"
         return 0
     fi
 
@@ -743,7 +743,7 @@ ENV
 
     if [ "${#PIN_ORDER[@]}" -gt 0 ]; then
         {
-            printf '\n# Feste Versionen je Dienst, aus release-manifest.json ermittelt bei der\n'
+            printf '\n# Feste Versionen je Dienst, aus release/release-manifest.json ermittelt bei der\n'
             printf '# Installation. Ueberschreibt MINABOX_IMAGE_TAG fuer den jeweiligen Dienst;\n'
             printf '# von Hand aendern, um genau diesen Dienst zurueckzudrehen.\n'
             local dienst upper

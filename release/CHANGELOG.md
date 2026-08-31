@@ -22,6 +22,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.11 - 2026-08-31
+
+#### Verbessert
+- Der Update-Check liest das Release-Manifest jetzt aus dem neuen Ordner
+  `release/` im Repository.
+
 ### 0.2.10 - 2026-08-30
 
 #### Verbessert

@@ -102,6 +102,10 @@ services:
       - ALLOWED_AUDIO_PATHS=${ALLOWED_AUDIO_PATHS:-/media,/mnt,/home/pi}
       - MEDIA_DOWNLOADER_URL=http://media-downloader:8007
       - HOST_DIAG_ROOT=/host
+      # Where the update check reads the release manifest. Set here so a running
+      # container picks up a moved path on a plain `compose up -d`, without
+      # waiting for a new backend image. Overridable via .env for a fork.
+      - MINABOX_MANIFEST_URL=${MINABOX_MANIFEST_URL:-https://raw.githubusercontent.com/Opnek90/Minabox/main/release/release-manifest.json}
       # Which optional components this box has. Compose reads this from .env to
       # decide which services to start; the backend reads it to hide what is not
       # installed from the WebUI.
