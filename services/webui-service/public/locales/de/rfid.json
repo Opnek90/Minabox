@@ -1,11 +1,9 @@
 {
   "title": "RFID-Tags",
-  "tag_list": "Tag-Übersicht",
   "no_tags": "Noch keine Tags vorhanden",
   "learn_mode": "Neuen Tag scannen",
   "learn_mode_active": "Lern-Modus aktiv – Bitte Tag auflegen",
   "learn_mode_waiting": "Warte auf Tag...",
-  "learn_mode_found": "Tag erkannt: {{tag_id}}",
   "learn_mode_cancel": "Lern-Modus beenden",
   "new_tag_dialog": {
     "title": "Neuen Tag einrichten",

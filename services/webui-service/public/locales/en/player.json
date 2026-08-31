@@ -1,6 +1,5 @@
 {
   "title": "Player",
-  "now_playing": "Now Playing",
   "nothing_playing": "Nothing is playing",
   "controls": {
     "play": "Play",
@@ -10,7 +9,6 @@
     "previous": "Previous Track"
   },
   "volume": "Volume",
-  "volume_label": "Volume: {{value}}%",
   "output_device": "Output device",
   "output_device_refresh": "Refresh devices",
   "progress": "Progress",
@@ -26,7 +24,6 @@
   },
   "unknown_track": "Unknown Track",
   "unknown_artist": "Unknown Artist",
-  "unknown_album": "Unknown Album",
   "repeat_all": "Repeat all",
   "repeat_off": "Repeat off",
   "shuffle_on": "Shuffle on",

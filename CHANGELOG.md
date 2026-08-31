@@ -233,6 +233,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.2.1 - 2026-08-31
+
+#### Behoben
+- Drei Fehlermeldungen des Servers erschienen als allgemeines "Ein Fehler ist
+  aufgetreten", weil ihr Text fehlte: fehlgeschlagener Neustart des
+  Audio-Dienstes sowie ungueltige Tasten- und Display-Einstellungen.
+- Die Fehlerseite des Webservers lag noch als fremde Datei im Auslieferungs-
+  ordner und war unter /50x.html abrufbar.
+
 ### 0.2.0 - 2026-08-30
 
 #### Neu
@@ -482,6 +491,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## media-downloader
+
+### 0.2.2 - 2026-08-31
+
+#### Verbessert
+- Die Log-Einstellung wird erst beim Start des Dienstes gesetzt, nicht schon
+  beim Laden des Moduls. Ohne sichtbare Aenderung im Betrieb; sie hatte im
+  gemeinsamen Testlauf die Protokollierung der uebrigen Dienste mitverstellt.
 
 ### 0.2.1 - 2026-08-28
 

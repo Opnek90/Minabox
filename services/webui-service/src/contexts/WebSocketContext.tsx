@@ -128,18 +128,39 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
 export const useWebSocket = (): WebSocketContextType => useContext(WebSocketContext);
 
+/**
+ * Auf genau einen Nachrichtentyp hoeren, ohne bei jeder anderen Nachricht neu
+ * zu rendern.
+ *
+ * Achtung beim Callback-Parameter: `Extract<WebSocketMessage, {type: T}>` ist
+ * hier immer `never`, weil `WebSocketMessage` keine unterschiedene Union ist,
+ * sondern ein Interface mit `type: WebSocketMessageType`. `never` nimmt jede
+ * Annotation widerspruchslos an - die Generik prueft also nichts. Deshalb
+ * annotieren alle Aufrufer ihren Parameter selbst und greifen `data` per
+ * `as`-Zusicherung ab. Wirklich beheben liesse sich das nur, indem
+ * `WebSocketMessage` in types/api.ts zu einer echten Union ueber die
+ * Einzeltypen wird.
+ */
 export function useWebSocketEvent<T extends WebSocketMessage['type']>(
   messageType: T,
   callback: (data: Extract<WebSocketMessage, { type: T }>) => void
 ) {
+  // Der Callback haengt in einer Ref statt in den Abhaengigkeiten. Fast jeder
+  // Aufrufer uebergibt eine Inline-Funktion - die ist bei jedem Render neu,
+  // also meldete sich der Listener bei jedem Render ab und wieder an. Zwischen
+  // Ab- und Anmeldung ankommende Nachrichten gingen dabei verloren, und jeder
+  // Aufrufer musste sich mit useCallback behelfen, um das zu vermeiden.
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
   useEffect(() => {
     const handler = (event: Event) => {
       const customEvent = event as CustomEvent<WebSocketMessage>;
       if (customEvent.detail.type === messageType) {
-        callback(customEvent.detail as Extract<WebSocketMessage, { type: T }>);
+        callbackRef.current(customEvent.detail as Extract<WebSocketMessage, { type: T }>);
       }
     };
     wsEventTarget.addEventListener(WS_EVENT_MESSAGE, handler);
     return () => wsEventTarget.removeEventListener(WS_EVENT_MESSAGE, handler);
-  }, [messageType, callback]);
+  }, [messageType]);
 }

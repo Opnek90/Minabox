@@ -12,7 +12,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   size = 40,
   fullPage = false,
 }) => {
-  const content = (
+  return (
     <Box
       display="flex"
       flexDirection="column"
@@ -29,6 +29,4 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
       )}
     </Box>
   );
-
-  return content;
 };

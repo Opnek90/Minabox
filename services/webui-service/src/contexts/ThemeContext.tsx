@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 export type ThemeMode = 'light' | 'dark';
 export type ColorPresetKey =
@@ -44,9 +45,9 @@ const FONT_SCALE_PX: Record<FontScale, string> = {
   large: '18px',
 };
 
-const LS_MODE  = 'minabox-theme-mode';
-const LS_COLOR = 'minabox-theme-color';
-const LS_FONT  = 'minabox-font-scale';
+const LS_MODE = STORAGE_KEYS.THEME_MODE;
+const LS_COLOR = STORAGE_KEYS.THEME_COLOR;
+const LS_FONT = STORAGE_KEYS.FONT_SCALE;
 
 interface ThemeContextType {
   mode: ThemeMode;

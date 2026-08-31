@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 export type ViewMode = 'card' | 'list';
 export type SortDir = 'asc' | 'desc';
@@ -16,7 +17,7 @@ export interface UserPrefs {
   pageSize: Record<string, number>;
 }
 
-const STORAGE_KEY = 'minabox.prefs';
+const STORAGE_KEY = STORAGE_KEYS.USER_PREFS;
 
 const DEFAULTS: UserPrefs = {
   viewMode: {

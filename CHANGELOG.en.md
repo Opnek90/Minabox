@@ -222,6 +222,15 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.2.1 - 2026-08-31
+
+#### Fixed
+- Three server errors showed up as a generic "something went wrong" because
+  their text was missing: a failed restart of the audio service, and invalid
+  button and display settings.
+- The web server's error page was still sitting in the served folder as a
+  foreign file, reachable under /50x.html.
+
 ### 0.2.0 - 2026-08-30
 
 #### Added
@@ -462,6 +471,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## media-downloader
+
+### 0.2.2 - 2026-08-31
+
+#### Improved
+- Logging is configured when the service starts rather than when the module is
+  loaded. No visible change in operation; it used to reconfigure logging for
+  every other service in the shared test run.
 
 ### 0.2.1 - 2026-08-28
 

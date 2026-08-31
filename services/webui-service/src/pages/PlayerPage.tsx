@@ -219,36 +219,31 @@ export const PlayerPage: React.FC = () => {
   // These used to hang on window.addEventListener('ws_message'), while the
   // context dispatches on its own wsEventTarget - so none of them ever fired.
   // useWebSocketEvent is the hook the seven other listeners in the app use.
-  // The callbacks are memoised because the hook has `callback` among its
-  // dependencies and would otherwise re-subscribe on every render.
 
-  const handleButtonAction = useCallback((message: WebSocketMessage) => {
+  useWebSocketEvent('button_action', (message: WebSocketMessage) => {
     const action = (message.data as { action?: string }).action ?? '';
     // The box sends kebab-case, the label table is keyed snake_case.
     const actionKey = action.replace(/-/g, '_');
     setButtonFeedback(BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action);
     if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
     buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
-  }, []);
-  useWebSocketEvent('button_action', handleButtonAction);
+  });
 
-  const handleRepeatMode = useCallback((message: WebSocketMessage) => {
+  useWebSocketEvent('repeat_mode', (message: WebSocketMessage) => {
     const { repeat_mode } = message.data as { repeat_mode?: RepeatMode };
     if (repeat_mode == null) return;
     queryClient.setQueryData<AudioSessionResponse | null>(['audio', 'session'], (old) =>
       old ? { ...old, repeat_mode } : old
     );
-  }, [queryClient]);
-  useWebSocketEvent('repeat_mode', handleRepeatMode);
+  });
 
-  const handleShuffleMode = useCallback((message: WebSocketMessage) => {
+  useWebSocketEvent('shuffle_mode', (message: WebSocketMessage) => {
     const { shuffle } = message.data as { shuffle?: boolean };
     if (shuffle === undefined) return;
     queryClient.setQueryData<AudioSessionResponse | null>(['audio', 'session'], (old) =>
       old ? { ...old, shuffle: Boolean(shuffle) } : old
     );
-  }, [queryClient]);
-  useWebSocketEvent('shuffle_mode', handleShuffleMode);
+  });
 
   // Clear session cache when stopped
   useEffect(() => {

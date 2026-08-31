@@ -21,9 +21,14 @@ on:
         type: boolean
         default: true
 
+# Auf main wird nicht abgebrochen: dort ist jeder Lauf ein Release. Zwei Merges
+# kurz hintereinander liessen sonst den ersten Build sterben, bevor er ein
+# Image gepusht hatte - und niemand merkte es, weil der zweite Lauf gruen war
+# und fuer den unveraenderten Dienst gar nichts mehr zu bauen fand.
+# Auf allen anderen Refs bleibt das Abbrechen sinnvoll.
 concurrency:
   group: build-images-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   REGISTRY: ghcr.io

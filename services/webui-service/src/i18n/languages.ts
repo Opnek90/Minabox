@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+
 export interface SupportedLanguage {
   code: string;
   /** Eigenbezeichnung der Sprache, in jeder Sprache gleich dargestellt (kein Uebersetzungsaufwand pro Sprachpaar). */
@@ -13,7 +15,7 @@ export const SUPPORTED_LANGUAGES: readonly SupportedLanguage[] = [
 ];
 
 export const DEFAULT_LANGUAGE = 'en';
-export const LANGUAGE_STORAGE_KEY = 'minabox-language';
+export const LANGUAGE_STORAGE_KEY = STORAGE_KEYS.LANGUAGE;
 
 const SUPPORTED_CODES = new Set(SUPPORTED_LANGUAGES.map((l) => l.code));
 
