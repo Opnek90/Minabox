@@ -4,11 +4,10 @@ name: Build & Push Images
 # Der Installations-Wizard (install.sh) laedt ausschliesslich von dort -
 # ohne diesen Workflow gibt es nichts zu pullen.
 #
-# Gebaut wird nur, was sich geaendert hat. Jeder Dienst traegt seine eigene
-# Version in services/<dienst>-service/VERSION; ein unveraenderter Dienst darf
-# nicht neu unter seiner alten Nummer landen, sonst
-# zeigt derselbe Tag auf verschiedene Staende und die Versionsanzeige in der
-# WebUI wird wertlos.
+# A service is built only when its services/<name>-service/VERSION changes.
+# An image tag is immutable, so re-publishing an unchanged service under its
+# existing number would make the tag point at two different builds and the
+# WebUI's version display worthless. See .github/scripts/select_services.py.
 
 on:
   push:
