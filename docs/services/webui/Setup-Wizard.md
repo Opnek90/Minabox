@@ -1,210 +1,203 @@
-# Ersteinrichtungs-Assistent (WebUI)
+# First-run wizard (web UI)
 
-Stand: 2026-08-20 — umgesetzt, auf echter Hardware noch nicht durchgespielt.
+Status: 2026-08-20 — implemented, not yet exercised on real hardware.
 
-## Warum
+## Why
 
-`install.sh` bringt den Stack ans Laufen, mehr nicht. Nach dem ersten Aufruf
-der Oberflaeche steht man auf dem Player und muss sich alles Weitere selbst
-zusammensuchen. Es gibt heute keinerlei Ersteinrichtung: kein `first_run`-Flag,
-keine Onboarding-Route, keinen Begruessungsschritt.
+`install.sh` gets the stack running, nothing more. After the first visit to the
+interface you are on the player and have to find everything else yourself.
+Today there is no first-run setup at all: no `first_run` flag, no onboarding
+route, no welcome step.
 
-Ein Punkt daran ist mehr als Bequemlichkeit. In
+One aspect of this is more than convenience. In
 [`routes_auth.py:59`](../../../services/backend-service/src/backend_service/api/routes_auth.py)
-wird `auth_enabled` daraus abgeleitet, ob ueberhaupt ein Passwort-Hash
-existiert:
+`auth_enabled` is derived from whether a password hash exists at all:
 
 ```python
 auth_enabled = bool((settings.get("web_password_hash") or "").strip())
 ```
 
-Auf einer frischen Installation gibt es keinen. **Jede neu aufgesetzte Box ist
-im gesamten Heimnetz ungeschuetzt offen**, bis jemand von sich aus ein Passwort
-setzt — inklusive Medienverwaltung und Eltern-Dashboard. Genau das soll der
-Assistent auffangen.
+On a fresh install there is none. **Every newly set up box is unprotected and
+open on the entire home network**, until someone sets a password on their own
+initiative — including media management and the parent dashboard. That is
+exactly what the wizard is meant to catch.
 
-Der zweite Punkt: `install.sh` kann Hardware nur *einrichten*, nicht
-*ausprobieren*. Ein Testton, eine blinkende LED, ein gescannter Tag — das geht
-im Browser und im Terminal nicht. CLI- und WebUI-Assistent ergaenzen sich also,
-sie ueberschneiden sich nicht.
+The second aspect: `install.sh` can only *configure* hardware, not *try it
+out*. A test tone, a blinking LED, a scanned tag — none of that works in the
+browser or the terminal. The CLI wizard and the web UI wizard therefore
+complement each other, they do not overlap.
 
-## Entscheidungen
+## Decisions
 
-| Thema | Entscheidung |
+| Topic | Decision |
 |---|---|
-| Schritte | Sprache, Zugriffsschutz, Audio mit Testton, Hardware bestaetigen, erste Inhalte |
-| Verbindlichkeit | Startet automatisch, jederzeit abbrechbar; danach bleibt ein Hinweis, bis abgeschlossen |
-| Wiederholbar | Ja, ueber einen Eintrag in den Einstellungen, mit vorausgefuellten Werten |
+| Steps | language, access protection, audio with a test tone, confirm hardware, first content |
+| Commitment | starts automatically, can be cancelled at any time; afterwards a hint stays until it is completed |
+| Repeatable | yes, via an entry in the settings, with pre-filled values |
 
-## Was bereits existiert
+## What already exists
 
-Der groesste Teil der Bausteine ist da. Der Assistent soll sie orchestrieren,
-nicht neu bauen.
+Most of the building blocks are there. The wizard should orchestrate them, not
+build them anew.
 
-| Baustein | Wo | Nutzung im Assistenten |
+| Building block | Where | Use in the wizard |
 |---|---|---|
-| `Stepper`-Muster | [`ButtonConfigPanel.tsx:372`](../../../services/webui-service/src/components/admin/ButtonConfigPanel.tsx), [`LEDConfigPanel.tsx:350`](../../../services/webui-service/src/components/admin/LEDConfigPanel.tsx) | Schrittnavigation |
-| Passwort setzen / Bereiche schuetzen | `routes_auth.py` | Schritt 2 |
-| Sink-Liste, Ausgang wechseln | `GET /api/v1/audio/devices`, `POST /api/v1/audio/switch-device` | Schritt 3 |
-| Lautstaerkegrenzen | `GET/PUT /api/v1/config/audio` | Schritt 3 |
-| LED-Test | `POST /api/v1/config/leds/test` | Schritt 4 |
-| Tastendruck live | WS-Event `button_raw_event`, via `useWebSocketEvent` | Schritt 4 |
-| RFID-Lernmodus | `POST /api/v1/rfid/learning-mode`, WS `rfid_scanned_learning` | Schritt 5 |
-| Medien-Upload | `MediaPage` | Schritt 5 |
-| Dienstzustand | WS-Event `service_status` | Schritt 4 (welche Hardware laeuft ueberhaupt) |
-| Einstellungs-Index | [`settingsIndex.ts`](../../../services/webui-service/src/config/settingsIndex.ts) | Eintrag zum erneuten Start |
+| `Stepper` pattern | [`ButtonConfigPanel.tsx:372`](../../../services/webui-service/src/components/admin/ButtonConfigPanel.tsx), [`LEDConfigPanel.tsx:350`](../../../services/webui-service/src/components/admin/LEDConfigPanel.tsx) | step navigation |
+| Set password / protect areas | `routes_auth.py` | step 2 |
+| Sink list, switch output | `GET /api/v1/audio/devices`, `POST /api/v1/audio/switch-device` | step 3 |
+| Volume limits | `GET/PUT /api/v1/config/audio` | step 3 |
+| LED test | `POST /api/v1/config/leds/test` | step 4 |
+| Live button press | WS event `button_raw_event`, via `useWebSocketEvent` | step 4 |
+| RFID learn mode | `POST /api/v1/rfid/learning-mode`, WS `rfid_scanned_learning` | step 5 |
+| Media upload | `MediaPage` | step 5 |
+| Service state | WS event `service_status` | step 4 (which hardware is running at all) |
+| Settings index | [`settingsIndex.ts`](../../../services/webui-service/src/config/settingsIndex.ts) | entry to start again |
 
-Der Hardware-Testmodus ist bereits als Konzept angelegt: `handle_button_raw_event`
-im Button-Handler sendet jeden physischen Tastendruck ans Frontend, ausdruecklich
-auch fuer Tasten ohne Aktionszuordnung.
+The hardware test mode is already laid out as a concept:
+`handle_button_raw_event` in the button handler sends every physical button
+press to the frontend, explicitly for buttons without an action mapping too.
 
-## Umgesetzt
+## Implemented
 
 **Backend**
 
-- `setup_completed` und `setup_version` in der `allowed`-Menge von
+- `setup_completed` and `setup_version` in the `allowed` set of
   `update_general_config` ([`routes_config.py`](../../../services/backend-service/src/backend_service/api/routes_config.py)),
-  inklusive Typerzwingung wie bei den anderen Feldern.
-- `POST /api/v1/audio/test-tone` (Backend-Proxy) →
-  `POST /api/v1/test-tone` im Audio-Service. Der Ton wird ueber `paplay`
-  abgespielt, **nicht** ueber den VLC-Backend: so laeuft er neben einer
-  laufenden Wiedergabe her, statt sie zu stoppen.
-- Mitgeliefertes Asset `services/audio-service/assets/test-tone.wav`
-  (1,4 s Dreiklang, im Dockerfile nach `/app/assets/` kopiert).
-- `POST /api/v1/config/display/test` (Backend-Proxy) → `POST /test` im
-  Display-Service, analog zum bestehenden `leds/test`.
+  with type coercion as for the other fields.
+- `POST /api/v1/audio/test-tone` (backend proxy) →
+  `POST /api/v1/test-tone` in the audio service. The tone is played via
+  `paplay`, **not** via the VLC backend: so it plays alongside a running
+  playback instead of stopping it.
+- A bundled asset `services/audio-service/assets/test-tone.wav` (1.4 s triad,
+  copied to `/app/assets/` in the Dockerfile).
+- `POST /api/v1/config/display/test` (backend proxy) → `POST /test` in the
+  display service, analogous to the existing `leds/test`.
 
 **Frontend**
 
-- `pages/SetupWizardPage.tsx` mit Stepper und sechs Schritten.
+- `pages/SetupWizardPage.tsx` with a stepper and six steps.
 - `components/setup/{SecurityStep,AudioStep,HardwareStep,ContentStep}.tsx`.
-- `hooks/useSetupStatus.ts` mit der Erkennung von Bestandsinstallationen.
-- Route `/setup` in `App.tsx`, bewusst **ohne** `ProtectedRoute`.
-- Einmalige Weiterleitung beim ersten Aufruf plus wegklickbarer Hinweis.
-- `components/admin/SetupWizardRestart.tsx` und Section `setup_wizard` in
-  `settingsIndex.ts` zum erneuten Start.
-- Namespace `setup` in `i18n.ts`, `public/locales/{de,en}/setup.json`
-  (86 Schluessel, deckungsgleich).
+- `hooks/useSetupStatus.ts` with detection of existing installations.
+- Route `/setup` in `App.tsx`, deliberately **without** `ProtectedRoute`.
+- A one-time redirect on the first visit plus a dismissible hint.
+- `components/admin/SetupWizardRestart.tsx` and a `setup_wizard` section in
+  `settingsIndex.ts` to start again.
+- Namespace `setup` in `i18n.ts`, `public/locales/{de,en}/setup.json` (86 keys,
+  matching).
 
-### Zwei Dinge, die sich beim Bauen als anders herausgestellt haben
+### Two things that turned out different while building
 
-**`paplay` meldet einen unbekannten Sink nicht.** Es faellt still auf den
-Standardausgang zurueck und beendet sich mit 0. Fuer den Assistenten waere das
-die schlimmste Variante: der Nutzer waehlt Ausgang A, hoert Ton aus B und haelt
-A fuer geprueft. Der Sink wird deshalb **vor** dem Abspielen gegen die erkannte
-Geraeteliste geprueft und ein unbekannter Name mit 404 abgelehnt.
+**`paplay` does not report an unknown sink.** It silently falls back to the
+default output and exits with 0. For the wizard that would be the worst variant:
+the user picks output A, hears sound from B, and considers A verified. The sink
+is therefore checked against the detected device list **before** playing, and
+an unknown name is rejected with 404.
 
-**Der Display-Render-Loop tickt jede Sekunde.** Ein Testbild waere nach
-spaetestens einer Sekunde ueberschrieben und nicht ablesbar gewesen. Der Loop
-hat daher eine Sperre (`_test_pattern_until`), waehrend der er den normalen
-Frame auslaesst.
+**The display render loop ticks every second.** A test image would have been
+overwritten after a second at most and not readable. The loop therefore has a
+lock (`_test_pattern_until`) during which it skips the normal frame.
 
-Die Aussperr-Gefahr nach dem Passwort-Schritt besteht nicht: `POST /auth/password`
-setzt beim Erstsetzen selbst ein Session-Cookie.
+There is no lock-out risk after the password step: `POST /auth/password` sets a
+session cookie itself when the password is first set.
 
-## Ursprüngliche Lückenanalyse
+## Original gap analysis
 
-**1. Persistenz-Flag.** `update_general_config` in
+**1. Persistence flag.** `update_general_config` in
 [`routes_config.py:217`](../../../services/backend-service/src/backend_service/api/routes_config.py)
-filtert den Request gegen eine feste `allowed`-Menge:
+filters the request against a fixed `allowed` set:
 
 ```python
 data = {k: v for k, v in body.items() if k in allowed}
 ```
 
-Ein neuer Schluessel wird also **stillschweigend verworfen**. Die Menge muss um
-`setup_completed` (bool) und `setup_version` (int) erweitert werden.
-`setup_version` erlaubt es, den Assistenten nach einem groesseren Update erneut
-anzubieten, ohne ihn Bestandsnutzern aufzuzwingen.
+A new key is therefore **silently dropped**. The set has to be extended with
+`setup_completed` (bool) and `setup_version` (int). `setup_version` makes it
+possible to offer the wizard again after a larger update, without forcing it on
+existing users.
 
-**2. Testton.** Es gibt keinen Endpunkt dafuer. Noetig:
-`POST /api/v1/audio/test-tone`, im Backend auf den Audio-Service
-durchgereicht — analog zu `get_audio_devices`, das schon per `httpx` proxied.
-Der Audio-Service braucht dafuer eine kurze, mitgelieferte Audiodatei im Image
-(wenige Sekunden, unaufdringlich). Sie darf nicht aus der Mediathek kommen: auf
-einer frischen Box ist die leer.
+**2. Test tone.** There is no endpoint for it. Needed:
+`POST /api/v1/audio/test-tone`, forwarded in the backend to the audio service —
+analogous to `get_audio_devices`, which already proxies via `httpx`. The audio
+service needs a short, bundled audio file in the image for this (a few seconds,
+unobtrusive). It must not come from the library: on a fresh box it is empty.
 
-**3. Display-Test.** Der Display-Service hat heute nur `/health`
+**3. Display test.** The display service has only `/health` today
 ([`routes.py:28`](../../../services/display-service/src/display_service/api/routes.py)).
-Fuer eine ehrliche Sichtpruefung fehlt ein Testbild. Vorbild ist `leds/test`:
-ein MQTT-Kommando `display/test`, das fuer einige Sekunden ein Testmuster
-anzeigt. Wenn das zu viel wird, ist die Rueckfallebene eine schlichte
-Ja/Nein-Frage („Siehst du etwas auf dem Display?") kombiniert mit dem
-`service_status` — ehrlicher als ein Test, der nichts testet.
+For an honest visual check a test image is missing. The model is `leds/test`:
+an MQTT command `display/test` that shows a test pattern for a few seconds. If
+that turns out to be too much, the fallback is a plain yes/no question ("Do you
+see anything on the display?") combined with `service_status` — more honest
+than a test that tests nothing.
 
-**4. Der Assistent selbst.**
+**4. The wizard itself.**
 
-- `SetupWizardPage.tsx` plus eine Komponente je Schritt
+- `SetupWizardPage.tsx` plus one component per step
 - Route `/setup` in `MainLayout` ([`App.tsx:187`](../../../services/webui-service/src/App.tsx)) —
-  **ohne** `ProtectedRoute`, sonst sperrt sich der Assistent aus, sobald in
-  Schritt 2 ein Passwort gesetzt wurde
-- Ein Hook, der `setup_completed` liest und beim ersten Aufruf einmalig auf
-  `/setup` leitet
-- Ein dezenter, wegklickbarer Hinweis in `MainLayout`, solange nicht
-  abgeschlossen
-- Neuer i18n-Namespace `setup.json` in `public/locales/{de,en}/`
-- Eintrag in `settingsIndex.ts` zum erneuten Start
+  **without** `ProtectedRoute`, otherwise the wizard locks itself out as soon
+  as a password is set in step 2
+- A hook that reads `setup_completed` and redirects once to `/setup` on the
+  first visit
+- A discreet, dismissible hint in `MainLayout` while not completed
+- A new i18n namespace `setup.json` in `public/locales/{de,en}/`
+- An entry in `settingsIndex.ts` to start again
 
-## Schritte im Einzelnen
+## The steps in detail
 
-**1. Sprache.** Deutsch/Englisch. Setzt `localStorage['minabox-language']` wie
-bisher. Falls `MINABOX_LANGUAGE` aus der `.env` erreichbar gemacht wird, dient
-das als Vorauswahl — der Assistent in `install.sh` hat die Frage schon gestellt,
-sie ein zweites Mal zu stellen ist nur dann in Ordnung, wenn sie vorbelegt ist.
+**1. Language.** German/English. Sets `localStorage['minabox-language']` as
+before. If `MINABOX_LANGUAGE` from `.env` is made reachable, it serves as the
+preselection — the wizard in `install.sh` already asked the question, and
+asking it a second time is only acceptable when it is pre-filled.
 
-**2. Zugriffsschutz.** Passwort setzen, Bereiche waehlen (`admin`, `media`,
-`dashboard`). Ueberspringen ist moeglich, aber mit einer klaren Ansage, was das
-bedeutet — nicht mit einer Warnfarbe, sondern mit einem Satz.
+**2. Access protection.** Set a password, choose areas (`admin`, `media`,
+`dashboard`). Skipping is possible, but with a clear statement of what that
+means — not with a warning colour, but with a sentence.
 
-**3. Audio.** Sinks aus `GET /audio/devices` anbieten, gewaehlten Sink per
-`switch-device` aktivieren, **Testton abspielen**, dann „Hast du etwas gehoert?"
-Bei Nein: naechsten Sink anbieten statt den Nutzer allein zu lassen. Danach
-Lautstaerkegrenzen (min/default/max) aus `config/audio`.
+**3. Audio.** Offer sinks from `GET /audio/devices`, activate the chosen sink
+via `switch-device`, **play a test tone**, then "Did you hear anything?" On no:
+offer the next sink instead of leaving the user alone. Then volume limits
+(min/default/max) from `config/audio`.
 
-Dieser Schritt rechtfertigt den Assistenten allein. „Kein Ton" ist laut
-`.claude/skills/minabox-debug-analyze/references/known-issues.md` das haeufigste
-Fehlerbild ueberhaupt.
+This step justifies the wizard on its own. "No sound" is, according to
+`.claude/skills/minabox-debug-analyze/references/known-issues.md`, the most
+common failure pattern of all.
 
-**4. Hardware bestaetigen.** Nur fuer tatsaechlich laufende Dienste — welche
-das sind, sagt `service_status`. Je LED ein Test ueber `leds/test` mit
-Rueckfrage; fuer Tasten der Testmodus mit `button_raw_event`, der anzeigt,
-welche Taste gerade gedrueckt wurde; fuer das Display das Testbild.
+**4. Confirm hardware.** Only for services that are actually running — which
+those are is told by `service_status`. Per LED a test via `leds/test` with a
+follow-up question; for buttons the test mode with `button_raw_event`, which
+shows which button was just pressed; for the display the test image.
 
-Damit faellt sofort auf, was sonst wochenlang unbemerkt bleibt: vertauschte
-Pins, oder derselbe GPIO doppelt in `buttons.json` und `leds.json` — ein
-bekanntes Fehlerbild.
+This immediately reveals what otherwise stays unnoticed for weeks: swapped
+pins, or the same GPIO twice in `buttons.json` and `leds.json` — a known
+failure pattern.
 
-**5. Erste Inhalte.** Lernmodus einschalten, erste Karte auflegen, einem Titel
-oder Ordner zuordnen. Danach Musik hochladen bzw. Medienpfad waehlen. Dieser
-Schritt ist am ehesten verzichtbar und sollte am deutlichsten als
-ueberspringbar erkennbar sein.
+**5. First content.** Turn on learn mode, place the first card, assign it to a
+track or folder. Then upload music or choose a media path. This step is the
+most dispensable and should be the most clearly marked as skippable.
 
-**Abschluss.** `setup_completed: true` und `setup_version` schreiben, kurze
-Zusammenfassung, weiter zum Player.
+**Finish.** Write `setup_completed: true` and `setup_version`, a short summary,
+on to the player.
 
-## Offene Pruefpunkte
+## Open check points
 
-Der Assistent ist gebaut und uebersetzt, aber **auf echter Hardware noch nicht
-durchgespielt**. Vor dem Ausliefern zu pruefen:
+The wizard is built and translated, but **not yet exercised on real
+hardware**. To check before shipping:
 
-- [ ] Frische Box: Assistent springt beim ersten Aufruf auf. Nach dem Abbrechen
-      erscheint der Hinweis, aber **keine** erneute Weiterleitung beim
-      Seitenwechsel.
-- [ ] Bestandsinstallation mit vorhandenen Karten: der Assistent springt
-      **nicht** auf. Das ist die Annahme hinter `useSetupStatus` und der
-      einzige Punkt, der ohne Migrationsskript auskommt.
-- [ ] Nach Schritt 2 bleibt die Sitzung gueltig — anschliessend `/admin`
-      oeffnen, ohne sich neu anmelden zu muessen.
-- [ ] Testton: waehrend laufender Wiedergabe ausloesen. Die Musik darf nicht
-      stoppen.
-- [ ] Testton auf einer Box mit mehreren Ausgaengen: Ausgang wechseln, Ton
-      ausloesen, und pruefen, dass er wirklich aus dem gewaehlten Geraet kommt.
-- [ ] Hardware-Schritt auf einer Box ohne LED/Button/Display: zeigt den Hinweis
-      und laesst sich ueberspringen.
-- [ ] Display-Testbild bleibt sichtbar stehen (die Sperre haelt es sechs
-      Sekunden), danach kehrt die normale Anzeige zurueck.
-- [ ] Lernmodus wird beim Verlassen des Inhalte-Schritts wieder abgeschaltet.
-      Sonst bleibt die Box im Lernmodus haengen und spielt nichts ab.
-- [ ] Vollstaendig auf dem Telefon bedienbar.
-- [ ] Nach Abschluss: `data/general_settings.json` enthaelt
-      `"setup_completed": true` und `"setup_version": 1`.
+- [ ] Fresh box: the wizard pops up on the first visit. After cancelling, the
+      hint appears, but **no** repeated redirect on a page change.
+- [ ] Existing installation with existing cards: the wizard does **not** pop
+      up. That is the assumption behind `useSetupStatus` and the only point
+      that works without a migration script.
+- [ ] After step 2 the session stays valid — then open `/admin` without having
+      to sign in again.
+- [ ] Test tone: trigger it during a running playback. The music must not stop.
+- [ ] Test tone on a box with several outputs: switch the output, trigger the
+      tone, and check that it really comes out of the chosen device.
+- [ ] Hardware step on a box without LED/button/display: shows the hint and can
+      be skipped.
+- [ ] The display test image stays visible (the lock holds it for six
+      seconds), then the normal display returns.
+- [ ] Learn mode is turned off again when leaving the content step. Otherwise
+      the box stays stuck in learn mode and plays nothing.
+- [ ] Fully operable on the phone.
+- [ ] After finishing: `data/general_settings.json` contains
+      `"setup_completed": true` and `"setup_version": 1`.
