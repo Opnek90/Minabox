@@ -33,7 +33,7 @@ def safe_members(archive: zipfile.ZipFile, target: Path) -> list[zipfile.ZipInfo
     """Return the members that are safe to extract, or raise."""
     infos = archive.infolist()
     if len(infos) > MAX_MEMBERS:
-        raise ValueError(f"Archiv hat {len(infos)} Einträge (Grenze {MAX_MEMBERS})")
+        raise ValueError(f"archive has {len(infos)} entries (limit {MAX_MEMBERS})")
 
     total = 0
     safe: list[zipfile.ZipInfo] = []
@@ -43,15 +43,15 @@ def safe_members(archive: zipfile.ZipFile, target: Path) -> list[zipfile.ZipInfo
         if info.is_dir():
             continue
         if name.startswith("/") or ".." in Path(name).parts:
-            raise ValueError(f"Unsicherer Pfad im Archiv: {name}")
+            raise ValueError(f"unsafe path in the archive: {name}")
         destination = (resolved_target / name).resolve()
         if resolved_target not in destination.parents:
-            raise ValueError(f"Pfad zeigt aus dem Zielverzeichnis heraus: {name}")
+            raise ValueError(f"path points outside the target directory: {name}")
         if info.file_size > MAX_SINGLE_FILE:
-            raise ValueError(f"Datei zu gross: {name} ({info.file_size} Bytes)")
+            raise ValueError(f"file too large: {name} ({info.file_size} bytes)")
         total += info.file_size
         if total > MAX_TOTAL_UNCOMPRESSED:
-            raise ValueError("Entpackte Gesamtgröße überschreitet das Limit")
+            raise ValueError("uncompressed total exceeds the limit")
         safe.append(info)
     return safe
 
@@ -69,14 +69,14 @@ def unpack(archive_path: Path, into: Path | None) -> Path:
 def summarize(root: Path, quiet: bool = False) -> dict:
     manifest_path = root / "manifest.json"
     if not manifest_path.exists():
-        raise SystemExit("Kein manifest.json im Archiv - ist das ein Minabox-Export?")
+        raise SystemExit("no manifest.json in the archive - is this a Minabox export?")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     version = manifest.get("schema_version")
     if version not in SUPPORTED_SCHEMA_VERSIONS:
         print(
-            f"WARNUNG: schema_version {version} ist neuer/älter als bekannt "
-            f"{SUPPORTED_SCHEMA_VERSIONS} - references/export-schema.md prüfen.",
+            f"WARNING: schema_version {version} is newer/older than known "
+            f"{SUPPORTED_SCHEMA_VERSIONS} - check references/export-schema.md.",
             file=sys.stderr,
         )
 
@@ -89,13 +89,13 @@ def summarize(root: Path, quiet: bool = False) -> dict:
         status = entry.get("status", "?")
         by_status.setdefault(status, []).append(entry.get("name", "?"))
 
-    print(f"Verzeichnis:   {root}")
-    print(f"Gerät:        {manifest.get('device_id')}")
-    print(f"Erstellt:      {manifest.get('created_at')}")
+    print(f"Directory:     {root}")
+    print(f"Device:        {manifest.get('device_id')}")
+    print(f"Created:       {manifest.get('created_at')}")
     print(f"Schema:        {manifest.get('schema_version')}")
     options = json.dumps(manifest.get("options", {}), ensure_ascii=False)
-    print(f"Optionen:      {options}")
-    print(f"Dateien:       {len(manifest.get('files', []))}")
+    print(f"Options:       {options}")
+    print(f"Files:         {len(manifest.get('files', []))}")
     print()
     for status in sorted(by_status):
         names = ", ".join(sorted(by_status[status]))
@@ -103,13 +103,13 @@ def summarize(root: Path, quiet: bool = False) -> dict:
 
     failed = [c for c in collectors if c.get("status") == "failed"]
     if failed:
-        print("\nFehlgeschlagene Collectors (selbst ein Befund):")
+        print("\nFailed collectors (a finding in itself):")
         for entry in failed:
             print(f"  - {entry.get('name')}: {entry.get('error')}")
 
     blocked = manifest.get("secret_tripwire", {}).get("blocked", [])
     if blocked:
-        print("\nACHTUNG: Der Tripwire hat Geheimnisse entfernt - Collector-Bug:")
+        print("\nWARNING: the tripwire removed secrets - a collector bug:")
         for entry in blocked:
             print(
                 f"  - {entry.get('path')} ({entry.get('collector')}): "
@@ -119,8 +119,8 @@ def summarize(root: Path, quiet: bool = False) -> dict:
     truncations = manifest.get("truncations", [])
     if truncations:
         print(
-            f"\n{len(truncations)} Datei(en) gekürzt oder ausgelassen "
-            "(Größenbudget)."
+            f"\n{len(truncations)} file(s) truncated or omitted "
+            "(size budget)."
         )
 
     return manifest
@@ -134,7 +134,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.archive.exists():
-        raise SystemExit(f"Datei nicht gefunden: {args.archive}")
+        raise SystemExit(f"file not found: {args.archive}")
 
     root = unpack(args.archive, args.into)
     summarize(root, quiet=args.quiet)

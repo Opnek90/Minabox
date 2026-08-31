@@ -46,7 +46,7 @@ def test_every_collector_is_documented():
 def test_no_documented_collector_disappeared():
     """The other direction: a removed collector leaves the skill looking for ghosts."""
     schema = _schema_text()
-    section = schema.split("### Collector-Namen")[1].split("### Dateien")[0]
+    section = schema.split("### Collector names")[1].split("### Files")[0]
     documented = {
         token.strip().strip("`,")
         for token in section.replace("\n", " ").split()
