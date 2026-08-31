@@ -36,7 +36,7 @@ export async function updateAuthConfig(body: AuthConfigUpdate): Promise<AuthConf
   return response.data;
 }
 
-/** Löscht das WebUI-Passwort und deaktiviert den Zugriffsschutz vollständig. */
+/** Clears the web UI password and disables access protection entirely. */
 export async function resetAuth(): Promise<void> {
   await apiClient.delete('/auth/password');
 }

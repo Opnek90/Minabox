@@ -410,8 +410,8 @@ export interface SystemStatus {
 // Config: Audio
 // ============================================================================
 
-// Hinweis: `id` ist der PulseAudio-Sink-Name (identisch mit `alsa_device`).
-// Der audio-service liefert kein separates `sink_name`-Feld.
+// Note: `id` is the PulseAudio sink name (identical to `alsa_device`). The
+// audio service does not return a separate `sink_name` field.
 export interface AudioDeviceItem {
   id: string;
   name: string;
@@ -545,7 +545,7 @@ export interface AllowedUsageTimeSlot {
   end: string;     // "HH:MM"
 }
 
-/** Was passiert, wenn der letzte Titel einer Karte durchgelaufen ist. */
+/** What happens when the last track of a card has finished. */
 export type PlaybackEndBehavior = 'stop' | 'repeat' | 'repeat_while_tag';
 
 export interface GeneralConfig {

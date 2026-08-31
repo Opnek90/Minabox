@@ -55,7 +55,7 @@ type SortKey = 'name' | 'track_count';
 const DEFAULT_SORT_KEY: SortKey = 'name';
 const DEFAULT_SORT_DIR = 'asc' as const;
 
-// 5 Buttons à ~32px + Gaps = ~176px
+// 5 buttons at ~32px + gaps = ~176px
 const LIST_ITEM_PR = '180px';
 
 interface PlaylistListProps {
@@ -69,9 +69,9 @@ interface PlaylistListProps {
   sortKey: string;
   sortDir: 'asc' | 'desc';
   onSortChange: (key: string, dir: 'asc' | 'desc') => void;
-  /** Wenn true, soll der Create-Dialog geöffnet werden. */
+  /** If true, the create dialog should be opened. */
   createOpen: boolean;
-  /** Wird aufgerufen sobald der Dialog geöffnet wurde, damit MediaPage den State zurücksetzen kann. */
+  /** Called once the dialog has been opened, so MediaPage can reset the state. */
   onCreateOpenHandled: () => void;
 }
 
@@ -97,10 +97,10 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const { showSuccess, showError } = useToast();
-  // Ab Tablet-Breite ist Platz fuer Sortierung, Filter und Zeilenaktionen
-  // direkt in der Leiste; nur auf dem Handy wandern sie ins Popover bzw. in
-  // ein Ueberlaufmenue. Vorher lag diese Grenze bei 900px, wodurch ein
-  // 834px-Tablet die volle Handy-Bedienung bekam, obwohl die Breite reicht.
+  // From tablet width there is room for sorting, filters and row actions
+  // directly in the bar; only on the phone do they move into the popover or an
+  // overflow menu. This boundary used to be at 900px, which gave an 834px
+  // tablet the full phone controls even though the width is enough.
   const hasInlineControls = useLayout().hasRoomForInlineControls;
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -116,7 +116,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [coverTargetId, setCoverTargetId] = useState<number | null>(null);
 
-  // Öffne Create-Dialog wenn MediaPage den Button oben rechts drückt
+  // Open the create dialog when MediaPage presses the top-right button
   React.useEffect(() => {
     if (createOpen) {
       setEditingPlaylist(null);

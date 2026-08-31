@@ -45,7 +45,7 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
     setCountdown(AUTO_CLOSE_SEC);
   }, []);
 
-  // Reagieren auf rfid_scanned: Drawer öffnen, Tag laden (ohne Countdown hier zu starten)
+  // React to rfid_scanned: open the drawer, load the tag (without starting the countdown here)
   useEffect(() => {
     if (lastMessage?.type !== 'rfid_scanned') return;
     const msg = lastMessage as RFIDScannedMessage;
@@ -67,7 +67,7 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
       .finally(() => setLoading(false));
   }, [lastMessage]);
 
-  // Countdown nur von open abhängig – bleibt laufen, auch wenn lastMessage sich ändert (z. B. audio_status)
+  // Countdown depends only on open - keeps running even if lastMessage changes (e.g. audio_status)
   useEffect(() => {
     if (!open) return;
     setCountdown(AUTO_CLOSE_SEC);

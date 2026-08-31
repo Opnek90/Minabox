@@ -160,8 +160,8 @@ export const DesignSettingsForm: React.FC = () => {
         </ToggleButtonGroup>
       </Box>
 
-      {/* Schriftgroesse steht bei Hell/Dunkel, weil beide dasselbe betreffen:
-          wie die Oberflaeche aussieht, nicht was sie tut. */}
+      {/* Font size sits with light/dark, because both concern the same thing:
+          how the interface looks, not what it does. */}
       <Box display="flex" alignItems="center" justifyContent="space-between" gap={2}>
         <Typography variant="body2">{t('general.font_size')}</Typography>
         <ToggleButtonGroup

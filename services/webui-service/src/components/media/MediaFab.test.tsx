@@ -34,12 +34,12 @@ const renderFab = () =>
     />,
   );
 
-describe('MediaFab – URL-Import haengt am Media-Downloader (#132)', () => {
+describe('MediaFab - URL import hangs off the media downloader (#132)', () => {
   beforeEach(() => {
     mediaDownloaderInstalled = true;
   });
 
-  it('zeigt „Von URL importieren", wenn der Media-Downloader installiert ist', async () => {
+  it('shows "Import from URL" when the media downloader is installed', async () => {
     renderFab();
     await userEvent.click(screen.getByRole('button', { name: 'fab.aria_label' }));
     expect(screen.getByText('tracks.import_from_url')).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe('MediaFab – URL-Import haengt am Media-Downloader (#132)', () => {
     expect(screen.getByText('tracks.add_remote')).toBeInTheDocument();
   });
 
-  it('blendet „Von URL importieren" aus, wenn er fehlt - Remote-Track bleibt', async () => {
+  it('hides "Import from URL" when it is missing - remote track stays', async () => {
     mediaDownloaderInstalled = false;
     renderFab();
     await userEvent.click(screen.getByRole('button', { name: 'fab.aria_label' }));

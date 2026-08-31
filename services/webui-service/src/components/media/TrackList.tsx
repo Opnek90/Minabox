@@ -132,14 +132,14 @@ export const TrackList: React.FC<TrackListProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
-  // Zwei Fragen, die vorher an derselben Grenze hingen und deshalb auf
-  // Tablets beide falsch beantwortet wurden:
-  // (1) Ist Platz fuer Sortierung, Filter und Zeilenaktionen in der Leiste?
-  //     Ja ab Tablet – 834px reichen dafuer laengst.
+  // Two questions that used to hang off the same boundary and were therefore
+  // both answered wrongly on tablets:
+  // (1) Is there room for sorting, filters and row actions in the bar?
+  //     Yes from tablet up - 834px is plenty for that.
   const hasInlineControls = useLayout().hasRoomForInlineControls;
-  // (2) Passen Ordnerbaum und Trackliste nebeneinander? Der Baum belegt fix
-  //     220px; darunter bliebe fuer die Liste zu wenig uebrig, also bleibt
-  //     der Master-Detail-Wechsel bewusst bei 900px statt bei der Tablet-Kante.
+  // (2) Do the folder tree and track list fit side by side? The tree takes a
+  //     fixed 220px; below that too little would remain for the list, so the
+  //     master-detail switch deliberately stays at 900px, not the tablet edge.
   const hasSplitView = useMediaQuery(theme.breakpoints.up('md'));
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);

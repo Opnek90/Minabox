@@ -137,11 +137,11 @@ export const MiniPlayer: React.FC = () => {
       sx={{
         position: 'fixed',
         // Sits directly above the mobile BottomNavigation; flush with the
-        // bottom edge on desktop, where there is no bottom nav. Auf Mobil
-        // kommt die Geraete-Schutzzone dazu, die die BottomNav als Padding
-        // traegt – ohne sie wuerde der MiniPlayer sie ueberlappen.
-        // sm statt md: Ab der Tablet-Stufe uebernimmt die Icon-Rail, die
-        // BottomNav existiert nur noch auf Handy-Breiten.
+        // bottom edge on desktop, where there is no bottom nav. On mobile the
+        // device safe area is added, which the BottomNav carries as padding -
+        // without it the MiniPlayer would overlap it.
+        // sm instead of md: from the tablet level the icon rail takes over, the
+        // BottomNav only exists at phone widths.
         bottom: {
           xs: `calc(${MOBILE_BOTTOM_NAV_HEIGHT}px + ${SAFE_AREA_BOTTOM})`,
           sm: 0,

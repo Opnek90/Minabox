@@ -1,25 +1,23 @@
 #!/usr/bin/env node
-// Prueft die i18n-Ressourcen unter public/locales gegen drei Fehlerbilder:
-//   1. de/en-Drift: ein Key fehlt in einer der beiden Sprachen
-//   2. unvollstaendige Pluralformen: `_one` ohne `_other` (oder umgekehrt)
-//      und das tote i18next-v3-Suffix `_plural`
-//   3. Keys, die im Quellcode nirgends mehr referenziert werden
-//   4. errors/: Drift gegen die Fehlercodes, die das Backend tatsaechlich sendet
+// Checks the i18n resources under public/locales against four failure patterns:
+//   1. de/en drift: a key is missing in one of the two languages
+//   2. incomplete plural forms: `_one` without `_other` (or vice versa) and the
+//      dead i18next v3 suffix `_plural`
+//   3. keys that are no longer referenced anywhere in the source
+//   4. errors/: drift against the error codes the backend actually sends
 //
-// 1 und 2 sind harte Fehler (Exit-Code 1). 3 kann durch dynamische
-// Key-Konstruktion (t(`foo.${bar}`)) falsch-positiv sein und wird deshalb nur
-// als Warnung ausgegeben.
+// 1 and 2 are hard errors (exit code 1). 3 can be a false positive due to
+// dynamic key construction (t(`foo.${bar}`)) and is therefore only a warning.
 //
-// Zu 4: Der errors-Namensraum wird von Pruefung 3 ausgenommen. Seine Keys
-// heissen wie die `code`-Felder der Backend-Fehler und werden ausschliesslich
-// dynamisch nachgeschlagen (translateApiError in utils/apiError.ts) - fuer
-// Pruefung 3 sehen alle 120 tot aus, was die tatsaechlich toten Keys der
-// anderen Namensraeume unter 100 Zeilen Rauschen begraben hat. Stattdessen
-// wird hier gegen die Codes im Python-Quelltext verglichen. Das findet die
-// umgekehrte Luecke gleich mit: ein Backend-Fehler ohne Uebersetzung erscheint
-// dem Nutzer als "Ein Fehler ist aufgetreten". Fuer tatsaechlich falsche/getippte Keys in t()-
-// Aufrufen siehe check-i18n-calls.mjs - das TypeScript-Typsystem kann das auf
-// dieser Codebase-Groesse nicht mehr leisten (siehe dortiger Kommentar).
+// On 4: the errors namespace is exempt from check 3. Its keys are named like
+// the `code` fields of the backend errors and are looked up exclusively
+// dynamically (translateApiError in utils/apiError.ts) - to check 3 all 120
+// look dead, which buried the actually dead keys of the other namespaces under
+// 100 lines of noise. Instead this compares against the codes in the Python
+// source. That catches the reverse gap too: a backend error without a
+// translation shows the user "An error occurred". For actually wrong/mistyped
+// keys in t() calls see check-i18n-calls.mjs - the TypeScript type system can
+// no longer do that at this codebase size (see the comment there).
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -30,9 +28,9 @@ const ROOT = join(__dirname, '..');
 const LOCALES_DIR = join(ROOT, 'public/locales');
 const SRC_DIR = join(ROOT, 'src');
 const SERVICES_DIR = join(ROOT, '..');
-// Ausschliesslich dynamisch nachgeschlagen, siehe Kopfkommentar.
+// Looked up exclusively dynamically, see the header comment.
 const DYNAMIC_NS = 'errors';
-// Keys, die nicht vom Backend kommen: Eigenbau des Frontends oder Rueckfall.
+// Keys that do not come from the backend: the frontend's own or a fallback.
 const FRONTEND_ERROR_KEYS = new Set(['generic_error', 'invalid_url']);
 const LANGUAGES = ['de', 'en'];
 const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
@@ -75,8 +73,8 @@ function collectPythonFiles(dir) {
     return files;
   }
   for (const entry of entries) {
-    // tests/ bleibt draussen: dort stehen erfundene Codes (test_failed) als
-    // Platzhalter, die nie einen Nutzer erreichen.
+    // tests/ stays out: it holds invented codes (test_failed) as placeholders
+    // that never reach a user.
     if (
       entry.name === 'node_modules' ||
       entry.name === '.venv' ||
@@ -117,26 +115,26 @@ for (const ns of namespaces) {
   const onlyA = [...keysA].filter((k) => !keysB.has(k));
   const onlyB = [...keysB].filter((k) => !keysA.has(k));
   for (const k of onlyA) {
-    console.error(`FEHLER [${ns}] Key "${k}" fehlt in ${b}.json`);
+    console.error(`ERROR [${ns}] key "${k}" missing in ${b}.json`);
     hasError = true;
   }
   for (const k of onlyB) {
-    console.error(`FEHLER [${ns}] Key "${k}" fehlt in ${a}.json`);
+    console.error(`ERROR [${ns}] key "${k}" missing in ${a}.json`);
     hasError = true;
   }
 }
 
-// ── 2. Pluralformen ──────────────────────────────────────────────────────
+// ── 2. Plural forms ─────────────────────────────────────────────────────
 for (const ns of namespaces) {
   for (const lng of LANGUAGES) {
     const keys = resources[ns][lng];
     for (const key of Object.keys(keys)) {
       if (key.endsWith('_plural')) {
-        console.error(`FEHLER [${ns}/${lng}] Key "${key}" nutzt das tote i18next-v3-Suffix "_plural" (seit i18next v4: "_one"/"_other")`);
+        console.error(`ERROR [${ns}/${lng}] key "${key}" uses the dead i18next v3 suffix "_plural" (since i18next v4: "_one"/"_other")`);
         hasError = true;
       }
     }
-    // Fuer jeden "_one"-Key muss ein "_other"-Pendant existieren, und umgekehrt
+    // For every "_one" key there must be an "_other" counterpart, and vice versa
     const bases = new Set();
     for (const key of Object.keys(keys)) {
       for (const suffix of PLURAL_SUFFIXES) {
@@ -149,14 +147,14 @@ for (const ns of namespaces) {
       const hasOne = `${base}_one` in keys;
       const hasOther = `${base}_other` in keys;
       if (hasOne !== hasOther) {
-        console.error(`FEHLER [${ns}/${lng}] Plural-Basis "${base}" hat nur ${hasOne ? '"_one"' : '"_other"'}, das jeweils andere fehlt`);
+        console.error(`ERROR [${ns}/${lng}] plural base "${base}" has only ${hasOne ? '"_one"' : '"_other"'}, the other one is missing`);
         hasError = true;
       }
     }
   }
 }
 
-// ── 3. Tote Keys (Warnung, kein harter Fehler) ──────────────────────────
+// ── 3. Dead keys (warning, not a hard error) ───────────────────────────
 const sourceFiles = collectSourceFiles(SRC_DIR);
 const sourceBlob = sourceFiles.map((f) => readFileSync(f, 'utf-8')).join('\n');
 
@@ -170,7 +168,7 @@ for (const ns of namespaces) {
     const parts = key.split('.');
     const prefixHit = parts.some((_, i) => sourceBlob.includes(parts.slice(0, i + 1).join('.')));
     if (!prefixHit) {
-      warnings.push(`[${ns}] Key "${key}" wird im Quellcode nicht mehr referenziert`);
+      warnings.push(`[${ns}] key "${key}" is no longer referenced in the source`);
     }
   }
 }
@@ -185,31 +183,31 @@ for (const file of collectPythonFiles(SERVICES_DIR)) {
 }
 
 if (backendCodes.size === 0) {
-  // Ohne die Dienste daneben (z. B. ein ausgecheckter Teilbaum) waere jeder
-  // Key "unbekannt" - dann lieber gar nichts melden als alles.
-  console.warn('\nHinweis: keine Python-Quellen gefunden, errors/ wurde nicht gegen das Backend geprueft.');
+  // Without the services alongside (e.g. a partial checkout) every key would
+  // be "unknown" - then better to report nothing than everything.
+  console.warn('\nNote: no Python sources found, errors/ was not checked against the backend.');
 } else {
   const errorKeys = Object.keys(resources[DYNAMIC_NS][LANGUAGES[0]]);
   for (const key of errorKeys) {
     if (backendCodes.has(key) || FRONTEND_ERROR_KEYS.has(key)) continue;
-    warnings.push(`[${DYNAMIC_NS}] Key "${key}" gehoert zu keinem Fehlercode des Backends mehr`);
+    warnings.push(`[${DYNAMIC_NS}] key "${key}" no longer belongs to any backend error code`);
   }
   for (const code of [...backendCodes].sort()) {
     if (!(code in resources[DYNAMIC_NS][LANGUAGES[0]])) {
-      console.error(`FEHLER [${DYNAMIC_NS}] Backend sendet "${code}", es gibt aber keine Uebersetzung - der Nutzer sieht "generic_error"`);
+      console.error(`ERROR [${DYNAMIC_NS}] the backend sends "${code}" but there is no translation - the user sees "generic_error"`);
       hasError = true;
     }
   }
 }
 
 if (warnings.length > 0) {
-  console.warn(`\n${warnings.length} moeglicherweise ungenutzte Keys (bitte pruefen, dynamische Keys erzeugen falsch-positive Treffer):`);
+  console.warn(`\n${warnings.length} possibly unused keys (please check, dynamic keys produce false positives):`);
   for (const w of warnings) console.warn('  ' + w);
 }
 
 if (hasError) {
-  console.error('\ni18n-Pruefung fehlgeschlagen.');
+  console.error('\ni18n check failed.');
   process.exit(1);
 }
 
-console.log(`i18n-Pruefung ok: ${namespaces.length} Namespaces, ${LANGUAGES.join('/')} synchron, Pluralformen vollstaendig.`);
+console.log(`i18n check ok: ${namespaces.length} namespaces, ${LANGUAGES.join('/')} in sync, plural forms complete.`);

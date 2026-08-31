@@ -50,8 +50,8 @@ export function useActionButtonStyles(
   const muiColor   = colorMap[actionType];
 
   // Base sizing / typography for visual consistency
-  // - Non-icon buttons: einheitliche Höhe, Padding, Schriftgröße
-  // - Icon-Buttons: MUI-Defaults, nur Hover leicht angepasst (s.u.)
+  // - Non-icon buttons: uniform height, padding, font size
+  // - Icon buttons: MUI defaults, only hover slightly adjusted (see below)
   let sx: SxProps<Theme> = {};
 
   if (actionType !== 'icon') {

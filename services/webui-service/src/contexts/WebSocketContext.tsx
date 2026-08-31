@@ -129,27 +129,26 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 export const useWebSocket = (): WebSocketContextType => useContext(WebSocketContext);
 
 /**
- * Auf genau einen Nachrichtentyp hoeren, ohne bei jeder anderen Nachricht neu
- * zu rendern.
+ * Listen for exactly one message type without re-rendering on every other
+ * message.
  *
- * Achtung beim Callback-Parameter: `Extract<WebSocketMessage, {type: T}>` ist
- * hier immer `never`, weil `WebSocketMessage` keine unterschiedene Union ist,
- * sondern ein Interface mit `type: WebSocketMessageType`. `never` nimmt jede
- * Annotation widerspruchslos an - die Generik prueft also nichts. Deshalb
- * annotieren alle Aufrufer ihren Parameter selbst und greifen `data` per
- * `as`-Zusicherung ab. Wirklich beheben liesse sich das nur, indem
- * `WebSocketMessage` in types/api.ts zu einer echten Union ueber die
- * Einzeltypen wird.
+ * Note on the callback parameter: `Extract<WebSocketMessage, {type: T}>` is
+ * always `never` here, because `WebSocketMessage` is not a discriminated union
+ * but an interface with `type: WebSocketMessageType`. `never` accepts any
+ * annotation without complaint - so the generic checks nothing. That is why
+ * every caller annotates its own parameter and reads `data` via an `as`
+ * assertion. This could only really be fixed by making `WebSocketMessage` in
+ * types/api.ts a real union over the individual types.
  */
 export function useWebSocketEvent<T extends WebSocketMessage['type']>(
   messageType: T,
   callback: (data: Extract<WebSocketMessage, { type: T }>) => void
 ) {
-  // Der Callback haengt in einer Ref statt in den Abhaengigkeiten. Fast jeder
-  // Aufrufer uebergibt eine Inline-Funktion - die ist bei jedem Render neu,
-  // also meldete sich der Listener bei jedem Render ab und wieder an. Zwischen
-  // Ab- und Anmeldung ankommende Nachrichten gingen dabei verloren, und jeder
-  // Aufrufer musste sich mit useCallback behelfen, um das zu vermeiden.
+  // The callback lives in a ref instead of the dependencies. Almost every
+  // caller passes an inline function - that is new on every render, so the
+  // listener unsubscribed and re-subscribed on every render. Messages arriving
+  // between unsubscribe and subscribe were lost, and every caller had to resort
+  // to useCallback to avoid that.
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
 

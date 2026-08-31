@@ -3,7 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { ServiceUpdateInfo } from '@/api/system';
 
-/** Aenderungsnotizen einer Ausgabe in der eingestellten Sprache. */
+/** Release notes of a version in the configured language. */
 export const ReleaseNotesList: React.FC<{ service: ServiceUpdateInfo }> = ({ service }) => {
   const { t, i18n } = useTranslation('admin');
   // Deutsch als Rueckfall: die Notizen entstehen zuerst auf Deutsch, eine

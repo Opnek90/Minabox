@@ -16,17 +16,17 @@ vi.mock('react-i18next', () => ({
 const renderNav = (node: React.ReactNode) =>
   render(<MemoryRouter initialEntries={['/media']}>{node}</MemoryRouter>);
 
-describe('Navigation – Karten-Eintrag haengt am RFID-Leser (#132)', () => {
+describe('Navigation - cards entry hangs off the RFID reader (#132)', () => {
   beforeEach(() => {
     rfidInstalled = true;
   });
 
-  it('zeigt den RFID-Eintrag, wenn der Leser installiert ist', () => {
+  it('shows the RFID entry when the reader is installed', () => {
     renderNav(<Navigation />);
     expect(screen.getByText('navigation.rfid')).toBeInTheDocument();
   });
 
-  it('blendet den RFID-Eintrag aus, wenn der Leser fehlt - in Drawer und BottomNav', () => {
+  it('hides the RFID entry when the reader is missing - in drawer and BottomNav', () => {
     rfidInstalled = false;
     const { rerender } = renderNav(<Navigation />);
     expect(screen.queryByText('navigation.rfid')).not.toBeInTheDocument();

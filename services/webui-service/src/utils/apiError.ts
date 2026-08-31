@@ -19,12 +19,12 @@ export function apiErrorCode(err: unknown): string | undefined {
 }
 
 /**
- * Uebersetzt eine fehlgeschlagene API-Antwort ueber den `errors`-Namespace.
+ * Translates a failed API response via the `errors` namespace.
  *
- * `detail` ist absichtlich englisch und entwicklerorientiert (Logs, curl) -
- * angezeigt wird ausschliesslich der uebersetzte `code`. Ein Code ohne
- * passenden Eintrag in errors.json faellt auf `errors:generic_error` zurueck,
- * statt einen rohen Backend-Text oder gar kein Ergebnis zu zeigen.
+ * `detail` is intentionally English and developer-oriented (logs, curl) - only
+ * the translated `code` is shown. A code with no matching entry in errors.json
+ * falls back to `errors:generic_error`, instead of showing a raw backend string
+ * or no result at all.
  */
 export function translateApiError(t: TFunction, i18n: I18n, err: unknown): string {
   const code = apiErrorCode(err);

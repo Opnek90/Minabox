@@ -3,7 +3,7 @@ import { Box, Chip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { ServiceUpdateInfo } from '@/api/system';
 
-/** Eine Zeile der Versionsliste: Dienst, laufende Version, Hinweis auf Neues. */
+/** One row of the version list: service, running version, hint of something new. */
 export const ServiceVersionRow: React.FC<{ service: ServiceUpdateInfo }> = ({ service }) => {
   const { t } = useTranslation('admin');
   return (
@@ -18,8 +18,8 @@ export const ServiceVersionRow: React.FC<{ service: ServiceUpdateInfo }> = ({ se
         <Chip size="small" color="primary" label={`→ ${service.latest}`} />
       )}
       {service.pending_publish && (
-        // Das Manifest ist der Registry voraus - anbieten waere ein Versprechen,
-        // das der Pull nicht halten koennte.
+        // The manifest is ahead of the registry - offering it would be a
+        // promise the pull could not keep.
         <Chip size="small" variant="outlined" label={t('system.pending_publish')} />
       )}
     </Box>

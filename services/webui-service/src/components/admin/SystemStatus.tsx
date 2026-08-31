@@ -47,9 +47,9 @@ export const SystemStatusPanel: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syslogModalOpen, setSyslogModalOpen] = useState(false);
-  // Deep-Link fuer den Support: .../admin?section=diagnose&action=debug-export
-  // oeffnet den Dialog direkt, damit eine Support-Mail aus einem Link besteht
-  // statt aus einer Klickanleitung.
+  // Deep link for support: .../admin?section=diagnose&action=debug-export
+  // opens the dialog directly, so a support mail is a link rather than a
+  // click-by-click guide.
   const [debugExportOpen, setDebugExportOpen] = useState(
     () => new URLSearchParams(window.location.search).get('action') === 'debug-export'
   );
@@ -274,9 +274,9 @@ export const SystemStatusPanel: React.FC = () => {
 
       <SettingsBlock title={t('system.container_status')}>
 
-      {/* Ohne Docker-Socket faellt das Backend auf die statische Liste zurueck.
-          Das muss sichtbar sein: fehlende Werte heissen dann "nicht messbar",
-          nicht "Auslastung null". */}
+      {/* Without the Docker socket, the backend falls back to the static list.
+          That has to be visible: missing values then mean "not measurable",
+          not "zero load". */}
       {status && status.docker_available === false && (
         <Alert severity="info" sx={{ mt: 1 }}>
           {t('system.docker_unavailable')}

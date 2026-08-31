@@ -41,11 +41,11 @@ function toDraft(net: NetworkResponse): Draft {
 }
 
 interface IPv4BlockProps {
-  /** Nach dem Uebernehmen, damit die Status-Karte die neue Adresse zeigt. */
+  /** After applying, so the status card shows the new address. */
   onNetworkChanged: () => void;
 }
 
-/** Feste IP-Adresse statt DHCP - fuer Boxen, die immer unter derselben Adresse stehen sollen. */
+/** A fixed IP address instead of DHCP - for boxes that should always be at the same address. */
 export const IPv4Block: React.FC<IPv4BlockProps> = ({ onNetworkChanged }) => {
   const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
@@ -73,8 +73,8 @@ export const IPv4Block: React.FC<IPv4BlockProps> = ({ onNetworkChanged }) => {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
 
   const handleMethodChange = (method: Method) => {
-    // Beim Wechsel auf "manuell" die zuletzt bekannten Werte vorlegen, statt
-    // vier leere Felder hinzustellen.
+    // When switching to "manual", prefill the last known values instead of
+    // presenting four empty fields.
     setDraft((prev) => {
       if (!prev) return prev;
       if (method === 'manual' && network) return { ...toDraft(network), method };
@@ -82,8 +82,8 @@ export const IPv4Block: React.FC<IPv4BlockProps> = ({ onNetworkChanged }) => {
     });
   };
 
-  // Der Server meldet unter DHCP nur dann eine Adresse, wenn sie als feste
-  // Adresse im Profil steht - genau der Fall, den der Hinweis unten meint.
+  // Under DHCP the server only reports an address if it is set as a fixed
+  // address in the profile - exactly the case the hint below refers to.
   const staleStaticAddress =
     network && network.method === 'dhcp' && network.address ? network.address : null;
 
@@ -117,11 +117,11 @@ export const IPv4Block: React.FC<IPv4BlockProps> = ({ onNetworkChanged }) => {
         </Typography>
       ) : (
         <Box display="flex" flexDirection="column" gap={1.5} sx={{ mt: 1 }}>
-          {/* DHCP und trotzdem eine feste Adresse im Profil: NetworkManager
-              vergibt die zusaetzlich zum Lease, die Karte oben nennt dann die
-              falsche. Ohne diesen Hinweis sieht die Seite aus, als sei alles
-              in Ordnung - "Uebernehmen" auf eine scheinbar unveraenderte
-              Auswahl zu druecken kommt niemandem in den Sinn. */}
+          {/* DHCP and yet a fixed address in the profile: NetworkManager
+              hands that out in addition to the lease, and the card above then
+              names the wrong one. Without this hint the page looks as if
+              everything is fine - it would occur to nobody to press "Apply" on
+              a seemingly unchanged selection. */}
           {staleStaticAddress && (
             <Alert severity="warning">
               <AlertTitle>

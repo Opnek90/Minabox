@@ -69,8 +69,8 @@ export const Header: React.FC = () => {
           {t('app_name')}
         </Typography>
 
-{/* Update-Hinweis: nur ein Icon, damit die Kopfzeile ihre Hoehe behaelt -
-    der ausfuehrliche Text kommt per Tooltip und auf der Wartungsseite. */}
+{/* Update hint: only an icon, so the header keeps its height - the full text
+    comes via a tooltip and on the maintenance page. */}
 {updateAvailable && (
   <Tooltip title={t('alerts.update_available')}>
     <Chip
@@ -97,8 +97,8 @@ export const Header: React.FC = () => {
   />
 </Tooltip>
 
-{/* Sichtbares Suchfeld statt reinem Icon: die Palette ist die globale Suche
-    (Navigation, Einstellungen, Mediathek) und war vorher nicht auffindbar. */}
+{/* A visible search field instead of a plain icon: the palette is the global
+    search (navigation, settings, media library) and used to be undiscoverable. */}
 <Tooltip title={t('command_palette.title')}>
   <Box
     component="button"

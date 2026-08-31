@@ -25,21 +25,21 @@ import { useFeatureInstalled } from '@/contexts/CapabilitiesContext';
 
 const DRAWER_WIDTH = 220;
 /**
- * Icon-Rail fuer die Tablet-Stufe. 72px ist Material-3-Standard und die
- * schmalste Breite, in die ein 48px-Touchziel plus Randluft noch passt. Der
- * volle Drawer kostet auf einem 1024px-Tablet ein Fuenftel der Seite; die Rail
- * gibt 148px davon an den Inhalt zurueck, ohne die Navigation zu verstecken.
+ * Icon rail for the tablet level. 72px is the Material 3 standard and the
+ * narrowest width a 48px touch target plus edge air still fits into. The full
+ * drawer costs a fifth of the page on a 1024px tablet; the rail gives 148px of
+ * that back to the content without hiding the navigation.
  */
 const RAIL_WIDTH = 72;
 // MUI BottomNavigation default height. Exported so fixed-position siblings
 // (MiniPlayer, MediaFab) can offset themselves above it on mobile.
 const MOBILE_BOTTOM_NAV_HEIGHT = 56;
 /**
- * Untere Geraete-Schutzzone (Home-Indicator / Gestenleiste). Mit
- * `viewport-fit=cover` in der index.html reicht der Viewport bis unter die
- * Leiste – fixierte Elemente muessen den Wert selbst aufschlagen, sonst liegen
- * BottomNav-Labels und MiniPlayer darunter. Auf Geraeten ohne Gestenleiste
- * ist der Wert 0px, die Layouts aendern sich dort also nicht.
+ * Bottom device safe area (home indicator / gesture bar). With
+ * `viewport-fit=cover` in index.html the viewport extends under the bar -
+ * fixed elements have to add the value themselves, otherwise BottomNav labels
+ * and the MiniPlayer sit under it. On devices without a gesture bar the value
+ * is 0px, so the layouts do not change there.
  */
 const SAFE_AREA_BOTTOM = 'env(safe-area-inset-bottom, 0px)';
 
@@ -53,17 +53,17 @@ const navItems: NavItem[] = [
   { path: '/player', labelKey: 'navigation.player', icon: <PlayCircleOutlineIcon /> },
   { path: '/rfid', labelKey: 'navigation.rfid', icon: <NfcIcon /> },
   { path: '/media', labelKey: 'navigation.media', icon: <LibraryMusicIcon /> },
-  // Kurzform: In der BottomNav teilen sich fuenf Eintraege ~390px, also ~70px
-  // Textbreite je Eintrag – "Eltern-Dashboard" bricht dort auf zwei Zeilen und
-  // sprengt die Leiste. Der volle Name steht weiterhin als Seitentitel.
+  // Short form: in the BottomNav five entries share ~390px, so ~70px of text
+  // width per entry - "Parent dashboard" wraps to two lines there and blows up
+  // the bar. The full name is still used as the page title.
   { path: '/dashboard', labelKey: 'navigation.dashboard_short', icon: <BarChartIcon /> },
   { path: '/admin', labelKey: 'navigation.admin', icon: <SettingsIcon /> },
 ];
 
 /**
- * `navItems` gefiltert nach installierten Komponenten. Aktuell haengt nur der
- * Karten-Eintrag (`/rfid`) an einer optionalen Komponente; ohne Leser fuehrt er
- * nur auf eine Seite, deren Kernfunktionen (Lernmodus, Scan) nichts tun.
+ * `navItems` filtered by installed components. Currently only the cards entry
+ * (`/rfid`) hangs off an optional component; without a reader it only leads to
+ * a page whose core functions (learn mode, scan) do nothing.
  */
 const useVisibleNavItems = (): NavItem[] => {
   const rfidInstalled = useFeatureInstalled('rfid');
@@ -72,15 +72,14 @@ const useVisibleNavItems = (): NavItem[] => {
 
 interface NavigationProps {
   /**
-   * `full` zeigt Icon + Beschriftung nebeneinander (Desktop), `rail` stapelt
-   * beide in 72px Breite (Tablet). Die Eintraege und ihre Reihenfolge sind in
-   * beiden Varianten identisch, damit die Muskelerinnerung beim Drehen des
-   * Geraets nicht bricht.
+   * `full` shows icon + label side by side (desktop), `rail` stacks both in
+   * 72px width (tablet). The entries and their order are identical in both
+   * variants, so muscle memory does not break when the device is rotated.
    */
   variant?: 'full' | 'rail';
 }
 
-/** Permanente Seitennavigation fuer Tablet (Rail) und Desktop (Drawer). */
+/** Permanent side navigation for tablet (rail) and desktop (drawer). */
 export const Navigation: React.FC<NavigationProps> = ({ variant = 'full' }) => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
@@ -141,8 +140,8 @@ export const Navigation: React.FC<NavigationProps> = ({ variant = 'full' }) => {
                     {item.icon}
                   </ListItemIcon>
                   {isRail ? (
-                    // Beschriftung bleibt auch in der Rail sichtbar: reine
-                    // Icon-Navigation ist ohne Hover (Touch) nicht entzifferbar.
+                    // The label stays visible in the rail too: icon-only
+                    // navigation is unreadable without hover (touch).
                     <Typography
                       variant="caption"
                       sx={{

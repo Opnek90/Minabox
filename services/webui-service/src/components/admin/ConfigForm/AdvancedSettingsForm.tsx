@@ -17,8 +17,8 @@ import { ActionButton } from '@/components/ui/ActionButton';
 const LOG_LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
 
 /**
- * Geräte-ID, Protokoll-Tiefe und MQTT-Verbindung. Bewusst unter „Technische
- * Details" einsortiert – wer diese Werte nicht kennt, muss sie nicht ändern.
+ * Device ID, log level and MQTT connection. Deliberately filed under "Technical
+ * details" - anyone who does not know these values does not need to change them.
  */
 export const AdvancedSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');

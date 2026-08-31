@@ -2,13 +2,13 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 export interface SupportedLanguage {
   code: string;
-  /** Eigenbezeichnung der Sprache, in jeder Sprache gleich dargestellt (kein Uebersetzungsaufwand pro Sprachpaar). */
+  /** The language's own name, shown the same in every language (no per-pair translation effort). */
   nativeName: string;
 }
 
-// Einzige Quelle fuer unterstuetzte Sprachen. Eine neue Sprache ist ein
-// Eintrag hier - i18n.ts, der Setup-Wizard und die Admin-Einstellungen lesen
-// alle von dieser Liste, statt sie an drei Stellen einzeln zu pflegen.
+// The single source for supported languages. A new language is an entry here -
+// i18n.ts, the setup wizard and the admin settings all read from this list
+// instead of maintaining it separately in three places.
 export const SUPPORTED_LANGUAGES: readonly SupportedLanguage[] = [
   { code: 'de', nativeName: 'Deutsch' },
   { code: 'en', nativeName: 'English' },
@@ -19,7 +19,7 @@ export const LANGUAGE_STORAGE_KEY = STORAGE_KEYS.LANGUAGE;
 
 const SUPPORTED_CODES = new Set(SUPPORTED_LANGUAGES.map((l) => l.code));
 
-/** Bildet z. B. "de-DE" auf den unterstuetzten Basis-Code ab, sonst Fallback. */
+/** Maps e.g. "de-DE" to the supported base code, otherwise the fallback. */
 export function resolveSupportedLanguage(lng: string | null | undefined): string {
   if (!lng) return DEFAULT_LANGUAGE;
   if (SUPPORTED_CODES.has(lng)) return lng;

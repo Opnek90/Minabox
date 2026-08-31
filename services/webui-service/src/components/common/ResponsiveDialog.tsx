@@ -5,20 +5,19 @@ import { SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
 import { useLayout } from '@/hooks/useLayout';
 
 /**
- * Dialog, der auf Telefonen als Vollbild-Sheet auftritt.
+ * A dialog that appears as a full-screen sheet on phones.
  *
- * Hintergrund: Ein zentrierter Dialog laesst auf einem 6–7"-Display bei
- * eingeblendeter Bildschirmtastatur nur noch ein paar hundert Pixel fuer das
- * Formular uebrig – der Speichern-Button in den `DialogActions` liegt dann
- * ausserhalb des sichtbaren Bereichs. Unterhalb des `sm`-Breakpoints nimmt der
- * Dialog deshalb den ganzen Schirm ein: Der Inhalt scrollt in `DialogContent`,
- * die Aktionsleiste bleibt am unteren Rand stehen.
+ * Background: on a 6-7" display with the on-screen keyboard up, a centred
+ * dialog leaves only a few hundred pixels for the form - the save button in
+ * `DialogActions` is then outside the visible area. Below the `sm` breakpoint
+ * the dialog therefore takes the whole screen: the content scrolls in
+ * `DialogContent`, the action bar stays at the bottom edge.
  *
- * Bewusst nur fuer *Formular*-Dialoge gedacht. Ja/Nein-Bestaetigungen bleiben
- * kleine Karten – ein Vollbild-Sheet fuer eine Rueckfrage waere Overkill und
- * wuerde den Kontext dahinter unnoetig verdecken.
+ * Deliberately meant only for *form* dialogs. Yes/no confirmations stay small
+ * cards - a full-screen sheet for a follow-up question would be overkill and
+ * would needlessly hide the context behind it.
  *
- * Die API entspricht `Dialog`; ein explizit gesetztes `fullScreen` gewinnt.
+ * The API matches `Dialog`; an explicitly set `fullScreen` wins.
  */
 export const ResponsiveDialog: React.FC<DialogProps> = ({ sx, ...props }) => {
   const theme = useTheme();
@@ -30,12 +29,12 @@ export const ResponsiveDialog: React.FC<DialogProps> = ({ sx, ...props }) => {
       {...props}
       sx={[
         fullScreen && {
-          // Aktionsleiste ueber die Geraete-Schutzzone (Gestenleiste) heben.
+          // Lift the action bar above the device safe area (gesture bar).
           '& .MuiDialogActions-root': {
             paddingBottom: `calc(${theme.spacing(1)} + ${SAFE_AREA_BOTTOM})`,
           },
-          // Scroll-Chaining unterbinden: Am Listenende soll nicht die Seite
-          // hinter dem Sheet weiterscrollen.
+          // Prevent scroll chaining: at the end of the list, the page behind
+          // the sheet must not keep scrolling.
           '& .MuiDialogContent-root': {
             overscrollBehavior: 'contain',
           },

@@ -54,8 +54,8 @@ export const ConnectionLostScreen: React.FC = () => {
           <Typography variant="body2" sx={{ opacity: 0.7 }}>
             {t('connection_lost.body')}
           </Typography>
-          {/* Der WebSocket kann tot sein, waehrend HTTP noch antwortet - dann
-              kommt der Nutzer hier trotzdem an sein Diagnose-Paket. */}
+          {/* The WebSocket can be dead while HTTP still answers - then the
+              user still gets to their diagnostics package here. */}
           <Button
             variant="outlined"
             size="small"

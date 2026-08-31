@@ -9,11 +9,11 @@ interface NetworkStatusBlockProps {
 }
 
 /**
- * Wie die Box gerade im Netz steht - und unter welcher Adresse sie erreichbar
- * ist, falls sie im Hotspot haengt.
+ * How the box currently stands on the network - and which address it is
+ * reachable at if it is in hotspot mode.
  *
- * Bekommt den Zustand vom Panel gereicht statt ihn selbst zu holen: der
- * WLAN-Block darunter kann ihn aendern, und dann muss diese Karte mitziehen.
+ * Gets the state passed from the panel instead of fetching it itself: the
+ * Wi-Fi block below can change it, and then this card has to follow.
  */
 export const NetworkStatusBlock: React.FC<NetworkStatusBlockProps> = ({ status }) => {
   const { t } = useTranslation('admin');

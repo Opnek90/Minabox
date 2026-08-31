@@ -39,7 +39,7 @@ export const AudioStep: React.FC<Props> = ({ registerSave }) => {
     Promise.all([audioApi.getDevices(), configApi.getAudio()])
       .then(([dev, cfg]) => {
         setDevices(dev.devices ?? []);
-        // Vorauswahl: der bereits konfigurierte Ausgang, sonst der erste.
+        // Preselection: the already configured output, otherwise the first.
         setSink(cfg.output_device_name || dev.devices?.[0]?.id || '');
         setMinVol(cfg.min_volume ?? 15);
         setDefVol(cfg.default_volume ?? 25);
@@ -84,8 +84,8 @@ export const AudioStep: React.FC<Props> = ({ registerSave }) => {
     setTone('playing');
     setHeardNo(false);
     try {
-      // Der Ausgang muss vor dem Ton aktiv sein, sonst pruefte der Test den
-      // bisherigen Ausgang und nicht den gerade gewaehlten.
+      // The output must be active before the tone, otherwise the test would
+      // check the previous output and not the one just chosen.
       if (sink) await audioApi.switchDevice(sink);
       await audioApi.playTestTone(sink || undefined);
       setTone('asked');

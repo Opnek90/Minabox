@@ -1,21 +1,21 @@
 /**
- * Struktur-Index der Einstellungsseite.
+ * Structure index of the settings page.
  *
- * Leitgedanke des Zuschnitts: Die Einstellungen sind der *Einrichtungs*-Bereich.
- * Alles, was Eltern im Alltag brauchen (Zeiten, Limits, Auswertung), liegt im
- * Eltern-Dashboard – nicht hier. Die Gruppen sind nach Alltagsfragen benannt
- * („Abspielen", „Ton", „Aussehen"), nicht nach Technik; alles
- * Technische sammelt sich bewusst ganz unten in „Technische Details".
+ * Guiding idea of the split: the settings are the *setup* area. Everything
+ * parents need day to day (times, limits, analysis) lives in the parent
+ * dashboard - not here. The groups are named after everyday questions
+ * ("Playback", "Sound", "Appearance"), not after technology; everything
+ * technical deliberately collects at the very bottom in "Technical details".
  *
- * Bewusst frei von React-Inhalten: `AdminPage` hängt die Formulare über
- * `section.key` an, die `CommandPalette` nutzt denselben Index für die globale
- * Suche. Dadurch gibt es genau eine Quelle für Gruppen-/Section-Zuschnitt.
+ * Deliberately free of React content: `AdminPage` attaches the forms via
+ * `section.key`, the `CommandPalette` uses the same index for the global
+ * search. So there is exactly one source for the group/section split.
  *
- * `searchKeys` sind i18n-Keys der Labels *innerhalb* einer Section. Sie werden
- * beim Suchen mit übersetzt, damit die Suche in DE und EN ohne eigene
- * Wortlisten funktioniert. Keys ohne Namespace-Präfix liegen im `admin`-
- * Namespace, `setup:` verweist auf den setup-Namespace. `npm run check:i18n-calls`
- * prüft diese und alle anderen t()-Aufrufe gegen die echten JSON-Keys.
+ * `searchKeys` are i18n keys of the labels *inside* a section. They are
+ * translated during the search, so the search works in DE and EN without its
+ * own word lists. Keys without a namespace prefix live in the `admin`
+ * namespace, `setup:` points to the setup namespace. `npm run check:i18n-calls`
+ * checks these and all other t() calls against the real JSON keys.
  */
 
 import type { FeatureKey } from '@/api/capabilities';
@@ -25,9 +25,9 @@ export interface SettingsSectionMeta {
   titleKey: string;
   searchKeys: string[];
   /**
-   * Optionale Komponente, an der dieser Abschnitt haengt. Ist sie nicht
-   * installiert, blendet `AdminPage` den Abschnitt (und die leer gewordene
-   * Gruppe) aus und die Suche findet ihn nicht.
+   * Optional component this section hangs off. If it is not installed,
+   * `AdminPage` hides the section (and the group that has become empty) and the
+   * search does not find it.
    */
   requiresFeature?: FeatureKey;
 }
@@ -40,9 +40,9 @@ export interface SettingsGroupMeta {
 
 export const SETTINGS_INDEX: SettingsGroupMeta[] = [
   {
-    // Steht bewusst vor „Ton": „Ton" ist Klang (Lautsprecher, Bluetooth),
-    // „Abspielen" ist Verhalten. Wer wissen will, was die Box beim Auflegen
-    // einer Karte tut, sucht das nicht unter der Lautsprecher-Einstellung.
+    // Deliberately before "Sound": "Sound" is audio (speakers, Bluetooth),
+    // "Playback" is behaviour. Anyone who wants to know what the box does when
+    // a card is placed does not look under the speaker setting.
     key: 'playback',
     labelKey: 'groups.playback',
     sections: [
@@ -113,10 +113,10 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     ],
   },
   {
-    // Alles rund um die Musiksammlung: wo sie liegt, wie viel auf einmal
-    // hochgeladen werden darf, von welchen Quellen importiert werden darf und
-    // der Weg ueber den USB-Stick. Kam schrittweise dazu und lag vorher
-    // verstreut unter „Wartung", wo es niemand vermutet.
+    // Everything around the music collection: where it lives, how much may be
+    // uploaded at once, which sources may be imported from and the way via the
+    // USB stick. Was added step by step and used to be scattered under
+    // "Maintenance", where nobody looks for it.
     key: 'media',
     labelKey: 'groups.media',
     sections: [
@@ -211,8 +211,8 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         ],
       },
       {
-        // Onboarding erneut durchlaufen ist eine grosse, einmalige Aktion -
-        // gehoert neben Sicherung und Werksreset, nicht zu „Technische Details".
+        // Running onboarding again is a big, one-time action - it belongs
+        // next to backup and factory reset, not in "Technical details".
         key: 'setup_wizard',
         titleKey: 'setup:title',
         searchKeys: ['setup:subtitle'],
@@ -265,7 +265,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
   },
 ];
 
-/** Flache Liste aller Sections inklusive ihrer Gruppe – für Suche und Deep-Links. */
+/** Flat list of all sections including their group - for search and deep links. */
 export const SETTINGS_SECTIONS: Array<SettingsSectionMeta & { groupKey: string; groupLabelKey: string }> =
   SETTINGS_INDEX.flatMap((group) =>
     group.sections.map((section) => ({
@@ -275,5 +275,5 @@ export const SETTINGS_SECTIONS: Array<SettingsSectionMeta & { groupKey: string; 
     }))
   );
 
-/** DOM-Id einer Section – Ziel für Deep-Links und Scroll-to-Section. */
+/** DOM id of a section - target for deep links and scroll-to-section. */
 export const sectionDomId = (sectionKey: string): string => `settings-section-${sectionKey}`;

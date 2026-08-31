@@ -7,15 +7,15 @@ import { HostnameBlock } from '@/components/admin/network/HostnameBlock';
 import { IPv4Block } from '@/components/admin/network/IPv4Block';
 
 /**
- * Alles, was die Box im Netzwerk erreichbar macht.
+ * Everything that makes the box reachable on the network.
  *
- * Vier Themen ohne gemeinsamen Zustand - WLAN, Hotspot, feste IP, Geraetename -
- * lagen hier in einer Datei mit 23 `useState`. Jeder Block laedt jetzt seins.
+ * Four topics with no shared state - Wi-Fi, hotspot, fixed IP, device name -
+ * used to sit here in one file with 23 `useState`. Each block now loads its own.
  *
- * Was hier bleibt, ist das eine, was wirklich geteilt ist: die Status-Karte
- * oben zeigt Modus und Adresse, und WLAN wie IP-Konfiguration koennen beides
- * aendern. Frueher blieb die Karte nach einem Hotspot-Start auf dem alten
- * Stand stehen, weil sie nur beim ersten Laden gefuellt wurde.
+ * What stays here is the one thing that really is shared: the status card on
+ * top shows mode and address, and both the Wi-Fi and the IP configuration can
+ * change both. The card used to stay on the old state after a hotspot start,
+ * because it was only filled on the first load.
  */
 export const NetworkPanel: React.FC = () => {
   const [status, setStatus] = useState<NetworkStatusResponse | null>(null);

@@ -59,10 +59,10 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
   const { t } = useTranslation('rfid');
   const { showSuccess, showError } = useToast();
   const { prefs, setViewMode, setSort, setFilter } = useUserPrefs();
-  // Ab Tablet-Breite ist Platz fuer Sortierung, Filter und Zeilenaktionen
-  // direkt in der Leiste; nur auf dem Handy wandern sie ins Popover bzw. in
-  // ein Ueberlaufmenue. Vorher lag diese Grenze bei 900px, wodurch ein
-  // 834px-Tablet die volle Handy-Bedienung bekam, obwohl die Breite reicht.
+  // From tablet width there is room for sorting, filters and row actions
+  // directly in the bar; only on the phone do they move into the popover or an
+  // overflow menu. This boundary used to be at 900px, which gave an 834px
+  // tablet the full phone controls even though the width is enough.
   const hasInlineControls = useLayout().hasRoomForInlineControls;
 
   const [tags, setTags] = useState<Tag[]>([]);

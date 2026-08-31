@@ -13,15 +13,15 @@ i18n
   .init({
     // Phase 1: immer mit englischem Fallback starten. Bei log_level "debug"
     // schaltet applyI18nDebugMode() (i18n/debugMode.ts) den Fallback nach dem
-    // ersten GET /config/general wieder ab, damit fehlende Schluessel auffallen.
+    // first GET /config/general, so missing keys stand out.
     fallbackLng: DEFAULT_LANGUAGE,
     lng: localStorage.getItem(LANGUAGE_STORAGE_KEY) ?? DEFAULT_LANGUAGE,
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
     ns: [...NAMESPACES],
     defaultNS: DEFAULT_NAMESPACE,
     backend: {
-      // Die Build-Kennung macht die URL pro Build eindeutig, damit ein alter oder
-      // beschaedigter Cache-Eintrag nicht ueber ein Update hinweg ueberlebt.
+      // The build id makes the URL unique per build, so an old or corrupted
+      // cache entry does not survive across an update.
       loadPath: `/locales/{{lng}}/{{ns}}.json?v=${__BUILD_ID__}`,
       // Zusaetzlich immer beim Server rueckfragen, statt blind aus dem Cache zu
       // antworten.
@@ -42,20 +42,20 @@ i18n
     },
   });
 
-// Ein fehlgeschlagener Namespace faellt sonst nur dadurch auf, dass die
-// Oberflaeche ploetzlich rohe Schluessel anzeigt ("GROUPS.SOUND"). Hier wird
-// daraus eine sichtbare Fehlermeldung - und ein Eintrag im Ringpuffer, sodass
-// das Diagnose-Paket den Fall belegt, statt ihn raten zu lassen.
+// A failed namespace would otherwise only show up because the interface
+// suddenly displays raw keys ("GROUPS.SOUND"). This turns it into a visible
+// error message - and an entry in the ring buffer, so the diagnostics package
+// documents the case instead of leaving it to be guessed.
 const retried = new Set<string>();
 
 i18n.on('failedLoading', (lng, ns, msg) => {
-  const message = `i18n: Namespace "${ns}" für Sprache "${lng}" nicht geladen: ${msg}`;
+  const message = `i18n: namespace "${ns}" for language "${lng}" not loaded: ${msg}`;
   console.error('[WebUI]', message);
   recordClientError({ kind: 'error', message });
 
   // Ohne Wiederholung bleibt ein einmaliger Aussetzer beim Start dauerhaft
-  // sichtbar – i18next lädt einen gescheiterten Namespace von sich aus nicht
-  // erneut. Genau ein Versuch je Kombination, damit daraus keine Schleife wird.
+  // visible - i18next does not reload a failed namespace on its own. Exactly
+  // one attempt per combination, so it does not turn into a loop.
   const key = `${lng}/${ns}`;
   if (retried.has(key)) return;
   retried.add(key);

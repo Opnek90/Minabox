@@ -16,7 +16,7 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { translateApiError } from '@/utils/apiError';
 
-/** Der Name, unter dem die Box im Netz auftaucht - und damit auch ihre mDNS-Adresse. */
+/** The name the box appears under on the network - and thus its mDNS address too. */
 export const HostnameBlock: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();

@@ -16,7 +16,7 @@ const AREAS = ['admin', 'media', 'dashboard', 'player'] as const;
 type Area = (typeof AREAS)[number];
 
 interface Props {
-  /** Meldet die Speicherfunktion beim Assistenten an; false = Eingabe stimmt nicht. */
+  /** Registers the save function with the wizard; false = input is not valid. */
   registerSave: (fn: () => Promise<boolean>) => void;
 }
 

@@ -28,20 +28,20 @@ export function formatUptime(seconds: number | null | undefined): { hours: numbe
 }
 
 /**
- * Format a timestamp as a relative time ("vor 5 Minuten", "gestern", ...).
+ * Format a timestamp as a relative time ("5 minutes ago", "yesterday", ...).
  *
- * Die Einheit waechst mit dem Abstand, statt alles in einer festen Einheit zu
- * zeigen – "vor 203.844 Minuten" ist fuer niemanden lesbar. Schwellen:
- *   < 1 Minute  -> "gerade eben" (numeric: 'auto')
- *   < 60 Minuten-> Minuten
- *   < 24 Stunden-> Stunden
- *   < 30 Tage   -> Tage (numeric: 'auto' liefert "gestern")
- *   < 12 Monate -> Monate
- *   sonst       -> Jahre
+ * The unit grows with the distance instead of showing everything in one fixed
+ * unit - "203,844 minutes ago" is unreadable for anyone. Thresholds:
+ *   < 1 minute   -> "just now" (numeric: 'auto')
+ *   < 60 minutes -> minutes
+ *   < 24 hours   -> hours
+ *   < 30 days    -> days (numeric: 'auto' gives "yesterday")
+ *   < 12 months  -> months
+ *   otherwise    -> years
  *
- * @param value ISO-Zeitstempel (oder Date/ms). Ohne Zeitzone wird UTC angenommen,
- *              weil das Backend naive UTC-Zeitstempel serialisiert.
- * @param locale BCP-47 Sprache, i. d. R. `i18n.language`
+ * @param value ISO timestamp (or Date/ms). Without a time zone, UTC is assumed,
+ *              because the backend serialises naive UTC timestamps.
+ * @param locale BCP-47 language, usually `i18n.language`
  */
 export function formatRelativeTime(
   value: string | number | Date | null | undefined,
@@ -51,7 +51,7 @@ export function formatRelativeTime(
   if (date === null) return null;
 
   const diffMs = Date.now() - date.getTime();
-  // Zukunft (Uhr-Drift zwischen Box und Browser) nicht als "in 3 Minuten" zeigen.
+  // Do not show the future (clock drift between box and browser) as "in 3 minutes".
   const elapsedMs = Math.max(0, diffMs);
 
   const rtf = new Intl.RelativeTimeFormat(locale || undefined, { numeric: 'auto' });
@@ -65,9 +65,9 @@ export function formatRelativeTime(
 
   const days = hours / 24;
   if (days < 30) {
-    // Ueber Kalendertage statt verstrichene Stunden: numeric 'auto' macht aus
-    // -1/-2 "gestern"/"vorgestern", und das muss zum Datum passen. 33 Stunden
-    // her ist verstrichen "1 Tag", kalendarisch aber vorgestern.
+    // By calendar days instead of elapsed hours: numeric 'auto' turns -1/-2
+    // into "yesterday"/"the day before", and that has to match the date. 33
+    // hours ago is "1 day" elapsed, but the day before yesterday by the calendar.
     return rtf.format(-calendarDaysBetween(date, new Date()), 'day');
   }
 
@@ -78,8 +78,8 @@ export function formatRelativeTime(
 }
 
 /**
- * Parse a backend timestamp. Zeitstempel ohne Zonen-Suffix werden als UTC
- * gelesen – sonst verschiebt die lokale Zeitzone das Ergebnis um Stunden.
+ * Parse a backend timestamp. Timestamps without a zone suffix are read as
+ * UTC - otherwise the local time zone shifts the result by hours.
  */
 function parseTimestamp(value: string | number | Date | null | undefined): Date | null {
   if (value == null) return null;
@@ -98,8 +98,8 @@ function parseTimestamp(value: string | number | Date | null | undefined): Date 
 }
 
 /**
- * Format a backend timestamp as an absolute local date/time – gedacht als
- * Tooltip zur relativen Angabe, wenn jemand das genaue Datum sehen will.
+ * Format a backend timestamp as an absolute local date/time - meant as a
+ * tooltip for the relative value, when someone wants to see the exact date.
  */
 export function formatAbsoluteTime(
   value: string | number | Date | null | undefined,

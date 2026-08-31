@@ -45,8 +45,8 @@ export const HardwareStep: React.FC = () => {
       .catch(() => setLeds([]));
   }, []);
 
-  // Jeder physische Tastendruck landet hier, auch fuer Tasten ohne zugeordnete
-  // Aktion - genau dafuer sendet der Button-Handler das raw-event.
+  // Every physical button press lands here, including buttons with no action
+  // mapping - that is exactly why the button handler sends the raw event.
   useWebSocketEvent(
     'button_raw_event',
     useCallback((msg: ButtonRawEventMessage) => {

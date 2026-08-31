@@ -1,15 +1,15 @@
 import apiClient from './client';
 
 /**
- * Optionale Komponenten, die der Installer anbietet. Der Schluessel entspricht
- * dem Feature-Key im Backend (`core/capabilities.py`) - nicht immer gleich dem
- * Compose-Profil (`media` -> `media_downloader`).
+ * Optional components the installer offers. The key matches the feature key in
+ * the backend (`core/capabilities.py`) - not always the same as the compose
+ * profile (`media` -> `media_downloader`).
  */
 export type FeatureKey = 'rfid' | 'led' | 'button' | 'display' | 'media_downloader';
 
 export interface FeatureCapability {
-  /** Bei der Installation ausgewaehlt (aus COMPOSE_PROFILES, nicht aus dem
-   *  Laufzustand). Bleibt true fuer einen nur gestoppten Container. */
+  /** Selected at install time (from COMPOSE_PROFILES, not from the running
+   *  state). Stays true for a container that is merely stopped. */
   installed: boolean;
   running: boolean;
   healthy: boolean;

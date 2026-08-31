@@ -5,11 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * Startet den Ersteinrichtungs-Assistenten erneut.
+ * Starts the first-run wizard again.
  *
- * Nuetzlich nach einem Hardware-Umbau oder wenn die Box weitergegeben wird.
- * Die bestehenden Werte bleiben erhalten und sind in den Schritten
- * vorausgefuellt - der Assistent setzt nichts zurueck.
+ * Useful after a hardware change or when the box is passed on. The existing
+ * values are kept and are pre-filled in the steps - the wizard resets nothing.
  */
 export const SetupWizardRestart: React.FC = () => {
   const { t } = useTranslation('setup');

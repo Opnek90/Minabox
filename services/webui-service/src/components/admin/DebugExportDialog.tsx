@@ -234,9 +234,9 @@ export const DebugExportDialog: React.FC<DebugExportDialogProps> = ({ open, onCl
     extras?: React.ReactNode
   ) => {
     // The option is called include_db, its texts live under `database`.
-    // `base` ist aus einem geschlossenen Set (keyof Selection) gebaut, bleibt aber
-    // fuer TS ein generischer string - die vier t()-Aufrufe unten sind deshalb
-    // per `as never` von der Key-Pruefung ausgenommen.
+    // `base` is built from a closed set (keyof Selection) but stays a generic
+    // string for TS - the four t() calls below are therefore exempted from the
+    // key check via `as never`.
     const base = `system.debug_export.blocks.${key === 'include_db' ? 'database' : key}`;
     const locked =
       onToggle === undefined

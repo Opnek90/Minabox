@@ -48,16 +48,16 @@ const ThemedApp: React.FC = () => {
             ? { background: { default: '#121212', paper: '#1e1e1e' } }
             : { background: { default: '#f5f5f5', paper: '#ffffff' } }),
         },
-        // Die Textgroessen stehen bewusst in *ganzen Pixeln* je Stufe, nicht in
+        // The text sizes are deliberately in *whole pixels* per level, not in
         // rem: Die Schriftgroessen-Umschaltung stellt zwar die Wurzelgroesse
         // (16px/18px), aber MUIs rem-Werte sind in Sechzehnteln gedacht - bei
         // 18px Wurzel wird aus `body2` 15,75px und aus `caption` 14,625px.
-        // Glyphen auf Bruchteilen von Geraetepixeln rastern weicher, und auf
-        // einem Monitor ohne Verdopplung (DPR 1) liest sich das als unscharf.
-        // Mit festen Pixelwerten je Stufe landen genau die Textsorten, die man
-        // dauernd liest, auf ganzen Pixeln. Kleinteilige `sx`-Groessen (Chips,
-        // Marken) laufen weiter ueber rem und wachsen mit der Wurzel mit - die
-        // sind schon im Standard krumm und fallen dabei nicht ins Gewicht.
+        // Glyphs snapped to fractions of device pixels render softer, and on
+        // a monitor without doubling (DPR 1) that reads as blurry. With fixed
+        // pixel values per level, exactly the text kinds you read constantly
+        // land on whole pixels. Small `sx` sizes (chips, badges) still go via
+        // rem and grow with the root - those
+        // are already odd at the default and do not matter here.
         typography: {
           fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
           h4: { fontSize: large ? '38px' : '34px' },
@@ -69,13 +69,13 @@ const ThemedApp: React.FC = () => {
           body2: { fontSize: large ? '16px' : '14px' },
           button: { fontSize: large ? '16px' : '14px' },
           overline: { fontSize: large ? '14px' : '12px' },
-          // Nebentexte (Interpret, "zuletzt gespielt", Hinweiszeilen) laufen
-          // durchgehend ueber `caption`. MUIs Standard sind 12px im Schnitt
-          // 400 - auf einem grossen Monitor ohne Skalierung sind die Striche
-          // dafuer zu fein. 13px im Schnitt 500 (Roboto 500 ist ohnehin
-          // geladen) macht sie deutlich ruhiger lesbar. lineHeight faellt von
-          // 1.66 auf 1.5, damit die Zeilenhoehe trotz groesserer Glyphen
-          // praktisch gleich bleibt und keine Liste umbricht.
+          // Secondary text (artist, "last played", hint lines) all goes via
+          // `caption`. MUI's default is 12px at weight 400 - on a large monitor
+          // without scaling the strokes are too fine for that. 13px at weight
+          // 500 (Roboto 500 is loaded anyway) makes them noticeably calmer to
+          // read. lineHeight drops from
+          // 1.66 to 1.5, so the pixel line height stays practically the same
+          // and no list wraps.
           caption: {
             fontSize: large ? '15px' : '13px',
             fontWeight: 500,
@@ -98,11 +98,11 @@ const ThemedApp: React.FC = () => {
               root: {
                 borderRadius: '50%',
               },
-              // Touch-Ziel: MUI rendert `size="small"` als 30px (padding 5 +
-              // 20px Icon) – deutlich unter den 44/48px, die Apple/Google fuer
-              // Fingerbedienung ansetzen. Auf Zeigergeraeten mit grober
-              // Aufloesung (Finger) wird die Trefferflaeche daher aufgezogen,
-              // ohne die Icon-Groesse zu aendern; Maus-Desktops bleiben kompakt.
+              // Touch target: MUI renders `size="small"` as 30px (padding 5 +
+              // 20px icon) - well below the 44/48px Apple/Google assume for
+              // finger operation. On pointer devices with a coarse pointer
+              // (finger) the hit area is therefore enlarged without changing
+              // the icon size; mouse desktops stay compact.
               sizeSmall: {
                 '@media (pointer: coarse)': {
                   minWidth: 44,
@@ -176,12 +176,12 @@ const ThemedApp: React.FC = () => {
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
 
-// Muss vor dem ersten Render laufen, sonst entgehen uns genau die
+// Must run before the first render, otherwise we miss exactly the
 // Fehler, die beim Start auftreten.
 installGlobalErrorCapture();
 
 // Parallel zum Render: Steht der Server auf log_level "debug", schaltet das den
-// i18n-Fallback ab, damit fehlende Uebersetzungen sofort als Rohschluessel
+// i18n fallback, so missing translations show immediately as raw keys
 // auffallen. Bei jedem anderen Log-Level passiert nichts.
 void activateI18nDebugModeFromConfig();
 

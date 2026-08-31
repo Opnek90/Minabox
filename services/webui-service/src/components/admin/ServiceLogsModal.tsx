@@ -24,8 +24,8 @@ import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 
 /** Strip ANSI escape sequences (colors/formatting) so terminal output is readable in the UI. */
 function stripAnsi(text: string): string {
-  // ESC (\x1b) steht hier mit Absicht: Container-Logs enthalten
-  // Farbsequenzen, und genau die sollen raus.
+  // ESC (\x1b) is here on purpose: container logs contain colour sequences,
+  // and those are exactly what should go.
   // eslint-disable-next-line no-control-regex
   return text.replace(/\u001b\[[0-9;]*m/g, '').replace(/\u001b\[?[0-9;]*[a-zA-Z]/g, '');
 }
@@ -209,8 +209,8 @@ export const ServiceLogsModal: React.FC<ServiceLogsModalProps> = ({
       fullWidth
       PaperProps={{
         sx: {
-          // Feste Hoehe nur, solange der Dialog eine Karte ist – im
-          // Vollbild-Sheet unterhalb `sm` fuellt er ohnehin den Schirm.
+          // Fixed height only while the dialog is a card - in the full-screen
+          // sheet below `sm` it fills the screen anyway.
           minHeight: { xs: 'auto', sm: '60vh' },
           maxHeight: { xs: 'none', sm: '85vh' },
         },

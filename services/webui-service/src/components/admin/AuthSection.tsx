@@ -21,8 +21,8 @@ import { apiErrorCode, translateApiError } from '@/utils/apiError';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { MIN_PASSWORD_LENGTH } from '@/utils/validators';
 
-// Ein Bereich kann mehrere Seiten abdecken: „Player" schuetzt auch die
-// Karten-Seite, weil beide auf denselben Backend-Routen sitzen.
+// One area can cover several pages: "Player" also protects the cards page,
+// because both sit on the same backend routes.
 const PATH_TO_AREA: Record<string, string> = {
   '/admin': 'admin',
   '/media': 'media',
@@ -136,7 +136,7 @@ export const AuthSection: React.FC = () => {
 
   return (
     <Box>
-      {/* ── Geschützte Bereiche ────────────────────────────────────────────── */}
+      {/* ── Protected areas ───────────────────────────────────────────────── */}
       <SettingsBlock title={t('auth.protected_areas_title')}>
         <FormControlLabel
           control={<Switch checked={adminProtected} onChange={(_, v) => setAdminProtected(v)} />}
@@ -167,7 +167,7 @@ export const AuthSection: React.FC = () => {
         </Box>
       </SettingsBlock>
 
-      {/* ── Passwort festlegen / ändern ───────────────────────────────────── */}
+      {/* ── Set / change password ────────────────────────────────────────── */}
       <SettingsBlock title={authEnabled ? t('auth.change_password') : t('auth.set_password')}>
       <Box component="form" onSubmit={handleSetPassword} sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400 }}>
         {authEnabled && (

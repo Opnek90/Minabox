@@ -4,28 +4,27 @@ import { useTranslation } from 'react-i18next';
 import { formatAbsoluteTime, formatRelativeTime } from '@/utils/formatTime';
 
 interface LastPlayedCaptionProps {
-  /** Backend-Zeitstempel (naive UTC), z. B. `track.last_played_at`. */
+  /** Backend timestamp (naive UTC), e.g. `track.last_played_at`. */
   value: string | null | undefined;
-  /** Uebersetzter Bezeichner, Default: "Zuletzt gespielt". */
+  /** Translated label, default: "Last played". */
   label?: string;
-  /** Fuehrendes "·", wenn die Angabe hinter anderen Captions in einer Zeile steht. */
+  /** A leading "·" when the value follows other captions on one line. */
   separator?: boolean;
   /**
-   * Text fuer "noch nie gespielt". Ohne diesen Wert bleibt die Zeile leer –
-   * so kann etwa "zuletzt abgerufen" weiterhin ganz entfallen. Bewusst nicht
-   * kursiv ausgezeichnet: es ist kein Kursiv-Schnitt geladen, der Browser
-   * wuerde die Glyphen nur schraegstellen.
+   * Text for "never played". Without this value the line stays empty - so e.g.
+   * "last fetched" can still be omitted entirely. Deliberately not italic:
+   * no italic face is loaded, the browser would only slant the glyphs.
    */
   emptyLabel?: string;
 }
 
 /**
- * Einheitliche "zuletzt gespielt"-Anzeige fuer Tracks, Streams und Podcasts.
+ * A uniform "last played" display for tracks, streams and podcasts.
  *
- * Vorher rechnete jede Liste selbst und jeweils in einer festen Einheit –
- * Podcasts in Minuten ("vor 203.844 Minuten"), Streams in Stunden, Tracks gar
- * nicht. Die Einheit waehlt jetzt {@link formatRelativeTime}; das genaue Datum
- * steht im Tooltip.
+ * Every list used to compute this itself and each in a fixed unit - podcasts in
+ * minutes ("203,844 minutes ago"), streams in hours, tracks not at all. The
+ * unit is now chosen by {@link formatRelativeTime}; the exact date is in the
+ * tooltip.
  */
 export const LastPlayedCaption: React.FC<LastPlayedCaptionProps> = ({
   value,
