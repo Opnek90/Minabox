@@ -19,3 +19,9 @@ REST API. Each service has its own version number and its own image
 
 Also: [webui/Setup-Wizard.md](webui/Setup-Wizard.md) – concept for the
 first-run wizard.
+
+Every service document follows the same outline — purpose, file structure,
+runtime flow, interfaces, configuration, dependencies, errors, development,
+and a section on where to make changes. It is defined in
+[_TEMPLATE.md](_TEMPLATE.md); [rfid](rfid/README.md) is the reference
+implementation.

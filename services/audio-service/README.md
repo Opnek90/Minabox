@@ -1,55 +1,39 @@
 # Audio Service
 
-VLC-based audio playback service for Minabox. It is controlled via MQTT and exposes a small REST API used by the Backend and WebUI (status, device selection, output switching).
+The only service that produces sound. It takes playback commands over MQTT,
+plays local files and streams through libVLC on a PulseAudio/PipeWire sink of
+the host, and reports its state back over MQTT. No playlists, no database —
+that is the backend's job.
 
-For the full interface/flow details (REST endpoints, MQTT topics, payload shapes, and state transitions), see [`docs/services/audio/`](../../docs/services/audio/README.md).
+**Full documentation: [docs/services/audio/](../../docs/services/audio/README.md)**
 
-## REST API
+| | |
+| --- | --- |
+| Image | `ghcr.io/opnek90/minabox-audio` |
+| Version | see `VERSION` |
+| Compose | `audio` (always on) |
+| Interfaces | subscribes `audio/play|pause|stop|set-volume|volume-up|volume-down|mute-toggle|switch-device|config/*`; publishes retained `audio/status`, plus `audio/error` and `audio/position-report`; REST on `8003`: `/health`, `/api/v1/status`, `/devices`, `/switch-device`, `/test-tone`, `/troubleshoot` |
+| Config | `config/audio.json`; playback state in `state/audio_state.json` |
 
-Endpoints (mounted at the service root):
-- `GET /health`
-- `GET /api/v1/status`
-- `GET /api/v1/devices?enabled_only=false`
-- `POST /api/v1/switch-device` (body: `sink_name` or `alsa_device`, and optional `direction`)
+## Tests
 
-## MQTT Topics
+```bash
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest services/audio-service/tests -q
+```
 
-Topic prefix pattern:
-- `minabox/<device-id>/...`
+No libVLC and no sound server needed — the tests are written to run without
+them. The service itself is not meaningfully runnable off the box.
 
-Commands (subscribe):
-- `minabox/<device-id>/audio/play`
-- `minabox/<device-id>/audio/pause`
-- `minabox/<device-id>/audio/stop`
-- `minabox/<device-id>/audio/next`
-- `minabox/<device-id>/audio/prev`
-- `minabox/<device-id>/audio/set-volume` (body: `{ "volume": number }`)
-- `minabox/<device-id>/audio/volume-up` (body: optional `{ "step": number }`)
-- `minabox/<device-id>/audio/volume-down` (body: optional `{ "step": number }`)
-- `minabox/<device-id>/audio/mute-toggle`
-- `minabox/<device-id>/audio/switch-device` (body: `{ "sink_name"?: string, "alsa_device"?: string, "direction"?: "next" }`)
+## Where to make changes
 
-Configuration (subscribe):
-- `minabox/<device-id>/audio/config/update` (body: full `config/audio.json`)
-- `minabox/<device-id>/audio/config/reload` (body: empty `{}` payload)
-- `minabox/<device-id>/audio/config/get` (body: empty `{}` payload; publishes to `audio/config/response`)
+- `src/audio_service/core/service.py` — the orchestration: command handlers,
+  status loop, device switching, config reload.
+- `src/audio_service/infrastructure/vlc_backend.py` — the playback engine, the
+  pipeline prewarm, and the volume clamp that is the child protection.
+- `src/audio_service/core/mqtt_handler.py` — topic → command routing.
+- `src/audio_service/infrastructure/pulse_detector.py` — sink discovery.
+- `src/audio_service/core/troubleshoot.py` — the sound-repair chain behind the
+  WebUI button (its host half lives in host-helper).
 
-General config (subscribe for runtime log level):
-- `minabox/<device-id>/config/general` (MQTT payload includes `log_level`)
-
-Status (publish):
-- `minabox/<device-id>/audio/status` (includes audio state + metadata; used by Backend WS `audio_status` and by WebUI)
-- `minabox/<device-id>/audio/error`
-- `minabox/<device-id>/audio/position-report` (published by Backend on stop/pause for resume tracking)
-- `minabox/<device-id>/audio/config/response` (response to `config/get`)
-
-## Configuration
-
-Main config file: `config/audio.json`
-
-Key fields (subset):
-- `output_device_type`: `"pulseaudio"` (legacy `alsa/auto/default` are migrated)
-- `output_device_name`: Pulse/PipeWire sink name (empty string = host default sink)
-- `enabled_output_devices`: optional allow-list of sink names
-- `min_volume`, `max_volume`, `default_volume`: volume bounds and startup volume
-
+Section 9 of the architecture document maps common changes to files and lists
+the invariants a change must not break.
