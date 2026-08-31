@@ -20,7 +20,7 @@ draw.text((0, 20), "RPi OLED OK!", font=font, fill=255)
 
 disp.image(img)
 disp.display()
-print("OLED läuft!")
+print("OLED running!")
 
 import time
 while True:
