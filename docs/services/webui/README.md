@@ -1,4 +1,4 @@
-# WebUI Service – Architecture
+# WebUI Service
 
 ## 1. Purpose & Responsibility
 

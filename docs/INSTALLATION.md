@@ -1,42 +1,41 @@
-# Minabox installieren
+# Installing Minabox
 
-Diese Anleitung richtet sich an Endnutzer. Sie fuehrt ueber den
-Installationsassistenten zum laufenden Stack.
+This guide is for end users. It walks through the installer to a running stack.
 
-## Was du brauchst
+## What you need
 
 | | |
 |---|---|
-| Raspberry Pi | 4 oder 5 (3B+ funktioniert, ist aber spuerbar langsamer) |
-| Speicherkarte | 16 GB oder mehr |
-| Netzteil | 5V/3A (Pi 4) bzw. 5V/5A (Pi 5) |
-| Betriebssystem | Raspberry Pi OS **64-bit** |
-| Netzwerk | LAN oder WLAN mit Internetzugang |
+| Raspberry Pi | 4 or 5 (3B+ works, but is noticeably slower) |
+| Memory card | 16 GB or more |
+| Power supply | 5V/3A (Pi 4) or 5V/5A (Pi 5) |
+| Operating system | Raspberry Pi OS **64-bit** |
+| Network | wired or Wi-Fi with internet access |
 
-Ein zu schwaches Netzteil ist die haeufigste Ursache fuer sporadische Abstuerze
-und Tonaussetzer. Wenn etwas unerklaerlich klemmt: zuerst das Netzteil pruefen.
+An underpowered supply is the most common cause of random crashes and audio
+dropouts. If something is inexplicably wrong, check the power supply first.
 
-## 1. Betriebssystem aufspielen
+## 1. Write the operating system
 
-Mit dem [Raspberry Pi Imager](https://www.raspberrypi.com/software/):
+Using the [Raspberry Pi Imager](https://www.raspberrypi.com/software/):
 
-1. **Raspberry Pi OS (64-bit)** waehlen — die 32-Bit-Variante funktioniert nicht.
-2. Vor dem Schreiben ueber das Zahnrad die Voreinstellungen oeffnen und setzen:
-   - Hostname, z. B. `minabox`
-   - Benutzername und Passwort
-   - WLAN-Zugangsdaten
-   - SSH aktivieren
-3. Karte schreiben, in den Pi stecken, einschalten.
+1. Choose **Raspberry Pi OS (64-bit)** — the 32-bit variant does not work.
+2. Before writing, open the settings (the gear icon) and set:
+   - hostname, e.g. `minabox`
+   - username and password
+   - Wi-Fi credentials
+   - enable SSH
+3. Write the card, put it in the Pi, power on.
 
-## 2. Verbinden
+## 2. Connect
 
-Vom Rechner aus:
+From your computer:
 
 ```bash
-ssh <benutzername>@minabox.local
+ssh <username>@minabox.local
 ```
 
-## 3. Installationsassistent starten
+## 3. Start the installer
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Opnek90/Minabox/main/install.sh -o minabox-install.sh
@@ -46,109 +45,109 @@ curl -fsSL https://raw.githubusercontent.com/Opnek90/Minabox/main/install.sh -o 
 bash minabox-install.sh
 ```
 
-Der zweite Schritt ist Absicht: `curl ... | bash` wuerde die Dialoge nicht
-bedienbar machen, weil sie ein echtes Terminal brauchen.
+The two steps are deliberate: `curl ... | bash` would make the dialogs
+unusable, because they need a real terminal.
 
-## 4. Durch den Assistenten
+## 4. Through the installer
 
-Der Assistent fuehrt durch diese Schritte:
+The installer walks through these steps:
 
-**Sprache** — Deutsch oder Englisch. Gilt fuer den Assistenten und wird als
-Vorgabe fuer die Bedienoberflaeche gespeichert.
+**Language** — German or English. Applies to the installer and is saved as the
+default for the web interface.
 
-**Komponenten** — Mit der Leertaste an- und abwaehlen, mit TAB auf *OK*.
+**Components** — select and deselect with the space bar, TAB to *OK*.
 
-| Komponente | Wofuer | Hardware |
+| Component | For | Hardware |
 |---|---|---|
-| RFID-Leser | Karten und Figuren erkennen | PN532 am I2C |
-| LEDs | Statusanzeige | GPIO |
-| Taster / Drehregler | Bedienung am Geraet | GPIO |
-| OLED-Display | Titel, Uhrzeit, Lautstaerke | SSD1306 am I2C |
-| Medienimport | Medien von einer URL in die Bibliothek holen | keine |
+| RFID reader | recognise cards and figures | PN532 on I2C |
+| LEDs | status display | GPIO |
+| Buttons / rotary encoder | on-device controls | GPIO |
+| OLED display | title, clock, volume | SSD1306 on I2C |
+| Media import | pull media from a URL into the library | none |
 
-MQTT, Backend, Host-Helper, Audio und WebUI laufen immer und stehen nicht zur
-Wahl. Waehle nur an, was du wirklich angeschlossen hast — eine ausgewaehlte
-Komponente ohne Hardware startet dauerhaft neu.
+MQTT, backend, host-helper, audio and the web UI always run and are not
+optional. Only select what you have actually connected — a selected component
+without its hardware restarts forever.
 
-Nichts davon ist endgueltig: der Assistent laesst sich jederzeit erneut starten
-und Komponenten nachtraeglich zu- oder abschalten.
+None of this is final: the installer can be started again at any time to add or
+remove components later.
 
-**Basisangaben** — Geraetename, Port der Bedienoberflaeche (Standard 80),
-Zeitzone, Protokollumfang.
+**Basics** — device name, web interface port (default 80), time zone, log
+level.
 
-**Audio** — Erkannte Soundkarten sind mit `(*)` markiert. Zur Wahl stehen die
-Kopfhoererbuchse, HDMI, USB-Soundkarten sowie HiFiBerry-, IQaudio- und
-WM8960-HATs. Bei einem HAT traegt der Assistent das passende `dtoverlay` ein;
-das wird erst nach einem Neustart wirksam.
+**Audio** — detected sound cards are marked with `(*)`. The choices are the
+headphone jack, HDMI, USB sound cards, and HiFiBerry, IQaudio and WM8960 HATs.
+For a HAT the installer adds the matching `dtoverlay`; that takes effect only
+after a reboot.
 
-Die bestehende `config.txt` wird vorher als `config.txt.minabox-backup`
-gesichert, und der Assistent aendert nur seinen eigenen, markierten Abschnitt.
+The existing `config.txt` is backed up first as `config.txt.minabox-backup`,
+and the installer only changes its own marked section.
 
-**Autostart** — Optional. Die Container starten ohnehin von allein neu; der
-Systemdienst hilft zusaetzlich, wenn Minabox vorher von Hand gestoppt wurde.
+**Autostart** — optional. The containers restart on their own anyway; the
+system service additionally helps when Minabox was stopped by hand beforehand.
 
-Danach laedt der Assistent die Container und startet sie.
+The installer then pulls the containers and starts them.
 
-## 5. Einrichten
+## 5. Set up
 
-Zum Schluss nennt der Assistent die Adresse, etwa:
+At the end the installer names the address, for example:
 
 ```
 http://192.168.1.42
 ```
 
-Diese im Browser oeffnen — dort werden Karten angelegt, Musik hochgeladen und
-alles Weitere eingestellt.
+Open it in a browser — that is where you create cards, upload music and
+configure everything else.
 
-Wurde bei Audio ein HAT gewaehlt, jetzt neu starten und den Assistenten noch
-einmal aufrufen, um unter *Audio neu einrichten* den Ausgang festzulegen.
+If you chose a HAT for audio, reboot now and run the installer once more to set
+the output under *Reconfigure audio*.
 
-## Erneuter Aufruf: das Wartungsmenue
+## Running it again: the maintenance menu
 
 ```bash
 bash minabox-install.sh
 ```
 
-Auf einer bestehenden Installation oeffnet sich statt der Neuinstallation:
+On an existing installation this opens instead of a fresh install:
 
-| Punkt | Wirkung |
+| Item | Effect |
 |---|---|
-| Komponenten aendern | LED, Display etc. nachruesten oder entfernen |
-| Update einspielen | Neueste Version laden und neu starten |
-| Audio neu einrichten | Ausgang wechseln oder nach einem Neustart festlegen |
-| Status und Diagnose | Zustand aller Container |
-| Sprache aendern | Deutsch / Englisch |
-| Minabox entfernen | Container und Dienst entfernen; Daten nur auf Nachfrage |
+| Change components | add or remove LED, display etc. |
+| Apply update | load the latest version and restart |
+| Reconfigure audio | switch the output, or set it after a reboot |
+| Status and diagnostics | state of all containers |
+| Change language | German / English |
+| Remove Minabox | remove containers and the service; data only if asked |
 
-## Wenn etwas nicht klappt
+## When something goes wrong
 
-Der Assistent schreibt alles nach `~/minabox-install.log`. Das ist bei
-Rueckfragen die erste Anlaufstelle.
+The installer writes everything to `~/minabox-install.log`. That is the first
+place to look when there are questions.
 
-**Kein Ton.** Meist ist der falsche Ausgang eingestellt. Assistent starten →
-*Audio neu einrichten*. Nach einem HAT-Wechsel ist ein Neustart noetig.
+**No sound.** Usually the wrong output is set. Start the installer →
+*Reconfigure audio*. After changing a HAT a reboot is required.
 
-**Ton nur nach dem Anmelden per SSH.** Der Audio-Dienst braucht die
-Benutzersitzung. Der Assistent aktiviert das dauerhaft mit
-`loginctl enable-linger`; pruefen mit `loginctl show-user $USER | grep Linger`.
+**Sound only after logging in over SSH.** The audio service needs the user
+session. The installer enables this permanently with `loginctl enable-linger`;
+check with `loginctl show-user $USER | grep Linger`.
 
-**Ein Container startet dauernd neu.** Meist ist eine Komponente ausgewaehlt,
-deren Hardware nicht angeschlossen ist. Im Wartungsmenue abwaehlen.
+**A container keeps restarting.** Usually a component is selected whose hardware
+is not connected. Deselect it in the maintenance menu.
 
-**Bedienoberflaeche nicht erreichbar.** Beim ersten Start dauert es einen
-Moment. Zustand pruefen mit:
+**Web interface not reachable.** The first start takes a moment. Check the state
+with:
 
 ```bash
 cd ~/minabox && docker compose ps
 ```
 
-**Box im Netzwerk verschwunden** (Router aus, WLAN-Passwort geaendert, Box
-umgezogen). Nach etwa einer Minute ohne Verbindung oeffnet die Box selbst ein
-WLAN namens `Minabox-Setup`. Damit verbinden und `http://10.42.0.1` aufrufen;
-das Passwort steht am Display. Unter *Wartung → Netzwerk* das neue WLAN
-eintragen — sobald die Box wieder online ist, verschwindet der Hotspot von
-selbst. Details in [Troubleshooting.md](Troubleshooting.md).
+**Box disappeared from the network** (router off, Wi-Fi password changed, box
+moved). After about a minute without a connection the box opens a Wi-Fi network
+of its own called `Minabox-Setup`. Connect to it and open `http://10.42.0.1`;
+the password is shown on the display. Under *Maintenance → Network* enter the
+new Wi-Fi — as soon as the box is back online the hotspot disappears on its
+own. Details in [Troubleshooting.md](Troubleshooting.md).
 
-**Weitere Hilfe.** [Troubleshooting.md](Troubleshooting.md), und fuer eine
-Supportanfrage das Diagnose-Paket aus der Oberflaeche
-(*Einstellungen → Diagnose*) mitschicken — siehe [DebugExport.md](DebugExport.md).
+**More help.** [Troubleshooting.md](Troubleshooting.md), and for a support
+request include the diagnostics package from the interface
+(*Settings → Diagnostics*) — see [DebugExport.md](DebugExport.md).

@@ -1,4 +1,4 @@
-# Media Downloader Service – Architecture
+# Media Downloader Service
 
 ## 1. Purpose & Responsibility
 

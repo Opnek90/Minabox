@@ -1,4 +1,4 @@
-# Display Service – Architecture
+# Display Service
 
 ## 1. Purpose & Responsibility
 

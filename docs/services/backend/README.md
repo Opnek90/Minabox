@@ -1,4 +1,4 @@
-# Backend Service – Architecture
+# Backend Service
 
 ## 1. Purpose & Responsibility
 

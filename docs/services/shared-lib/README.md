@@ -1,80 +1,84 @@
-# Shared-Lib – Architecture
+# Shared-Lib
 
-## 1. Zweck & Verantwortung
+## 1. Purpose & responsibility
 
-Die **shared-lib** (Paket **minabox-shared**, Import **shared_lib**) stellt gemeinsame Python-Bausteine für alle Minabox-Services bereit. Sie enthält keine fachliche Business-Logik, sondern Konfigurations-Hilfen, MQTT-Basis, Logging-Setup, Health-Response-Schemas und eine gemeinsame Exception-Basis.
+**shared-lib** (package **minabox-shared**, import **shared_lib**) provides
+shared Python building blocks for all Minabox services. It contains no domain
+business logic — only configuration helpers, an MQTT base, logging setup,
+health-response schemas and a common exception base.
 
-**Ziele:**
+**Goals:**
 
-- Einheitliche Config-Lade- und Validierungslogik (JSON + Pydantic)
-- Gemeinsame MQTT-Client-Basis (Verbindungs-Lifecycle) für service-spezifische Subclasses
-- Strukturiertes Logging (structlog) mit einheitlicher Konfiguration
-- Health-Response-Schema und Hilfsfunktion für alle Services
-- Gemeinsame Exception-Basis (MinaboxError, ConfigError)
+- Uniform config loading and validation (JSON + Pydantic)
+- A shared MQTT client base (connection lifecycle) for service-specific subclasses
+- Structured logging (structlog) with a uniform configuration
+- A health-response schema and helper for all services
+- A common exception base (MinaboxError, ConfigError)
 
-**Nicht-Ziele:**
+**Non-goals:**
 
-- Keine MQTT-Topic-Definitionen pro Domain (nur Hilfsfunktion `get_mqtt_topic`)
-- Keine service-spezifischen Schemas oder Handlers
+- No per-domain MQTT topic definitions (only the helper `get_mqtt_topic`)
+- No service-specific schemas or handlers
 
 ---
 
-## 2. Datei- und Ordnerstruktur
+## 2. File & folder structure
 
-Relevanter Pfad: `services/shared-lib/shared_lib/`
+Relevant path: `services/shared-lib/shared_lib/`
 
 ```text
 shared_lib/
-├── __init__.py           # Package-Export: config, mqtt, setup_structlog, exceptions, schemas (BaseHealthResponse, build_health_body)
-├── logging.py            # Konfiguration von structlog (setup_structlog): Log-Level, JSON vs. Console-Renderer
-├── schemas.py            # BaseHealthResponse (Pydantic), build_health_body() für einheitliche Health-Responses
-├── exceptions.py         # MinaboxError, ConfigError, ConfigLoadError – Basis für service-spezifische Exceptions
+├── __init__.py           # Package exports: config, mqtt, setup_structlog, exceptions, schemas (BaseHealthResponse, build_health_body)
+├── logging.py            # structlog configuration (setup_structlog): log level, JSON vs. console renderer
+├── schemas.py            # BaseHealthResponse (Pydantic), build_health_body() for uniform health responses
+├── exceptions.py         # MinaboxError, ConfigError, ConfigLoadError – base for service-specific exceptions
 ├── config/
-│   ├── __init__.py       # Export: load_env, EnvConfigBase, load_json_config, JsonConfigManager, load_general_settings
-│   ├── env.py            # EnvConfigBase (Pydantic), load_env(), COMMON_ENV_KEYS – gemeinsame Env-Variablen
-│   ├── loader.py         # load_json_config() – JSON-Datei laden und mit Pydantic-Schema validieren
-│   ├── manager.py       # JsonConfigManager – JSON-Config mit Hot-Reload, Save, optionalen Callbacks
-│   └── general_settings.py # load_general_settings() – general_settings.json laden (fehlertolerantes Dict)
+│   ├── __init__.py       # Exports: load_env, EnvConfigBase, load_json_config, JsonConfigManager, load_general_settings
+│   ├── env.py            # EnvConfigBase (Pydantic), load_env(), COMMON_ENV_KEYS – shared env variables
+│   ├── loader.py         # load_json_config() – load a JSON file and validate it against a Pydantic schema
+│   ├── manager.py        # JsonConfigManager – JSON config with hot reload, save, optional callbacks
+│   └── general_settings.py # load_general_settings() – load general_settings.json (fault-tolerant dict)
 └── mqtt/
-    ├── __init__.py       # Export: BaseMQTTClient, HasMqttConfig, get_mqtt_topic
-    ├── base_client.py    # BaseMQTTClient (ABC), HasMqttConfig (Protocol) – Verbindungs-Lifecycle für MQTT-Clients
-    └── topics.py        # get_mqtt_topic(device_id, domain, action) – Topic-String bauen (minabox/<device_id>/<domain>/<action>)
+    ├── __init__.py       # Exports: BaseMQTTClient, HasMqttConfig, get_mqtt_topic
+    ├── base_client.py    # BaseMQTTClient (ABC), HasMqttConfig (Protocol) – connection lifecycle for MQTT clients
+    └── topics.py         # get_mqtt_topic(device_id, domain, action) – build a topic string (minabox/<device_id>/<domain>/<action>)
 ```
 
 ---
 
-## 3. Öffentliche Schnittstellen
+## 3. Public interfaces
 
-Die shared-lib bietet **keine** REST- oder MQTT-Endpoints. Sie wird von anderen Services per Import genutzt.
+shared-lib exposes **no** REST or MQTT endpoints. Other services use it by
+import.
 
-**Wichtigste Exporte (aus `shared_lib`):**
+**Main exports (from `shared_lib`):**
 
-- **Config:** `load_env`, `EnvConfigBase`, `load_json_config`, `JsonConfigManager`, `load_general_settings` (über `shared_lib.config`)
-- **MQTT:** `BaseMQTTClient`, `HasMqttConfig`, `get_mqtt_topic` (über `shared_lib.mqtt`)
+- **Config:** `load_env`, `EnvConfigBase`, `load_json_config`, `JsonConfigManager`, `load_general_settings` (via `shared_lib.config`)
+- **MQTT:** `BaseMQTTClient`, `HasMqttConfig`, `get_mqtt_topic` (via `shared_lib.mqtt`)
 - **Logging:** `setup_structlog(log_level, ...)`
 - **Schemas:** `BaseHealthResponse`, `build_health_body(...)`
 - **Exceptions:** `MinaboxError`, `ConfigError`, `ConfigLoadError`
 
 ---
 
-## 4. Kernkomponenten & Abhängigkeiten
+## 4. Core components & dependencies
 
-- **config:** Env-Loading und JSON-Config mit Pydantic; General-Settings-Loader für Backend/andere Services.
-- **mqtt:** Abstrakte Basis für MQTT-Clients; Topic-Helfer. Services implementieren Subclasses mit eigener Subscription/Handler-Logik.
-- **logging:** Einmalig beim Service-Start aufrufen (z. B. aus `main.py`).
-- **schemas / exceptions:** Von allen Services für Health-Responses und einheitliche Fehlerhierarchie genutzt.
+- **config:** env loading and JSON config with Pydantic; a general-settings
+  loader for the backend and other services.
+- **mqtt:** an abstract base for MQTT clients; a topic helper. Services
+  implement subclasses with their own subscription/handler logic.
+- **logging:** call once at service startup (e.g. from `main.py`).
+- **schemas / exceptions:** used by all services for health responses and a
+  uniform error hierarchy.
 
-**Abhängigkeiten (Python):** structlog, pydantic, aiomqtt (für BaseMQTTClient). Keine Datenbank oder REST-Server.
-
----
-
-## 5. Konfiguration
-
-Die shared-lib selbst hat keine Konfigurationsdatei. Sie liest keine Env-Variablen direkt; die Services rufen `load_env()` oder nutzen `EnvConfigBase` mit ihren eigenen Env-Werten. `load_general_settings(path)` erwartet einen Pfad zur `general_settings.json` (typisch vom Backend/Config-Volumen).
+**Dependencies (Python):** structlog, pydantic, aiomqtt (for BaseMQTTClient).
+No database or REST server.
 
 ---
 
-## 6. Refactoring-Checkliste
+## 5. Configuration
 
-- [ ] **Keine groben Inkonsistenzen:** Verantwortungen sind klar getrennt (config, mqtt, logging, schemas, exceptions).
-- [ ] Optional: Weitere gemeinsame Topic-Helfer oder Konstanten (z. B. Domain-Namen) hier zentralisieren, wenn mehrere Services dieselben Strings nutzen.
+shared-lib itself has no configuration file. It reads no env variables
+directly; the services call `load_env()` or use `EnvConfigBase` with their own
+env values. `load_general_settings(path)` expects a path to
+`general_settings.json` (typically from the backend/config volume).

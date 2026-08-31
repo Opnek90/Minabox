@@ -1,4 +1,4 @@
-# LED Service – Architecture
+# LED Service
 
 ## 1. Purpose & Responsibility
 
