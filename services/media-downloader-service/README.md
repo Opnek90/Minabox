@@ -1,133 +1,58 @@
-# media-downloader-service
+# Media Downloader Service
 
-A standalone Minabox microservice for **local media import**: it takes a media
-URL and puts the audio track into the local library.
+Standalone microservice for local media import: it takes a media URL, reads the
+audio track, converts it to MP3 (192 kbps by default) and stores it in the
+shared audio volume. REST only — no MQTT, no database, no shared-lib, so it
+stays extractable as a standalone package. The backend is its only caller.
 
-## Job
+**Full documentation: [docs/services/media-downloader/](../../docs/services/media-downloader/README.md)**
 
-The service receives a URL from the `backend-service`, reads the audio track,
-stores it technically as **MP3 (192 kbps)** in the shared audio storage, embeds
-the metadata (title, artist, cover) and returns the file path and metadata. It
-communicates **only via REST** with the `backend-service` - no MQTT, no direct
-access from the web UI.
+| | |
+| --- | --- |
+| Image | `ghcr.io/opnek90/minabox-media-downloader` |
+| Version | see `VERSION` |
+| Compose | `media-downloader` (profile `media`) |
+| Interfaces | REST on `8007`: `GET /health`, `GET /info`, `POST /download`, `GET /download/progress/{job_id}` |
+| Config | environment only — `AUDIO_TRACKS_DIR`, `AUDIO_BASE_DIR`, `AUDIO_QUALITY`, `MAX_FILESIZE_MB`, `LOG_LEVEL` |
 
 ## Lawful media import
 
 Import is only permitted if you hold the necessary usage and reproduction
-rights or a statutory exception applies - for example your own recordings,
-public domain works, or content with the explicit permission or licence of the
-rights holder.
+rights or a statutory exception applies — your own recordings, public domain
+works, or content with the explicit permission or licence of the rights holder.
+Responsibility rests with you as the user: neither this service nor the backend
+can assess the rights situation of a given URL, and the domain allow-list is a
+technical safeguard against arbitrary fetch targets, not a legal assessment.
+The project is not intended to circumvent technical protection measures or
+access restrictions, and offers no parameters for cookies, credentials, tokens
+or decryption keys.
 
-Responsibility for this rests with you as the user. Neither this service nor
-the backend can check whether you hold the necessary rights for a given URL;
-the domain whitelist is a technical safeguard against arbitrary fetch targets
-and not a legal assessment. The project is not intended to circumvent technical
-protection measures or access restrictions.
+*Deutsch:* Der Import ist nur zulaessig, wenn du die erforderlichen Nutzungs-
+und Vervielfaeltigungsrechte besitzt oder eine gesetzliche Erlaubnis greift.
+Die Verantwortung liegt bei dir; weder dieser Service noch das Backend koennen
+die Rechtslage einer konkreten URL bewerten. Das Projekt ist nicht dafuer
+bestimmt, technische Schutzmassnahmen oder Zugangsbeschraenkungen zu umgehen.
 
-*Deutsch:* Der Import ist nur zulässig, wenn du die erforderlichen Nutzungs-
-und Vervielfältigungsrechte besitzt oder eine gesetzliche Erlaubnis greift -
-etwa bei eigenen Aufnahmen, gemeinfreien Werken oder Inhalten mit
-ausdrücklicher Erlaubnis bzw. Lizenz des Rechteinhabers. Die Verantwortung
-liegt bei dir; weder dieser Service noch das Backend können die Rechtslage
-einer konkreten URL bewerten. Das Projekt ist nicht dafür bestimmt, technische
-Schutzmaßnahmen oder Zugangsbeschränkungen zu umgehen.
+Questions or notes about rights to importable content:
+[GitHub Issues](https://github.com/Opnek90/Minabox/issues).
 
-## Technical limits
+## Tests
 
-The integration only passes the URL (and optionally a target directory) on to
-the download library. It offers **no** parameters, fields or environment
-variables for:
-
-- cookie files or browser cookie import
-- login data, username/password, OAuth or session tokens
-- decryption or licence keys
-- deliberately bypassing geoblocking, paywalls or DRM
-
-So through this API you can practically only import sources that are readable
-without such details. The library used (yt-dlp) may bring further capabilities
-of its own - the project does not pass those on and does not document them as a
-use case. A statement about which access-protection mechanisms apply in a
-particular case is something the project cannot and will not make.
-
-## API endpoints
-
-| Method | Path | Description |
-|---------|------|--------------|
-| `GET` | `/health` | health check |
-| `GET` | `/info?url=<url>` | metadata without import (preview) |
-| `POST` | `/download` | import the audio track, return MP3 metadata |
-
-### POST /download
-
-```json
-// Request
-{ "url": "https://example.org/media" }
-
-// Response 201
-{
-  "file_path": "/mnt/audio/tracks/downloads/audio.mp3",
-  "title": "Track Title",
-  "artist": "Creator Name",
-  "album": "Downloads",
-  "duration_ms": 195000,
-  "video_id": "abc123",
-  "thumbnail_embedded": true
-}
+```bash
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest services/media-downloader-service/tests -q
 ```
 
-### GET /info
+No network and no ffmpeg needed — yt-dlp is stubbed.
 
-```json
-// Response 200
-{
-  "title": "Track Title",
-  "artist": "Creator Name",
-  "duration_ms": 195000,
-  "thumbnail": "https://example.org/media/cover.jpg",
-  "video_id": "abc123"
-}
-```
+## Where to make changes
 
-> `video_id` is the identifier assigned by the source. The field name comes
-> from the first version of the API and is kept for compatibility.
+- `src/media_downloader_service/downloader.py` — the yt-dlp option dict,
+  progress hooks, the thumbnail embed fallback. The option dict is built from
+  scratch on every call and must stay closed to outside input.
+- `src/media_downloader_service/main.py` — the four routes, the
+  one-download-at-a-time semaphore, the job-progress registry.
+- `src/media_downloader_service/config.py` — the five environment variables.
 
-## Configuration (environment variables)
-
-| Variable | Default | Description |
-|----------|---------|--------------|
-| `AUDIO_TRACKS_DIR` | `/mnt/audio/tracks/downloads` | target directory for MP3 files, if no `output_dir` is passed |
-| `AUDIO_BASE_DIR` | `/mnt/audio` | shared audio volume; `output_dir` must be inside it, otherwise `422` |
-| `AUDIO_QUALITY` | `192` | MP3 bitrate in kbps |
-| `MAX_FILESIZE_MB` | `200` | maximum file size of a download in MB (yt-dlp `max_filesize`) |
-| `LOG_LEVEL` | `INFO` | log level |
-
-There are deliberately no further variables - in particular none for
-credentials or cookies (see *Technical limits*). The allowed domains are not an
-environment variable of this service: they are managed in the backend and are
-editable in the web UI under *Admin → General → media import* (default without
-YouTube - see the rationale there).
-
-## Dependencies
-
-- **ffmpeg** (runtime dependency in the Dockerfile)
-- **yt-dlp** - the read/extraction library
-- **mutagen** - ID3 tag manipulation (fallback for cover art)
-- **FastAPI + uvicorn** - HTTP server
-- **structlog** - logging
-
-## Shared volume
-
-The service writes MP3 files to `/mnt/audio/tracks/downloads/`. That directory
-must be shared with the `backend` service and the `audio` service (see
-`docker-compose.yml`).
-
-## Architecture decision
-
-The service is deliberately implemented as a standalone microservice with no
-MQTT dependency, so it can later be extracted as a standalone Python package.
-
-## Questions and reports
-
-For questions or notes about rights to importable content:
-[GitHub Issues](https://github.com/Opnek90/Minabox/issues). The project does not
-currently have a separate contact address.
+The domain allow-list and the retry logic are **not** here — they live in the
+backend. Section 9 of the architecture document maps common changes to files
+and lists the invariants a change must not break.
