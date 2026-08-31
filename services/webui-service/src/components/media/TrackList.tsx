@@ -43,14 +43,18 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import SearchIcon from '@mui/icons-material/Search';
+import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
 import type { Playlist, Track, TrackFolder } from '@/types/api';
+import type { ViewMode } from '@/contexts/UserPrefsContext';
 import { formatTime } from '@/utils/formatTime';
 import { AddToPlaylistDialog } from './AddToPlaylistDialog';
+import { DetailsTable, type DetailsColumn } from './DetailsTable';
 import { LastPlayedCaption } from './LastPlayedCaption';
+import { RelativeTimeCell } from './RelativeTimeCell';
 import { FolderCreateDialog } from './FolderCreateDialog';
 import { FolderTree } from './FolderTree';
 import { useLayout } from '@/hooks/useLayout';
@@ -84,8 +88,8 @@ interface TrackListProps {
   sortKey: string;
   sortDir: 'asc' | 'desc';
   onSortChange: (key: string, dir: 'asc' | 'desc') => void;
-  viewMode: 'card' | 'list';
-  onViewModeChange: (mode: 'card' | 'list') => void;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
   filter: string;
   onFilterChange: (filter: string) => void;
   treeCollapsed?: boolean;
@@ -136,7 +140,13 @@ export const TrackList: React.FC<TrackListProps> = ({
   // both answered wrongly on tablets:
   // (1) Is there room for sorting, filters and row actions in the bar?
   //     Yes from tablet up - 834px is plenty for that.
-  const hasInlineControls = useLayout().hasRoomForInlineControls;
+  const layout = useLayout();
+  const hasInlineControls = layout.hasRoomForInlineControls;
+  // The details view needs real width for its columns, so it stays desktop-only
+  // (issue #115). Below that a stored "details" preference falls back to the
+  // list view without being overwritten.
+  const effectiveViewMode: ViewMode =
+    viewMode === 'details' && !layout.isDesktop ? 'list' : viewMode;
   // (2) Do the folder tree and track list fit side by side? The tree takes a
   //     fixed 220px; below that too little would remain for the list, so the
   //     master-detail switch deliberately stays at 900px, not the tablet edge.
@@ -335,6 +345,84 @@ export const TrackList: React.FC<TrackListProps> = ({
     </Box>
   );
 
+  /** Full row action set for wide layouts (list secondary action + details view). */
+  const desktopRowActions = (track: Track) => (
+    <>
+      <Tooltip title={t('tracks.play')}>
+        <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
+          <PlayArrowIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      {playlists.length > 0 && (
+        <Tooltip title={t('playlists.add_to_playlist')}>
+          <IconButton size="small" onClick={() => setAddToPlaylistTrack(track)}>
+            <PlaylistAddIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {onEdit && (
+        <Tooltip title={t('tracks.edit')}>
+          <IconButton size="small" onClick={() => onEdit(track)}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {folders.length > 0 && (
+        <Tooltip title={t('folders.move_to')}>
+          <IconButton size="small" onClick={() => setMoveTrack(track)}>
+            <DriveFileMoveIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      <Tooltip title={t('tracks.delete')}>
+        <IconButton size="small" color="error" onClick={() => onDelete(track)}>
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </>
+  );
+
+  const trackColumns: DetailsColumn<Track>[] = [
+    {
+      key: 'cover',
+      label: '',
+      width: 44,
+      render: (tr) =>
+        tr.cover_art_url ? (
+          <Avatar src={tr.cover_art_url} variant="rounded" sx={{ width: 28, height: 28 }}>
+            <AudiotrackIcon fontSize="small" />
+          </Avatar>
+        ) : (
+          <Avatar variant="rounded" sx={{ width: 28, height: 28, bgcolor: 'action.selected' }}>
+            {tr.source_type === 'remote' ? <LinkIcon fontSize="small" /> : <AudiotrackIcon fontSize="small" />}
+          </Avatar>
+        ),
+    },
+    { key: 'title', label: t('tracks.fields.title'), sortable: true, width: '26%', render: (tr) => tr.title },
+    {
+      key: 'artist',
+      label: t('tracks.fields.artist'),
+      sortable: true,
+      width: '20%',
+      render: (tr) => tr.artist || '—',
+    },
+    { key: 'album', label: t('tracks.fields.album'), width: '20%', render: (tr) => tr.album || '—' },
+    {
+      key: 'duration_ms',
+      label: t('tracks.fields.duration'),
+      sortable: true,
+      numeric: true,
+      width: 96,
+      render: (tr) => (tr.duration_ms != null ? formatTime(tr.duration_ms) : '—'),
+    },
+    {
+      key: 'last_played_at',
+      label: t('tracks.fields.last_played'),
+      sortable: true,
+      render: (tr) => <RelativeTimeCell value={tr.last_played_at} />,
+    },
+  ];
+
   const renderListItem = (index: number, track: Track) => (
     <ListItem
       key={track.id}
@@ -345,41 +433,7 @@ export const TrackList: React.FC<TrackListProps> = ({
       secondaryAction={
         !selectionMode && (
           <Box display="flex" alignItems="center">
-            {hasInlineControls && (
-              <>
-                <Tooltip title={t('tracks.play')}>
-                  <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
-                    <PlayArrowIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                {playlists.length > 0 && (
-                  <Tooltip title={t('playlists.add_to_playlist')}>
-                    <IconButton size="small" onClick={() => setAddToPlaylistTrack(track)}>
-                      <PlaylistAddIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                {onEdit && (
-                  <Tooltip title={t('tracks.edit')}>
-                    <IconButton size="small" onClick={() => onEdit(track)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                {folders.length > 0 && (
-                  <Tooltip title={t('folders.move_to')}>
-                    <IconButton size="small" onClick={() => setMoveTrack(track)}>
-                      <DriveFileMoveIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                <Tooltip title={t('tracks.delete')}>
-                  <IconButton size="small" color="error" onClick={() => onDelete(track)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </>
-            )}
+            {hasInlineControls && desktopRowActions(track)}
             {!hasInlineControls && (
               <IconButton size="small" onClick={(e) => handleMenuOpen(e, track)}>
                 <MoreVertIcon fontSize="small" />
@@ -577,9 +631,12 @@ export const TrackList: React.FC<TrackListProps> = ({
       )}
 
       <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap" flexShrink={0}>
-        <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
+        <ToggleButtonGroup value={effectiveViewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
           <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon fontSize="small" /></ToggleButton>
+          {layout.isDesktop && (
+            <ToggleButton value="details" aria-label={t('view_mode_details')}><ViewColumnIcon fontSize="small" /></ToggleButton>
+          )}
         </ToggleButtonGroup>
 
         <TextField
@@ -591,7 +648,12 @@ export const TrackList: React.FC<TrackListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        {hasInlineControls && <>{filterControls}{sortControls}</>}
+        {hasInlineControls && (
+          <>
+            {filterControls}
+            {effectiveViewMode !== 'details' && sortControls}
+          </>
+        )}
 
         {!hasInlineControls && (
           <Tooltip title={t('tracks.filter.open')}>
@@ -700,7 +762,7 @@ export const TrackList: React.FC<TrackListProps> = ({
             <Box display="flex" justifyContent="center" py={6}>
               <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
             </Box>
-          ) : viewMode === 'card' ? (
+          ) : effectiveViewMode === 'card' ? (
             <Grid container spacing={2} sx={{ p: 1 }}>
               {paginated.map((track, index) => (
                 <Grid item xs={12} sm={6} lg={4} key={track.id}>
@@ -708,6 +770,20 @@ export const TrackList: React.FC<TrackListProps> = ({
                 </Grid>
               ))}
             </Grid>
+          ) : effectiveViewMode === 'details' ? (
+            <DetailsTable<Track>
+              items={paginated}
+              columns={trackColumns}
+              sortKey={typedSortKey}
+              sortDir={sortDir}
+              onSortChange={onSortChange}
+              rowKey={(tr) => tr.id}
+              emptyText={t('tracks.no_tracks')}
+              renderActions={selectionMode ? undefined : desktopRowActions}
+              onRowDragStart={selectionMode ? undefined : handleDragStart}
+              onRowDragEnd={selectionMode ? undefined : handleDragEnd}
+              draggingKey={draggingTrackId}
+            />
           ) : (
             <List disablePadding>
               {paginated.map((track, index) => renderListItem(index, track))}
