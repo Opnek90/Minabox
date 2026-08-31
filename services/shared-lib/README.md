@@ -1,52 +1,57 @@
-# Shared-Lib für Minabox-Services
+# Shared-Lib for Minabox services
 
-Gemeinsame Bausteine für alle Minabox-Python-Services (LED, RFID, Audio, Button, Display, Backend). Das Paket heißt **minabox-shared** und wird unter dem Namensraum **shared_lib** installiert.
+Shared building blocks for all Minabox Python services (LED, RFID, Audio,
+Button, Display, Backend). The package is called **minabox-shared** and is
+installed under the namespace **shared_lib**.
 
-## Inhalt
+## Contents
 
-| Modul | Inhalt | Verwendung in Services |
+| Module | Contents | Use in services |
 |-------|--------|-------------------------|
-| **shared_lib.exceptions** | `MinaboxError`, `ConfigError`, `ConfigLoadError` | Service-Basis von MinaboxError erben; ConfigError für Config-Fehler |
-| **shared_lib.config** | `EnvConfigBase`, `load_env()`, `load_json_config()`, `JsonConfigManager` | Env-Laden, JSON-Config laden, generischer Config-Manager mit Hot-Reload/Callbacks |
-| **shared_lib.mqtt** | `BaseMQTTClient`, `HasMqttConfig` | Optionale Basis für MQTT-Clients |
+| **shared_lib.exceptions** | `MinaboxError`, `ConfigError`, `ConfigLoadError` | service base inherits from MinaboxError; ConfigError for config errors |
+| **shared_lib.config** | `EnvConfigBase`, `load_env()`, `load_json_config()`, `JsonConfigManager` | env loading, JSON config loading, a generic config manager with hot reload/callbacks |
+| **shared_lib.mqtt** | `BaseMQTTClient`, `HasMqttConfig` | an optional base for MQTT clients |
 
 ## Installation
 
-- **Als Paket (empfohlen):** Im Repo zuerst shared-lib, dann den Service installieren (aus dem Service-Verzeichnis, damit die Pfad-Abhängigkeit aufgelöst wird):
+- **As a package (recommended):** in the repo, install shared-lib first, then
+  the service (from the service directory, so the path dependency is resolved):
 
   ```bash
   pip install -e /path/to/services/shared-lib
   cd services/led-service && pip install -e .
   ```
 
-  Jeder Service deklariert die Abhängigkeit in `pyproject.toml`:
+  Every service declares the dependency in `pyproject.toml`:
 
   ```toml
   dependencies = [..., "minabox-shared @ file:../shared-lib"]
   ```
 
-  Beim `pip install -e .` **aus dem Service-Ordner** (z. B. `services/led-service`) wird `../shared-lib` relativ zu diesem Ordner aufgelöst.
+  With `pip install -e .` **from the service folder** (e.g. `services/led-service`),
+  `../shared-lib` is resolved relative to that folder.
 
-## Verwendung in Services
+## Use in services
 
-- **Exceptions:**  
-  `from shared_lib.exceptions import MinaboxError, ConfigError`  
-  Service-Basis: `class MinaboxLEDError(MinaboxError): ...`
+- **Exceptions:**
+  `from shared_lib.exceptions import MinaboxError, ConfigError`
+  service base: `class MinaboxLEDError(MinaboxError): ...`
 
-- **Config-Schema:**  
-  `from shared_lib.config import EnvConfigBase`  
-  `class EnvConfig(EnvConfigBase):` mit service-spezifischen Feldern.
+- **Config schema:**
+  `from shared_lib.config import EnvConfigBase`
+  `class EnvConfig(EnvConfigBase):` with service-specific fields.
 
-- **Config laden:**  
-  `from shared_lib.config import load_env, load_json_config`  
-  Env: `EnvConfig(**load_env())` bzw. mit `optional_defaults`.  
+- **Load config:**
+  `from shared_lib.config import load_env, load_json_config`
+  env: `EnvConfig(**load_env())` or with `optional_defaults`.
   JSON: `load_json_config(path, SchemaClass, create_if_missing=..., default_factory=...)`
 
-- **Config-Manager:**  
-  `from shared_lib.config import JsonConfigManager`  
-  Service nutzt entweder eine dünne Subclass (Default-Pfad + Schema) oder einen eigenen Manager (z. B. Audio mit ALSA-Migration).
+- **Config manager:**
+  `from shared_lib.config import JsonConfigManager`
+  a service uses either a thin subclass (default path + schema) or its own
+  manager (e.g. audio with ALSA migration).
 
-## Struktur
+## Structure
 
 ```
 shared-lib/
@@ -65,10 +70,10 @@ shared-lib/
       base_client.py
 ```
 
-## Zusammenfassung
+## Summary
 
-| Thema | Shared-Lib | Service |
+| Topic | Shared-Lib | Service |
 |-------|------------|---------|
-| **Exceptions** | `MinaboxError`, `ConfigError`, `ConfigLoadError` | Eigene Basis (z. B. `MinaboxLEDError(MinaboxError)`) + Domain-Exceptions |
-| **Env-Config** | `EnvConfigBase`, `load_env()` | `EnvConfig(EnvConfigBase)` + optionale Felder; `load_app_config()` orchestriert |
-| **JSON-Config** | `load_json_config()`, `JsonConfigManager` | Pfade, `load_app_config()`; ConfigManager = Subclass oder Wrapper |
+| **Exceptions** | `MinaboxError`, `ConfigError`, `ConfigLoadError` | own base (e.g. `MinaboxLEDError(MinaboxError)`) + domain exceptions |
+| **Env config** | `EnvConfigBase`, `load_env()` | `EnvConfig(EnvConfigBase)` + optional fields; `load_app_config()` orchestrates |
+| **JSON config** | `load_json_config()`, `JsonConfigManager` | paths, `load_app_config()`; ConfigManager = subclass or wrapper |

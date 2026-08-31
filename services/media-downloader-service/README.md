@@ -1,61 +1,61 @@
 # media-downloader-service
 
-Eigenständiger Minabox-Microservice für den **lokalen Medienimport**: Er nimmt
-eine Medien-URL entgegen und legt die Tonspur in der lokalen Bibliothek ab.
+A standalone Minabox microservice for **local media import**: it takes a media
+URL and puts the audio track into the local library.
 
-## Aufgabe
+## Job
 
-Der Service erhält vom `backend-service` eine URL, liest die Tonspur, speichert
-sie technisch als **MP3 (192 kbps)** im gemeinsamen Audio-Storage, bettet die
-Metadaten (Titel, Interpret, Cover) ein und gibt Dateipfad und Metadaten
-zurück. Er kommuniziert **nur via REST** mit dem `backend-service` – kein MQTT,
-kein direkter Zugriff aus der WebUI.
+The service receives a URL from the `backend-service`, reads the audio track,
+stores it technically as **MP3 (192 kbps)** in the shared audio storage, embeds
+the metadata (title, artist, cover) and returns the file path and metadata. It
+communicates **only via REST** with the `backend-service` - no MQTT, no direct
+access from the web UI.
 
-## Rechtmäßiger Medienimport (Lawful media import)
+## Lawful media import
 
-Der Import ist nur zulässig, wenn du die erforderlichen Nutzungs- und
-Vervielfältigungsrechte besitzt oder eine gesetzliche Erlaubnis greift – etwa
-bei eigenen Aufnahmen, gemeinfreien Werken oder Inhalten mit ausdrücklicher
-Erlaubnis bzw. Lizenz des Rechteinhabers.
+Import is only permitted if you hold the necessary usage and reproduction
+rights or a statutory exception applies - for example your own recordings,
+public domain works, or content with the explicit permission or licence of the
+rights holder.
 
-Die Verantwortung dafür liegt bei dir als Nutzer. Weder dieser Service noch das
-Backend können prüfen, ob du für eine konkrete URL die nötigen Rechte hast; die
-Domain-Whitelist ist ein technischer Schutz vor beliebigen Abrufzielen und
-keine rechtliche Bewertung. Das Projekt ist nicht dafür bestimmt, technische
+Responsibility for this rests with you as the user. Neither this service nor
+the backend can check whether you hold the necessary rights for a given URL;
+the domain whitelist is a technical safeguard against arbitrary fetch targets
+and not a legal assessment. The project is not intended to circumvent technical
+protection measures or access restrictions.
+
+*Deutsch:* Der Import ist nur zulässig, wenn du die erforderlichen Nutzungs-
+und Vervielfältigungsrechte besitzt oder eine gesetzliche Erlaubnis greift -
+etwa bei eigenen Aufnahmen, gemeinfreien Werken oder Inhalten mit
+ausdrücklicher Erlaubnis bzw. Lizenz des Rechteinhabers. Die Verantwortung
+liegt bei dir; weder dieser Service noch das Backend können die Rechtslage
+einer konkreten URL bewerten. Das Projekt ist nicht dafür bestimmt, technische
 Schutzmaßnahmen oder Zugangsbeschränkungen zu umgehen.
 
-*English:* Import content only if you hold the necessary usage and reproduction
-rights or a statutory exception applies – for example your own recordings,
-public domain works, or content licensed or explicitly permitted by the rights
-holder. Responsibility rests with you; neither this service nor the backend can
-assess the rights situation of a given URL. The project is not intended to
-circumvent technical protection measures or access restrictions.
+## Technical limits
 
-## Technische Grenzen
+The integration only passes the URL (and optionally a target directory) on to
+the download library. It offers **no** parameters, fields or environment
+variables for:
 
-Die Integration reicht ausschließlich die URL (und optional ein Zielverzeichnis)
-an die Download-Bibliothek weiter. Sie bietet **keine** Parameter, Felder oder
-Umgebungsvariablen für:
+- cookie files or browser cookie import
+- login data, username/password, OAuth or session tokens
+- decryption or licence keys
+- deliberately bypassing geoblocking, paywalls or DRM
 
-- Cookie-Dateien oder Browser-Cookie-Import
-- Login-Daten, Benutzername/Passwort, OAuth oder Session-Tokens
-- Entschlüsselungs- oder Lizenzschlüssel
-- gezieltes Umgehen von Geoblocking, Paywalls oder DRM
+So through this API you can practically only import sources that are readable
+without such details. The library used (yt-dlp) may bring further capabilities
+of its own - the project does not pass those on and does not document them as a
+use case. A statement about which access-protection mechanisms apply in a
+particular case is something the project cannot and will not make.
 
-Damit lassen sich über diese API praktisch nur Quellen importieren, die ohne
-solche Angaben lesbar sind. Die eingesetzte Bibliothek (yt-dlp) kann
-eigenständig weitere Fähigkeiten mitbringen – das Projekt gibt sie nicht weiter
-und dokumentiert sie nicht als Anwendungsfall. Eine Aussage darüber, welche
-Zugriffsschutzmechanismen im Einzelfall greifen, kann und will das Projekt
-nicht treffen.
+## API endpoints
 
-## API-Endpoints
-
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---------|------|--------------|
-| `GET` | `/health` | Health-Check |
-| `GET` | `/info?url=<url>` | Metadaten ohne Import (Preview) |
-| `POST` | `/download` | Tonspur importieren, MP3-Metadaten zurückgeben |
+| `GET` | `/health` | health check |
+| `GET` | `/info?url=<url>` | metadata without import (preview) |
+| `POST` | `/download` | import the audio track, return MP3 metadata |
 
 ### POST /download
 
@@ -88,47 +88,46 @@ nicht treffen.
 }
 ```
 
-> `video_id` ist die von der Quelle vergebene Kennung. Der Feldname stammt aus
-> der ersten Fassung der API und bleibt aus Kompatibilitätsgründen erhalten.
+> `video_id` is the identifier assigned by the source. The field name comes
+> from the first version of the API and is kept for compatibility.
 
-## Konfiguration (Umgebungsvariablen)
+## Configuration (environment variables)
 
-| Variable | Default | Beschreibung |
+| Variable | Default | Description |
 |----------|---------|--------------|
-| `AUDIO_TRACKS_DIR` | `/mnt/audio/tracks/downloads` | Zielverzeichnis für MP3-Dateien, falls kein `output_dir` mitgegeben wird |
-| `AUDIO_BASE_DIR` | `/mnt/audio` | Gemeinsames Audio-Volume; `output_dir` muss darin liegen, sonst `422` |
-| `AUDIO_QUALITY` | `192` | MP3-Bitrate in kbps |
-| `MAX_FILESIZE_MB` | `200` | Maximale Dateigröße eines Downloads in MB (yt-dlp `max_filesize`) |
-| `LOG_LEVEL` | `INFO` | Log-Level |
+| `AUDIO_TRACKS_DIR` | `/mnt/audio/tracks/downloads` | target directory for MP3 files, if no `output_dir` is passed |
+| `AUDIO_BASE_DIR` | `/mnt/audio` | shared audio volume; `output_dir` must be inside it, otherwise `422` |
+| `AUDIO_QUALITY` | `192` | MP3 bitrate in kbps |
+| `MAX_FILESIZE_MB` | `200` | maximum file size of a download in MB (yt-dlp `max_filesize`) |
+| `LOG_LEVEL` | `INFO` | log level |
 
-Weitere Variablen gibt es bewusst nicht – insbesondere keine für Zugangsdaten
-oder Cookies (siehe *Technische Grenzen*). Die erlaubten Domains sind keine
-Umgebungsvariable dieses Dienstes: Sie werden im Backend verwaltet und sind
-in der WebUI unter *Admin → Allgemein → Medien-Import* editierbar (Default
-ohne YouTube – siehe Begründung dort).
+There are deliberately no further variables - in particular none for
+credentials or cookies (see *Technical limits*). The allowed domains are not an
+environment variable of this service: they are managed in the backend and are
+editable in the web UI under *Admin → General → media import* (default without
+YouTube - see the rationale there).
 
-## Abhängigkeiten
+## Dependencies
 
-- **ffmpeg** (Runtime-Abhängigkeit im Dockerfile)
-- **yt-dlp** – Lese-/Extraktions-Bibliothek
-- **mutagen** – ID3-Tag-Manipulation (Fallback für Cover-Art)
-- **FastAPI + uvicorn** – HTTP-Server
-- **structlog** – Logging
+- **ffmpeg** (runtime dependency in the Dockerfile)
+- **yt-dlp** - the read/extraction library
+- **mutagen** - ID3 tag manipulation (fallback for cover art)
+- **FastAPI + uvicorn** - HTTP server
+- **structlog** - logging
 
-## Shared Volume
+## Shared volume
 
-Der Service schreibt MP3-Dateien nach `/mnt/audio/tracks/downloads/`. Dieses
-Verzeichnis muss mit dem `backend`-Service und dem `audio`-Service geteilt
-werden (siehe `docker-compose.yml`).
+The service writes MP3 files to `/mnt/audio/tracks/downloads/`. That directory
+must be shared with the `backend` service and the `audio` service (see
+`docker-compose.yml`).
 
-## Architektur-Entscheidung
+## Architecture decision
 
-Der Service ist bewusst als eigenständiger Microservice ohne
-MQTT-Abhängigkeit implementiert, damit er später als eigenständiges
-Python-Package extrahiert werden kann.
+The service is deliberately implemented as a standalone microservice with no
+MQTT dependency, so it can later be extracted as a standalone Python package.
 
-## Fragen und Meldungen
+## Questions and reports
 
-Für Rückfragen oder Hinweise zu Rechten an importierbaren Inhalten:
-[GitHub Issues](https://github.com/Opnek90/Minabox/issues). Eine gesonderte
-Kontaktadresse führt das Projekt derzeit nicht.
+For questions or notes about rights to importable content:
+[GitHub Issues](https://github.com/Opnek90/Minabox/issues). The project does not
+currently have a separate contact address.

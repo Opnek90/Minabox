@@ -1,24 +1,23 @@
 name: Checks
 
-# Typpruefung, Lint, Tests und die i18n-Waechter fuer den WebUI-Dienst.
+# Type check, lint, tests and the i18n guards for the WebUI service.
 #
-# Warum eigenstaendig: build-images.yml baut Images und laeuft erst nach dem
-# Merge auf main. Ein Typfehler oder ein kaputter Test kam damit ungebremst bis
-# in die Registry. Dieser Workflow laeuft an zwei Stellen - auf jedem Pull
-# Request, damit der Fehler vor dem Merge sichtbar wird, und per workflow_call
-# aus build-images.yml, damit ein roter Lauf das Pushen verhindert.
+# Why standalone: build-images.yml builds images and only runs after the merge
+# to main. A type error or a broken test could reach the registry unchecked.
+# This workflow runs in two places - on every pull request, so the error is
+# visible before the merge, and via workflow_call from build-images.yml, so a
+# red run blocks the push.
 #
-# Laeuft auf ubuntu-latest statt auf dem arm64-Runner: npm ci und tsc brauchen
-# dort keine Sonderbehandlung und der Lauf kostet rund zwei Minuten.
+# Runs on ubuntu-latest instead of the arm64 runner: npm ci and tsc need no
+# special treatment there and the run costs about two minutes.
 
 on:
   pull_request:
   workflow_call:
 
-# Dieselbe Ausnahme wie in build-images.yml: auf main darf nicht abgebrochen
-# werden. Dieser Workflow haengt dort als workflow_call vor dem Build - ein
-# abgebrochener Lauf laesst `needs: checks` scheitern und der Build startet
-# gar nicht erst.
+# The same exception as in build-images.yml: main must not be cancelled. This
+# workflow hangs there as a workflow_call before the build - a cancelled run
+# makes `needs: checks` fail and the build never starts.
 concurrency:
   group: checks-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -45,8 +44,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      # Der Dockerfile baut bewusst mit build:fast, also ohne tsc - auf dem
-      # arm64-Runner kostet die Typpruefung Minuten. Hier wird sie nachgeholt.
+      # The Dockerfile deliberately builds with build:fast, i.e. without tsc -
+      # on the arm64 runner the type check costs minutes. It is done here.
       - name: Type check
         run: npm run build:check
 
@@ -56,8 +55,8 @@ jobs:
       - name: Tests
         run: npm run test
 
-      # Fehlende Uebersetzungen fallen sonst erst dem Nutzer auf: der Schluessel
-      # steht dann als roher Text in der Oberflaeche.
+      # Otherwise missing translations only show up to the user: the key then
+      # stands as raw text in the interface.
       - name: Locales in sync
         run: npm run check:locales
 
