@@ -179,3 +179,9 @@ architecture document.>
 
 Nothing else. Topic tables, config tables, endpoint lists and troubleshooting
 live in `docs/services/<name>/` only — one place to keep correct.
+
+Two allowances: the `Tests` heading becomes `Development` where the toolchain
+is not pytest (webui), and a service may add **one** further section when
+something genuinely has to sit next to the code rather than in the docs tree —
+media-downloader carries its lawful-use notice that way. Anything beyond that
+belongs in the architecture document.
