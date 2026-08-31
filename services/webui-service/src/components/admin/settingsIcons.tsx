@@ -10,12 +10,12 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import WifiIcon from '@mui/icons-material/Wifi';
 
 /**
- * Symbol je Einstellungs-Gruppe – Pille auf dem Desktop, Zeilensymbol im
- * Akkordeon am Telefon.
+ * An icon per settings group - a pill on the desktop, a row icon in the
+ * accordion on the phone.
  *
- * Bewusst *nicht* in `@/config/settingsIndex`: Dieser Index ist frei von
- * React-Inhalten, damit die CommandPalette dieselbe Struktur durchsuchen kann,
- * ohne Komponenten zu laden. Die Schluessel entsprechen `SettingsGroupMeta.key`.
+ * Deliberately *not* in `@/config/settingsIndex`: that index is free of React
+ * content, so the CommandPalette can search the same structure without loading
+ * components. The keys match `SettingsGroupMeta.key`.
  */
 export const SETTINGS_GROUP_ICONS: Record<string, React.ReactNode> = {
   playback: <PlayCircleOutlineIcon />,

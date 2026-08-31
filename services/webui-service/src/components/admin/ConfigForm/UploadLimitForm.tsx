@@ -10,12 +10,12 @@ const MAX_UPLOAD_MB = 2048;
 const DEFAULT_UPLOAD_MB = 100;
 
 /**
- * Groesste Datei, die ueber die Weboberflaeche hochgeladen werden darf.
+ * The largest file that may be uploaded through the web interface.
  *
- * Steht bei „Musik-Ordner", weil beides dieselbe Frage betrifft: wo die Medien
- * landen und wie gross sie sein duerfen. Der Wert wirkt sofort – das Backend
- * liest ihn bei jedem Upload neu aus `general_settings.json`, ein Neustart ist
- * nicht noetig.
+ * Sits with "Music folder", because both concern the same question: where the
+ * media lands and how large it may be. The value takes effect immediately - the
+ * backend re-reads it from `general_settings.json` on every upload, no restart
+ * needed.
  */
 export const UploadLimitForm: React.FC = () => {
   const { t } = useTranslation('admin');

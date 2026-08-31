@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Die i18n-Instanz wird durch ein Minimal-Double ersetzt, damit der Test nicht
-// i18next.init() mit dem HTTP-Backend anstoesst.
+// The i18n instance is replaced with a minimal double, so the test does not
+// trigger i18next.init() with the HTTP backend.
 const fakeI18n = {
   language: 'de',
   options: {} as Record<string, unknown>,
@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe('applyI18nDebugMode', () => {
-  it('schaltet bei log_level "debug" den Fallback ab und meldet fehlende Schluessel', async () => {
+  it('turns off the fallback at log_level "debug" and reports missing keys', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'info').mockImplementation(() => {});
     const { applyI18nDebugMode } = await freshImport();
@@ -72,7 +72,7 @@ describe('applyI18nDebugMode', () => {
 });
 
 describe('activateI18nDebugModeFromConfig', () => {
-  it('aktiviert den Debug-Modus, wenn der Server "debug" meldet', async () => {
+  it('enables debug mode when the server reports "debug"', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'info').mockImplementation(() => {});
     getGeneral.mockResolvedValue({ log_level: 'debug' });
@@ -83,7 +83,7 @@ describe('activateI18nDebugModeFromConfig', () => {
     expect(fakeI18n.options.fallbackLng).toBe(false);
   });
 
-  it('schluckt Fehler beim Abruf und laesst den Fallback stehen', async () => {
+  it('swallows a fetch error and leaves the fallback in place', async () => {
     getGeneral.mockRejectedValue(new Error('offline'));
     const { activateI18nDebugModeFromConfig } = await freshImport();
 

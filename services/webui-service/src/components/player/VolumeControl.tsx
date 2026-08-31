@@ -21,11 +21,11 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
 }) => {
   const { t } = useTranslation('player');
 
-  // In die erlaubte Skala zwingen: senken die Eltern das Limit unter die
-  // laufende Lautstaerke, liefert der Status kurzzeitig (und bei gestopptem
-  // Player dauerhaft) einen Wert oberhalb von maxVolume. MUI zeichnet den
-  // Slider-Thumb dann ausserhalb der Schiene. Das 5er-Raster wird nach dem
-  // Clamp angewendet, damit das Runden nicht wieder ueber das Limit schiebt.
+  // Force into the allowed scale: if the parents lower the limit below the
+  // running volume, the status briefly (and permanently for a stopped player)
+  // reports a value above maxVolume. MUI then draws the slider thumb outside
+  // the track. The 5-step grid is applied after the clamp, so rounding does not
+  // push back over the limit.
   const snap = useCallback(
     (v: number) => {
       const clamped = Math.min(Math.max(v, minVolume), maxVolume);

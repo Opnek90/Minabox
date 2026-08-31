@@ -1,21 +1,22 @@
 #!/usr/bin/env node
-// Prueft t()-Aufrufe mit statischem Key-Argument gegen die echten Keys in
-// public/locales/de/*.json - eine Textsuche, kein Typsystem.
+// Checks t() calls with a static key argument against the real keys in
+// public/locales/de/*.json - a text search, not a type system.
 //
-// Warum kein TypeScript-CustomTypeOptions-Ansatz: admin.json hat 560+ Keys,
-// von hunderten t()-Aufrufstellen im Projekt referenziert. Jede Kombination
-// aus "mind. ein Namespace strikt typisiert" liess tsc --noEmit auf der Ziel-
-// Hardware (Raspberry Pi, 3.7 GB RAM) ueber zwei Minuten laufen oder den
-// Speicher sprengen - unabhaengig davon, ob die Keys als verschachtelter
-// `typeof json`- oder als flacher Record-Typ eingebracht wurden. Nur eine
-// generische `Record<string, string>`-Signatur (= keine echte Pruefung) blieb
-// schnell. Diese Textsuche leistet denselben Fang von Tippfehlern/toten Keys
-// in t()-Aufrufen ohne den Compiler zu belasten.
+// Why not a TypeScript CustomTypeOptions approach: admin.json has 560+ keys,
+// referenced from hundreds of t() call sites in the project. Every combination
+// of "at least one namespace strictly typed" made tsc --noEmit run for over
+// two minutes on the target hardware (Raspberry Pi, 3.7 GB RAM) or blow the
+// memory - regardless of whether the keys were brought in as a nested
+// `typeof json` type or a flat record type. Only a generic
+// `Record<string, string>` signature (= no real check) stayed fast. This text
+// search achieves the same catch of typos/dead keys in t() calls without
+// loading the compiler.
 //
-// Erkennt: t('key'), t("key"), t(`key`) (ohne ${}-Interpolation), auch mit
-// zweitem Options-Argument. Ueberspringt dynamische Keys (t(`foo.${bar}`),
-// t(variable)) - die kann nur eine Typpruefung oder Laufzeit abdecken, siehe
-// die Kommentare in i18n/index.ts zum failedLoading-Handler als Netz dafuer.
+// Recognises: t('key'), t("key"), t(`key`) (without ${} interpolation), also
+// with a second options argument. Skips dynamic keys (t(`foo.${bar}`),
+// t(variable)) - those can only be covered by a type check or at runtime, see
+// the comments in i18n/index.ts on the failedLoading handler as the net for
+// that.
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -62,20 +63,20 @@ function collectSourceFiles(dir) {
   return files;
 }
 
-// Erkennt useTranslation('ns') oder useTranslation(['ns', ...]) - das erste
-// Element gilt als Default-Namespace fuer unpraefixierte Keys in der Datei.
+// Recognises useTranslation('ns') or useTranslation(['ns', ...]) - the first
+// element counts as the default namespace for unprefixed keys in the file.
 const USE_TRANSLATION_RE = /useTranslation\(\s*\[?\s*['"]([a-z]+)['"]/;
 
-// t('key') / t("key") / t(`key`) als erstes Argument, ohne ${...} darin.
+// t('key') / t("key") / t(`key`) as the first argument, without ${...} in it.
 const T_CALL_RE = /\bt\(\s*(['"`])((?:(?!\1)[^\\]|\\.)*)\1/g;
 
-// { ns: 'xxx' } als (Teil eines) zweiten Arguments - explizite Namespace-
-// Ueberschreibung, wie an vielen Stellen fuer gemeinsame Labels ('save' etc.)
-// aus common.json genutzt.
+// { ns: 'xxx' } as (part of) a second argument - an explicit namespace
+// override, as used in many places for shared labels ('save' etc.) from
+// common.json.
 const NS_OPTION_RE = /ns:\s*['"]([a-z]+)['"]/;
 
-// Ein "_one"/"_other"-Paar wird ueber den Basisnamen aufgerufen (t('x.y',
-// {count})); der Basisname selbst ist dann kein eigener Key in der JSON.
+// An "_one"/"_other" pair is called via the base name (t('x.y', {count}));
+// the base name itself is then not a key of its own in the JSON.
 const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
 function existsAsKey(ns, key) {
   if (keysByNs[ns].has(key)) return true;
@@ -94,7 +95,7 @@ for (const path of files) {
   T_CALL_RE.lastIndex = 0;
   while ((m = T_CALL_RE.exec(text))) {
     const raw = m[2];
-    if (raw.includes('${')) continue; // dynamischer Key, nicht statisch pruefbar
+    if (raw.includes('${')) continue; // dynamic key, not statically checkable
     if (raw === '') continue;
 
     let ns = defaultNs;
@@ -107,8 +108,8 @@ for (const path of files) {
         key = raw.slice(idx + 1);
       }
     } else {
-      // Rest der Zeile nach dem Key-Argument auf { ns: '...' } absuchen -
-      // reicht fuer den ueblichen Fall "t('key', { ns: 'xxx' })" auf einer Zeile.
+      // Scan the rest of the line after the key argument for { ns: '...' } -
+      // enough for the usual case "t('key', { ns: 'xxx' })" on one line.
       const lineEnd = text.indexOf('\n', m.index);
       const window = text.slice(m.index, lineEnd === -1 ? m.index + 200 : lineEnd);
       const nsOption = NS_OPTION_RE.exec(window);
@@ -117,19 +118,19 @@ for (const path of files) {
       }
     }
 
-    if (!namespaces.includes(ns)) continue; // unbekannter Namespace -> nicht unser Fall
+    if (!namespaces.includes(ns)) continue; // unknown namespace -> not our case
     if (!existsAsKey(ns, key)) {
       const line = text.slice(0, m.index).split('\n').length;
       const rel = path.slice(ROOT.length + 1);
-      console.error(`FEHLER ${rel}:${line} - Key "${raw}" existiert nicht in ${ns}.json`);
+      console.error(`ERROR ${rel}:${line} - key "${raw}" does not exist in ${ns}.json`);
       errorCount++;
     }
   }
 }
 
 if (errorCount > 0) {
-  console.error(`\n${errorCount} t()-Aufruf(e) mit nicht existierendem Key.`);
+  console.error(`\n${errorCount} t() call(s) with a non-existent key.`);
   process.exit(1);
 }
 
-console.log(`i18n-Aufruf-Pruefung ok: ${files.length} Dateien, keine toten Keys in statischen t()-Aufrufen.`);
+console.log(`i18n call check ok: ${files.length} files, no dead keys in static t() calls.`);

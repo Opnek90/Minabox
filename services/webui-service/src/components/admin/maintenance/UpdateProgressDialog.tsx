@@ -25,7 +25,7 @@ interface UpdateProgressDialogProps {
   onClose: () => void;
 }
 
-/** Was gerade mit der Box passiert, waehrend sie sich selbst aktualisiert. */
+/** What is happening to the box while it updates itself. */
 export const UpdateProgressDialog: React.FC<UpdateProgressDialogProps> = ({
   open,
   running,
@@ -38,8 +38,8 @@ export const UpdateProgressDialog: React.FC<UpdateProgressDialogProps> = ({
   const succeeded = !running && status?.exit_code === 0;
   const failed = !running && status?.exit_code != null && status.exit_code !== 0;
 
-  // Als Werte statt als Flag: ein `boolean` daneben verengt die beiden
-  // `number | null` fuer TypeScript nicht, und t() nimmt kein null als count.
+  // As values instead of a flag: a `boolean` alongside does not narrow the two
+  // `number | null` for TypeScript, and t() does not take null as a count.
   const step = status?.step ?? null;
   const stepCount = status?.step_count ?? null;
   const stepLabel =
@@ -52,8 +52,8 @@ export const UpdateProgressDialog: React.FC<UpdateProgressDialogProps> = ({
   return (
     <Dialog
       open={open}
-      // Kein Schliessen per Klick daneben, solange es laeuft: das Fenster ist
-      // die einzige Stelle, an der man sieht, was gerade mit der Box passiert.
+      // No closing by clicking outside while it runs: this window is the only
+      // place you can see what is happening to the box.
       onClose={() => { if (!running) onClose(); }}
       maxWidth="md"
       fullWidth
@@ -76,8 +76,8 @@ export const UpdateProgressDialog: React.FC<UpdateProgressDialogProps> = ({
                 : failed
                   ? t('system.update_failed')
                   : status?.step_key
-                    // step_key kommt vom Orchestrierungsskript und ist nicht an
-                    // eine feste Werte-Menge gebunden - statisch pruefbar ist er nicht.
+                    // step_key comes from the orchestration script and is not
+                    // bound to a fixed set of values - it is not statically checkable.
                     ? t(`system.update_step_${status.step_key}` as never)
                     : ''}
             </Typography>
@@ -93,8 +93,8 @@ export const UpdateProgressDialog: React.FC<UpdateProgressDialogProps> = ({
         )}
 
         {status?.unreachable && running && (
-          // Genau das ist der Neustart der Dienste - kein Fehler, sondern der
-          // erwartete Teil des Updates.
+          // This is exactly the service restart - not an error, but the
+          // expected part of the update.
           <Alert severity="info" sx={{ mb: 1.5 }}>
             {t('system.update_reconnecting')}
           </Alert>

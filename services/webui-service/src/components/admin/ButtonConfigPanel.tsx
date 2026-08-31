@@ -49,8 +49,8 @@ export const ButtonConfigPanel: React.FC = () => {
   const isSmall = useLayout().isMobile;
 
   const [config, setConfig] = useState<ButtonConfig | null>(null);
-  // Der zuletzt vom Server bestaetigte Stand. Alles, was davon abweicht, steht
-  // nur in dieser Ansicht - die Leiste oben sagt das und traegt das Speichern.
+  // The state last confirmed by the server. Anything that differs from it is
+  // only in this view - the bar on top says so and carries the save.
   const [savedConfig, setSavedConfig] = useState<ButtonConfig | null>(null);
   const [buttonActions, setButtonActions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);

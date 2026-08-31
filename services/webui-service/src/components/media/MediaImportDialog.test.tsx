@@ -7,10 +7,10 @@ import deMedia from '../../../public/locales/de/media.json';
 import { MediaImportDialog } from './MediaImportDialog';
 
 /**
- * Der Dialog verlangt eine ausdrueckliche Bestaetigung zur rechtmaessigen
- * Nutzung, bevor eine URL geprueft oder importiert werden kann. Die Tests
- * pinnen genau diese Gate-Logik – ohne Haken darf keine der beiden Aktionen
- * erreichbar sein, und ein erneut geoeffneter Dialog faengt wieder bei null an.
+ * The dialog requires an explicit confirmation of lawful use before a URL can
+ * be checked or imported. The tests pin exactly this gate logic - without the
+ * checkbox neither action may be reachable, and a re-opened dialog starts from
+ * zero again.
  */
 
 const validateUrl = vi.fn();
@@ -36,8 +36,8 @@ vi.mock('@/contexts/ToastContext', () => ({
   }),
 }));
 
-// Uebersetzt gegen die echten Locale-Dateien, damit ein fehlender oder
-// umbenannter Key den Test kippen laesst und nicht still durchrutscht.
+// Translated against the real locale files, so a missing or renamed key fails
+// the test instead of slipping through silently.
 const lookup = (bundle: unknown, key: string): string | undefined => {
   const value = key
     .split('.')
@@ -74,12 +74,12 @@ const importButton = () => screen.getByRole('button', { name: text('media_import
 const renderDialog = (open = true) =>
   render(<MediaImportDialog open={open} onClose={vi.fn()} onSuccess={vi.fn()} />);
 
-describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => {
+describe('MediaImportDialog - confirmation of lawful use', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('zeigt den Hinweis mit einer standardmaessig leeren Checkbox', () => {
+  it('shows the notice with a checkbox that is empty by default', () => {
     renderDialog();
 
     expect(screen.getByText(text('media_import.disclaimer_title'))).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
     expect(confirmCheckbox()).not.toBeChecked();
   });
 
-  it('haelt Pruefen und Importieren ohne Bestaetigung deaktiviert – auch mit URL', async () => {
+  it('keeps check and import disabled without confirmation - even with a URL', async () => {
     const user = userEvent.setup();
     renderDialog();
 
@@ -111,7 +111,7 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
     expect(importButton()).toBeEnabled();
   });
 
-  it('startet den Import erst nach der Bestaetigung', async () => {
+  it('starts the import only after confirmation', async () => {
     const user = userEvent.setup();
     fromUrl.mockResolvedValue({ track_id: 7, status: 'pending' });
     renderDialog();
@@ -124,7 +124,7 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
     expect(fromUrl.mock.calls[0][0]).toBe('https://example.org/media');
   });
 
-  it('nimmt die Bestaetigung beim erneuten Oeffnen wieder zurueck', async () => {
+  it('resets the confirmation when reopened', async () => {
     const user = userEvent.setup();
     const { rerender } = renderDialog();
 
@@ -141,7 +141,7 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
 
   // Real POLL_INTERVAL_MS (2s) plus the waitFor budget below exceeds
   // vitest's 5s default test timeout, hence the explicit timeout argument.
-  it('zeigt die gemeldete Import-Stufe an, nicht nur einen Spinner', async () => {
+  it('shows the reported import stage, not just a spinner', async () => {
     const user = userEvent.setup();
     fromUrl.mockResolvedValue({ track_id: 7, status: 'pending' });
     getDownloadStatus.mockResolvedValue({
@@ -168,7 +168,7 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
     expect(screen.getByText(text('media_import.stage_saving'))).toBeInTheDocument();
   }, 8000);
 
-  it('haengt den Prozentsatz und die Geschwindigkeit/ETA an, solange die Stufe "downloading" laeuft', async () => {
+  it('appends the percentage and speed/ETA while the stage is "downloading"', async () => {
     const user = userEvent.setup();
     fromUrl.mockResolvedValue({ track_id: 7, status: 'pending' });
     getDownloadStatus.mockResolvedValue({
@@ -199,7 +199,7 @@ describe('MediaImportDialog – Bestaetigung zur rechtmaessigen Nutzung', () => 
     expect(screen.getByText(`1.2 MB/s · ${text('media_import.eta')}`)).toBeInTheDocument();
   }, 8000);
 
-  it('verknuepft die Checkbox mit dem Hilfetext, solange nicht bestaetigt ist', async () => {
+  it('links the checkbox to the help text while not confirmed', async () => {
     const user = userEvent.setup();
     renderDialog();
 

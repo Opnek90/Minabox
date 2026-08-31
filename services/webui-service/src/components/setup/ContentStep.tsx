@@ -26,8 +26,8 @@ export const ContentStep: React.FC = () => {
       .catch(() => setRfidRunning(false));
   }, []);
 
-  // Der Lernmodus muss auch dann wieder aus, wenn der Nutzer den Schritt
-  // verlaesst - sonst bleibt die Box im Lernmodus haengen und spielt nichts ab.
+  // Learn mode must also be turned off again when the user leaves the step -
+  // otherwise the box stays stuck in learn mode and plays nothing.
   useEffect(() => {
     return () => {
       if (learning) void tagsApi.setLearningMode(false).catch(() => {});

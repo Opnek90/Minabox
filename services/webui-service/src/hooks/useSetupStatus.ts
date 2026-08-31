@@ -3,31 +3,30 @@ import { configApi } from '@/api/config';
 import { tagsApi } from '@/api/tags';
 
 /**
- * Aktuelle Version des Ersteinrichtungs-Assistenten.
+ * Current version of the first-run wizard.
  *
- * Wird sie erhoeht, bietet sich der Assistent erneut an - gedacht fuer den
- * Fall, dass ein Release einen wirklich neuen Einrichtungsschritt mitbringt.
- * Fuer alles Kleinere bleibt der Wert stehen; niemand moechte nach jedem
- * Update wieder durch den Assistenten.
+ * If it is raised, the wizard offers itself again - meant for the case where a
+ * release brings a genuinely new setup step. For anything smaller the value
+ * stays; nobody wants to go through the wizard again after every update.
  */
 export const SETUP_VERSION = 1;
 
 export interface SetupStatus {
-  /** true, solange der Assistent angeboten werden soll. */
+  /** true as long as the wizard should be offered. */
   needsSetup: boolean;
   loading: boolean;
-  /** Neu einlesen, z. B. nachdem der Assistent abgeschlossen wurde. */
+  /** Re-read, e.g. after the wizard has been completed. */
   refresh: () => Promise<void>;
 }
 
 /**
- * Entscheidet, ob die Ersteinrichtung noch aussteht.
+ * Decides whether first-run setup is still pending.
  *
- * Der Sonderfall sind Bestandsinstallationen: deren general_settings.json kennt
- * `setup_completed` nicht, weil es das Feld frueher nicht gab. Eine bereits
- * eingerichtete Box duerfte dadurch nicht ploetzlich im Assistenten landen.
- * Deshalb gilt als eingerichtet, wer bereits Karten angelegt hat - das tut
- * niemand vor der Einrichtung, und es braucht kein Migrationsskript.
+ * The special case is existing installations: their general_settings.json does
+ * not know `setup_completed`, because the field did not exist before. An
+ * already set-up box must not suddenly end up in the wizard because of that.
+ * So a box counts as set up if it already has cards - nobody does that before
+ * setup, and it needs no migration script.
  */
 export function useSetupStatus(): SetupStatus {
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -43,7 +42,7 @@ export function useSetupStatus(): SetupStatus {
         return;
       }
 
-      // Flag fehlt komplett -> koennte eine Bestandsinstallation sein.
+      // The flag is missing entirely -> could be an existing installation.
       if (general.setup_completed === undefined) {
         try {
           const tags = await tagsApi.getAll();
@@ -52,7 +51,7 @@ export function useSetupStatus(): SetupStatus {
             return;
           }
         } catch {
-          // Tag-Abfrage fehlgeschlagen: dann lieber nicht aufdraengen.
+          // The tag query failed: then better not push it.
           setNeedsSetup(false);
           return;
         }
@@ -60,8 +59,8 @@ export function useSetupStatus(): SetupStatus {
 
       setNeedsSetup(true);
     } catch {
-      // Backend nicht erreichbar: der Assistent ist nicht das dringendste
-      // Problem, und ein Fehlalarm waere schlimmer als gar kein Hinweis.
+      // Backend unreachable: the wizard is not the most pressing problem, and
+      // a false alarm would be worse than no hint at all.
       setNeedsSetup(false);
     } finally {
       setLoading(false);

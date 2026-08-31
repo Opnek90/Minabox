@@ -9,15 +9,15 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { translateApiError } from '@/utils/apiError';
 
-/** Hoechstens so viele gefundene Netze auflisten - der Rest ist Rauschen. */
+/** List at most this many found networks - the rest is noise. */
 const MAX_NETWORKS = 15;
 
 interface WifiBlockProps {
-  /** Nach jeder Aenderung, damit die Status-Karte darueber nachzieht. */
+  /** After every change, so the status card above follows. */
   onNetworkChanged: () => void;
 }
 
-/** WLAN suchen und verbinden, Hotspot starten und stoppen. */
+/** Scan and connect to Wi-Fi, start and stop the hotspot. */
 export const WifiBlock: React.FC<WifiBlockProps> = ({ onNetworkChanged }) => {
   const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();

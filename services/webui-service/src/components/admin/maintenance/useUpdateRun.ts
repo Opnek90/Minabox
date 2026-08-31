@@ -17,13 +17,13 @@ export interface UpdateRun {
 }
 
 /**
- * Startet ein Minabox-Update und verfolgt es bis zum Ende.
+ * Starts a Minabox update and follows it to the end.
  *
- * Waehrend des Updates startet die Box Backend und WebUI neu - die Abfrage
- * schlaegt dann kurz fehl. Das ist kein Fehler, sondern der Neustart selbst,
- * also wird weiter gefragt und `unreachable` gesetzt.
+ * During the update the box restarts the backend and web UI - the poll then
+ * fails briefly. That is not an error but the restart itself, so it keeps
+ * polling and sets `unreachable`.
  *
- * @param onFinished laeuft genau einmal je Lauf, nachdem der Endzustand feststeht.
+ * @param onFinished runs exactly once per run, after the final state is known.
  */
 export function useUpdateRun(onFinished?: () => void): UpdateRun {
   const { t, i18n } = useTranslation('admin');
@@ -31,8 +31,8 @@ export function useUpdateRun(onFinished?: () => void): UpdateRun {
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<UpdateStatusResponse | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
-  // Ohne diesen Riegel feuert die 2-Sekunden-Abfrage die Erfolgsmeldung bei
-  // jedem weiteren Durchlauf erneut (#137).
+  // Without this latch the 2-second poll fires the success message again on
+  // every further pass (#137).
   const notifiedRef = useRef(false);
   const finishedRef = useRef(onFinished);
   finishedRef.current = onFinished;
@@ -44,8 +44,8 @@ export function useUpdateRun(onFinished?: () => void): UpdateRun {
       notifiedRef.current = false;
       try {
         await systemApi.updateMinabox(targets);
-        // Der Aufruf kehrt sofort zurueck; ab hier zeigt das Fortschrittsfenster,
-        // was passiert.
+        // The call returns immediately; from here the progress window shows
+        // what happens.
         setProgressOpen(true);
       } catch (err) {
         showError(translateApiError(t, i18n, err));
@@ -74,8 +74,8 @@ export function useUpdateRun(onFinished?: () => void): UpdateRun {
         if (next.running || next.exit_code === null) return;
 
         setRunning(false);
-        // Endzustand nur einmal je Lauf melden und danach nicht mehr abfragen -
-        // sonst wiederholt sich die Meldung im Sekundentakt (#137).
+        // Report the final state only once per run and stop polling after -
+        // otherwise the message repeats every second (#137).
         stop();
         if (notifiedRef.current) return;
         notifiedRef.current = true;

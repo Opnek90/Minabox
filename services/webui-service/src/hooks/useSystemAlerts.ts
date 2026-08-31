@@ -2,16 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { systemApi, type SystemAlert } from '@/api/system';
 import { useWebSocketEvent } from '@/contexts/WebSocketContext';
 
-// Muss zum Kennwort in backend_service/core/update_check.py passen.
+// Must match the identifier in backend_service/core/update_check.py.
 export const ALERT_UPDATE_AVAILABLE = 'update_available';
 
 const SEVERITY: Record<SystemAlert['level'], number> = { info: 0, warning: 1, error: 2 };
 
 /**
- * Aktive System-Alerts, nach Kennung getrennt (siehe system_alerts.py). Ein
- * einzelner Alert-Zustand wuerde Update-Hinweis und Uebertemperatur-Warnung
- * gegenseitig verdraengen, obwohl beide gleichzeitig gelten koennen - der
- * eine als Kopfzeilen-Icon, der andere als volle Hinweisleiste.
+ * Active system alerts, keyed by identifier (see system_alerts.py). A single
+ * alert state would make the update hint and the over-temperature warning
+ * displace each other, even though both can apply at once - one as a header
+ * icon, the other as a full alert bar.
  */
 export const useSystemAlerts = (): SystemAlert[] => {
   const [alerts, setAlerts] = useState<Record<string, SystemAlert>>({});

@@ -17,11 +17,11 @@ import { translateApiError } from '@/utils/apiError';
 const LOG_POLL_MS = 2000;
 
 /**
- * `apt upgrade` auf dem Host, mit dem Protokoll dazu.
+ * `apt upgrade` on the host, with the log to go with it.
  *
- * Rendert nur seinen Knopf, damit er in der Knopfreihe der Wartungs-Section
- * neben den Minabox-Update-Knoepfen stehen kann - der Zustand dazu (laeuft
- * gerade? was steht im Protokoll?) bleibt hier.
+ * Renders only its button, so it can sit in the button row of the maintenance
+ * section next to the Minabox update buttons - the state for it (running now?
+ * what does the log say?) stays here.
  */
 export const OsUpdateButton: React.FC = () => {
   const { t, i18n } = useTranslation('admin');

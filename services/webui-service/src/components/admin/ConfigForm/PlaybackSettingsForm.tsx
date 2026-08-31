@@ -18,12 +18,12 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 /**
- * Wiedergabe-Verhalten: was passiert beim Auflegen/Entfernen eines Tags und
- * was, wenn alles gespielt ist.
+ * Playback behaviour: what happens when a tag is placed/removed and what
+ * happens when everything has played.
  *
- * Der frühere Einschlaf-Fade sitzt bewusst nicht mehr hier, sondern in
- * `ChildSettingsForm` – er ist eine Kinderschutz-Regel, keine Wiedergabe-Option.
- * Der Einschlaf-Timer hat seit der Gruppe „Abspielen" eine eigene Section
+ * The former sleep fade deliberately no longer lives here but in
+ * `ChildSettingsForm` - it is a child-protection rule, not a playback option.
+ * Since the "Playback" group, the sleep timer has its own section
  * (`SleepTimerSettingsForm`).
  */
 
@@ -56,7 +56,7 @@ export const PlaybackSettingsForm: React.FC = () => {
     playlist_shuffle: true,
     playback_loop_guard_minutes: DEFAULT_GUARD_MINUTES,
   });
-  /** Zuletzt gesehene Minutenzahl, damit das Abschalten den Wert nicht vergisst. */
+  /** Last seen minute count, so turning it off does not forget the value. */
   const [guardMinutes, setGuardMinutes] = useState(DEFAULT_GUARD_MINUTES);
 
   if (!values) return null;
@@ -96,8 +96,8 @@ export const PlaybackSettingsForm: React.FC = () => {
         title={t('playback.end_title')}
         description={t('playback.end_hint')}
       >
-      {/* Untereinander statt nebeneinander: die Beschriftungen sind ganze
-          Halbsaetze und wuerden am Telefon sonst waagerecht ueberlaufen. */}
+      {/* Stacked instead of side by side: the labels are whole half-sentences
+          and would otherwise overflow horizontally on the phone. */}
       <ToggleButtonGroup
         orientation="vertical"
         fullWidth

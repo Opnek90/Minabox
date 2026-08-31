@@ -2,51 +2,49 @@ import { useMemo } from 'react';
 import { useMediaQuery, useTheme } from '@mui/material';
 
 /**
- * Drei Layout-Stufen statt der bisherigen Zweiteilung.
+ * Three layout levels instead of the previous two-way split.
  *
- * Vorher gab es zwei *unterschiedliche* Umschaltpunkte im Code: die Navigation
- * kippte bei `md` (900px), Dichte und Dialoge bei `sm` (600px). Dazwischen
- * entstand ein Band, in dem sich die App weder wie Handy noch wie Desktop
- * verhielt – am schlimmsten bei 1024px (iPad Pro hochkant): permanenter
- * 220px-Drawer plus volle Desktop-Dichte liessen 804px Restbreite fuer
- * dreispaltige Kartenraster uebrig.
+ * There used to be two *different* switch points in the code: the navigation
+ * flipped at `md` (900px), density and dialogs at `sm` (600px). In between, a
+ * band emerged where the app behaved neither like a phone nor like a desktop -
+ * worst at 1024px (iPad Pro portrait): a permanent 220px drawer plus full
+ * desktop density left 804px of width for three-column card grids.
  *
- *   mobile   <  600px  – Handy: BottomNav, eine Spalte, Vollbild-Dialoge
- *   tablet   600–1199  – Icon-Rail (72px), zwei Spalten, mittlere Dichte
- *   desktop  >= 1200px – voller Drawer (220px), drei Spalten, volle Dichte
+ *   mobile   <  600px  - phone: BottomNav, one column, full-screen dialogs
+ *   tablet   600-1199   - icon rail (72px), two columns, medium density
+ *   desktop  >= 1200px - full drawer (220px), three columns, full density
  *
- * Die Grenzen sind bewusst MUIs `sm` und `lg`, damit `sx`-Props ohne eigene
- * Breakpoint-Namen dieselben Kanten treffen (z. B. `xs=12 sm=6 lg=4`).
+ * The boundaries are deliberately MUI's `sm` and `lg`, so `sx` props without
+ * their own breakpoint names hit the same edges (e.g. `xs=12 sm=6 lg=4`).
  */
 export type LayoutTier = 'mobile' | 'tablet' | 'desktop';
 
 export interface Layout {
   tier: LayoutTier;
-  /** < 600px – einspaltig, BottomNav, Vollbild-Sheets. */
+  /** < 600px - one column, BottomNav, full-screen sheets. */
   isMobile: boolean;
-  /** 600–1199px – Icon-Rail, zweispaltig. */
+  /** 600-1199px - icon rail, two columns. */
   isTablet: boolean;
-  /** >= 1200px – voller Drawer, dreispaltig. */
+  /** >= 1200px - full drawer, three columns. */
   isDesktop: boolean;
   /**
-   * Alles unterhalb Desktop. Fuer Abstaende und Schriftgroessen, wo Tablet und
-   * Handy dieselbe Behandlung vertragen.
+   * Everything below desktop. For spacing and font sizes where tablet and
+   * phone tolerate the same treatment.
    */
   isCompact: boolean;
   /**
-   * Ab Tablet aufwaerts. Fuer Bedienelemente, die genug Breite brauchen, um
-   * nebeneinander statt in einem Popover zu stehen (Sortierung, Filter,
-   * Zeilenaktionen).
+   * From tablet up. For controls that need enough width to stand side by side
+   * instead of in a popover (sorting, filters, row actions).
    */
   hasRoomForInlineControls: boolean;
-  /** Seitenpolsterung in Theme-Einheiten, je Stufe. */
+  /** Page padding in theme units, per level. */
   pagePadding: number;
 }
 
 export const useLayout = (): Layout => {
   const theme = useTheme();
-  // Zwei Queries statt drei: `up` ist ueberlappend, die Stufe ergibt sich aus
-  // der hoechsten zutreffenden Grenze.
+  // Two queries instead of three: `up` overlaps, the level follows from the
+  // highest matching boundary.
   const atLeastTablet = useMediaQuery(theme.breakpoints.up('sm'));
   const atLeastDesktop = useMediaQuery(theme.breakpoints.up('lg'));
 

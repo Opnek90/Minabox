@@ -22,7 +22,7 @@ import { TagCard } from './TagCard';
 import type { Tag, Playlist, Podcast, Stream, Track } from '@/types/api';
 import { formatRelativeTime } from '@/utils/formatTime';
 
-// 3 Buttons à ~32px + Gaps = ~104px
+// 3 buttons at ~32px + gaps = ~104px
 const LIST_ITEM_PR = '112px';
 
 interface TagListProps {
@@ -92,7 +92,7 @@ export const TagList: React.FC<TagListProps> = ({
                   </Box>
                 }
                 sx={{
-                  // pr verhindert Überlappung von Text und Buttons
+                  // pr prevents overlap of text and buttons
                   pr: LIST_ITEM_PR,
                   borderLeft: isDisabled ? 4 : 0,
                   borderLeftColor: isDisabled ? 'error.main' : undefined,

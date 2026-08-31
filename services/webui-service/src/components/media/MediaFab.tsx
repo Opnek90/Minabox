@@ -57,16 +57,16 @@ export const MediaFab: React.FC<MediaFabProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const [open, setOpen] = useState(false);
-  // Nur auf Handy-Breiten liegt eine BottomNav unter dem FAB; ab Tablet
-  // sitzt die Navigation seitlich als Rail.
+  // Only at phone widths is there a BottomNav under the FAB; from tablet up
+  // the navigation sits on the side as a rail.
   const { isMobile } = useLayout();
 
   const audioStatus = useAudioStatus();
   const isMiniPlayerVisible =
     audioStatus !== null && audioStatus.state !== 'stopped';
 
-  // „Von URL importieren" laedt ueber den Media-Downloader herunter. Ohne die
-  // Komponente faellt die Aktion weg; „Remote-Track" (Stream-URL) bleibt.
+  // "Import from URL" downloads via the media downloader. Without that
+  // component the action drops out; "remote track" (stream URL) stays.
   const mediaDownloaderInstalled = useFeatureInstalled('media_downloader');
 
   // Shift the FAB above the MiniPlayer bar (if visible) and the mobile
@@ -76,7 +76,7 @@ export const MediaFab: React.FC<MediaFabProps> = ({
     (isMiniPlayerVisible ? MINI_PLAYER_HEIGHT : 0) +
     (isMobile ? MOBILE_BOTTOM_NAV_HEIGHT : 0);
 
-  // Auf Mobil zusaetzlich um die Geraete-Schutzzone anheben (Gestenleiste).
+  // On mobile, additionally lift it by the device safe area (gesture bar).
   const safeOffset = isMobile ? ` + ${SAFE_AREA_BOTTOM}` : '';
   const fabBottom = `calc(${fabBottomPx}px${safeOffset})`;
 
@@ -153,9 +153,9 @@ export const MediaFab: React.FC<MediaFabProps> = ({
                 bgcolor: 'background.paper',
                 color: 'text.primary',
                 whiteSpace: 'nowrap',
-                // Hover-Toenung als Overlay auf das deckende Papier legen, nicht
-                // die Hintergrundfarbe ersetzen -- sonst wird die Aktion
-                // durchscheinend und die Liste dahinter blitzt durch (#134).
+                // Put the hover tint as an overlay on the opaque paper, do not
+                // replace the background colour -- otherwise the action becomes
+                // translucent and the list behind it flashes through (#134).
                 '&:hover': {
                   bgcolor: 'background.paper',
                   backgroundImage: (theme) =>

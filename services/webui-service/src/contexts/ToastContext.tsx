@@ -54,7 +54,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         spacing={1}
         sx={{
           position: 'fixed',
-          bottom: 80,   // über MiniPlayer
+          bottom: 80,   // above the MiniPlayer
           left: 16,
           zIndex: 2000,
           maxWidth: 360,

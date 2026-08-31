@@ -53,7 +53,7 @@ interface CommandItem {
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
-  /** Ohne diesen Callback kann Ctrl/Cmd+K die Palette nur schließen, nicht öffnen. */
+  /** Without this callback, Ctrl/Cmd+K can only close the palette, not open it. */
   onOpen?: () => void;
 }
 
@@ -87,7 +87,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
     }).catch(() => {});
   }, [open, mediaLoaded]);
 
-  // Ctrl+K / Cmd+K global shortcut – schaltet die Palette um
+  // Ctrl+K / Cmd+K global shortcut - toggles the palette
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -122,9 +122,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
     [t, navigate]
   );
 
-  // Jede Settings-Section ist direkt anspringbar. Gesucht wird auch über die
-  // Labels der enthaltenen Felder, damit „MQTT" oder „WLAN" die Section findet,
-  // ohne dass man weiß, in welcher Gruppe sie liegt.
+  // Every settings section can be jumped to directly. The search also covers
+  // the labels of the fields inside, so "MQTT" or "Wi-Fi" finds the section
+  // without knowing which group it is in.
   const settingsCommands: CommandItem[] = useMemo(
     () =>
       SETTINGS_SECTIONS.filter(

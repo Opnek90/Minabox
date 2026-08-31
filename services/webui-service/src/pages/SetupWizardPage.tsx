@@ -37,8 +37,8 @@ export const SetupWizardPage: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
 
-  // Schritte melden hier ihre Speicherfunktion an. Ein Ref statt State, damit
-  // das Anmelden keinen Renderdurchlauf ausloest und in eine Schleife laeuft.
+  // Steps register their save function here. A ref instead of state, so
+  // registering does not trigger a render pass and run into a loop.
   const saveRef = useRef<(() => Promise<boolean>) | null>(null);
   const registerSave = useCallback((fn: () => Promise<boolean>) => {
     saveRef.current = fn;
@@ -76,8 +76,8 @@ export const SetupWizardPage: React.FC = () => {
         setup_version: SETUP_VERSION,
       });
     } catch {
-      // Der Assistent wuerde beim naechsten Start erneut erscheinen. Das ist
-      // laestig, aber besser als hier haengen zu bleiben.
+      // The wizard would appear again on the next start. That is annoying,
+      // but better than getting stuck here.
     } finally {
       setFinishing(false);
       navigate('/player');

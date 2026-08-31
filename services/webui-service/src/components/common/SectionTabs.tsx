@@ -3,52 +3,51 @@ import { Box, ButtonBase } from '@mui/material';
 import { useLayout } from '@/hooks/useLayout';
 
 export interface SectionTabItem {
-  /** Vollstaendiger Bereichsname – Pille, Vorlesename. */
+  /** Full area name - the pill, the read-out name. */
   label: string;
-  /** Symbol des Bereichs. Traegt auf dem Telefon die inaktiven Bereiche allein. */
+  /** Icon of the area. Carries the inactive areas on its own on the phone. */
   icon: React.ReactNode;
-  /** Umfang des Bereichs; Zahl in der Pille, am Telefon Marke am Symbol. */
+  /** Size of the area; a number in the pill, a badge on the icon on the phone. */
   count?: number;
 }
 
 interface SectionTabsProps {
   value: number;
   onChange: (value: number) => void;
-  /** Bereiche in Reihenfolge; der Index ist der Tab-Wert. */
+  /** Areas in order; the index is the tab value. */
   sections: SectionTabItem[];
-  /** Screenreader-Bezeichnung der Bereichsauswahl. */
+  /** Screen-reader label of the area selector. */
   ariaLabel?: string;
 }
 
 /**
- * Bereichsumschaltung einer Seite – eine Pillenleiste auf allen Stufen.
+ * Area switcher for a page - a pill bar at all levels.
  *
- * Hintergrund: MUI gibt jedem `Tab` `minWidth: 90px`. Fuenf Bereiche brauchen
- * damit mindestens 450px; auf einem 390px-Geraet bleiben nach dem Seiten-
- * Padding 366px. Die Tab-Leiste lief also zwangslaeufig ueber.
+ * Background: MUI gives every `Tab` `minWidth: 90px`. Five areas therefore need
+ * at least 450px; on a 390px device 366px remain after the page padding. So the
+ * tab bar inevitably overflowed.
  *
- * Das Platzproblem entsteht aber nur, weil *jeder* Bereich Text traegt. Auf dem
- * Telefon bekommt deshalb nur der aktive Bereich seinen Namen und waechst zur
- * Pille; die uebrigen stehen als Symbol daneben und sind einen Tipp entfernt.
- * Ab Tablet ist Platz genug, dort tragen alle Pillen Symbol, Namen und Menge –
- * dasselbe Bauteil, dasselbe Bild, nur mehr Beschriftung.
+ * But the space problem only arises because *every* area carries text. On the
+ * phone, therefore, only the active area gets its name and grows into a pill;
+ * the others stand next to it as an icon and are one tap away. From tablet up
+ * there is enough room, where all pills carry an icon, name and count - the
+ * same component, the same picture, just more labelling.
  *
- * Breitenverteilung am Telefon: Die aktive Pille bekommt ihre *Inhaltsbreite*
- * (`flex: 0 1 auto`), die Symbole teilen sich den Rest (`flex: 1 1 0`). Damit
- * kann der Name nicht abgeschnitten werden, solange die Zeile ueberhaupt
- * reicht – die naheliegende Rechnung "Restbreite minus Symbole" hat genau das
- * getan. Erst wenn selbst 36px je Symbol nicht mehr passen, kuerzt die Pille
- * mit Auslassungspunkten.
+ * Width distribution on the phone: the active pill gets its *content width*
+ * (`flex: 0 1 auto`), the icons share the rest (`flex: 1 1 0`). This means the
+ * name cannot be cut off as long as the row is wide enough at all - the obvious
+ * calculation "remaining width minus icons" did exactly that. Only when even
+ * 36px per icon no longer fit does the pill truncate with an ellipsis.
  */
 const PILL_HEIGHT = 40;
 const LABEL_TRANSITION =
   'max-width 250ms cubic-bezier(0.2, 0.8, 0.3, 1), margin-left 250ms cubic-bezier(0.2, 0.8, 0.3, 1), opacity 160ms ease';
 
 /**
- * Die Kopfzeile ist fixiert, die Leiste klebt genau darunter. Die Werte sind
- * MUIs Toolbar-Hoehen (`theme.mixins.toolbar`): 56px am Telefon, 48px im
- * Querformat, 64px ab `sm`. Weichen sie ab, rutscht die Leiste unter die
- * Kopfzeile oder laesst einen Spalt.
+ * The header is fixed, the bar sticks exactly below it. The values are MUI's
+ * toolbar heights (`theme.mixins.toolbar`): 56px on the phone, 48px in
+ * landscape, 64px from `sm`. If they differ, the bar slides under the header or
+ * leaves a gap.
  */
 const STICKY_TOP = {
   top: 56,
@@ -62,12 +61,12 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
   sections,
   ariaLabel,
 }) => {
-  // Nur zwei Dinge haengen an der Stufe: ob inaktive Pillen ihren Namen zeigen
-  // und ob die Menge als Zahl in der Pille oder als Marke am Symbol steht.
+  // Only two things depend on the level: whether inactive pills show their
+  // name and whether the count is a number in the pill or a badge on the icon.
   const compact = useLayout().isMobile;
   const barRef = useRef<HTMLDivElement>(null);
 
-  /** Pfeiltasten wandern durch die Leiste, wie es ARIA fuer `tablist` erwartet. */
+  /** Arrow keys move through the bar, as ARIA expects for `tablist`. */
   const handleKeyDown = (event: React.KeyboardEvent) => {
     const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
     if (!delta) return;
@@ -87,8 +86,8 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
       sx={{
         display: 'flex',
         alignItems: 'center',
-        // Ab Tablet duerfen die Pillen umbrechen – zwei Zeilen sind dort
-        // verkraftbar, ein waagerechter Scrollbalken versteckt dagegen Bereiche.
+        // From tablet up the pills may wrap - two lines are acceptable there,
+        // whereas a horizontal scrollbar hides areas.
         flexWrap: compact ? 'nowrap' : 'wrap',
         gap: compact ? 0.5 : 1,
         rowGap: 1,
@@ -98,11 +97,11 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
         borderColor: 'divider',
         position: 'sticky',
         ...STICKY_TOP,
-        // Ohne eigenen Grund scheint der scrollende Inhalt durch die Leiste.
+        // Without an explicit ground, the scrolling content shows through the bar.
         bgcolor: 'background.default',
         zIndex: (theme) => theme.zIndex.appBar - 1,
-        // Enger takten, wo es wirklich eng wird: Bei 320px bleiben nach Seiten-
-        // polsterung 288px, von denen vier Symbole samt Abstaenden 176px fressen.
+        // Tighter spacing where it really gets tight: at 320px, 288px remain
+        // after page padding, of which four icons plus gaps eat 176px.
         '@media (max-width: 359.95px)': { gap: 0.375 },
       }}
     >
@@ -115,8 +114,8 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
             role="tab"
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
-            // Am Telefon steht inaktiv nur das Symbol da – der Name muss
-            // trotzdem vorgelesen werden.
+            // On the phone, only the icon stands there when inactive - the
+            // name still has to be read out.
             aria-label={
               section.count === undefined
                 ? section.label
@@ -130,15 +129,15 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
               px: compact ? (selected ? 1.25 : 0) : 1.75,
               borderRadius: PILL_HEIGHT / 2,
               justifyContent: 'center',
-              // Kein `overflow: hidden` auf der Schaltflaeche: Der Name kuerzt
-              // sich selbst, die Mengenmarke wuerde hier aber angeschnitten –
-              // bei 320px bleiben je Symbol nur ~41px, und "128" ragt darueber.
+              // No `overflow: hidden` on the button: the name truncates
+              // itself, but the count badge would be clipped here - at 320px
+              // only ~41px per icon remain, and "128" sticks out over it.
               color: selected ? 'primary.contrastText' : 'text.secondary',
-              // primary.dark statt .main: Weisse Schrift braucht 4,5:1 (WCAG AA,
-              // normaler Text). .main erreicht beim Orange-Preset nur ~3,8:1 und
-              // liest sich entsprechend blass; .dark raeumt bei allen Presets ab.
-              // Dieselbe Rechnung steht in Navigation.tsx fuer den gewaehlten
-              // Navigationseintrag.
+              // primary.dark instead of .main: white text needs 4.5:1 (WCAG
+              // AA, normal text). .main only reaches ~3.8:1 for the orange
+              // preset and reads correspondingly pale; .dark clears it for all
+              // presets. The same calculation is in Navigation.tsx for the
+              // selected navigation entry.
               bgcolor: selected ? 'primary.dark' : 'transparent',
               '&:hover': { bgcolor: selected ? 'primary.dark' : 'action.hover' },
               transition: 'background-color 200ms ease, color 200ms ease',
@@ -152,7 +151,7 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
               sx={{ position: 'relative', flexShrink: 0 }}
             >
               {section.icon}
-              {/* Bei leerem Bereich keine Null-Marke: fuenf Nullen sind Laerm, keine Information. */}
+              {/* No zero badge for an empty area: five zeroes are noise, not information. */}
               {compact && !selected && showCount && (
                 <Box
                   component="span"
@@ -181,9 +180,9 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
             <Box
               component="span"
               sx={{
-                // Am Telefon faehrt der Name auf, statt hart einzublenden: Die
-                // Pille waechst sichtbar aus dem Symbol heraus, das man gerade
-                // getippt hat. Ab Tablet steht er ohnehin dauerhaft da.
+                // On the phone the name slides in instead of appearing
+                // abruptly: the pill visibly grows out of the icon that was
+                // just tapped. From tablet up it is permanently there anyway.
                 maxWidth: compact ? (selected ? '14ch' : 0) : 'none',
                 ml: compact && !selected ? 0 : 0.75,
                 opacity: compact && !selected ? 0 : 1,
@@ -191,13 +190,12 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
                 textOverflow: 'ellipsis',
-                // Groesse aus dem Thema statt als rem-Literal: Damit folgt die
-                // Pille der Schriftgroessen-Umschaltung und landet dabei auf
-                // ganzen Pixeln (14px bzw. 16px), statt bei 18px Wurzel auf
-                // 15,75px zu rastern.
+                // Size from the theme instead of a rem literal: this way the
+                // pill follows the font-size toggle and lands on whole pixels
+                // (14px or 16px) instead of snapping to 15.75px at an 18px root.
                 fontSize: (theme) => theme.typography.body2.fontSize,
-                // 700 statt 600: Roboto liegt nur in 300/400/500/700 vor, 600
-                // wuerde der Browser ohnehin auf 700 hochziehen.
+                // 700 instead of 600: Roboto only comes in 300/400/500/700,
+                // the browser would round 600 up to 700 anyway.
                 fontWeight: 700,
                 lineHeight: 1.2,
                 transition: compact ? LABEL_TRANSITION : undefined,
@@ -206,7 +204,7 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
               {section.label}
             </Box>
 
-            {/* Ab Tablet ist Platz fuer die Menge als Zahl – das ersetzt die Marke. */}
+            {/* From tablet up there is room for the count as a number - that replaces the badge. */}
             {!compact && showCount && (
               <Box
                 component="span"

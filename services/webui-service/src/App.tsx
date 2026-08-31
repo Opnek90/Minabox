@@ -50,11 +50,11 @@ const SetupWizardPage = React.lazy(() =>
   import('@/pages/SetupWizardPage').then((m) => ({ default: m.SetupWizardPage }))
 );
 
-// ── Audio-Config live halten ─────────────────────────────────────────────────
-// Das Eltern-Dashboard schreibt min/max/default-Lautstaerke; die Player-Seite
-// liest dieselben Werte aus dem React-Query-Cache (staleTime 5 min). Ohne
-// diesen Abgleich zeigt ein offener Player – im selben Tab wie auf der Box
-// nebenan – bis zum Hard-Reload die alten Regler-Grenzen.
+// ── Keep the audio config live ──────────────────────────────────────────────
+// The parent dashboard writes the min/max/default volume; the player page
+// reads the same values from the React Query cache (staleTime 5 min). Without
+// this sync, an open player - in the same tab as on the box next door - shows
+// the old slider limits until a hard reload.
 const AudioConfigSync: React.FC = () => {
   const { lastMessage } = useWebSocket();
   const queryClient = useQueryClient();
@@ -124,13 +124,13 @@ const RfidNotifications: React.FC = () => {
 
 // ── Main layout ───────────────────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
-  // Drei Stufen: Handy bekommt die BottomNav, Tablet die Icon-Rail, Desktop
-  // den vollen Drawer. Frueher kippte hier `down('md')` direkt von BottomNav
-  // auf 220px-Drawer – dazwischen lag kein Zustand fuer Tablet-Breiten.
+  // Three levels: phone gets the BottomNav, tablet the icon rail, desktop the
+  // full drawer. This used to flip with `down('md')` straight from BottomNav to
+  // the 220px drawer - with no state in between for tablet widths.
   const { isMobile, isTablet } = useLayout();
   const [pendingTagId, setPendingTagId] = useState<string | null>(null);
-  // Ohne Kartenleser gibt es keine Karten-Seite. Ein Deep-Link darauf landet
-  // beim Player statt auf einer toten Seite.
+  // Without a card reader there is no cards page. A deep link to it lands on
+  // the player instead of on a dead page.
   const rfidInstalled = useFeatureInstalled('rfid');
 
   const location = useLocation();
@@ -140,9 +140,9 @@ const MainLayout: React.FC = () => {
   const isPlayer = location.pathname === '/player' || location.pathname === '/';
   const isSetup = location.pathname === '/setup';
 
-  // Ersteinrichtung: beim allerersten Aufruf einmalig hinleiten, danach nur
-  // noch der Hinweis. Der Nutzer soll nicht bei jedem Seitenwechsel wieder im
-  // Assistenten landen, nur weil er ihn abgebrochen hat.
+  // First-run setup: redirect once on the very first visit, after that only
+  // the hint. The user should not end up in the wizard again on every page
+  // change just because they cancelled it.
   const { needsSetup } = useSetupStatus();
   const [setupRedirected, setSetupRedirected] = useState(
     () => sessionStorage.getItem('minabox-setup-seen') === '1',
@@ -167,8 +167,8 @@ const MainLayout: React.FC = () => {
   // Bottom padding so page content never sits under the fixed-position bars.
   // Mobile always has the BottomNav; MiniPlayer additionally sits above it on
   // every page except Player itself (which shows the full player already).
-  // Die Geraete-Schutzzone kommt oben drauf, weil die unterste Leiste sie als
-  // eigenes Padding traegt (siehe SAFE_AREA_BOTTOM in Navigation.tsx).
+  // The device safe area is added on top, because the bottom bar carries it
+  // as its own padding (see SAFE_AREA_BOTTOM in Navigation.tsx).
   const bottomBarsHeight =
     (isMobile ? MOBILE_BOTTOM_NAV_HEIGHT : 0) + (isPlayer ? 0 : MINI_PLAYER_HEIGHT);
   const bottomBarsOffset = `calc(${bottomBarsHeight}px + ${SAFE_AREA_BOTTOM})`;
@@ -203,23 +203,24 @@ const MainLayout: React.FC = () => {
           component="main"
           sx={{
             flexGrow: 1,
-            // dvh statt vh: Mobile-Browser rechnen 100vh gegen die *groesste*
-            // Viewport-Hoehe (URL-Leiste eingeklappt), Inhalt rutscht sonst
-            // darunter. vh bleibt als Fallback fuer aeltere Engines stehen.
+            // dvh instead of vh: mobile browsers compute 100vh against the
+            // *largest* viewport height (URL bar collapsed), so content would
+            // otherwise slide under it. vh stays as a fallback for older engines.
             minHeight: '100vh',
             '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
-            // `clip` statt `hidden`: `hidden` macht `main` zum Scroll-Container,
-            // womit `position: sticky` der Bereichsleiste darin wirkungslos bleibt.
-            // `clip` schneidet genauso ab, erzeugt aber keinen Scrollport. Aeltere
-            // Engines ohne `clip` behalten `hidden` – dort klebt die Leiste eben nicht.
+            // `clip` instead of `hidden`: `hidden` makes `main` a scroll
+            // container, which leaves `position: sticky` on the section bar inside
+            // it ineffective. `clip` clips the same way but creates no scrollport.
+            // Older engines without `clip` keep `hidden` - the bar just does not
+            // stick there.
             overflowX: 'hidden',
             '@supports (overflow: clip)': { overflowX: 'clip' },
-            // Zwingend zusammen mit `clip`: `main` ist Flex-Kind, und dessen
-            // automatische Mindestbreite ist die *Min-Content-Breite* seines
-            // Inhalts. `hidden` setzte sie nebenbei auf 0, weil Scroll-Container
-            // davon ausgenommen sind – `clip` ist keiner. Ohne `minWidth: 0`
-            // waechst `main` deshalb ueber den Bildschirm hinaus, und die ganze
-            // Seite scrollt waagerecht (Optionen, Podcasts).
+            // Required together with `clip`: `main` is a flex child, and its
+            // automatic minimum width is the *min-content width* of its content.
+            // `hidden` set it to 0 as a side effect, because scroll containers are
+            // exempt - `clip` is not one. Without `minWidth: 0`, `main` therefore
+            // grows past the screen and the whole page scrolls horizontally
+            // (options, podcasts).
             minWidth: 0,
             bgcolor: 'background.default',
             ml: isMobile ? 0 : `${isTablet ? RAIL_WIDTH : DRAWER_WIDTH}px`,
@@ -278,9 +279,9 @@ const MainLayout: React.FC = () => {
                     </ProtectedRoute>
                   }
                 />
-                {/* Bewusst ohne ProtectedRoute: der Assistent setzt in
-                    Schritt 2 selbst das Passwort und wuerde sich sonst
-                    mitten im Ablauf aussperren. */}
+                {/* Deliberately without ProtectedRoute: the wizard sets the
+                    password itself in step 2 and would otherwise lock itself
+                    out in the middle of the flow. */}
                 <Route path="/setup" element={<SetupWizardPage />} />
                 <Route path="*" element={<Navigate to="/player" replace />} />
               </Routes>

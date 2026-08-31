@@ -11,7 +11,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 export type ThemeMode = 'light' | 'dark';
 export type ColorPresetKey =
   | 'orange' | 'blue' | 'green' | 'purple' | 'red' | 'pink' | 'indigo' | 'teal';
-/** Schriftgroesse der gesamten Oberflaeche – nicht Zoom, siehe `applyTokens`. */
+/** Font size of the whole interface - not zoom, see `applyTokens`. */
 export type FontScale = 'standard' | 'large';
 
 export interface ColorPreset {
@@ -33,12 +33,11 @@ export const COLOR_PRESETS: Record<ColorPresetKey, ColorPreset> = {
 };
 
 /**
- * Wurzel-Schriftgroessen der beiden Stufen. Gestellt wird `<html>`, nicht MUIs
- * `typography.fontSize`: Damit waechst alles, was in `rem` gesetzt ist – also
- * saemtliche Textgroessen der App inklusive der `caption`-Anpassung in
- * `main.tsx` –, waehrend px-Masse wie Leistenhoehen, Symbolgroessen und der
- * Klebe-Abstand der Bereichsleiste stehen bleiben. Es wird also die Schrift
- * groesser, nicht die Oberflaeche gezoomt.
+ * Root font sizes of the two levels. `<html>` is set, not MUI's
+ * `typography.fontSize`: this way everything set in `rem` grows - i.e. all the
+ * app's text sizes including the `caption` adjustment in `main.tsx` - while px
+ * measures like bar heights, icon sizes and the sticky offset of the section
+ * bar stay put. So the text gets larger, the interface is not zoomed.
  */
 const FONT_SCALE_PX: Record<FontScale, string> = {
   standard: '16px',

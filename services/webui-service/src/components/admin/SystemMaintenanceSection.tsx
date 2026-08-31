@@ -5,11 +5,11 @@ import { UpdateBlock } from '@/components/admin/maintenance/UpdateBlock';
 import { PowerBlock } from '@/components/admin/maintenance/PowerBlock';
 
 /**
- * Sichern, aktualisieren, neu starten.
+ * Back up, update, restart.
  *
- * Drei Bereiche, die sich keinen Zustand teilen und vorher trotzdem in einer
- * Datei mit 28 `useState` lagen. Die sichtbare Gliederung ist unveraendert:
- * dieselben drei Ueberschriften, dieselbe Knopfreihe.
+ * Three areas that share no state and yet used to sit in one file with 28
+ * `useState`. The visible structure is unchanged: the same three headings, the
+ * same button row.
  */
 export const SystemMaintenanceSection: React.FC = () => (
   <Box>

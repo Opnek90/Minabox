@@ -27,11 +27,11 @@ import { CleanupButton } from './CleanupButton';
 import { useUpdateRun } from './useUpdateRun';
 
 /**
- * Welche Versionen laufen, was es Neues gibt, und die Knoepfe, die das aendern.
+ * Which versions are running, what is new, and the buttons that change it.
  *
- * Die Knopfreihe traegt bewusst auch OS-Update und Aufraeumen: das ist die
- * Reihe „was kann ich an dieser Box warten", und sie stand vor der Aufteilung
- * genauso da. Beide bringen ihren Zustand selbst mit.
+ * The button row deliberately carries the OS update and cleanup too: this is
+ * the "what can I maintain on this box" row, and it looked the same before the
+ * split. Both bring their own state.
  */
 export const UpdateBlock: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
@@ -42,8 +42,8 @@ export const UpdateBlock: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // force=false liest den zwischengespeicherten Stand - der Aufruf beim
-  // Oeffnen der Seite soll niemanden auf eine Netzabfrage warten lassen.
+  // force=false reads the cached state - the call when the page opens should
+  // not make anyone wait for a network request.
   const loadCheck = useCallback(async (force: boolean) => {
     setError(null);
     if (force) setChecking(true);
@@ -94,9 +94,9 @@ export const UpdateBlock: React.FC = () => {
     <SettingsBlock title={t('system.maintenance_title')}>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Frueher stand hier ein einzelner Commit-Hash des Arbeitsbaums. Der
-          sagte nichts darueber, welche Images tatsaechlich laufen - jeder
-          Dienst hat seine eigene Version. */}
+      {/* This used to be a single commit hash of the working tree. It said
+          nothing about which images are actually running - every service has
+          its own version. */}
       <Box
         sx={{
           display: 'grid',
@@ -166,7 +166,7 @@ export const UpdateBlock: React.FC = () => {
         </Typography>
       )}
 
-      {/* Eigener Dialog statt ConfirmDialog: hier stehen die Aenderungsnotizen drin. */}
+      {/* A dialog of its own instead of ConfirmDialog: the release notes go in here. */}
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{t('system.update_minabox')}</DialogTitle>
         <DialogContent>

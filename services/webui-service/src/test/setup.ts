@@ -3,7 +3,7 @@ import { cleanup } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 
 // MUI (useMediaQuery, ResponsiveDialog) fragt matchMedia ab – jsdom bringt es
-// nicht mit. Die Antwort "kein Treffer" entspricht dem Desktop-Layout.
+// either. The answer "no match" corresponds to the desktop layout.
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => ({

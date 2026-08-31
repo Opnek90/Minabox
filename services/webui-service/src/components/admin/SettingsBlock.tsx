@@ -3,27 +3,27 @@ import { Box, Typography } from '@mui/material';
 
 interface SettingsBlockProps {
   title: string;
-  /** Kurze Erklaerung unter dem Titel – ganze Saetze gehoeren hierhin, nicht in den Titel. */
+  /** Short explanation under the title - full sentences belong here, not in the title. */
   description?: string;
   children: React.ReactNode;
 }
 
 /**
- * Dritte Ebene der Einstellungsseite: ein thematischer Block *innerhalb* einer
+ * Third level of the settings page: a thematic block *inside* a
  * `SettingsSection`.
  *
- * Vorher erfand jedes Formular diese Ebene neu – im Bestand fanden sich vier
- * Varianten nebeneinander (`overline` mit und ohne `text.secondary`,
- * `subtitle1` fett in einem Paper, `subtitle2` secondary), teils zwei davon in
- * derselben Datei. Erklaertexte hingen mal als `caption` unter dem Titel, mal
- * als `body2` unter dem Feld.
+ * Every form used to reinvent this level - the codebase had four variants side
+ * by side (`overline` with and without `text.secondary`, `subtitle1` bold in a
+ * Paper, `subtitle2` secondary), sometimes two of them in the same file.
+ * Explanatory text hung sometimes as a `caption` under the title, sometimes as
+ * `body2` under the field.
  *
- * Regeln, die diese Komponente durchsetzt:
- * - Jeder Block hat einen Titel – auch der erste einer Section. Vorher standen
- *   die ersten Felder einer Section regelmaessig ueberschriftslos da und man
- *   musste raten, wozu sie gehoeren.
- * - Ein Erklaertext steht direkt unter dem Titel, nie unter dem Feld.
- * - Der Titel wiederholt nicht den Namen seiner Gruppe oder Section.
+ * Rules this component enforces:
+ * - Every block has a title - including the first of a section. The first
+ *   fields of a section regularly stood there without a heading and you had to
+ *   guess what they belonged to.
+ * - Explanatory text sits directly under the title, never under the field.
+ * - The title does not repeat the name of its group or section.
  */
 export const SettingsBlock: React.FC<SettingsBlockProps> = ({
   title,

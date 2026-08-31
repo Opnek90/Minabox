@@ -9,20 +9,19 @@ import {
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 /**
- * Welche optionalen Komponenten diese Box hat.
+ * Which optional components this box has.
  *
- * Quelle ist `GET /system/capabilities` (Backend liest `COMPOSE_PROFILES`).
- * Die WebUI blendet Navigation, Einstellungen und Aktionen fuer nicht
- * installierte Komponenten aus.
+ * The source is `GET /system/capabilities` (the backend reads
+ * `COMPOSE_PROFILES`). The web UI hides navigation, settings and actions for
+ * components that are not installed.
  *
- * **Fail-open an zwei Stellen:** Solange noch nichts geladen ist und wenn der
- * Abruf scheitert, gilt alles als installiert. Ein Feature darf nie wegen eines
- * Netzwerk-Schluckaufs verschwinden (gleiche Haltung wie `useSetupStatus`).
+ * **Fail-open in two places:** while nothing is loaded yet and when the fetch
+ * fails, everything counts as installed. A feature must never disappear because
+ * of a network hiccup (same stance as `useSetupStatus`).
  *
- * **Kein Flackern:** Der letzte Serverstand wird in `localStorage` gehalten und
- * synchron beim Start eingelesen. Wiederkehrende Nutzer sehen sofort das
- * richtige Menue; nur der allererste Aufruf auf einer abgespeckten Box kann ein
- * Feature einmal ausblenden.
+ * **No flicker:** the last server state is kept in `localStorage` and read
+ * synchronously at startup. Returning users see the right menu immediately;
+ * only the very first visit on a stripped-down box can hide a feature once.
  */
 
 const STORAGE_KEY = STORAGE_KEYS.CAPABILITIES;
@@ -45,7 +44,7 @@ function loadCached(): CapabilitiesResponse {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return ALL_INSTALLED;
     const parsed = JSON.parse(raw) as Partial<Record<FeatureKey, unknown>>;
-    // Unbekannte oder kaputte Eintraege fallen auf "installiert" zurueck.
+    // Unknown or broken entries fall back to "installed".
     return FEATURE_KEYS.reduce((acc, key) => {
       const entry = parsed[key];
       acc[key] = isFeatureCapability(entry) ? entry : ALL_INSTALLED[key];
@@ -58,7 +57,7 @@ function loadCached(): CapabilitiesResponse {
 
 interface CapabilitiesContextType {
   capabilities: CapabilitiesResponse;
-  /** true bis der erste Serverabruf durch ist (Cache-Wert wird solange gezeigt). */
+  /** true until the first server fetch is through (the cache value is shown until then). */
   loading: boolean;
   refresh: () => Promise<void>;
 }
@@ -80,10 +79,10 @@ export const CapabilitiesProvider: React.FC<{ children: React.ReactNode }> = ({ 
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch {
-        // localStorage nicht verfuegbar (Privatmodus) - kein Beinbruch.
+        // localStorage not available (private mode) - not a big deal.
       }
     } catch {
-      // Abruf fehlgeschlagen: beim Cache-/Default-Wert bleiben (fail-open).
+      // Fetch failed: stay with the cache/default value (fail-open).
     } finally {
       setLoading(false);
     }
@@ -102,6 +101,6 @@ export const CapabilitiesProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
 export const useCapabilities = (): CapabilitiesContextType => useContext(CapabilitiesCtx);
 
-/** Bequemlichkeit: ist eine Komponente installiert? Im Zweifel `true`. */
+/** Convenience: is a component installed? When in doubt, `true`. */
 export const useFeatureInstalled = (key: FeatureKey): boolean =>
   useContext(CapabilitiesCtx).capabilities[key]?.installed ?? true;

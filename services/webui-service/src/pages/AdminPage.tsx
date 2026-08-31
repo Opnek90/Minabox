@@ -33,9 +33,9 @@ import { useLayout } from '@/hooks/useLayout';
 import { useCapabilities } from '@/contexts/CapabilitiesContext';
 
 /**
- * Formular je Section. Der Zuschnitt der Gruppen/Sections selbst liegt in
- * `@/config/settingsIndex`, damit die CommandPalette dieselbe Struktur
- * durchsuchen kann, ohne die React-Inhalte zu kennen.
+ * One form per section. The split of the groups/sections themselves lives in
+ * `@/config/settingsIndex`, so the CommandPalette can search the same structure
+ * without knowing the React content.
  */
 import { SetupWizardRestart } from '@/components/admin/SetupWizardRestart';
 
@@ -70,7 +70,7 @@ const SECTION_CONTENT: Record<string, React.ReactNode> = {
   diagnose: <SystemStatusPanel />,
 };
 
-/** Section samt Anker-Id – Ziel für Deep-Links aus der CommandPalette. */
+/** A section with its anchor id - target for deep links from the CommandPalette. */
 const RenderedSection: React.FC<{ section: SettingsSectionMeta; highlighted?: boolean }> = ({
   section,
   highlighted,
@@ -95,7 +95,7 @@ const RenderedSection: React.FC<{ section: SettingsSectionMeta; highlighted?: bo
 
 interface LayoutProps {
   groups: SettingsGroupMeta[];
-  /** `null` = noch keine Gruppe gewählt: Desktop zeigt die erste, Mobile alle zugeklappt. */
+  /** `null` = no group chosen yet: desktop shows the first, mobile all collapsed. */
   activeGroupKey: string | null;
   onActiveGroupChange: (key: string | null) => void;
   highlightedSection: string | null;
@@ -159,9 +159,8 @@ const MobileLayout: React.FC<LayoutProps> = ({
               </Box>
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="subtitle1" fontWeight={600}>{t(group.labelKey)}</Typography>
-                {/* Sagt vor dem Aufklappen, was in der Gruppe steckt – die
-                    Section-Titel sind bereits uebersetzt, es braucht keine
-                    zusaetzlichen Texte. */}
+                {/* Says what is in the group before expanding it - the section
+                    titles are already translated, no extra text needed. */}
                 <Typography variant="caption" color="text.secondary" display="block" noWrap>
                   {group.sections.map((section) => t(section.titleKey)).join(' \u00b7 ')}
                 </Typography>
@@ -184,13 +183,12 @@ const MobileLayout: React.FC<LayoutProps> = ({
 };
 
 /**
- * Trefferliste der Settings-Suche. Gesucht wird über Gruppenname, Section-Titel
- * und die Labels der enthaltenen Felder (`searchKeys`), jeweils in der aktiven
- * Sprache – damit findet „MQTT" oder „WLAN" die Section, ohne dass man die
- * Gruppe kennt.
+ * Results list of the settings search. Searched over group name, section title
+ * and the labels of the contained fields (`searchKeys`), each in the active
+ * language - so "MQTT" or "Wi-Fi" finds the section without knowing the group.
  *
- * Bewusst nur eine Sprungliste statt der ausgeklappten Formulare: eine kurze
- * Eingabe trifft fast alle Sections, und die gleichzeitig zu mounten würde auf
+ * Deliberately just a jump list instead of the expanded forms: a short
+ * input matches almost every section, and mounting them all at once would
  * dem Pi elf Panels samt ihrer API-Calls auf einmal starten.
  */
 const SearchResults: React.FC<{
@@ -240,7 +238,7 @@ const SearchResults: React.FC<{
             </Typography>
             <Chip label={t(section.groupLabelKey)} size="small" variant="outlined" />
           </Box>
-          {/* Zeigt, *warum* die Section im Ergebnis steht, wenn nicht der Titel getroffen hat */}
+          {/* Shows *why* the section is in the results, when the title was not the match */}
           {matchedFields.length > 0 && (
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25 }}>
               {matchedFields.slice(0, 4).join(' · ')}
@@ -258,9 +256,9 @@ export const AdminPage: React.FC = () => {
   const { capabilities } = useCapabilities();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Abschnitte, die an einer nicht installierten Komponente haengen, ganz
-  // weglassen - samt der Gruppe, die dadurch leer wird. Gilt fuer Navigation,
-  // Formulare und Suche gleichermassen (eine Quelle).
+  // Sections that hang off a component that is not installed are dropped -
+  // along with the group that becomes empty. Applies to navigation, forms and
+  // search alike (one source).
   const visibleGroups = useMemo<SettingsGroupMeta[]>(
     () =>
       SETTINGS_INDEX.map((group) => ({
@@ -289,7 +287,7 @@ export const AdminPage: React.FC = () => {
   const [highlightedSection, setHighlightedSection] = useState<string | null>(null);
   const isSearching = query.trim().length > 0;
 
-  // Eine Section anspringen: Gruppe öffnen, Suche schließen, hinscrollen und
+  // Jump to a section: open the group, close the search, scroll to it and
   // kurz hervorheben. Wird von der Trefferliste und vom Deep-Link genutzt.
   const jumpToSection = useCallback((sectionKey: string) => {
     const target = visibleSections.find((s) => s.key === sectionKey);

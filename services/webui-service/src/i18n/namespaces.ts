@@ -1,10 +1,10 @@
-// Einzige Quelle fuer die i18next-Namespaces: i18n/index.ts laedt genau diese
-// Liste zur Laufzeit von /locales/.
+// The single source for the i18next namespaces: i18n/index.ts loads exactly
+// this list from /locales/ at runtime.
 //
-// Die Typisierung von t() haengt nicht daran - dafuer gibt es
-// scripts/check-i18n-calls.mjs, das die statischen Aufrufe gegen die JSON-
-// Dateien prueft. Eine i18n/resources.d.ts, auf die dieser Kommentar frueher
-// verwies, existiert nicht (mehr).
+// The typing of t() does not depend on this - for that there is
+// scripts/check-i18n-calls.mjs, which checks the static calls against the JSON
+// files. An i18n/resources.d.ts that this comment used to refer to no longer
+// exists.
 export const NAMESPACES = ['common', 'player', 'rfid', 'media', 'admin', 'errors', 'setup'] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];

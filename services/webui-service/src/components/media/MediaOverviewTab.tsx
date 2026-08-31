@@ -34,19 +34,19 @@ interface MediaOverviewTabProps {
 }
 
 /**
- * Startbereich der Mediathek: was zuletzt lief und was neu dazugekommen ist.
+ * Home area of the media library: what played last and what has been added.
  *
- * Frueher stand hier zusaetzlich eine Reihe Kacheln "Symbol + Zahl + Name" je
- * Bereich. Seit die Bereichsleiste genau das dauerhaft zeigt – Symbol, Name und
- * Menge, einen Tipp entfernt – waren die Kacheln eine Dublette der Leiste
- * direkt darueber, ebenso die Podcast-Chips zum Podcast-Bereich. Uebrig bleibt,
- * was es sonst nirgends gibt: die juengste Aktivitaet.
+ * There used to be a row of "icon + number + name" tiles per area here too.
+ * Since the section bar shows exactly that permanently - icon, name and count,
+ * one tap away - the tiles were a duplicate of the bar directly above, as were
+ * the podcast chips for the podcast area. What remains is what exists nowhere
+ * else: the most recent activity.
  *
- * Alle drei Bloecke rechnen aus Daten, die `MediaPage` ohnehin geladen hat –
- * die Seite loest keinen zusaetzlichen Aufruf aus.
+ * All three blocks compute from data `MediaPage` has already loaded - the page
+ * triggers no extra call.
  */
 
-/** Gemeinsame Zeilenform fuer Tracks, Streams und Podcasts. */
+/** Common row shape for tracks, streams and podcasts. */
 interface Entry {
   key: string;
   title: string;
@@ -55,12 +55,12 @@ interface Entry {
   icon: React.ReactNode;
   durationMs: number | null;
   play: () => void;
-  /** Zeitstempel, nach denen die beiden Bloecke sortieren. */
+  /** Timestamps the two blocks sort by. */
   played: string | null;
   added: string | null;
 }
 
-/** Sortiert absteigend nach einem der beiden Zeitstempel. */
+/** Sorts descending by one of the two timestamps. */
 const newestBy = (field: 'played' | 'added') => (a: Entry, b: Entry): number =>
   new Date(b[field]!).getTime() - new Date(a[field]!).getTime();
 
@@ -129,8 +129,8 @@ export const MediaOverviewTab: React.FC<MediaOverviewTabProps> = ({
 }) => {
   const { t } = useTranslation('media');
 
-  // Tracks, Streams und Podcasts tragen alle `last_played_at` und `created_at`;
-  // die Bloecke mischen sie deshalb, statt nur Tracks zu zeigen.
+  // Tracks, streams and podcasts all carry `last_played_at` and `created_at`;
+  // the blocks therefore mix them instead of showing only tracks.
   const entries: Entry[] = [
     ...tracks.map((tr) => ({
       key: `track-${tr.id}`,

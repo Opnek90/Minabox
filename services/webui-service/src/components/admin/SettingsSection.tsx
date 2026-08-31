@@ -3,19 +3,18 @@ import { Box, Divider, Typography } from '@mui/material';
 
 interface SettingsSectionProps {
   title: string;
-  /** Kurze Erklaerung unter dem Titel - wie bei `SettingsBlock`, eine Ebene hoeher. */
+  /** Short explanation under the title - as in `SettingsBlock`, one level up. */
   description?: string;
   children: React.ReactNode;
 }
 
 /**
- * Zweite Ebene der Einstellungsseite: eine Section innerhalb einer Gruppe.
- * Die Bloecke darin rendert `SettingsBlock`.
+ * Second level of the settings page: a section within a group. The blocks
+ * inside it are rendered by `SettingsBlock`.
  *
- * Die Breitenbegrenzung sitzt bewusst hier statt in den Formularen: vorher
- * begrenzten nur 6 von 21 Panels auf 560px, der Rest lief ueber die volle
- * Breite – auf dem Desktop stand dadurch ein schmales Formular direkt neben
- * einem randlosen Panel.
+ * The width limit deliberately sits here instead of in the forms: only 6 of 21
+ * panels used to limit to 560px, the rest ran across the full width - on the
+ * desktop that left a narrow form directly next to an edge-to-edge panel.
  */
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
   title,

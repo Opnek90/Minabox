@@ -93,7 +93,7 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
 
   // Auf einen flachen {id,label}-Typ normalisieren: Die vier Quellen haben
   // unterschiedliche Namensfelder (`name` vs. `title`), und die Autocomplete
-  // filtert ueber genau dieses Label.
+  // filters over exactly this label.
   const contentOptions = useMemo(() => {
     const source =
       contentType === 'playlist'
@@ -131,8 +131,8 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
           size="small"
         />
 
-        {/* Inhaltstyp als Segment-Leiste: vier kurze Labels, die nebeneinander
-            passen – ein Tap statt Tap-Scroll-Tap durch ein Select-Popover. */}
+        {/* Content type as a segmented bar: four short labels that fit side by
+            side - one tap instead of tap-scroll-tap through a select popover. */}
         <FormControl fullWidth>
           <FormLabel sx={{ fontSize: '0.75rem', mb: 0.75 }}>
             {t('new_tag_dialog.content_type')}
@@ -156,9 +156,9 @@ export const TagEditDialog: React.FC<TagEditDialogProps> = ({
           </ToggleButtonGroup>
         </FormControl>
 
-        {/* Autocomplete statt Select: Bei ein paar hundert Tracks ist ein
-            Popover ohne Suchfeld auf dem Telefon nicht mehr bedienbar.
-            `blurOnSelect` schliesst die Tastatur nach der Auswahl wieder. */}
+        {/* Autocomplete instead of Select: with a few hundred tracks, a
+            popover without a search field is no longer usable on the phone.
+            `blurOnSelect` closes the keyboard again after the selection. */}
         <Autocomplete
           options={contentOptions}
           value={selectedOption}

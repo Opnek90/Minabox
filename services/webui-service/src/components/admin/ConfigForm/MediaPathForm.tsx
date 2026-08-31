@@ -21,7 +21,7 @@ import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { translateApiError } from '@/utils/apiError';
 
-/** Wo die Musik auf dem Gerät liegt – inklusive Umzug auf einen anderen Datenträger. */
+/** Where the music lives on the device - including moving it to another drive. */
 export const MediaPathForm: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
@@ -38,10 +38,9 @@ export const MediaPathForm: React.FC = () => {
     error: string | null;
   }>({ status: 'idle', total: 0, current: 0, error: null });
 
-  // Die Abfrage des Umzugs laeuft ausserhalb eines useEffect (sie startet erst
-  // auf Knopfdruck), deshalb muss ihre Id hier liegen - sonst tickt sie nach
-  // einem Wechsel der Einstellungsgruppe weiter und setzt Zustand auf einer
-  // abgebauten Komponente.
+  // The move poll runs outside a useEffect (it only starts on a button press),
+  // so its id has to live here - otherwise it keeps ticking after a change of
+  // settings group and sets state on an unmounted component.
   const movePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopMovePoll = () => {

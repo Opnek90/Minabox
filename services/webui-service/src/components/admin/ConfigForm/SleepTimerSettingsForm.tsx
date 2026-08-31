@@ -8,11 +8,11 @@ import { SettingsBlock } from '@/components/admin/SettingsBlock';
 const DEFAULT_MINUTES = 30;
 
 /**
- * Einschlaf-Timer: die Dauer, die der physische Knopf einschaltet.
+ * Sleep timer: the duration the physical button switches on.
  *
- * Eigene Section neben `PlaybackSettingsForm`, damit die Gruppe „Abspielen"
- * zwei benennbare Zeilen hat – „Einschlafen" ist die Frage, die Eltern abends
- * stellen, und die soll im Akkordeon-Untertitel auch so dastehen.
+ * A section of its own next to `PlaybackSettingsForm`, so the "Playback" group
+ * has two nameable rows - "Sleep" is the question parents ask in the evening,
+ * and it should read that way in the accordion subtitle too.
  */
 export const SleepTimerSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');

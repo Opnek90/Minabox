@@ -52,7 +52,7 @@ interface SortableTrackItemProps {
   id: string;
   track: Track | undefined;
   onRemove: () => void;
-  /** Touch-Geraete sortieren ueber Pfeil-Buttons statt per Drag. */
+  /** Touch devices sort via arrow buttons instead of drag. */
   useArrows: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -91,8 +91,8 @@ const SortableTrackItem: React.FC<SortableTrackItemProps> = ({
         border: '1px solid',
         borderColor: isDragging ? 'primary.main' : 'divider',
         bgcolor: 'background.paper',
-        // Platz fuer die Aktionen rechts: auf Touch sind es drei Buttons
-        // (hoch/runter/entfernen) a 44px, sonst nur der Entfernen-Button.
+        // Room for the actions on the right: on touch it is three buttons
+        // (up/down/remove) at 44px, otherwise just the remove button.
         pr: useArrows ? 18 : 6,
         pl: 0.5,
         transition: 'border-color 0.15s',
@@ -125,9 +125,9 @@ const SortableTrackItem: React.FC<SortableTrackItemProps> = ({
         </>
       }
     >
-      {/* Der Drag-Griff ist nur ~20px breit – auf dem Finger nicht zuverlaessig
-          zu treffen, und ein Drag ueber 30 Positionen im scrollenden Sheet ist
-          ohnehin nicht bedienbar. Touch bekommt deshalb die Pfeil-Buttons. */}
+      {/* The drag handle is only ~20px wide - not reliably hit with a finger,
+          and a drag over 30 positions in a scrolling sheet is not workable
+          anyway. Touch therefore gets the arrow buttons. */}
       {!useArrows && (
         <Box
           {...attributes}
@@ -186,7 +186,7 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [tab, setTab] = useState(0);
-  // Auf Touch-Geraeten wird per Pfeil-Button sortiert statt per Drag.
+  // On touch devices, sorting is via arrow buttons instead of drag.
   const useArrows = useMediaQuery('(pointer: coarse)');
 
   const sensors = useSensors(
@@ -274,9 +274,9 @@ export const PlaylistTracksDialog: React.FC<PlaylistTracksDialogProps> = ({
         {t('playlists.add_tracks')} – {playlist.name}
       </DialogTitle>
 
-      {/* Zwei Tabs statt Reihenfolge + Suchliste untereinander: vorher lagen
-          drei Scroll-Container ineinander (Seite > Dialog > Track-Liste), auf
-          dem Telefon konkurrieren die um jede Wischgeste. */}
+      {/* Two tabs instead of order + search list stacked: three scroll
+          containers used to nest (page > dialog > track list), and on the
+          phone they compete for every swipe. */}
       <Tabs
         value={tab}
         onChange={(_, value: number) => setTab(value)}

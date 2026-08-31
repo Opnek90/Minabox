@@ -44,18 +44,18 @@ describe('useGeneralConfig', () => {
     updateGeneral.mockReset();
   });
 
-  it('nimmt den Serverwert und faellt sonst auf den Standard zurueck', async () => {
+  it('takes the server value and otherwise falls back to the default', async () => {
     getGeneral.mockResolvedValue({ sleep_timer_minutes: 45 });
     render(<Multi />);
     // sleep_timer_minutes kommt vom Server, playlist_shuffle fehlt dort
     await waitFor(() => expect(screen.getByTestId('multi')).toHaveTextContent('true/45'));
   });
 
-  it('bündelt gleichzeitig startende Formulare zu einer Anfrage', async () => {
+  it('bundles forms that start at the same time into one request', async () => {
     let resolve: (v: unknown) => void = () => {};
     getGeneral.mockImplementation(() => new Promise((r) => { resolve = r; }));
 
-    // Drei Formulare derselben Einstellungsgruppe, gemeinsam eingehaengt
+    // Three forms of the same settings group, mounted together
     render(<><Single /><Other /><Multi /></>);
     expect(getGeneral).toHaveBeenCalledTimes(1);
 
@@ -65,7 +65,7 @@ describe('useGeneralConfig', () => {
     expect(getGeneral).toHaveBeenCalledTimes(1);
   });
 
-  it('fragt nach dem Abschluss wieder frisch ab, cacht also nicht', async () => {
+  it('re-fetches fresh after completion, so it does not cache', async () => {
     getGeneral.mockResolvedValue(SERVER);
     const first = render(<Single />);
     await waitFor(() => expect(screen.getByTestId('single')).toHaveTextContent('45'));
@@ -75,7 +75,7 @@ describe('useGeneralConfig', () => {
     await waitFor(() => expect(getGeneral).toHaveBeenCalledTimes(2));
   });
 
-  it('meldet einen Ladefehler, statt still leer zu bleiben', async () => {
+  it('reports a load error instead of silently staying empty', async () => {
     getGeneral.mockRejectedValue(new Error('offline'));
     const Probe = () => {
       const { value, error } = useGeneralConfigField('sleep_timer_minutes', 30);

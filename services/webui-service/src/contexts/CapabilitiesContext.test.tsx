@@ -41,7 +41,7 @@ describe('CapabilitiesContext', () => {
     localStorage.clear();
   });
 
-  it('uebernimmt die Server-Antwort und merkt sie in localStorage', async () => {
+  it('takes the server response and remembers it in localStorage', async () => {
     get.mockResolvedValue({
       ...ALL_ON,
       media_downloader: { installed: false, running: false, healthy: false },
@@ -55,22 +55,22 @@ describe('CapabilitiesContext', () => {
     );
   });
 
-  it('bleibt fail-open, wenn der Abruf scheitert', async () => {
+  it('stays fail-open when the fetch fails', async () => {
     get.mockRejectedValue(new Error('network'));
     renderProbe();
 
-    // Kein Feature verschwindet nur wegen eines Fetch-Fehlers.
+    // No feature disappears just because of a fetch error.
     await waitFor(() => expect(get).toHaveBeenCalled());
     expect(screen.getByTestId('rfid')).toHaveTextContent('true');
     expect(screen.getByTestId('media')).toHaveTextContent('true');
   });
 
-  it('hydriert synchron aus dem localStorage-Cache (kein Flackern)', () => {
+  it('hydrates synchronously from the localStorage cache (no flicker)', () => {
     localStorage.setItem(
       'minabox.capabilities',
       JSON.stringify({ ...ALL_ON, rfid: { installed: false, running: false, healthy: false } }),
     );
-    // Abruf haengt - der erste Frame muss trotzdem schon den Cache zeigen.
+    // The fetch hangs - the first frame must still already show the cache.
     get.mockReturnValue(new Promise(() => {}));
     renderProbe();
 

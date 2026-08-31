@@ -7,10 +7,10 @@ import deCommon from '../../../public/locales/de/common.json';
 import { SystemMaintenanceSection } from './SystemMaintenanceSection';
 
 /**
- * Regressionstest zu #137: Nach Abschluss eines Updates fragte die
- * 2-Sekunden-Schleife den Status endlos weiter ab und schob bei jedem
- * Durchlauf erneut die Erfolgsmeldung in die Snackbar. Der Endzustand darf
- * nur einmal gemeldet werden, danach muss die Abfrage ruhen.
+ * Regression test for #137: after an update finished, the 2-second loop kept
+ * polling the status forever and pushed the success message into the snackbar
+ * again on every pass. The final state must be reported only once, after which
+ * the poll must rest.
  */
 
 const showSuccess = vi.fn();
@@ -89,7 +89,7 @@ const TERMINAL_STATUS = {
   log: 'done',
 };
 
-describe('SystemMaintenanceSection – Update-Abschluss (#137)', () => {
+describe('SystemMaintenanceSection - update completion (#137)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getGeneral.mockResolvedValue({ auto_update_check_enabled: false });
@@ -111,7 +111,7 @@ describe('SystemMaintenanceSection – Update-Abschluss (#137)', () => {
       ],
     });
     updateMinabox.mockResolvedValue({ ok: true });
-    // Die Schleife sieht sofort den Endzustand.
+    // The loop sees the final state immediately.
     getUpdateStatus.mockResolvedValue(TERMINAL_STATUS);
   });
 
@@ -119,7 +119,7 @@ describe('SystemMaintenanceSection – Update-Abschluss (#137)', () => {
     vi.useRealTimers();
   });
 
-  it('meldet den Erfolg genau einmal und stellt die Status-Abfrage danach ein', async () => {
+  it('reports success exactly once and then stops polling the status', async () => {
     const user = userEvent.setup();
     render(<SystemMaintenanceSection />);
 
@@ -132,8 +132,8 @@ describe('SystemMaintenanceSection – Update-Abschluss (#137)', () => {
     await waitFor(() => expect(showSuccess).toHaveBeenCalledTimes(1));
     expect(showSuccess).toHaveBeenCalledWith(text('system.update_success'));
 
-    // Nach dem gemeldeten Endzustand darf nicht weiter gepollt werden: der
-    // Zaehler bleibt ueber mehrere Intervalle hinweg stehen.
+    // After the reported final state there must be no further polling: the
+    // counter stays put across several intervals.
     const callsAfterSettle = getUpdateStatus.mock.calls.length;
     await new Promise((r) => setTimeout(r, 5000));
     expect(getUpdateStatus.mock.calls.length).toBe(callsAfterSettle);

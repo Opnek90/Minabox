@@ -15,9 +15,10 @@ export const PageShell: React.FC<PageShellProps> = ({
   children,
   maxWidth,
 }) => {
-  // `isCompact` deckt Handy *und* Tablet ab: der Titel darf dort umbrechen und
-  // Aktionen duerfen in die naechste Zeile. Die Polsterung staffelt dagegen
-  // dreistufig, weil 24px Rand auf einem 834px-Tablet spuerbar Breite kostet.
+  // `isCompact` covers phone *and* tablet: the title may wrap there and
+  // actions may move to the next line. The padding, by contrast, is staggered
+  // in three levels, because a 24px margin on an 834px tablet costs noticeable
+  // width.
   const { isMobile, isCompact, pagePadding } = useLayout();
 
   return (
@@ -26,14 +27,14 @@ export const PageShell: React.FC<PageShellProps> = ({
         pt: pagePadding,
         pr: pagePadding,
         pb: pagePadding,
-        // Ab Tablet steht die Navigation als Rail/Drawer permanent links -
-        // dort braucht es keinen vollen Seitenrand mehr, auf Mobil (keine
-        // Sidebar) bleibt es beim vollen Wert.
+        // From tablet up the navigation sits permanently on the left as a
+        // rail/drawer - a full page margin is no longer needed there; on mobile
+        // (no sidebar) it stays at the full value.
         pl: isMobile ? pagePadding : pagePadding / 2,
         maxWidth: maxWidth ?? 'none',
         mx: maxWidth ? 'auto' : undefined,
-        // Kein overflowX:hidden hier – das wuerde Badges und Buttons abschneiden.
-        // Breiten-Overflow wird stattdessen per minWidth:0 auf Grid/Flex-Kinder verhindert.
+        // No overflowX:hidden here - that would clip badges and buttons. Width
+        // overflow is prevented instead via minWidth:0 on grid/flex children.
       }}
     >
       {/* Title row */}

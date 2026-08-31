@@ -6,8 +6,8 @@ import { systemApi, type BoardLedsResponse } from '@/api/system';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 
 /**
- * Die grüne/rote Status-LED des Raspberry Pi selbst abschalten – gehört zu den
- * Lichtern am Gerät, nicht zur Netzwerk- oder Wartungskonfiguration.
+ * Turn off the Raspberry Pi's own green/red status LED - it belongs with the
+ * lights on the device, not with network or maintenance configuration.
  */
 export const BoardLedsToggle: React.FC = () => {
   const { t } = useTranslation('admin');

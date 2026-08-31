@@ -60,8 +60,8 @@ import { useLayout } from '@/hooks/useLayout';
 
 const SLEEP_PRESETS = [15, 30, 45, 60];
 
-// Grenzen des Backends (SleepTimerRequest: ge=1, le=480). Hier gespiegelt,
-// damit das Feld gar nicht erst einen Wert anbietet, den der Server ablehnt.
+// Backend limits (SleepTimerRequest: ge=1, le=480). Mirrored here, so the
+// field does not even offer a value the server would reject.
 const SLEEP_MIN_MINUTES = 1;
 const SLEEP_MAX_MINUTES = 480;
 
@@ -335,8 +335,8 @@ export const PlayerPage: React.FC = () => {
     startSleepTimerMutation.mutate(minutes);
   };
 
-  // Freie Eingabe neben den vier Vorgaben: 25 Minuten bis zum Kita-Abholen
-  // oder 90 fuer ein Hoerspiel liessen sich vorher nicht einstellen.
+  // Free input next to the four presets: 25 minutes until daycare pickup or
+  // 90 for an audio play could not be set before.
   const sleepCustomMinutes = parseInt(sleepCustom, 10);
   const sleepCustomValid =
     Number.isFinite(sleepCustomMinutes) &&

@@ -26,11 +26,11 @@ import { translateApiError } from '@/utils/apiError';
 type Ask = 'restart' | 'reboot' | 'shutdown' | null;
 
 /**
- * Alles, was den Betrieb unterbricht oder beendet.
+ * Everything that interrupts or ends operation.
  *
- * Zwei feste Reihen statt eines umbrechenden Blocks: oben, was nur unterbricht,
- * unten, was beendet oder loescht. Beim Umbruch nach Breite landete
- * „Herunterfahren" sonst neben den harmlosen Neustarts.
+ * Two fixed rows instead of one wrapping block: on top what only interrupts,
+ * below what ends or deletes. With width-based wrapping, "Shut down" would
+ * otherwise land next to the harmless restarts.
  */
 export const PowerBlock: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
@@ -41,8 +41,8 @@ export const PowerBlock: React.FC = () => {
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [resetPending, setResetPending] = useState(false);
 
-  // Die drei Neustart-Varianten kappen alle die Verbindung, mit der die Antwort
-  // zurueckkaeme - ein Fehler daraus ist kein Fehler, sondern der Erfolg.
+  // The three restart variants all cut the connection the response would come
+  // back over - an error from that is not an error, it is the success.
   const POWER_ACTIONS: Record<Exclude<Ask, null>, { titleKey: string; messageKey: string; run: () => Promise<void> }> = {
     restart: { titleKey: 'system.restart', messageKey: 'system.restart_confirm', run: systemApi.restart },
     reboot: { titleKey: 'system.reboot', messageKey: 'system.reboot_confirm', run: systemApi.rebootHost },

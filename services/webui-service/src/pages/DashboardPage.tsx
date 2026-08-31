@@ -32,7 +32,7 @@ export const DashboardPage: React.FC = () => {
       <TabPanel value={tab} index={0}>
         <DashboardOverview />
       </TabPanel>
-      {/* Regeln stehen bewusst neben der Anzeige, die sie erzeugen (verbleibende Minuten) */}
+      {/* Rules deliberately sit next to the display they produce (remaining minutes) */}
       <TabPanel value={tab} index={1}>
         <ChildSettingsForm />
       </TabPanel>
