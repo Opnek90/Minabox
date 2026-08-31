@@ -19,7 +19,7 @@ FAILED=0
 run_suite() {
   local name="$1" image="$2" src="$3" tests="$4"
   if [ ! -d "$tests" ]; then
-    echo -e "${BLUE}– $name: keine Tests${NC}"
+    echo -e "${BLUE}– $name: no tests${NC}"
     return 0
   fi
   echo -e "${BLUE}▶ $name${NC}"

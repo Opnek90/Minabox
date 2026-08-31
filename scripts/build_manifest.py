@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Erzeugt das Release-Manifest aus den beiden Changelog-Dateien.
+"""Builds the release manifest from the two changelog files.
 
-Das Manifest ist die Datei, die eine Box beim Update-Check liest: welche
-Version je Dienst aktuell ist und was sich seit der installierten Version
-geaendert hat - in der Sprache, die der Nutzer eingestellt hat.
+The manifest is the file a box reads during an update check: which version each
+service is at and what changed since the installed version - in the language
+the user has chosen.
 
-Warum eine eigene Datei und kein GitHub-Release-Text: mit einer Nummer je
-Dienst passt "ein Release = eine Version" nicht mehr.
-Neun Dienste bewegen sich unabhaengig; die Box soll trotzdem *einen* Abruf
-machen.
+Why a separate file and not the GitHub release text: with a number per service,
+"one release = one version" no longer fits. Nine services move independently;
+the box should still make *one* request.
 
-    python3 scripts/build_manifest.py          # schreibt release/release-manifest.json
-    python3 scripts/build_manifest.py --check  # prueft nur, ob es aktuell ist
+    python3 scripts/build_manifest.py          # writes release/release-manifest.json
+    python3 scripts/build_manifest.py --check  # only checks whether it is up to date
 """
 
 from __future__ import annotations
@@ -27,14 +26,14 @@ ROOT = Path(__file__).resolve().parent.parent
 SERVICES_DIR = ROOT / "services"
 MANIFEST = ROOT / "release" / "release-manifest.json"
 
-# Sprache -> (Changelog-Datei, erlaubte Abschnittsueberschriften)
+# language -> (changelog file, allowed section headings)
 LANGUAGES: dict[str, tuple[str, tuple[str, ...]]] = {
     "de": ("release/CHANGELOG.md", ("Neu", "Verbessert", "Behoben")),
     "en": ("release/CHANGELOG.en.md", ("Added", "Improved", "Fixed")),
 }
 
-# Die Abschnitte stehen in beiden Sprachen in derselben Reihenfolge; darueber
-# laufen sie zusammen, ohne dass eine Uebersetzungstabelle noetig waere.
+# The sections appear in both languages in the same order; that is how they are
+# joined, without needing a translation table.
 CATEGORY_KEYS = ("added", "improved", "fixed")
 
 SCHEMA_VERSION = 1
@@ -48,11 +47,13 @@ RE_ITEM = re.compile(r"^-\s+(?P<text>.+?)\s*$")
 
 
 class ChangelogError(Exception):
-    """Ein Formatfehler, der benannt werden kann - mit Datei und Zeile."""
+    """A format error that can be named - with file and line."""
 
 
-def parse_changelog(path: Path, categories: tuple[str, ...]) -> dict[str, dict[str, dict[str, list[str]]]]:
-    """{dienst: {version: {kategorie: [eintrag, ...]}}}"""
+def parse_changelog(
+    path: Path, categories: tuple[str, ...]
+) -> dict[str, dict[str, dict[str, list[str]]]]:
+    """{service: {version: {category: [entry, ...]}}}"""
     result: dict[str, dict[str, dict[str, list[str]]]] = {}
     service: str | None = None
     version: str | None = None
@@ -63,8 +64,8 @@ def parse_changelog(path: Path, categories: tuple[str, ...]) -> dict[str, dict[s
     for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = raw.rstrip()
 
-        # Der erklaerende Aufbau am Dateikopf steht in einem Codeblock und
-        # sieht wie echte Ueberschriften aus - er darf nicht mitgelesen werden.
+        # The explanatory format at the top of the file is in a code block and
+        # looks like real headings - it must not be read in.
         if line.startswith("```"):
             in_fence = not in_fence
             continue
@@ -78,7 +79,9 @@ def parse_changelog(path: Path, categories: tuple[str, ...]) -> dict[str, dict[s
 
         if m := RE_VERSION.match(line):
             if service is None:
-                raise ChangelogError(f"{path.name}:{number}: Version ohne Dienst darueber")
+                raise ChangelogError(
+                    f"{path.name}:{number}: version with no service above it"
+                )
             version, category = m.group("version"), None
             result[service].setdefault(version, {"date": m.group("date")})
             continue
@@ -87,27 +90,29 @@ def parse_changelog(path: Path, categories: tuple[str, ...]) -> dict[str, dict[s
             name = m.group("name")
             if name not in categories:
                 raise ChangelogError(
-                    f"{path.name}:{number}: Unbekannter Abschnitt {name!r}; "
-                    f"erlaubt sind {', '.join(categories)}"
+                    f"{path.name}:{number}: unknown section {name!r}; "
+                    f"allowed are {', '.join(categories)}"
                 )
             if version is None:
-                raise ChangelogError(f"{path.name}:{number}: Abschnitt ohne Version darueber")
+                raise ChangelogError(
+                    f"{path.name}:{number}: section with no version above it"
+                )
             category = CATEGORY_KEYS[categories.index(name)]
             continue
 
         if m := RE_ITEM.match(line):
-            # Aufzaehlungen in der Kopf-Erklaerung stehen vor dem ersten "##"
-            # und werden ignoriert.
+            # Bullet points in the header explanation come before the first "##"
+            # and are ignored.
             if service is None:
                 continue
             if version is None or category is None:
                 raise ChangelogError(
-                    f"{path.name}:{number}: Eintrag ohne Version oder Abschnitt darueber"
+                    f"{path.name}:{number}: entry with no version or section above it"
                 )
             result[service][version].setdefault(category, []).append(m.group("text"))
             continue
 
-        # Fortsetzungszeile eines umbrochenen Eintrags.
+        # Continuation line of a wrapped entry.
         if line.startswith("  ") and service and version and category:
             items = result[service][version].get(category)
             if items:
@@ -117,7 +122,7 @@ def parse_changelog(path: Path, categories: tuple[str, ...]) -> dict[str, dict[s
 
 
 def known_services() -> set[str]:
-    """Dienste, die es wirklich gibt - abgeleitet aus den VERSION-Dateien."""
+    """The services that really exist - derived from the VERSION files."""
     return {
         p.parent.name.removesuffix("-service")
         for p in SERVICES_DIR.glob("*-service/VERSION")
@@ -131,7 +136,7 @@ def current_version(service: str) -> str:
 
 
 def sort_key(version: str) -> tuple:
-    """Neueste zuerst; ein Vorab-Kennzeichen sortiert vor der fertigen Version."""
+    """Newest first; a pre-release marker sorts before the finished version."""
     core, _, pre = version.partition("-")
     numbers = tuple(int(part) for part in core.split("."))
     return (numbers, 1 if not pre else 0, pre)
@@ -145,14 +150,13 @@ def build() -> dict[str, Any]:
     services = known_services()
     problems: list[str] = []
 
-    # Ein Changelog-Abschnitt fuer einen Dienst, den es nicht gibt, ist fast
-    # immer ein Tippfehler im Namen - und wuerde sonst stillschweigend nie
-    # angezeigt.
+    # A changelog section for a service that does not exist is almost always a
+    # typo in the name - and would otherwise silently never be shown.
     for lang, tree in parsed.items():
         for name in tree:
             if name not in services:
                 problems.append(
-                    f"{LANGUAGES[lang][0]}: '{name}' ist kein Dienst "
+                    f"{LANGUAGES[lang][0]}: '{name}' is not a service "
                     f"({', '.join(sorted(services))})"
                 )
 
@@ -162,19 +166,19 @@ def build() -> dict[str, Any]:
         entries = parsed["de"].get(service, {})
         other = parsed["en"].get(service, {})
 
-        # Die aktuelle Version muss beschrieben sein, sonst laeuft ein Update
-        # ohne ein Wort Erklaerung durch.
+        # The current version must be described, otherwise an update runs
+        # through without a word of explanation.
         de_file, en_file = LANGUAGES["de"][0], LANGUAGES["en"][0]
         if version not in entries:
             problems.append(
-                f"{de_file}: {service} {version} fehlt "
-                f"(VERSION sagt {version}, beschrieben sind: "
-                f"{', '.join(sorted(entries, key=sort_key)) or 'keine'})"
+                f"{de_file}: {service} {version} missing "
+                f"(VERSION says {version}, described are: "
+                f"{', '.join(sorted(entries, key=sort_key)) or 'none'})"
             )
         for missing in sorted(set(entries) - set(other)):
-            problems.append(f"{en_file}: {service} {missing} fehlt")
+            problems.append(f"{en_file}: {service} {missing} missing")
         for extra in sorted(set(other) - set(entries)):
-            problems.append(f"{de_file}: {service} {extra} fehlt")
+            problems.append(f"{de_file}: {service} {extra} missing")
 
         releases = []
         for release_version in sorted(entries, key=sort_key, reverse=True):
@@ -213,36 +217,40 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Nur pruefen, ob release/release-manifest.json zu den Changelogs passt",
+        help="only check whether release/release-manifest.json matches the changelogs",
     )
     args = parser.parse_args()
 
     try:
         manifest = build()
     except ChangelogError as exc:
-        print(f"Changelog passt nicht:\n{exc}", file=sys.stderr)
+        print(f"Changelog does not match:\n{exc}", file=sys.stderr)
         return 1
 
     text = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=False) + "\n"
 
     if args.check:
         if not MANIFEST.exists():
-            print(f"{MANIFEST.name} fehlt. Erzeugen mit: python3 scripts/build_manifest.py", file=sys.stderr)
-            return 1
-        if MANIFEST.read_text(encoding="utf-8") != text:
             print(
-                f"{MANIFEST.name} ist nicht aktuell. Neu erzeugen mit: "
+                f"{MANIFEST.name} is missing. Create it with: "
                 "python3 scripts/build_manifest.py",
                 file=sys.stderr,
             )
             return 1
-        print(f"{MANIFEST.name} ist aktuell.")
+        if MANIFEST.read_text(encoding="utf-8") != text:
+            print(
+                f"{MANIFEST.name} is not up to date. Regenerate with: "
+                "python3 scripts/build_manifest.py",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"{MANIFEST.name} is up to date.")
         return 0
 
     MANIFEST.write_text(text, encoding="utf-8")
-    print(f"{MANIFEST.name} geschrieben: {len(manifest['services'])} Dienste")
+    print(f"{MANIFEST.name} written: {len(manifest['services'])} services")
     for name, data in manifest["services"].items():
-        print(f"  {name:18s} {data['latest']}  ({len(data['releases'])} Eintraege)")
+        print(f"  {name:18s} {data['latest']}  ({len(data['releases'])} entries)")
     return 0
 
 

@@ -1,25 +1,24 @@
 #!/bin/bash
-# Erzeugt gezielt einen der Fehlerzustaende, die "Ton-Problem beheben"
-# erkennen und reparieren soll - zum Ausprobieren des Knopfs auf einer echten
-# Box, ohne wirklich am Kabel zu wackeln.
+# Deliberately produces one of the fault states that "Fix sound problem" is
+# meant to detect and repair - to try the button on a real box without actually
+# wiggling a cable.
 #
-# Laeuft direkt auf der Box (nicht im Container): braucht pactl, amixer,
-# curl, jq und mosquitto_pub gegen die lokalen Dienste.
+# Runs directly on the box (not in the container): needs pactl, amixer, curl,
+# jq and mosquitto_pub against the local services.
 #
 #   ./scripts/simulate-sound-fault.sh
 #
-# Zeigt ein Menu, wendet den gewaehlten Fehler an und sagt, was als naechstes
-# zu tun ist. Ueber "r" laesst sich alles wieder in einen sauberen
-# Ausgangszustand bringen, unabhaengig davon, ob der Reparatur-Knopf
-# zwischendurch benutzt wurde.
+# Shows a menu, applies the chosen fault and says what to do next. "r" brings
+# everything back to a clean starting state, regardless of whether the repair
+# button was used in between.
 #
-# Zwei der sieben Kettenschritte fehlen bewusst:
-#   - Schritt 1 (Soundkarte fehlt) laesst sich ohne Kernel-Modul-Eingriff und
-#     Neustart nicht gefahrlos nachstellen - die App repariert ihn ohnehin
-#     nicht automatisch.
-#   - Schritt 6 (Dienst-Lautstaerke unter Minimum) klemmt der Dienst an jedem
-#     Einstiegspunkt (Start, Config-Reload, set_volume) selbst auf min_volume -
-#     mit dem aktuellen Code von aussen nicht reproduzierbar.
+# Two of the seven chain steps are deliberately missing:
+#   - Step 1 (sound card missing) cannot be reproduced safely without touching a
+#     kernel module and rebooting - and the app does not repair it
+#     automatically anyway.
+#   - Step 6 (service volume below the minimum) is clamped by the service to
+#     min_volume at every entry point (start, config reload, set_volume) - not
+#     reproducible from the outside with the current code.
 
 set -uo pipefail
 
@@ -33,16 +32,16 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-die() { echo -e "${RED}Fehler:${NC} $1" >&2; exit 1; }
+die() { echo -e "${RED}Error:${NC} $1" >&2; exit 1; }
 
 for bin in curl jq pactl amixer mosquitto_pub; do
-  command -v "$bin" >/dev/null 2>&1 || die "'$bin' fehlt - Skript läuft nur direkt auf der Box, nicht im Container."
+  command -v "$bin" >/dev/null 2>&1 || die "'$bin' missing - this script runs only directly on the box, not in the container."
 done
 
 DEVICE_ID="$(curl -sf "$BACKEND_URL/api/v1/system/status" | jq -r '.device_id // empty')"
-[ -n "$DEVICE_ID" ] || die "Backend nicht erreichbar unter $BACKEND_URL (BACKEND_URL setzen?)."
+[ -n "$DEVICE_ID" ] || die "Backend not reachable at $BACKEND_URL (set BACKEND_URL?)."
 
-CONFIG="$(curl -sf "$BACKEND_URL/api/v1/config/audio")" || die "Audio-Konfiguration nicht lesbar."
+CONFIG="$(curl -sf "$BACKEND_URL/api/v1/config/audio")" || die "Audio configuration not readable."
 ORIG_OUTPUT_DEVICE="$(jq -r '.output_device_name // empty' <<<"$CONFIG")"
 ORIG_MIN_VOLUME="$(jq -r '.min_volume // 0' <<<"$CONFIG")"
 SINK="${ORIG_OUTPUT_DEVICE:-$(pactl get-default-sink 2>/dev/null)}"
@@ -51,8 +50,8 @@ CARD="$(aplay -l 2>/dev/null | grep -i wm8960 | head -1 | sed -n 's/^card \([0-9
 
 WP_STATE="$HOME/.local/state/wireplumber/stream-properties"
 
-# Nur beim ersten Start dieser Baseline schreiben, damit ein zweiter Fehler
-# in derselben Sitzung nicht die urspruenglichen Werte ueberschreibt.
+# Write this baseline only on the first start, so a second fault in the same
+# session does not overwrite the original values.
 if [ ! -f "$STATE_FILE" ]; then
   jq -n --arg dev "$ORIG_OUTPUT_DEVICE" --arg minvol "$ORIG_MIN_VOLUME" \
     '{output_device_name: $dev, min_volume: ($minvol | tonumber)}' >"$STATE_FILE"
@@ -63,10 +62,10 @@ status() { curl -sf "$BACKEND_URL/api/v1/audio/status"; }
 set_config() { curl -sf -X PUT "$BACKEND_URL/api/v1/config/audio" -H 'Content-Type: application/json' -d "$1" >/dev/null; }
 
 mute_role_music() {
-  # Direkter Eingriff in WirePlumbers gemerkten Zustand - derselbe Mechanismus
-  # wie der Rueckfall im Audio-Dienst, nur absichtlich ausgeloest.
+  # A direct edit of WirePlumber's remembered state - the same mechanism as the
+  # fallback in the audio service, only triggered on purpose.
   local target="$1"  # true|false
-  [ -f "$WP_STATE" ] || die "WirePlumber-Zustandsdatei nicht gefunden: $WP_STATE"
+  [ -f "$WP_STATE" ] || die "WirePlumber state file not found: $WP_STATE"
   systemctl --user stop wireplumber
   sleep 1
   python3 - "$WP_STATE" "$target" <<'PY'
@@ -95,40 +94,40 @@ ensure_service_muted() {
 }
 
 fault_sink_present() {
-  echo "-> output_device_name wird auf einen nicht existierenden Sink gesetzt."
-  set_config "$(jq -n --arg dev "kaputter_sink_$RANDOM" '{output_device_name: $dev}')"
-  echo -e "${YELLOW}Fehler aktiv:${NC} konfigurierter Lautsprecher ist weg. Erwartete Reparatur: Rueckfall auf einen vorhandenen Sink."
+  echo "-> output_device_name is set to a non-existent sink."
+  set_config "$(jq -n --arg dev "broken_sink_$RANDOM" '{output_device_name: $dev}')"
+  echo -e "${YELLOW}Fault active:${NC} the configured speaker is gone. Expected repair: fall back to an existing sink."
 }
 
 fault_sink_level() {
-  [ -n "$SINK" ] || die "Kein Sink bekannt."
-  echo "-> Sink '$SINK' wird stummgeschaltet und auf 10% gestellt."
+  [ -n "$SINK" ] || die "No sink known."
+  echo "-> sink '$SINK' is muted and set to 10%."
   pactl set-sink-mute "$SINK" 1
   pactl set-sink-volume "$SINK" 10%
-  echo -e "${YELLOW}Fehler aktiv:${NC} Sink stumm und leise. Erwartete Reparatur: entstummen, auf ~60% anheben."
+  echo -e "${YELLOW}Fault active:${NC} sink muted and quiet. Expected repair: unmute, raise to ~60%."
 }
 
 fault_stream_state() {
-  echo "-> Gemerkte Stummschaltung fuer die PipeWire-Rolle 'Music' wird gesetzt (WirePlumber-Neustart noetig)."
+  echo "-> a remembered mute for the PipeWire role 'Music' is set (WirePlumber restart needed)."
   mute_role_music true
-  echo -e "${YELLOW}Fehler aktiv:${NC} jeder neue Music-Stream startet stumm. Erwartete Reparatur: laufenden Testton-Stream entstummen, WirePlumber merkt sich das."
+  echo -e "${YELLOW}Fault active:${NC} every new Music stream starts muted. Expected repair: unmute the running test-tone stream, WirePlumber remembers it."
 }
 
 fault_service_mute() {
-  echo "-> Dienst wird ueber MQTT stummgeschaltet (wie am physischen Knopf)."
+  echo "-> the service is muted over MQTT (as with the physical button)."
   ensure_service_muted true
-  echo -e "${YELLOW}Fehler aktiv:${NC} self._muted=True im Audio-Dienst. Erwartete Reparatur: entstummen."
+  echo -e "${YELLOW}Fault active:${NC} self._muted=True in the audio service. Expected repair: unmute."
 }
 
 fault_alsa_mixer() {
-  [ -n "$CARD" ] || die "wm8960-Karte nicht gefunden (aplay -l)."
-  echo "-> ALSA-Regler 'Speaker' auf Karte $CARD wird auf 0% und stumm gesetzt."
+  [ -n "$CARD" ] || die "wm8960 card not found (aplay -l)."
+  echo "-> the ALSA control 'Speaker' on card $CARD is set to 0% and muted."
   amixer -c "$CARD" sset Speaker 0% mute >/dev/null
-  echo -e "${YELLOW}Fehler aktiv:${NC} Hardware-Mixer auf null. Erwartete Reparatur: auf ~80% anheben, entstummen."
+  echo -e "${YELLOW}Fault active:${NC} hardware mixer at zero. Expected repair: raise to ~80%, unmute."
 }
 
 reset_all() {
-  echo "Setze alles zurueck..."
+  echo "Resetting everything..."
   local base_dev base_min
   base_dev="$(jq -r '.output_device_name' "$STATE_FILE" 2>/dev/null)"
   base_min="$(jq -r '.min_volume' "$STATE_FILE" 2>/dev/null)"
@@ -145,26 +144,26 @@ reset_all() {
     amixer -c "$CARD" sset Speaker 80% unmute >/dev/null
   fi
   rm -f "$STATE_FILE"
-  echo -e "${GREEN}Zurueckgesetzt.${NC}"
+  echo -e "${GREEN}Reset.${NC}"
 }
 
 print_menu() {
   echo ""
-  echo -e "${BLUE}Minabox Ton-Fehler simulieren${NC}  (Sink: ${SINK:-?}, Karte: ${CARD:-?}, Geraet: $DEVICE_ID)"
-  echo "  1) Konfigurierter Sink fehlt (sink_present)"
-  echo "  2) Sink stumm/leise (sink_level)"
-  echo "  3) Gemerkte Rollen-Stummschaltung in WirePlumber (stream_state)"
-  echo "  4) Dienst selbst stummgeschaltet (service_mute)"
-  echo "  5) ALSA-Mixer auf 0 (alsa_mixer)"
-  echo "  r) Alles zuruecksetzen"
-  echo "  q) Beenden"
+  echo -e "${BLUE}Simulate a Minabox sound fault${NC}  (sink: ${SINK:-?}, card: ${CARD:-?}, device: $DEVICE_ID)"
+  echo "  1) Configured sink missing (sink_present)"
+  echo "  2) Sink muted/quiet (sink_level)"
+  echo "  3) Remembered role mute in WirePlumber (stream_state)"
+  echo "  4) Service itself muted (service_mute)"
+  echo "  5) ALSA mixer at 0 (alsa_mixer)"
+  echo "  r) Reset everything"
+  echo "  q) Quit"
   echo ""
-  echo "Nach der Auswahl: WebUI -> Wartung -> \"Ton-Problem beheben\" klicken."
+  echo "After choosing: click WebUI -> Maintenance -> \"Fix sound problem\"."
 }
 
 while true; do
   print_menu
-  read -rp "Auswahl: " choice
+  read -rp "Choice: " choice
   case "$choice" in
     1) fault_sink_present ;;
     2) fault_sink_level ;;
@@ -173,6 +172,6 @@ while true; do
     5) fault_alsa_mixer ;;
     r|R) reset_all ;;
     q|Q) exit 0 ;;
-    *) echo "Ungueltige Auswahl." ;;
+    *) echo "Invalid choice." ;;
   esac
 done

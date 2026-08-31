@@ -133,10 +133,10 @@ services:
       - /var/lib/dpkg/status:/host/var/lib/dpkg/status:ro
       - /var/log/apt:/host/var/log/apt:ro
     group_add:
-      # GID der Host-Gruppe "docker" - nur damit ist der read-only gemountete
-      # /var/run/docker.sock lesbar. Der Wert ist hostabhaengig (hier 984), die
-      # frueher fest verdrahtete 999 passte nicht und der Docker-Collector lief
-      # in PermissionError(13). Ermitteln mit:
+      # GID of the host "docker" group - only with it is the read-only mounted
+      # /var/run/docker.sock readable. The value is host-dependent (984 here);
+      # the previously hard-wired 999 did not match and the Docker collector ran
+      # into PermissionError(13). Find it with:
       #   getent group docker | cut -d: -f3
       - "${DOCKER_GID:-984}"
     networks:
@@ -187,10 +187,10 @@ services:
       - /etc/hostname:/host/etc/hostname:ro
       - /:/host:rw
     group_add:
-      # GID der Host-Gruppe "docker" - nur damit ist der read-only gemountete
-      # /var/run/docker.sock lesbar. Der Wert ist hostabhaengig (hier 984), die
-      # frueher fest verdrahtete 999 passte nicht und der Docker-Collector lief
-      # in PermissionError(13). Ermitteln mit:
+      # GID of the host "docker" group - only with it is the read-only mounted
+      # /var/run/docker.sock readable. The value is host-dependent (984 here);
+      # the previously hard-wired 999 did not match and the Docker collector ran
+      # into PermissionError(13). Find it with:
       #   getent group docker | cut -d: -f3
       - "${DOCKER_GID:-984}"
     networks:
@@ -217,11 +217,11 @@ services:
     logging: *default-logging
     restart: unless-stopped
     ports:
-      # Nur auf dem Loopback veroeffentlicht. Die REST-API kennt keine
-      # Authentifizierung, und /switch-device sowie /test-tone veraendern den
-      # Zustand bzw. machen Geraeusch - das muss nicht aus dem WLAN erreichbar
-      # sein. Das Backend spricht den Dienst ueber das Compose-Netz an
-      # (http://audio:8003), Diagnose per curl auf der Box bleibt moeglich.
+      # Published on loopback only. The REST API has no authentication, and
+      # /switch-device and /test-tone change state or make noise - that does not
+      # need to be reachable from the Wi-Fi. The backend talks to the service
+      # over the compose network (http://audio:8003); diagnostics via curl on
+      # the box stay possible.
       - "127.0.0.1:8003:8003"
     environment:
       - MQTT_BROKER=${MQTT_BROKER:?MQTT_BROKER must be set in .env}
