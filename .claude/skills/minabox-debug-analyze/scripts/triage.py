@@ -10,7 +10,7 @@ fetches anything. File names and log lines from a user's box are printed as
 text and nothing else.
 
 Usage:
-    python3 triage.py <verzeichnis> [--json] [--repo /pfad/zum/repo]
+    python3 triage.py <directory> [--json] [--repo /path/to/repo]
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SEVERITY_ORDER = {"kritisch": 0, "hoch": 1, "mittel": 2, "niedrig": 3, "info": 4}
+SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 SD_CARD_OLD_MONTHS = 36
 DISK_WARN_PERCENT = 90
@@ -81,7 +81,7 @@ class Export:
         return (self.root / relative).exists()
 
 
-# ── Regeln ─────────────────────────────────────────────────────────────────
+# ── Rules ──────────────────────────────────────────────────────────────────
 
 
 def rule_undervoltage(export: Export) -> list[Finding]:
@@ -90,15 +90,16 @@ def rule_undervoltage(export: Export) -> list[Finding]:
     if power.get("undervoltage_now") is True:
         findings.append(
             Finding(
-                "kritisch",
+                "critical",
                 "undervoltage",
-                "Unterspannung im Moment der Messung",
-                "system/power.json: undervoltage_now=true, Quelle "
+                "Undervoltage at the moment of measurement",
+                "system/power.json: undervoltage_now=true, source "
                 f"{power.get('undervoltage_source')}",
-                "Netzteil oder Kabel liefern zu wenig Strom. Erklärt sporadische "
-                "Neustarts, USB-Aussetzer, abbrechende Wiedergabe und träge Reaktion.",
-                "Original-Netzteil und kurzes, dickes Kabel testen; USB-Hubs ohne "
-                "eigene Stromversorgung entfernen.",
+                "The power supply or cable delivers too little current. Explains "
+                "sporadic restarts, USB dropouts, aborting playback and sluggish "
+                "response.",
+                "Test the original power supply and a short, thick cable; remove "
+                "USB hubs without their own power.",
             )
         )
     kernel = export.json("logs/kernel_findings.json") or {}
@@ -106,27 +107,27 @@ def rule_undervoltage(export: Export) -> list[Finding]:
     if hits:
         findings.append(
             Finding(
-                "hoch" if power.get("undervoltage_now") is not True else "info",
+                "high" if power.get("undervoltage_now") is not True else "info",
                 "undervoltage_history",
-                f"Kernel meldet {hits} Unterspannungs- oder Drosselungszeilen",
-                "logs/kernel_findings.json und logs/syslog-kernel.txt",
-                "Unterspannung ist seit dem Booten mehrfach aufgetreten, auch wenn "
-                "sie gerade nicht anliegt.",
-                "logs/syslog-kernel.txt nach 'Under-voltage' durchsehen und die "
-                "Zeitpunkte mit den Fehlermeldungen des Nutzers vergleichen.",
+                f"Kernel reports {hits} undervoltage or throttling lines",
+                "logs/kernel_findings.json and logs/syslog-kernel.txt",
+                "Undervoltage has occurred several times since boot, even if it is "
+                "not present right now.",
+                "Scan logs/syslog-kernel.txt for 'Under-voltage' and compare the "
+                "times with the user's error reports.",
             )
         )
     temperature = power.get("temperature_celsius")
     if isinstance(temperature, (int, float)) and temperature >= TEMP_WARN_CELSIUS:
         findings.append(
             Finding(
-                "hoch",
+                "high",
                 "temperature",
-                f"CPU-Temperatur {temperature} °C",
+                f"CPU temperature {temperature} °C",
                 "system/power.json",
-                "Ab etwa 80 °C drosselt der Pi. Gehäuse ohne Belüftung oder "
-                "dauerhafte Last.",
-                "Kühlung und Aufstellort prüfen.",
+                "The Pi throttles from about 80 °C. A case without ventilation or "
+                "sustained load.",
+                "Check cooling and placement.",
             )
         )
     return findings
@@ -140,43 +141,42 @@ def rule_storage(export: Export) -> list[Finding]:
         if isinstance(used, (int, float)) and used >= DISK_WARN_PERCENT:
             findings.append(
                 Finding(
-                    "kritisch" if used >= 97 else "hoch",
+                    "critical" if used >= 97 else "high",
                     "disk_full",
-                    f"Speicher {entry.get('label')} zu {used} % belegt",
+                    f"Storage {entry.get('label')} is {used} % full",
                     f"system/storage.json: {entry.get('path')}, "
-                    f"frei {entry.get('free_gb')} GB",
-                    "Downloads schlagen fehl, SQLite kann read-only werden, Logs "
-                    "brechen ab.",
-                    "docker system df im Export prüfen (system/docker.json) und "
-                    "verwaiste Images/Downloads aufräumen.",
+                    f"free {entry.get('free_gb')} GB",
+                    "Downloads fail, SQLite can go read-only, logs cut off.",
+                    "Check docker system df in the export (system/docker.json) and "
+                    "clean up orphaned images/downloads.",
                 )
             )
         inodes = entry.get("inodes_used_percent")
         if isinstance(inodes, (int, float)) and inodes >= INODE_WARN_PERCENT:
             findings.append(
                 Finding(
-                    "hoch",
+                    "high",
                     "inodes_full",
-                    f"Inodes auf {entry.get('label')} zu {inodes} % belegt",
+                    f"Inodes on {entry.get('label')} are {inodes} % used",
                     "system/storage.json",
-                    "Sieht aus wie ein Rechte- oder Schreibfehler, ist aber "
-                    "Platzmangel durch sehr viele kleine Dateien.",
-                    "Anzahl Dateien in Cover-/Download-Verzeichnissen prüfen.",
+                    "Looks like a permission or write error, but is a lack of space "
+                    "from very many small files.",
+                    "Check the file count in cover/download directories.",
                 )
             )
     readonly = storage.get("readonly_mounts") or []
     if readonly:
         findings.append(
             Finding(
-                "kritisch",
+                "critical",
                 "readonly_root",
-                f"Dateisystem read-only gemountet: {', '.join(readonly)}",
+                f"Filesystem mounted read-only: {', '.join(readonly)}",
                 "system/storage.json: readonly_mounts",
-                "Klassisches Zeichen einer sterbenden SD-Karte: der Kernel hat nach "
-                "I/O-Fehlern auf read-only umgeschaltet. Alle Schreibvorgänge "
-                "schlagen fehl, ohne dass eine Anwendung den Grund nennt.",
-                "logs/syslog-kernel.txt nach mmc0/EXT4-fs error durchsuchen und die "
-                "Karte ersetzen.",
+                "The classic sign of a dying SD card: the kernel switched to "
+                "read-only after I/O errors. All writes fail without an "
+                "application naming the reason.",
+                "Scan logs/syslog-kernel.txt for mmc0/EXT4-fs error and replace the "
+                "card.",
             )
         )
     return findings
@@ -190,13 +190,13 @@ def rule_sd_card(export: Export) -> list[Finding]:
     if isinstance(age, int) and age >= SD_CARD_OLD_MONTHS:
         findings.append(
             Finding(
-                "mittel",
+                "medium",
                 "sd_card_age",
-                f"SD-Karte ist rund {age // 12} Jahre alt ({card.get('manufactured')})",
+                f"SD card is about {age // 12} years old ({card.get('manufactured')})",
                 f"system/hardware.json: {card.get('name')}",
-                "SD-Karten-Verschleiss ist die häufigste Hardware-Ursache. Alte "
-                "Karten zeigen sporadische Lesefehler, bevor sie ganz ausfallen.",
-                "Bei sonst unerklärlichen Fehlern: Karte klonen und ersetzen.",
+                "SD card wear is the most common hardware cause. Old cards show "
+                "sporadic read errors before they fail completely.",
+                "On otherwise unexplained errors: clone the card and replace it.",
             )
         )
     kernel_log = export.text("logs/syslog-kernel.txt")
@@ -209,12 +209,12 @@ def rule_sd_card(export: Export) -> list[Finding]:
         if io_errors:
             findings.append(
                 Finding(
-                    "kritisch",
+                    "critical",
                     "sd_io_errors",
-                    f"{io_errors} I/O-Fehlerzeilen im Kernel-Log",
+                    f"{io_errors} I/O error lines in the kernel log",
                     "logs/syslog-kernel.txt",
-                    "Die SD-Karte oder ihr Controller melden Lese-/Schreibfehler.",
-                    "Karte ersetzen; vorher Backup ziehen.",
+                    "The SD card or its controller reports read/write errors.",
+                    "Replace the card; take a backup first.",
                 )
             )
     return findings
@@ -233,41 +233,40 @@ def rule_services(export: Export) -> list[Finding]:
         if isinstance(restarts, int) and restarts > RESTART_LOOP_THRESHOLD:
             findings.append(
                 Finding(
-                    "hoch",
+                    "high",
                     "restart_loop",
-                    f"Dienst {name} wurde {restarts}-mal neu gestartet",
+                    f"Service {name} was restarted {restarts} times",
                     f"services/health.json: exit_code={container.get('exit_code')}, "
                     f"oom_killed={container.get('oom_killed')}",
-                    "Neustartschleife: der Dienst stirbt und wird von Docker wieder "
-                    "gestartet.",
-                    f"services/{name}/logs.txt am Ende lesen - dort steht der Grund "
-                    "des letzten Absturzes.",
+                    "Restart loop: the service dies and is restarted by Docker.",
+                    f"Read the end of services/{name}/logs.txt - the reason for the "
+                    "last crash is there.",
                 )
             )
         if container.get("oom_killed"):
             findings.append(
                 Finding(
-                    "kritisch",
+                    "critical",
                     "oom_killed",
-                    f"Dienst {name} wurde vom Kernel wegen Speichermangel beendet",
+                    f"Service {name} was killed by the kernel for lack of memory",
                     "services/health.json: oom_killed=true",
-                    "Der Arbeitsspeicher reichte nicht. Auf kleinen Pi-Modellen "
-                    "typisch bei parallelen Downloads oder grossen Playlists.",
-                    "system/hardware.json (memory) und gleichzeitige Last prüfen.",
+                    "There was not enough memory. Typical on small Pi models with "
+                    "parallel downloads or large playlists.",
+                    "Check system/hardware.json (memory) and concurrent load.",
                 )
             )
     if offline:
-        severity = "kritisch" if "mqtt" in offline or "backend" in offline else "hoch"
+        severity = "critical" if "mqtt" in offline or "backend" in offline else "high"
         findings.append(
             Finding(
                 severity,
                 "services_offline",
-                f"Dienste offline: {', '.join(sorted(offline))}",
+                f"Services offline: {', '.join(sorted(offline))}",
                 "services/health.json",
-                "Ohne MQTT reagieren Tasten und RFID nicht; ohne Audio gibt es "
-                "keinen Ton. Ein fehlender Container ist selbst der Befund.",
-                "Logs der betroffenen Dienste lesen und prüfen, ob der Container "
-                "überhaupt existiert (services/logs_missing.json).",
+                "Without MQTT, buttons and RFID do not respond; without audio there "
+                "is no sound. A missing container is a finding in itself.",
+                "Read the logs of the affected services and check whether the "
+                "container exists at all (services/logs_missing.json).",
             )
         )
     return findings
@@ -279,13 +278,13 @@ def rule_database(export: Export) -> list[Finding]:
     if integrity and integrity != "ok":
         findings.append(
             Finding(
-                "kritisch",
+                "critical",
                 "db_corrupt",
-                "Datenbank besteht die Integritätsprüfung nicht",
+                "Database fails the integrity check",
                 f"db/integrity_check.txt: {integrity[:200]}",
-                "Beschädigte SQLite-Datei, meist Folge eines harten Stromausfalls "
-                "oder einer defekten SD-Karte.",
-                "Backup einspielen; parallel Karte und Stromversorgung prüfen.",
+                "A corrupted SQLite file, usually the result of a hard power loss "
+                "or a faulty SD card.",
+                "Restore a backup; also check the card and the power supply.",
             )
         )
     return findings
@@ -310,13 +309,13 @@ def rule_alembic(export: Export, repo: Path | None) -> list[Finding]:
     if revisions and version not in revisions:
         return [
             Finding(
-                "hoch",
+                "high",
                 "alembic_mismatch",
-                f"Migrationsstand {version} ist im Repo unbekannt",
+                f"Migration state {version} is unknown in the repo",
                 "db/alembic_version.txt",
-                "Die Box läuft auf einem anderen Migrationsstand als der Code. "
-                "Typische Folge: 'no such column'-Fehler.",
-                "Version mit den Dateien in alembic/versions vergleichen.",
+                "The box runs on a different migration state than the code. "
+                "Typical result: 'no such column' errors.",
+                "Compare the version with the files in alembic/versions.",
             )
         ]
     return []
@@ -329,13 +328,13 @@ def rule_clock(export: Export) -> list[Finding]:
     if "NTPSynchronized=no" in output:
         return [
             Finding(
-                "mittel",
+                "medium",
                 "clock_unsynced",
-                "Systemuhr ist nicht mit einem Zeitserver synchron",
+                "System clock is not in sync with a time server",
                 "system/systemd.json: timedatectl",
-                "Falsche Uhrzeit lässt Sitzungen ablaufen, verschiebt Nutzungszeiten "
-                "und macht Log-Zeitstempel unbrauchbar.",
-                "Netzwerkzugang zum NTP-Server prüfen.",
+                "A wrong time expires sessions, shifts usage times and makes log "
+                "timestamps useless.",
+                "Check network access to the NTP server.",
             )
         ]
     return []
@@ -350,13 +349,14 @@ def rule_systemd(export: Export) -> list[Finding]:
         units = [line.split()[0] for line in failed.splitlines() if line.strip()]
         findings.append(
             Finding(
-                "mittel",
+                "medium",
                 "failed_units",
-                f"Fehlgeschlagene systemd-Dienste: {', '.join(units[:5])}",
+                f"Failed systemd services: {', '.join(units[:5])}",
                 "system/systemd.json: failed_units",
-                "Nicht zwingend Minabox-bezogen, aber ein Dauerloop belastet CPU und "
-                "Log und kann die Box spürbar bremsen.",
-                "Prüfen, ob der Dienst zur Box gehört oder vom Nutzer stammt.",
+                "Not necessarily Minabox-related, but a permanent loop loads the "
+                "CPU and the log and can noticeably slow the box down.",
+                "Check whether the service belongs to the box or comes from the "
+                "user.",
             )
         )
     return findings
@@ -368,14 +368,14 @@ def rule_media(export: Export) -> list[Finding]:
     if count:
         return [
             Finding(
-                "hoch",
+                "high",
                 "missing_media",
-                f"{count} Titel verweisen auf nicht vorhandene Dateien",
+                f"{count} tracks point at files that do not exist",
                 "media/missing_files.json",
-                "Die Datenbank kennt Titel, deren Datei fehlt - nach einem Umzug "
-                "der Medien, gelöschten Dateien oder fehlendem USB-Speicher.",
-                "media/library_summary.json auf Pfadmuster prüfen; ggf. Nutzer nach "
-                "Umbenennungen fragen.",
+                "The database knows tracks whose file is missing - after the media "
+                "moved, deleted files or missing USB storage.",
+                "Check media/library_summary.json for path patterns; ask the user "
+                "about renames if needed.",
             )
         ]
     return []
@@ -407,13 +407,13 @@ def rule_gpio_conflicts(export: Export) -> list[Finding]:
     if shared:
         return [
             Finding(
-                "hoch",
+                "high",
                 "gpio_conflict",
-                f"GPIO-Pin(s) doppelt belegt: {sorted(shared)}",
-                "config/services/button/buttons.json und config/services/led/leds.json",
-                "Zwei Dienste beanspruchen denselben Pin. Einer davon scheitert beim "
-                "Start oder verhält sich zufällig.",
-                "Belegung in einer der beiden Konfigurationen ändern.",
+                f"GPIO pin(s) assigned twice: {sorted(shared)}",
+                "config/services/button/buttons.json and config/services/led/leds.json",
+                "Two services claim the same pin. One of them fails at startup or "
+                "behaves randomly.",
+                "Change the assignment in one of the two configurations.",
             )
         ]
     return []
@@ -427,12 +427,12 @@ def rule_architecture(export: Export) -> list[Finding]:
     if arch and docker_arch and arch.startswith("armv7") and "arm64" in docker_arch:
         return [
             Finding(
-                "kritisch",
+                "critical",
                 "arch_mismatch",
-                f"32-Bit-System ({arch}) mit 64-Bit-Docker ({docker_arch})",
+                f"32-bit system ({arch}) with 64-bit Docker ({docker_arch})",
                 "system/os.json, system/docker.json",
-                "Images für arm64 starten auf einem 32-Bit-Kernel nicht.",
-                "64-Bit-Image des Betriebssystems verwenden.",
+                "Images for arm64 do not start on a 32-bit kernel.",
+                "Use the 64-bit image of the operating system.",
             )
         ]
     return []
@@ -448,12 +448,12 @@ def rule_memory(export: Export) -> list[Finding]:
         if used_percent >= MEMORY_WARN_PERCENT:
             return [
                 Finding(
-                    "hoch",
+                    "high",
                     "memory_pressure",
-                    f"Arbeitsspeicher zu {used_percent} % belegt",
-                    f"system/hardware.json: {available} MB von {total} MB frei",
-                    "Bei anhaltendem Druck beendet der Kernel Dienste (OOM).",
-                    "services/health.json auf oom_killed prüfen.",
+                    f"Memory is {used_percent} % used",
+                    f"system/hardware.json: {available} MB of {total} MB free",
+                    "Under sustained pressure the kernel kills services (OOM).",
+                    "Check services/health.json for oom_killed.",
                 )
             ]
     return []
@@ -467,14 +467,14 @@ def rule_client_errors(export: Export) -> list[Finding]:
         first = errors[0].get("message", "")[:160]
         findings.append(
             Finding(
-                "hoch",
+                "high",
                 "frontend_errors",
-                f"{len(errors)} Fehler in der Bedienoberfläche",
+                f"{len(errors)} errors in the interface",
                 f"client/console_errors.json: {first}",
-                "Der Fehler liegt im Frontend, nicht im Backend - diese Meldungen "
-                "tauchen in keinem Container-Log auf.",
-                "Stacktrace in client/console_errors.json lesen und mit der "
-                "WebUI-Version abgleichen.",
+                "The error is in the frontend, not the backend - these messages do "
+                "not appear in any container log.",
+                "Read the stack trace in client/console_errors.json and compare it "
+                "with the web UI version.",
             )
         )
     server_errors = [
@@ -484,13 +484,13 @@ def rule_client_errors(export: Export) -> list[Finding]:
         paths = {r.get("url") for r in server_errors}
         findings.append(
             Finding(
-                "hoch",
+                "high",
                 "api_5xx",
-                f"{len(server_errors)} fehlgeschlagene API-Aufrufe (5xx)",
+                f"{len(server_errors)} failed API calls (5xx)",
                 "client/failed_requests.json: "
                 + ", ".join(str(p) for p in list(paths)[:4]),
-                "Das Backend hat auf konkrete Aufrufe mit Serverfehlern geantwortet.",
-                "Zeitstempel mit services/backend/logs.txt abgleichen.",
+                "The backend answered specific calls with server errors.",
+                "Compare the timestamps with services/backend/logs.txt.",
             )
         )
     return findings
@@ -504,27 +504,28 @@ def rule_manifest(export: Export) -> list[Finding]:
         names = ", ".join(str(c.get("name")) for c in failed[:5])
         findings.append(
             Finding(
-                "mittel",
+                "medium",
                 "collector_failures",
-                f"{len(failed)} Collector(s) fehlgeschlagen: {names}",
+                f"{len(failed)} collector(s) failed: {names}",
                 "manifest.json: collectors",
-                "Fehlende Bereiche können selbst der Befund sein - etwa wenn die "
-                "Logs eines Dienstes nicht abrufbar waren, weil es den Container "
-                "nicht gibt.",
-                "Fehlermeldungen im Manifest lesen, bevor Daten nachgefordert werden.",
+                "Missing areas can be a finding in themselves - e.g. when a "
+                "service's logs could not be retrieved because the container does "
+                "not exist.",
+                "Read the error messages in the manifest before asking for more "
+                "data.",
             )
         )
     blocked = manifest.get("secret_tripwire", {}).get("blocked") or []
     if blocked:
         findings.append(
             Finding(
-                "kritisch",
+                "critical",
                 "secret_leak_blocked",
-                "Der Tripwire hat Geheimnisse aus dem Paket entfernt",
+                "The tripwire removed secrets from the package",
                 f"manifest.json: {json.dumps(blocked)[:200]}",
-                "Ein Collector hat ein Geheimnis ausgegeben. Das Paket ist sauber, "
-                "aber das ist ein Bug im Export - nicht an der Box des Nutzers.",
-                "Betroffenen Collector korrigieren und die Redaction-Regel ergänzen.",
+                "A collector emitted a secret. The package is clean, but this is a "
+                "bug in the export - not on the user's box.",
+                "Fix the affected collector and add the redaction rule.",
             )
         )
     skipped = [
@@ -537,10 +538,11 @@ def rule_manifest(export: Export) -> list[Finding]:
             Finding(
                 "info",
                 "user_skipped",
-                f"Vom Nutzer abgewählt: {', '.join(str(s) for s in skipped)}",
+                f"Deselected by the user: {', '.join(str(s) for s in skipped)}",
                 "manifest.json",
-                "Diese Bereiche fehlen bewusst.",
-                "Falls für die Frage nötig: gezielt nachfordern statt raten.",
+                "These areas are deliberately missing.",
+                "If needed for the question: ask for it specifically instead of "
+                "guessing.",
             )
         )
     return findings
@@ -562,13 +564,14 @@ def rule_apt_recent(export: Export) -> list[Finding]:
     if age_days <= 7:
         return [
             Finding(
-                "mittel",
+                "medium",
                 "recent_apt_change",
-                f"Paketänderung vor {age_days} Tag(en) ({latest})",
+                f"Package change {age_days} day(s) ago ({latest})",
                 "system/apt_history.txt",
-                "Wenn der Fehler 'seit kurzem' auftritt, ist ein Update der "
-                "naheliegendste Auslöser.",
-                "Betroffene Pakete im Verlauf mit dem Fehlerbeginn abgleichen.",
+                "If the error appeared 'recently', an update is the most likely "
+                "trigger.",
+                "Compare the affected packages in the history with the onset of "
+                "the error.",
             )
         ]
     return []
@@ -587,19 +590,19 @@ def rule_backend_errors(export: Export) -> list[Finding]:
         )
     top = sorted(counts.items(), key=lambda item: item[1], reverse=True)[:3]
     hardest = top[0]
-    severity = "hoch" if hardest[1] >= 10 else "mittel"
+    severity = "high" if hardest[1] >= 10 else "medium"
     return [
         Finding(
             severity,
             "backend_errors",
-            f"Backend meldete {len(entries)} Warnungen/Fehler, "
-            f"häufigster: {hardest[0]} ({hardest[1]}×)",
+            f"Backend reported {len(entries)} warnings/errors, "
+            f"most frequent: {hardest[0]} ({hardest[1]}x)",
             "runtime/errors_recent.json: "
-            + ", ".join(f"{name}×{count}" for name, count in top),
-            "Wiederkehrende Fehler im Backend. Der Ringpuffer überlebt die "
-            "Log-Rotation, die Container-Logs zeigen den Zusammenhang.",
-            "Ereignisnamen in services/backend/logs.txt suchen und Zeitpunkte "
-            "mit der Beschwerde abgleichen.",
+            + ", ".join(f"{name}x{count}" for name, count in top),
+            "Recurring errors in the backend. The ring buffer survives log "
+            "rotation, the container logs show the context.",
+            "Search for the event names in services/backend/logs.txt and compare "
+            "the times with the complaint.",
         )
     ]
 
@@ -615,28 +618,28 @@ def rule_mqtt_traffic(export: Export) -> list[Finding]:
         if inbound == 0:
             return [
                 Finding(
-                    "hoch",
+                    "high",
                     "mqtt_no_inbound",
-                    "Das Backend hat zuletzt keine einzige MQTT-Nachricht empfangen",
-                    f"runtime/mqtt_recent.json: {len(entries)} Nachrichten, "
-                    "alle ausgehend",
-                    "Das Backend sendet, bekommt aber nichts zurück. Tasten, RFID "
-                    "und Audio melden sich nicht - typisch für gestoppte Dienste "
-                    "oder ein Abo-Problem am Broker.",
-                    "services/health.json und die Logs von rfid/button prüfen.",
+                    "The backend received not a single MQTT message recently",
+                    f"runtime/mqtt_recent.json: {len(entries)} messages, all "
+                    "outbound",
+                    "The backend sends but gets nothing back. Buttons, RFID and "
+                    "audio do not report - typical for stopped services or a "
+                    "subscription problem at the broker.",
+                    "Check services/health.json and the logs of rfid/button.",
                 )
             ]
         return []
     return [
         Finding(
-            "mittel",
+            "medium",
             "mqtt_silent",
-            "Keine MQTT-Nachrichten im Ringpuffer",
-            "runtime/mqtt_recent.json ist leer",
-            "Entweder war die Box seit dem Start unbenutzt, oder der Bus "
-            "verteilt nichts.",
-            "Nutzer fragen, ob zwischen Neustart und Export überhaupt bedient "
-            "wurde.",
+            "No MQTT messages in the ring buffer",
+            "runtime/mqtt_recent.json is empty",
+            "Either the box was unused since the start, or the bus distributes "
+            "nothing.",
+            "Ask the user whether the box was operated at all between the restart "
+            "and the export.",
         )
     ]
 
@@ -653,14 +656,14 @@ def rule_image_age(export: Export) -> list[Finding]:
     if age_years >= 3:
         return [
             Finding(
-                "niedrig",
+                "low",
                 "old_image",
-                f"Systemabbild ist rund {age_years} Jahre alt ({match.group(0)})",
+                f"System image is about {age_years} years old ({match.group(0)})",
                 f"system/os.json: {image}",
-                "Alte Abbilder bringen alte Kernel- und Firmware-Fehler mit, die "
-                "anderswo längst behoben sind.",
-                "Bei sonst unerklärlichen Hardware-Symptomen ein aktuelles Abbild "
-                "in Betracht ziehen.",
+                "Old images bring old kernel and firmware bugs that were fixed "
+                "elsewhere long ago.",
+                "On otherwise unexplained hardware symptoms, consider a current "
+                "image.",
             )
         ]
     return []
@@ -674,13 +677,13 @@ def rule_docker_disk(export: Export) -> list[Finding]:
     if isinstance(images_bytes, int) and images_bytes > 8 * 1024**3:
         return [
             Finding(
-                "mittel",
+                "medium",
                 "docker_images_large",
-                f"Docker-Abbilder belegen {round(images_bytes / 1024**3, 1)} GB",
+                f"Docker images take {round(images_bytes / 1024**3, 1)} GB",
                 "system/docker.json: disk_usage",
-                "Alte Abbilder bleiben nach Updates liegen und fressen den Platz "
-                "auf der SD-Karte.",
-                "docker image prune empfehlen, wenn zusätzlich der Speicher knapp ist.",
+                "Old images stay behind after updates and eat the space on the SD "
+                "card.",
+                "Recommend docker image prune if storage is also low.",
             )
         ]
     return []
@@ -719,9 +722,9 @@ def run(root: Path, repo: Path | None) -> list[Finding]:
                 Finding(
                     "info",
                     "rule_error",
-                    f"Regel {rule.__name__} abgebrochen",
+                    f"Rule {rule.__name__} aborted",
                     f"{type(e).__name__}: {e}",
-                    "Die übrigen Regeln sind davon unberührt.",
+                    "The other rules are unaffected.",
                 )
             )
     findings.extend(rule_alembic(export, repo))
@@ -731,15 +734,15 @@ def run(root: Path, repo: Path | None) -> list[Finding]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("directory", type=Path, help="entpacktes Export-Verzeichnis")
+    parser.add_argument("directory", type=Path, help="unpacked export directory")
     parser.add_argument("--json", action="store_true")
     parser.add_argument(
-        "--repo", type=Path, default=None, help="Repo für Versionsabgleich"
+        "--repo", type=Path, default=None, help="repo for the version comparison"
     )
     args = parser.parse_args()
 
     if not args.directory.is_dir():
-        raise SystemExit(f"Kein Verzeichnis: {args.directory}")
+        raise SystemExit(f"not a directory: {args.directory}")
 
     findings = run(args.directory, args.repo)
 
@@ -748,17 +751,17 @@ def main() -> int:
         return 0
 
     if not findings:
-        print("Keine bekannten Fehlerbilder gefunden.")
-        print("Das schliesst einen Fehler nicht aus - jetzt gezielt Logs lesen.")
+        print("No known failure patterns found.")
+        print("That does not rule out a fault - now read the logs specifically.")
         return 0
 
-    print(f"{len(findings)} Befund(e):\n")
+    print(f"{len(findings)} finding(s):\n")
     for finding in findings:
         print(f"[{finding.severity.upper()}] {finding.title}")
-        print(f"  Beleg:      {finding.evidence}")
-        print(f"  Hypothese:  {finding.hypothesis}")
+        print(f"  Evidence:   {finding.evidence}")
+        print(f"  Hypothesis: {finding.hypothesis}")
         if finding.next_step:
-            print(f"  Nächster Schritt: {finding.next_step}")
+            print(f"  Next step:  {finding.next_step}")
         print()
     return 0
 
