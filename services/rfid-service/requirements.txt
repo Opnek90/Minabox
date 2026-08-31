@@ -9,8 +9,5 @@ aiomqtt>=2.5.0,<2.6.0
 # Logging
 structlog>=25.4.0,<25.5.0
 
-# Retry & Error Handling
-tenacity>=9.0.0,<10.0.0
-
 # RFID Hardware
 pn532pi>=1.7,<2.0

@@ -15,7 +15,14 @@ RUN apt-get update && \
 COPY shared-lib ./shared-lib
 COPY rfid-service/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir ./shared-lib && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /usr/local/lib/python3.13/site-packages/pip \
+           /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+           /usr/local/lib/python3.13/site-packages/setuptools \
+           /usr/local/lib/python3.13/site-packages/setuptools-*.dist-info \
+           /usr/local/lib/python3.13/site-packages/pkg_resources \
+           /usr/local/lib/python3.13/site-packages/wheel \
+           /usr/local/lib/python3.13/site-packages/wheel-*.dist-info
 
 
 # Runtime Image
@@ -26,13 +33,13 @@ WORKDIR /app
 # Runtime dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        curl \
-        i2c-tools && \
+        curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the Python packages from the builder stage
+# The entrypoint is ``python -m`` and does not invoke a console script.
+# Copying /usr/local/bin would only add package-provided tools that the service
+# never executes.
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
 
 ENV PYTHONPATH=/app/src
 
