@@ -1030,8 +1030,22 @@
       ]
     },
     "media-downloader": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-08-31",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Log-Einstellung wird erst beim Start des Dienstes gesetzt, nicht schon beim Laden des Moduls. Ohne sichtbare Aenderung im Betrieb; sie hatte im gemeinsamen Testlauf die Protokollierung der uebrigen Dienste mitverstellt."
+              ],
+              "en": [
+                "Logging is configured when the service starts rather than when the module is loaded. No visible change in operation; it used to reconfigure logging for every other service in the shared test run."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-28",
@@ -1215,8 +1229,24 @@
       ]
     },
     "webui": {
-      "latest": "0.2.0",
+      "latest": "0.2.1",
       "releases": [
+        {
+          "version": "0.2.1",
+          "date": "2026-08-31",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Drei Fehlermeldungen des Servers erschienen als allgemeines \"Ein Fehler ist aufgetreten\", weil ihr Text fehlte: fehlgeschlagener Neustart des Audio-Dienstes sowie ungueltige Tasten- und Display-Einstellungen.",
+                "Die Fehlerseite des Webservers lag noch als fremde Datei im Auslieferungs- ordner und war unter /50x.html abrufbar."
+              ],
+              "en": [
+                "Three server errors showed up as a generic \"something went wrong\" because their text was missing: a failed restart of the audio service, and invalid button and display settings.",
+                "The web server's error page was still sitting in the served folder as a foreign file, reachable under /50x.html."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.0",
           "date": "2026-08-30",
