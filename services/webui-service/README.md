@@ -1,142 +1,52 @@
-# Minabox WebUI Service
+# WebUI Service
 
-React/TypeScript web interface for the Minabox audio player. Served via Nginx in Docker, proxying API and WebSocket connections to the Backend Service.
+The browser front end: a static React SPA served by Nginx, which also proxies
+`/api/` and `/ws` to the backend. It talks to the backend and nothing else — no
+MQTT, no database, no hardware.
 
-## Tech Stack
+**Full documentation: [docs/services/webui/](../../docs/services/webui/README.md)**
 
-| Layer | Technology |
-|---|---|
-| Framework | React 18 + TypeScript |
-| Build Tool | Vite 5 |
-| UI Library | MUI v5 (Material-UI) |
-| Routing | React Router v6 |
-| HTTP Client | Axios |
-| WebSocket | Native WebSocket API |
-| i18n | i18next + react-i18next |
-| Web Server | Nginx (Alpine) |
-| Container | Docker (multi-stage build) |
+| | |
+| --- | --- |
+| Image | `ghcr.io/opnek90/minabox-webui` |
+| Version | see `VERSION` |
+| Compose | `webui` (always on) |
+| Interfaces | serves the SPA on `80`; proxies `/api/v1` and `/ws` to the backend; `GET /health` |
+| Config | none at runtime — the container has no environment variables. Build config in `vite.config.ts` and `nginx/nginx.conf` |
 
-## Features
-
-### Player Page (`/player`)
-- Real-time audio status via WebSocket
-- Play / Pause / Stop / Next / Previous controls
-- Progress bar with time display
-- Volume slider (clamped to `max_volume` from audio config)
-- Playlist info (track X of Y)
-
-### RFID Tags Page (`/rfid`)
-- List all RFID tags with content assignments
-- Search and filter
-- Learn Mode: scan new tag → assign playlist or track
-- Edit and delete existing tags
-
-### Media Library (`/media`)
-- **Playlists**: create, edit, delete
-- **Tracks**: upload audio files (MP3, OGG, FLAC, WAV, M4A) or add stream URLs
-
-### Admin / Settings (`/admin`)
-- System status overview (all services)
-- General settings (language: DE/EN)
-- Audio configuration (device, volume limits)
-- LED configuration (view and delete)
-- Button configuration (view and delete)
-- RFID configuration (reader type, interface, intervals)
-
-## Project Structure
-
-```
-webui-service/
-├── src/
-│   ├── api/              # Axios API clients (tags, playlists, tracks, audio, config, system)
-│   ├── components/       # Reusable React components
-│   │   ├── common/       # Header, Navigation, LoadingSpinner, ErrorBoundary
-│   │   ├── player/       # PlaybackControls, VolumeControl, ProgressBar, TrackInfo
-│   │   ├── rfid/         # TagList, TagCard, TagEditDialog, LearnModeButton
-│   │   ├── media/        # PlaylistList, TrackList, UploadDialog, StreamDialog
-│   │   └── admin/        # SystemStatus, ServiceStatus, ConfigForm
-│   ├── contexts/         # WebSocketContext (with auto-reconnect)
-│   ├── hooks/            # useAudioStatus, useApi, useAsyncAction
-│   ├── pages/            # PlayerPage, RfidPage, MediaPage, AdminPage
-│   ├── types/            # TypeScript interfaces (mirrors backend Pydantic schemas)
-│   ├── utils/            # formatTime, validators
-│   ├── App.tsx           # Router, layout (Header + Sidebar + Main)
-│   ├── main.tsx          # Entry point, MUI Theme, Providers
-│   └── i18n.ts           # i18next configuration
-├── public/
-│   └── locales/          # Translation files (DE, EN)
-│       ├── de/           # common, player, rfid, media, admin, errors
-│       └── en/           # common, player, rfid, media, admin, errors
-├── nginx/
-│   └── nginx.conf        # SPA routing + /api/ + /ws proxy
-├── Dockerfile            # Multi-stage: node:20-alpine → nginx:alpine
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
-```
-
-## Local Development
+## Development
 
 ```bash
-# Install dependencies
-cd services/webui-service
-npm install
-
-# Start dev server (proxies /api/ and /ws to localhost:8080)
-npm run dev
-# Open http://localhost:5173
-
-# Lint
-npm run lint
-
-# Build for production
-npm run build
+cd services/webui-service && npm install && npm run dev
 ```
 
-The dev server proxies `/api/` to `http://localhost:8080` and `/ws` to `ws://localhost:8080`, so the backend must be running locally or via Docker.
+The dev server proxies `/api/` and `/ws` to `localhost:8080`. Open
+`http://localhost:5173`.
 
-## Docker Build
-
-The service is built automatically via the root `docker-compose.yml`:
+**Before every commit** — the Dockerfile skips `tsc`, so this is the only place
+type errors are caught:
 
 ```bash
-# Build and start (uses build:fast in Dockerfile for quicker rebuilds on Raspberry Pi)
-docker compose up -d --build webui
-
-# View logs
-docker compose logs -f webui
+cd services/webui-service && npx tsc --noEmit
 ```
 
-**Faster rebuilds:** The Dockerfile uses `npm run build:fast` (Vite only, no `tsc`) so image builds finish much faster during development. Type checking is not run in the container; run `npm run build:check` or `npm run build` locally before committing. For production images you can switch the Dockerfile back to `npm run build`. BuildKit cache for `npm ci` is used when available (`DOCKER_BUILDKIT=1` is default in recent Docker).
+```bash
+cd services/webui-service && npm run lint && npm run test && npm run check:locales && npm run check:i18n-calls
+```
 
-## Environment Variables
+## Where to make changes
 
-The WebUI service itself has no environment variables – it is a static build served by Nginx. Backend URL and WebSocket URL are configured via the Nginx reverse proxy.
+- `src/api/client.ts` — the only module that talks to the network: retry, the
+  timeout table, the 401 hook, the debug ring buffer. Every `api/*.ts` sibling
+  goes through it.
+- `src/config/settingsIndex.ts` — the settings tree as data. The admin page
+  renders it and the command palette searches it.
+- `src/contexts/WebSocketContext.tsx` — the single connection. Subscribe with
+  `useWebSocketEvent`; a `window` listener compiles and does nothing.
+- `src/hooks/useLayout.ts` — the one source for mobile/tablet/desktop.
+- `public/locales/{de,en}/` — both languages, kept in sync by the two check
+  scripts.
+- `nginx/nginx.conf` — SPA fallback, proxying, caching, security headers.
 
-## Nginx Configuration
-
-| Path | Target |
-|---|---|
-| `/` | SPA (`index.html`) |
-| `/api/*` | `http://backend:8080` |
-| `/ws` | `ws://backend:8080/ws` |
-| `/health` | Nginx health check (returns 200) |
-
-Static assets (JS, CSS) are cached for 1 year via `Cache-Control: immutable`. `index.html` is never cached.
-
-## WebSocket
-
-The `WebSocketContext` connects to `/ws` and automatically reconnects with exponential backoff (1s → 2s → 4s → ... → 30s max) on disconnect.
-
-WebSocket message types handled:
-- `audio_status` → updates PlayerPage in real time
-- `rfid_scanned_learning` → opens tag assignment dialog in RfidPage
-- `service_status` → updates AdminPage system status
-
-## i18n
-
-Supported languages: **Deutsch (de)** and **English (en)**.
-
-Language preference is stored in `localStorage` under key `minabox-language`. Default is German.
-
-To switch language: Admin → General → Language dropdown.
+Section 9 of the architecture document maps common changes to files and lists
+the invariants a change must not break.
