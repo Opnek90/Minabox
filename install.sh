@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# Minabox Installations-Wizard / installation wizard
+# Minabox installation wizard
 # ==================================================
 #
 #   curl -fsSL https://raw.githubusercontent.com/Opnek90/Minabox/main/install.sh -o minabox-install.sh
 #   bash minabox-install.sh
 #
-# Bewusst in zwei Schritten und nicht als "curl | bash": whiptail braucht ein
-# echtes TTY auf stdin, das eine Pipe nicht liefert. Falls doch jemand pipet,
-# holen wir uns stdin unten von /dev/tty zurueck.
+# Deliberately in two steps and not as "curl | bash": whiptail needs a real
+# TTY on stdin, which a pipe does not provide. If someone does pipe it, we get
+# stdin back from /dev/tty further down.
 #
-# Ein zweiter Aufruf auf einem bereits installierten System oeffnet das
-# Wartungsmenue statt einer Neuinstallation.
+# A second run on an already installed system opens the maintenance menu
+# instead of a fresh install.
 
 set -euo pipefail
 
@@ -33,8 +33,8 @@ COMPONENTS_SET=0
 REBOOT_REQUIRED=0
 USE_WHIPTAIL=1
 
-# Von pin_service_versions() gefuellt: feste Versionen je Dienst aus
-# release/release-manifest.json, geordnet nach PIN_ORDER (Arrays sind unsortiert).
+# Filled by pin_service_versions(): a fixed version per service from
+# release/release-manifest.json, ordered by PIN_ORDER (arrays are unsorted).
 declare -A PINNED_TAGS=()
 PIN_ORDER=()
 
@@ -54,7 +54,7 @@ die() {
     exit 1
 }
 
-# Bei jedem Abbruch den Logpfad nennen - das ist im Supportfall die erste Frage.
+# On every abort, name the log path - that is the first question in a support case.
 on_error() {
     local code=$?
     local line=${1:-?}
@@ -258,10 +258,10 @@ t() {
 }
 
 # ---------------------------------------------------------------------------
-# Dialoge
+# Dialogs
 #
-# whiptail schreibt sein Ergebnis nach stderr, daher ueberall das
-# 3>&1 1>&2 2>&3 - Muster. Im unattended-Modus wird nie gefragt.
+# whiptail writes its result to stderr, hence the 3>&1 1>&2 2>&3 pattern
+# everywhere. In unattended mode nothing is ever asked.
 # ---------------------------------------------------------------------------
 
 ui_info() {
@@ -347,7 +347,7 @@ ui_menu() {
 # ---------------------------------------------------------------------------
 
 ensure_tty() {
-    # "curl | bash" gibt uns eine Pipe auf stdin - whiptail braucht ein TTY.
+    # "curl | bash" gives us a pipe on stdin - whiptail needs a TTY.
     if [ ! -t 0 ]; then
         if [ -r /dev/tty ] && exec </dev/tty 2>/dev/null; then
             log "stdin was not a tty, reopened /dev/tty"
@@ -399,7 +399,7 @@ preflight() {
 # ---------------------------------------------------------------------------
 
 ask_language() {
-    # Vor allem anderen, damit ab hier alles uebersetzt ist.
+    # Before anything else, so everything from here on is translated.
     [ "$UNATTENDED" = "1" ] && return 0
     [ "$LANG_SET" = "1" ] && return 0
     local choice
@@ -448,7 +448,7 @@ ask_components() {
         done
     fi
 
-    # whiptail liefert "rfid" "led" - Anfuehrungszeichen weg, Komma rein.
+    # whiptail returns "rfid" "led" - drop the quotes, add commas.
     COMPONENTS=$(printf '%s' "$result" | tr -d '"' | tr -s ' ' ',' | sed 's/^,//; s/,$//')
     log "components=$COMPONENTS"
 }
@@ -458,14 +458,14 @@ has_component() {
 }
 
 ask_basics() {
-    # Geraete-ID
+    # Device ID
     while true; do
         DEVICE_ID=$(ui_input "$(t dev_prompt)" "${DEVICE_ID:-box1}") || die "$(t abort)"
         [[ "$DEVICE_ID" =~ ^[a-z0-9][a-z0-9-]*$ ]] && break
         ui_msg "$(t dev_invalid)"
     done
 
-    # WebUI-Port
+    # Web UI port
     while true; do
         WEBUI_PORT=$(ui_input "$(t port_prompt)" "${WEBUI_PORT:-80}") || die "$(t abort)"
         if ! [[ "$WEBUI_PORT" =~ ^[0-9]+$ ]] || [ "$WEBUI_PORT" -lt 1 ] || [ "$WEBUI_PORT" -gt 65535 ]; then
@@ -481,7 +481,7 @@ ask_basics() {
         break
     done
 
-    # Zeitzone
+    # Time zone
     local tz_default
     tz_default=$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || echo "Europe/Berlin")
     TZ_VALUE=$(ui_input "$(t tz_prompt)" "$tz_default") || die "$(t abort)"
@@ -517,16 +517,16 @@ install_docker() {
     run sudo usermod -aG docker "$USER"
     run sudo systemctl enable --now docker
 
-    # Die neue Gruppenmitgliedschaft gilt erst nach einem neuen Login. Statt
-    # einen Neustart zu erzwingen, laufen die docker-Aufrufe dieser Sitzung
-    # ueber sudo (siehe dc()).
+    # The new group membership only takes effect after a fresh login. Instead
+    # of forcing a reboot, the docker calls of this session go through sudo
+    # (see dc()).
     DOCKER_NEEDS_SUDO=1
     log "docker installed, sudo fallback active for this session"
     ui_msg "$(t docker_group_note "$USER")"
 }
 
 install_docker_daemon_config() {
-    # Begrenzt die Container-Logs. Ohne das laeuft die SD-Karte irgendwann voll.
+    # Caps the container logs. Without it the SD card eventually fills up.
     local src="$TARGET_DIR/infrastructure/docker-daemon.json"
     [ -f "$src" ] || return 0
     [ -f /etc/docker/daemon.json ] && { log "daemon.json exists, kept"; return 0; }
@@ -560,15 +560,15 @@ setup_hardware_access() {
         fi
     done
 
-    # Ohne Linger existiert /run/user/<UID> nach einem Reboot ohne Login nicht.
-    # Genau darueber spricht der Audio-Container mit PipeWire - fehlt es,
-    # bleibt die Box nach jedem Neustart stumm, bis sich jemand einloggt.
+    # Without linger, /run/user/<UID> does not exist after a reboot without a
+    # login. That is exactly what the audio container talks to PipeWire over -
+    # without it the box stays silent after every restart until someone logs in.
     run sudo loginctl enable-linger "$USER" || log "enable-linger failed (non-fatal)"
 }
 
-# manifest_service_version <manifest-datei> <dienst>
-# Gibt die "latest"-Version dieses Dienstes aus release/release-manifest.json aus,
-# leer wenn der Dienst dort fehlt oder die Datei kein gueltiges JSON ist.
+# manifest_service_version <manifest-file> <service>
+# Prints the "latest" version of this service from release/release-manifest.json,
+# empty if the service is missing there or the file is not valid JSON.
 manifest_service_version() {
     python3 - "$1" "$2" <<'PY' 2>/dev/null
 import json, sys
@@ -586,11 +586,11 @@ PY
 }
 
 # image_tag_published <repository> <tag>
-# Prueft anonym gegen ghcr.io, ob dieser Tag wirklich schon da ist. Das
-# Manifest kennt eine Version, sobald der Commit gelandet ist - die Registry
-# erst, wenn die CI fertig gebaut hat. Bei jedem Zweifel (Netz, Timeout,
-# unerwartete Antwort) gilt "nicht bestaetigt": image_tag_published liefert
-# dann false, siehe pin_service_versions().
+# Checks anonymously against ghcr.io whether this tag is really there yet. The
+# manifest knows a version as soon as the commit has landed - the registry
+# only once CI has finished building. On any doubt (network, timeout,
+# unexpected response) it counts as "not confirmed": image_tag_published then
+# returns false, see pin_service_versions().
 image_tag_published() {
     local repo="$1" tag="$2" token
     token=$(curl -fsS --max-time 5 \
@@ -608,55 +608,54 @@ except Exception:
 }
 
 # pin_service_versions
-# Ermittelt fuer jeden tatsaechlich aktiven Dienst eine feste Version aus dem
-# gerade geklonten release/release-manifest.json - aber nur, wenn das zugehoerige
-# Image auch wirklich in der Registry liegt. Jeder Fehlschlag (Manifest
-# fehlt, Dienst fehlt darin, Tag noch nicht veroeffentlicht) laesst genau
-# diesen einen Dienst bei MINABOX_IMAGE_TAG=latest: ein fehlgeschlagener Pull
-# wuerde die ganze Installation abbrechen (siehe pull_images), ein
-# ungepinnter Dienst dagegen nur beim heutigen Verhalten bleiben.
+# Determines a fixed version for every actually active service from the
+# freshly cloned release/release-manifest.json - but only if the matching
+# image really is in the registry. Every failure (manifest missing, service
+# missing in it, tag not published yet) leaves that one service at
+# MINABOX_IMAGE_TAG=latest: a failed pull would abort the whole install (see
+# pull_images), whereas an unpinned service only stays on today's behaviour.
 pin_service_versions() {
     PIN_ORDER=()
     PINNED_TAGS=()
 
     if [ "$DRY_RUN" = "1" ]; then
-        log "dry-run: Versionspinning uebersprungen"
+        log "dry-run: version pinning skipped"
         return 0
     fi
 
     local manifest="$TARGET_DIR/release/release-manifest.json"
     if [ ! -r "$manifest" ]; then
-        log "kein release/release-manifest.json gefunden - bleibe bei latest"
+        log "no release/release-manifest.json found - staying on latest"
         return 0
     fi
 
-    # Immer aktive Dienste aus REQUIRED_SERVICES (ohne mqtt - laeuft auf
-    # eclipse-mosquitto, kein Minabox-Image) plus die gewaehlten Profile.
-    local -a dienste=()
+    # Always-active services from REQUIRED_SERVICES (without mqtt - it runs on
+    # eclipse-mosquitto, not a Minabox image) plus the chosen profiles.
+    local -a services=()
     local s
     for s in $REQUIRED_SERVICES; do
-        [ "$s" = "mqtt" ] || dienste+=("$s")
+        [ "$s" = "mqtt" ] || services+=("$s")
     done
-    has_component rfid    && dienste+=(rfid)
-    has_component led     && dienste+=(led)
-    has_component button  && dienste+=(button)
-    has_component display && dienste+=(display)
-    has_component media   && dienste+=(media-downloader)
+    has_component rfid    && services+=(rfid)
+    has_component led     && services+=(led)
+    has_component button  && services+=(button)
+    has_component display && services+=(display)
+    has_component media   && services+=(media-downloader)
 
-    local dienst version repo
-    for dienst in "${dienste[@]}"; do
-        version=$(manifest_service_version "$manifest" "$dienst")
+    local service version repo
+    for service in "${services[@]}"; do
+        version=$(manifest_service_version "$manifest" "$service")
         if [ -z "$version" ]; then
-            log "pin: $dienst nicht im Manifest - bleibt latest"
+            log "pin: $service not in the manifest - stays latest"
             continue
         fi
-        repo="opnek90/minabox-$dienst"
+        repo="opnek90/minabox-$service"
         if image_tag_published "$repo" "$version"; then
-            PIN_ORDER+=("$dienst")
-            PINNED_TAGS[$dienst]="$version"
-            log "pin: $dienst -> $version"
+            PIN_ORDER+=("$service")
+            PINNED_TAGS[$service]="$version"
+            log "pin: $service -> $version"
         else
-            log "pin: $dienst $version noch nicht in der Registry - bleibt latest"
+            log "pin: $service $version not in the registry yet - stays latest"
         fi
     done
 }
@@ -677,11 +676,11 @@ clone_repo() {
 seed_configs() {
     ui_info "$(t step_config)"
     run bash "$TARGET_DIR/scripts/setup-folders.sh"
-    # Alles gehoert dem aufrufenden Benutzer - die Container laufen als dessen UID.
+    # Everything belongs to the calling user - the containers run as their UID.
     run sudo chown -R "$(id -u):$(id -g)" "$TARGET_DIR"
 }
 
-# gid_of <gruppe> <fallback>
+# gid_of <group> <fallback>
 gid_of() {
     local gid
     gid=$(getent group "$1" 2>/dev/null | cut -d: -f3)
@@ -699,13 +698,13 @@ write_env() {
     web_secret=$(openssl rand -hex 32)
 
     if [ "$DRY_RUN" = "1" ]; then
-        printf '  [dry-run] .env schreiben nach %s\n' "$env_file"
+        printf '  [dry-run] write .env to %s\n' "$env_file"
         return 0
     fi
 
     cat >"$env_file" <<ENV
-# Von install.sh erzeugt am $(date '+%F %T').
-# Wird bei einem Update nicht ueberschrieben.
+# Created by install.sh on $(date '+%F %T').
+# Not overwritten on an update.
 
 MINABOX_DEVICE_ID=$DEVICE_ID
 MINABOX_LANGUAGE=$LANG_CODE
@@ -725,15 +724,15 @@ BACKEND_PORT=8080
 AUDIO_FILES_PATH=./audio
 ALLOWED_AUDIO_PATHS=/media,/mnt,$HOME
 
-# Komponentenauswahl. Ein Profil zu entfernen stoppt einen laufenden
-# Container nicht von allein - dafuer 'docker compose down --remove-orphans'.
+# Component selection. Removing a profile does not stop a running container by
+# itself - use 'docker compose down --remove-orphans' for that.
 COMPOSE_PROFILES=$COMPONENTS
 
-# Rueckfallebene: gilt fuer jeden Dienst ohne eigenen MINABOX_<DIENST>_TAG
-# weiter unten. 'latest' folgt dem main-Branch.
+# Fallback: applies to every service without its own MINABOX_<SERVICE>_TAG
+# below. 'latest' follows the main branch.
 MINABOX_IMAGE_TAG=latest
 
-# Hostspezifisch - hier vom Wizard ermittelt, nicht von Hand raten.
+# Host-specific - determined by the wizard here, do not guess by hand.
 HOST_UID=$(id -u)
 DOCKER_GID=$(gid_of docker 984)
 I2C_GID=$(gid_of i2c 988)
@@ -743,13 +742,13 @@ ENV
 
     if [ "${#PIN_ORDER[@]}" -gt 0 ]; then
         {
-            printf '\n# Feste Versionen je Dienst, aus release/release-manifest.json ermittelt bei der\n'
-            printf '# Installation. Ueberschreibt MINABOX_IMAGE_TAG fuer den jeweiligen Dienst;\n'
-            printf '# von Hand aendern, um genau diesen Dienst zurueckzudrehen.\n'
-            local dienst upper
-            for dienst in "${PIN_ORDER[@]}"; do
-                upper=$(printf '%s' "$dienst" | tr '[:lower:]-' '[:upper:]_')
-                printf 'MINABOX_%s_TAG=%s\n' "$upper" "${PINNED_TAGS[$dienst]}"
+            printf '\n# Fixed versions per service, determined from release/release-manifest.json\n'
+            printf '# at install time. Overrides MINABOX_IMAGE_TAG for that service; change by\n'
+            printf '# hand to roll exactly this service back.\n'
+            local service upper
+            for service in "${PIN_ORDER[@]}"; do
+                upper=$(printf '%s' "$service" | tr '[:lower:]-' '[:upper:]_')
+                printf 'MINABOX_%s_TAG=%s\n' "$upper" "${PINNED_TAGS[$service]}"
             done
         } >>"$env_file"
     fi
@@ -761,9 +760,9 @@ ENV
 # ---------------------------------------------------------------------------
 # Audio
 #
-# Zwei Ebenen, die nicht vermischt werden duerfen:
-#   1. Hardware am Host - dtoverlay in config.txt, braucht meist einen Reboot.
-#   2. PulseAudio-Sink  - kann erst gewaehlt werden, wenn die Karte aktiv ist.
+# Two layers that must not be mixed:
+#   1. Hardware on the host - dtoverlay in config.txt, usually needs a reboot.
+#   2. PulseAudio sink     - can only be chosen once the card is active.
 # ---------------------------------------------------------------------------
 
 boot_config_path() {
@@ -772,7 +771,7 @@ boot_config_path() {
     printf '%s/config.txt' "$d"
 }
 
-# audio_apply_overlay <overlay|"">   "" = Onboard-Kopfhoererbuchse
+# audio_apply_overlay <overlay|"">   "" = onboard headphone jack
 audio_apply_overlay() {
     local overlay="$1"
     local cfg; cfg="$(boot_config_path)"
@@ -783,14 +782,14 @@ audio_apply_overlay() {
         return 0
     fi
 
-    # Einmalige Sicherung, danach nie wieder ueberschreiben.
+    # A one-time backup, never overwritten again.
     sudo cp -n "$cfg" "${cfg}.minabox-backup" 2>/dev/null || true
 
-    # Idempotent: den eigenen Block immer erst entfernen, nie anhaengen.
+    # Idempotent: always remove our own block first, never append.
     sudo sed -i '/# >>> minabox audio/,/# <<< minabox audio/d' "$cfg"
 
     if [ -n "$overlay" ]; then
-        # Onboard-Audio still legen, sonst konkurrieren die Karten um card0.
+        # Silence onboard audio, otherwise the cards compete for card0.
         sudo sed -i 's/^dtparam=audio=on/#dtparam=audio=on/' "$cfg"
         printf '# >>> minabox audio\ndtoverlay=%s\n# <<< minabox audio\n' "$overlay" \
             | sudo tee -a "$cfg" >/dev/null
@@ -808,7 +807,7 @@ audio_card_present() {
     aplay -l 2>/dev/null | grep -qi "$1"
 }
 
-# Markiert erkannte Karten mit (*), damit die Auswahl nicht raten muss.
+# Marks detected cards with (*), so the selection does not have to guess.
 audio_label() {
     local key="$1" pattern="$2"
     if audio_card_present "$pattern"; then
@@ -836,7 +835,7 @@ setup_audio_hardware() {
             audio_apply_overlay ""
             ;;
         hdmi|usb|keep)
-            # Beide brauchen kein Overlay - HDMI und USB melden sich von allein.
+            # Neither needs an overlay - HDMI and USB announce themselves.
             log "audio: $choice selected, no overlay change"
             ;;
         hifiberry)
@@ -854,7 +853,7 @@ setup_audio_hardware() {
             ;;
         wm8960)
             if audio_card_present "wm8960"; then
-                # Treiber laeuft bereits, nur das Overlay sicherstellen.
+                # The driver is already running, just make sure of the overlay.
                 audio_apply_overlay "wm8960-soundcard"
             else
                 ui_yesno "$(t audio_wm8960_warn)" 1 || return 0
@@ -865,9 +864,9 @@ setup_audio_hardware() {
 }
 
 install_wm8960() {
-    # Uebersetzt ein Kernelmodul und kann je nach Kernel scheitern. Ein
-    # Fehlschlag darf die Installation nicht mitreissen - deshalb ueberall
-    # ein sauberer Rueckgabewert statt eines Abbruchs.
+    # Compiles a kernel module and can fail depending on the kernel. A failure
+    # must not take the install down with it - hence a clean return value
+    # everywhere instead of an abort.
     local tmp="/tmp/minabox-wm8960"
     rm -rf "$tmp"
     if [ "$DRY_RUN" = "1" ]; then
@@ -883,7 +882,7 @@ install_wm8960() {
     return 0
 }
 
-# Ebene 2: PulseAudio-Sink. Erst sinnvoll, wenn die Karte wirklich aktiv ist.
+# Layer 2: the PulseAudio sink. Only meaningful once the card is really active.
 setup_audio_sink() {
     [ "$UNATTENDED" = "1" ] && return 0
 
@@ -946,7 +945,7 @@ setup_autostart() {
     fi
 
     if [ "$DRY_RUN" = "1" ]; then
-        printf '  [dry-run] systemd-Unit %s schreiben\n' "$SYSTEMD_UNIT"
+        printf '  [dry-run] write systemd unit %s\n' "$SYSTEMD_UNIT"
         return 0
     fi
 
@@ -981,8 +980,8 @@ UNIT
 
 DOCKER_NEEDS_SUDO=0
 
-# Einheitlicher compose-Aufruf. Direkt nach der Docker-Installation greift die
-# neue Gruppenmitgliedschaft in dieser Shell noch nicht - dann ueber sudo.
+# One uniform compose call. Right after the Docker install the new group
+# membership does not apply in this shell yet - then via sudo.
 dc() {
     if [ "$DOCKER_NEEDS_SUDO" = "1" ] || ! docker info >/dev/null 2>&1; then
         sudo docker compose --project-directory "$TARGET_DIR" "$@"
@@ -1004,8 +1003,8 @@ pull_images() {
 
     local failed_file; failed_file=$(mktemp)
 
-    # Service fuer Service statt in einem Rutsch: nur so laesst sich der
-    # Fortschritt verlaesslich zaehlen, ohne die pull-Ausgabe zu parsen.
+    # Service by service instead of all at once: only this way can progress be
+    # counted reliably without parsing the pull output.
     pull_loop() {
         local i=0 svc
         for svc in "${services[@]}"; do
@@ -1111,8 +1110,8 @@ maint_components() {
     COMPONENTS_SET=0
     ask_components
     set_env_var COMPOSE_PROFILES "$COMPONENTS"
-    # Ein abgewaehltes Profil entfernt einen laufenden Container NICHT von
-    # allein - ohne dieses down bliebe er auf Dauer stehen.
+    # A deselected profile does NOT remove a running container by itself -
+    # without this down it would keep running indefinitely.
     ui_info "$(t step_up)"
     dc down --remove-orphans >>"$LOGFILE" 2>&1 || true
     pull_images
@@ -1159,7 +1158,7 @@ maint_uninstall() {
         run docker rmi "$img" || true
     done
 
-    # Nutzerdaten nur nach zwei ausdruecklichen Bestaetigungen.
+    # User data only after two explicit confirmations.
     if ui_yesno "$(t uninstall_data "$TARGET_DIR/audio")" 1; then
         if ui_yesno "$(t uninstall_data2)" 1; then
             dc down -v >>"$LOGFILE" 2>&1 || true
@@ -1175,8 +1174,8 @@ maint_uninstall() {
 maintenance_menu() {
     load_existing_env
 
-    # Ohne Dialoge gaebe ui_menu immer den ersten Eintrag zurueck und die
-    # Schleife liefe endlos. Unbeaufsichtigt ist hier nur ein Update sinnvoll.
+    # Without dialogs, ui_menu would always return the first entry and the loop
+    # would run forever. Unattended, only an update makes sense here.
     if [ "$UNATTENDED" = "1" ]; then
         log "unattended on existing install -> update"
         maint_update
