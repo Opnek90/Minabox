@@ -1,66 +1,38 @@
 # LED Service
 
-GPIO-based LED control for Minabox. The service subscribes to MQTT events, derives logical states (e.g. `audio_playing`, `rfid_scanned`, `usage_denied`), and renders LED patterns based on `config/leds.json`.
+GPIO output stage for the box's single-colour status LEDs. It turns MQTT events
+from the other services into logical states, and renders each state as a
+pattern on whichever LEDs the user bound to it.
 
-Detailed MQTT topic mapping, logical state derivation rules, and payload shapes are documented in [`docs/services/led/`](../../docs/services/led/README.md).
+**Full documentation: [docs/services/led/](../../docs/services/led/README.md)**
 
-## REST API
-
-Service root endpoints:
-- `GET /health` — reports `leds_configured` and `leds_available` separately, and
-  `degraded` when the broker is away or no configured LED holds a pin
-- `POST /test` (body: `{ "led_id": string }`) — starts a five second test blink
-  and returns immediately
+| | |
+| --- | --- |
+| Image | `ghcr.io/opnek90/minabox-led` |
+| Version | see `VERSION` |
+| Compose | `led` (profile `led`) |
+| Interfaces | subscribes `audio/status`, `rfid/*`, `button/raw-event`, `system/*`, `led/usage-denied`, `led/config/reload`; publishes `led/config/response`; `GET /health`, `POST /test` |
+| Config | `config/leds.json` — written by the backend, mounted read-only here |
 
 ## Tests
 
 ```bash
-PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') python -m pytest services/led-service/tests -q
+PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest services/led-service/tests -q
 ```
 
-No hardware required; `DISABLE_GPIO` is a constructor argument, not an ambient
-environment lookup.
+No hardware needed. `DISABLE_GPIO=true` also lets the service itself run
+without pins.
 
-## Configuration
+## Where to make changes
 
-Main config file: `config/leds.json`
+- `src/led_service/core/state_manager.py` — MQTT topic + payload → logical
+  state. A new state needs a rule here **and** a subscription in
+  `infrastructure/mqtt_client.py`; either alone fails silently.
+- `src/led_service/core/led_patterns.py` — the five pattern coroutines.
+- `src/led_service/core/led_controller.py` — pin claiming, pattern cancelling,
+  the per-LED lock.
+- `src/led_service/config_schema.py` — pattern validation, which repairs an
+  unusable binding rather than rejecting the file.
 
-Each LED entry:
-- `id`, `name`, `gpio`
-- `enabled` (when `false`, the LED ignores state changes and claims no GPIO pin)
-- `bindings`: mapping from logical state (e.g. `system_online`) to a pattern (`solid`, `blink`, `pulse`, `off`, `glow`)
-
-Pattern fields:
-- `pattern_type`
-- `interval_ms` (required for `blink`): on-time, and off-time, of one blink
-- `duration_ms` (required for `pulse`): on-time per pulse; cleared on every other pattern type
-- `repeat` (optional): number of complete cycles — one blink is on *and* off again. `0`/`null` repeats until another state overrides the LED
-- `cycle_ms`, `min_brightness`, `max_brightness` (`glow` only)
-
-A pattern the service could not run — a `pulse` without a duration, a `glow`
-whose `min_brightness` is not below its `max_brightness` — is repaired with a
-default and a warning rather than rejected, so one bad binding cannot stop the
-service from starting.
-
-## MQTT Topics
-
-Topic prefix pattern:
-- `minabox/<device-id>/...`
-
-Subscriptions (key ones):
-- Audio status: `.../audio/status`
-- RFID events: `.../rfid/tag-scanned`, `.../rfid/tag-removed`, `.../rfid/unknown-tag`
-- RFID blocked: `.../rfid/tag-blocked` (published by the backend for a blocked card)
-- System events: `.../system/service-started`, `.../system/service-error`, `.../system/booting`
-- Button raw events: `.../button/raw-event`
-- Backend health: `.../backend/unreachable`
-- Parental/usage outside limits: `.../led/usage-denied`
-
-Configuration & log-level:
-- `.../config/general` (MQTT payload includes `log_level`)
-- `.../led/config/reload`, answered on `.../led/config/response`
-
-The backend owns `leds.json`: it writes the file and then asks the service to
-reload it. There is no topic for pushing a configuration into the service — the
-config directory is mounted read-only.
-
+Section 9 of the architecture document maps common changes to files and lists
+the invariants a change must not break.
