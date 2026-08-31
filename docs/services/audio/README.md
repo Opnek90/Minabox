@@ -1,4 +1,4 @@
-# Audio Service – Architecture
+# Audio Service
 
 ## 1. Purpose & Responsibility
 

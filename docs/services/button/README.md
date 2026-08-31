@@ -1,4 +1,4 @@
-# Button Service – Architecture
+# Button Service
 
 Reads physical inputs (push buttons, rotary encoders), classifies them into
 normalised raw events, maps those to logical actions and publishes the result

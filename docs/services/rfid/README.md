@@ -1,4 +1,4 @@
-# RFID Service Architecture
+# RFID Service
 
 ## Purpose
 

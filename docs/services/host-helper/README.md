@@ -1,4 +1,4 @@
-# Host-Helper Service – Architecture
+# Host-Helper Service
 
 ## 1. Purpose & Responsibility
 
