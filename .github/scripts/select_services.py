@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Entscheidet, welche Dienste dieser CI-Lauf bauen muss.
+"""Decides which services this CI run has to build.
 
-Gebaut wird, was sich geaendert hat. Der Grund: jeder Dienst traegt seine
-eigene Versionsnummer, und ein unveraenderter Dienst darf nicht erneut unter
-seiner alten Nummer in die Registry wandern - sonst zeigt derselbe Tag auf
-verschiedene Staende.
+A service is built exactly when its ``VERSION`` file changed. That is the whole
+rule, and it follows directly from the versioning model: every service carries
+its own number, and an image tag is immutable - the same number must never point
+at two different builds. So a build is only meaningful once the number has moved.
 
-Im Zweifel wird alles gebaut. Ein zu grosser Lauf kostet Zeit, ein zu kleiner
-laesst ein Image zurueck, das niemand vermisst, bis es fehlt.
+The practical effect: touching a comment, a README, a test or the CI itself does
+*not* trigger a rebuild, because none of that changes the published number. When
+a change to build inputs (Dockerfile, source, requirements) is worth shipping,
+its ``VERSION`` gets bumped in the same commit and the service reappears here.
+
+If the previous state cannot be determined (first push, force-push), everything
+is built - a run that is too large costs time, one that is too small leaves an
+image behind that nobody misses until it is gone.
 """
 
 from __future__ import annotations
@@ -17,23 +23,36 @@ import os
 import subprocess
 import sys
 
-# name -> (Image-Name, Build-Context, Dockerfile)
-# Acht Dienste bauen aus ./services, weil sie shared-lib brauchen; webui hat
-# einen eigenen, engeren Context.
+# Build order is not significant; the matrix runs them in parallel.
+SERVICE_NAMES = [
+    "backend",
+    "host-helper",
+    "audio",
+    "rfid",
+    "button",
+    "led",
+    "display",
+    "media-downloader",
+    "webui",
+]
+
+
+def _service_entry(name: str) -> tuple[str, str, str]:
+    """(image name, build context, Dockerfile) for a service.
+
+    Every service builds from ``./services`` because it needs shared-lib on the
+    build context; webui is the exception with its own, narrower context.
+    """
+    context = "./services/webui-service" if name == "webui" else "./services"
+    return (f"minabox-{name}", context, f"./services/{name}-service/Dockerfile")
+
+
 SERVICES: dict[str, tuple[str, str, str]] = {
-    "backend": ("minabox-backend", "./services", "./services/backend-service/Dockerfile"),
-    "host-helper": ("minabox-host-helper", "./services", "./services/host-helper-service/Dockerfile"),
-    "audio": ("minabox-audio", "./services", "./services/audio-service/Dockerfile"),
-    "rfid": ("minabox-rfid", "./services", "./services/rfid-service/Dockerfile"),
-    "button": ("minabox-button", "./services", "./services/button-service/Dockerfile"),
-    "led": ("minabox-led", "./services", "./services/led-service/Dockerfile"),
-    "display": ("minabox-display", "./services", "./services/display-service/Dockerfile"),
-    "media-downloader": ("minabox-media-downloader", "./services", "./services/media-downloader-service/Dockerfile"),
-    "webui": ("minabox-webui", "./services/webui-service", "./services/webui-service/Dockerfile"),
+    n: _service_entry(n) for n in SERVICE_NAMES
 }
 
-# webui bindet shared-lib nicht ein (eigener Context, kein Python).
-SHARED_LIB_DEPENDENTS = [n for n in SERVICES if n != "webui"]
+# webui does not bundle shared-lib (its own context, no Python).
+SHARED_LIB_DEPENDENTS = [n for n in SERVICE_NAMES if n != "webui"]
 
 NULL_SHA = "0" * 40
 
@@ -48,12 +67,12 @@ def run(*args: str) -> str | None:
 
 
 def changed_files(base: str, head: str) -> list[str] | None:
-    """Geaenderte Pfade zwischen zwei Commits, oder None wenn unbestimmbar."""
+    """Changed paths between two commits, or None if it cannot be determined."""
     if not base or base == NULL_SHA:
         return None
     if run("git", "cat-file", "-e", f"{base}^{{commit}}") is None:
-        # Nach einem Force-Push oder beim ersten Push existiert der alte Stand
-        # hier nicht mehr.
+        # After a force-push, or on the very first push, the old state is not
+        # available here anymore.
         return None
     out = run("git", "diff", "--name-only", base, head)
     if out is None:
@@ -62,29 +81,30 @@ def changed_files(base: str, head: str) -> list[str] | None:
 
 
 def select(files: list[str]) -> tuple[list[str], list[str]]:
-    """Zu bauende Dienste plus die Begruendungen dafuer."""
+    """Services to build, plus the reason for each.
+
+    Selection is keyed on the ``VERSION`` file alone. A service whose Dockerfile
+    or source changed without a version bump is deliberately *not* rebuilt: its
+    published number would otherwise end up pointing at a new image. When such a
+    change matters, the release commit bumps the number and the service lands
+    here again.
+    """
+    changed = set(files)
     selected: set[str] = set()
     reasons: list[str] = []
 
-    # Der Workflow selbst loest bewusst keinen Rebuild aus. Er veraendert kein
-    # Image-Inhalt; was ein Image wirklich aendert - Dockerfile, Quelltext,
-    # Requirements - liegt unter services/<dienst>-service/ und wird unten
-    # erfasst. Wuerde eine Aenderung an der Bauvorschrift alle neun Dienste
-    # neu bauen, landeten unveraenderte Dienste erneut unter ihrer bereits
-    # veroeffentlichten Nummer - genau das, was die Versionierung verhindern
-    # soll. Ist ein Build-Umbau doch inhaltlich relevant, gehoert die VERSION
-    # angehoben, und schon steht der Dienst hier wieder drin.
-    shared = [f for f in files if f.startswith("services/shared-lib/")]
-    if shared:
+    # A shared-lib version bump forces every dependent to rebuild. The release
+    # checklist already bumps all dependent VERSION files alongside it, so they
+    # would be picked up below too - this is the safety net that does not rely
+    # on the checklist being followed perfectly.
+    if "services/shared-lib/VERSION" in changed:
         selected.update(SHARED_LIB_DEPENDENTS)
-        reasons.append("shared-lib geaendert - alle Dienste ausser webui")
+        reasons.append("shared-lib VERSION bumped - all services except webui")
 
-    for name in SERVICES:
-        prefix = f"services/{name}-service/"
-        hits = [f for f in files if f.startswith(prefix)]
-        if hits:
+    for name in SERVICE_NAMES:
+        if f"services/{name}-service/VERSION" in changed:
             selected.add(name)
-            reasons.append(f"{name}: {len(hits)} Datei(en) geaendert")
+            reasons.append(f"{name}: VERSION bumped")
 
     return sorted(selected), reasons
 
@@ -94,18 +114,23 @@ def main() -> int:
     build_all = os.environ.get("BUILD_ALL", "").lower() == "true"
 
     if build_all:
-        names, reasons = sorted(SERVICES), ["Alle Dienste angefordert"]
+        names, reasons = sorted(SERVICES), ["all services requested"]
     else:
         files = changed_files(os.environ.get("BEFORE", ""), head)
         if files is None:
             names, reasons = sorted(SERVICES), [
-                "Kein Vergleichspunkt zum vorherigen Stand - vorsichtshalber alle Dienste"
+                "no comparison point to the previous state - building all services"
             ]
         else:
             names, reasons = select(files)
 
     include = [
-        {"name": n, "image": SERVICES[n][0], "context": SERVICES[n][1], "dockerfile": SERVICES[n][2]}
+        {
+            "name": n,
+            "image": SERVICES[n][0],
+            "context": SERVICES[n][1],
+            "dockerfile": SERVICES[n][2],
+        }
         for n in names
     ]
     matrix = json.dumps({"include": include}, separators=(",", ":"))
@@ -117,9 +142,9 @@ def main() -> int:
             fh.write(f"any={'true' if include else 'false'}\n")
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    lines = ["### Zu bauende Dienste", ""]
-    lines += [f"- {r}" for r in reasons] or ["- Keine Aenderung an einem Dienst"]
-    lines += ["", f"**Auswahl:** {', '.join(names) if names else 'nichts zu tun'}"]
+    lines = ["### Services to build", ""]
+    lines += [f"- {r}" for r in reasons] or ["- no VERSION file changed"]
+    lines += ["", f"**Selection:** {', '.join(names) if names else 'nothing to do'}"]
     if summary:
         with open(summary, "a", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")
