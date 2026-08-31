@@ -135,8 +135,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.11",
+      "latest": "0.2.12",
       "releases": [
+        {
+          "version": "0.2.12",
+          "date": "2026-08-31",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Kopfzeilen der gefilterten Log-Dateien im Diagnose-Paket sind jetzt auf Englisch."
+              ],
+              "en": [
+                "The headers of the filtered log files in the diagnostics package are now in English."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.11",
           "date": "2026-08-31",

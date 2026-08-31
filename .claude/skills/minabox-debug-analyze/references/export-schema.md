@@ -79,12 +79,12 @@ Jede gefilterte oder gekuerzte Log-Datei beginnt mit einem Kommentarblock
 (`#`-Zeilen, abgeschlossen durch eine Zeile `#`):
 
 ```
-# Quelle: journalctl kernel
-# Abgedeckter Zeitraum: 2026-08-18T09:00:01+0200 bis 2026-08-18T13:45:01+0200
-# Zeilen: 84 von 4210 behalten, 4126 verworfen (Rauschen: 4100, Kuerzung: 26)
-# Immer behalten: 8 Zeile(n) zu Unterspannung, Drosselung, mmc/SD, E/A-Fehler, OOM oder Boot
-# Hinweis: Diese Datei ist gefiltert und gekuerzt. Fehlt hier ein Hinweis, ist
-# das kein Beleg dafuer, dass es das Problem nicht gab.
+# Source: journalctl kernel
+# Period covered: 2026-08-18T09:00:01+0200 to 2026-08-18T13:45:01+0200
+# Lines: 84 of 4210 kept, 4126 dropped (noise: 4100, truncation: 26)
+# Always kept: 8 line(s) about undervoltage, throttling, mmc/SD, I/O errors, OOM or boot
+# Note: this file is filtered and truncated. A missing note here is not evidence
+# that the problem did not occur.
 ```
 
 Beim Kernel-Log wird Docker-veth-/Bridge-Rauschen verworfen, *bevor* gekuerzt

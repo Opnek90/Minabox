@@ -157,26 +157,26 @@ def filter_log_lines(lines: list[str], limit: int) -> FilterResult:
 def build_header(result: FilterResult, *, source: str | None = None) -> str:
     """A header that keeps the reader from over-reading an empty log."""
     period = (
-        f"{result.period_start} bis {result.period_end}"
+        f"{result.period_start} to {result.period_end}"
         if result.period_start and result.period_end
-        else "unbekannt (keine lesbaren Zeitstempel)"
+        else "unknown (no readable timestamps)"
     )
     parts = [
-        f"# Abgedeckter Zeitraum: {period}",
-        f"# Zeilen: {len(result.lines)} von {result.total_in} behalten, "
-        f"{result.dropped_total} verworfen "
-        f"(Rauschen: {result.dropped_noise}, Kuerzung: {result.dropped_budget})",
+        f"# Period covered: {period}",
+        f"# Lines: {len(result.lines)} of {result.total_in} kept, "
+        f"{result.dropped_total} dropped "
+        f"(noise: {result.dropped_noise}, truncation: {result.dropped_budget})",
     ]
     if source:
-        parts.insert(0, f"# Quelle: {source}")
+        parts.insert(0, f"# Source: {source}")
     if result.kept_important:
         parts.append(
-            f"# Immer behalten: {result.kept_important} Zeile(n) zu Unterspannung, "
-            "Drosselung, mmc/SD, E/A-Fehler, OOM oder Boot"
+            f"# Always kept: {result.kept_important} line(s) about undervoltage, "
+            "throttling, mmc/SD, I/O errors, OOM or boot"
         )
     parts.append(
-        "# Hinweis: Diese Datei ist gefiltert und gekuerzt. Fehlt hier ein "
-        "Hinweis, ist das kein Beleg dafuer, dass es das Problem nicht gab."
+        "# Note: this file is filtered and truncated. A missing note here is not "
+        "evidence that the problem did not occur."
     )
     return "\n".join(parts)
 

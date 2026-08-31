@@ -22,6 +22,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.12 - 2026-08-31
+
+#### Verbessert
+- Die Kopfzeilen der gefilterten Log-Dateien im Diagnose-Paket sind jetzt
+  auf Englisch.
+
 ### 0.2.11 - 2026-08-31
 
 #### Verbessert
