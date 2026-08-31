@@ -1,8 +1,8 @@
 name: Build & Push Images
 
-# Baut die Minabox-Service-Images und schiebt sie nach GHCR.
-# Der Installations-Wizard (install.sh) laedt ausschliesslich von dort -
-# ohne diesen Workflow gibt es nichts zu pullen.
+# Builds the Minabox service images and pushes them to GHCR.
+# The installer (install.sh) loads exclusively from there - without this
+# workflow there is nothing to pull.
 #
 # A service is built only when its services/<name>-service/VERSION changes.
 # An image tag is immutable, so re-publishing an unchanged service under its
@@ -16,15 +16,15 @@ on:
   workflow_dispatch:
     inputs:
       build_all:
-        description: "Alle Dienste bauen, unabhaengig von den Aenderungen"
+        description: "Build all services, regardless of the changes"
         type: boolean
         default: true
 
-# Auf main wird nicht abgebrochen: dort ist jeder Lauf ein Release. Zwei Merges
-# kurz hintereinander liessen sonst den ersten Build sterben, bevor er ein
-# Image gepusht hatte - und niemand merkte es, weil der zweite Lauf gruen war
-# und fuer den unveraenderten Dienst gar nichts mehr zu bauen fand.
-# Auf allen anderen Refs bleibt das Abbrechen sinnvoll.
+# main is not cancelled: every run there is a release. Two merges in quick
+# succession would otherwise let the first build die before it had pushed an
+# image - and nobody would notice, because the second run was green and found
+# nothing left to build for the unchanged service.
+# On all other refs, cancelling still makes sense.
 concurrency:
   group: build-images-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -33,11 +33,10 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # ── Passen Changelog und Manifest zusammen? ───────────────────────────────
-  # Laeuft immer, auch wenn kein Dienst gebaut wird: eine Aenderung am
-  # Changelog allein soll ebenso geprueft werden. Schlaegt sie fehl, wird
-  # nichts gebaut - ein Release ohne Aenderungsnotizen ist genau das, was
-  # verhindert werden soll.
+  # ── Do the changelog and manifest match? ─────────────────────────────────
+  # Always runs, even when no service is built: a change to the changelog alone
+  # should be checked too. If it fails, nothing is built - a release without
+  # release notes is exactly what should be prevented.
   validate:
     runs-on: ubuntu-latest
     steps:
@@ -47,13 +46,13 @@ jobs:
       - name: Check changelog and manifest
         run: python3 scripts/build_manifest.py --check
 
-  # ── Typpruefung, Lint, Tests, i18n ────────────────────────────────────────
-  # Derselbe Workflow, den jeder Pull Request faehrt. Haengt vor build, damit
-  # ein roter Lauf kein Image in die Registry schiebt.
+  # ── Type check, lint, tests, i18n ────────────────────────────────────────
+  # The same workflow every pull request runs. Hangs before build, so a red
+  # run does not push an image to the registry.
   checks:
     uses: ./.github/workflows/checks.yml
 
-  # ── Welche Dienste muessen gebaut werden? ─────────────────────────────────
+  # ── Which services have to be built? ────────────────────────────────────
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -63,8 +62,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Volle Historie: ohne sie gibt es keinen Vergleichspunkt fuer das
-          # Diff gegen den vorherigen Stand.
+          # Full history: without it there is no comparison point for the diff
+          # against the previous state.
           fetch-depth: 0
 
       - name: Select services
@@ -74,13 +73,13 @@ jobs:
           BUILD_ALL: ${{ github.event_name != 'push' || inputs.build_all }}
         run: python3 .github/scripts/select_services.py
 
-  # ── Bauen und pushen ──────────────────────────────────────────────────────
+  # ── Build and push ─────────────────────────────────────────────────────
   build:
     needs: [validate, checks, changes]
     if: needs.changes.outputs.any == 'true'
-    # Nativer arm64-Runner. Das ist hier nicht Kosmetik: led- und
-    # button-service kompilieren lgpio aus dem Quelltext und webui baut mit
-    # npm - unter QEMU dauert das ein Vielfaches und laeuft ins Job-Timeout.
+    # A native arm64 runner. Not cosmetic: the led and button services compile
+    # lgpio from source and webui builds with npm - under QEMU that takes many
+    # times as long and runs into the job timeout.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
 
@@ -106,49 +105,49 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Die Version wird zum Image-Tag *und* zum Build-Arg - dieselbe Zahl
-      # steht damit in der Registry und im OCI-Label des Images.
+      # The version becomes the image tag *and* a build arg - the same number
+      # is then in the registry and in the image's OCI label.
       - name: Read service version
         id: ver
         run: |
           set -euo pipefail
           file="services/${{ matrix.name }}-service/VERSION"
           version="$(tr -d '[:space:]' < "$file")"
-          # Fruehes, lautes Scheitern: eine kaputte VERSION-Datei wuerde sonst
-          # ein Image mit sinnlosem Tag in die Registry schieben.
+          # Early, loud failure: a broken VERSION file would otherwise push an
+          # image with a meaningless tag to the registry.
           if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "::error file=$file::'$version' ist keine gueltige SemVer-Version"
+            echo "::error file=$file::'$version' is not a valid SemVer version"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "major_minor=${version%.*}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(git show -s --format=%cI ${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
-      # Ein Versions-Tag ist unveraenderlich. Existiert er schon und stammt aus
-      # einem anderen Commit, wurde die VERSION-Datei nicht angehoben - dann
-      # bricht der Lauf ab, statt die vorhandene Nummer zu ueberschreiben.
-      # Derselbe Commit darf durch: das ist ein Neulauf desselben Standes.
+      # A version tag is immutable. If it already exists and comes from a
+      # different commit, the VERSION file was not bumped - then the run aborts
+      # instead of overwriting the existing number. The same commit may pass:
+      # that is a re-run of the same state.
       - name: Ensure version tag is free
         env:
-          # Ein Lauf von Hand ist eine bewusste Entscheidung - dort warnt der
-          # Wachposten nur. Auf einem Push ist ein vergebener Tag dagegen ein
-          # vergessener Versions-Bump und bricht den Lauf ab.
+          # A manual run is a deliberate decision - there the guard only warns.
+          # On a push, a taken tag is a forgotten version bump and aborts the
+          # run.
           MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
           ref="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ steps.ver.outputs.version }}"
           if ! out="$(docker buildx imagetools inspect "$ref" \
                 --format '{{ index .Image.Config.Labels "org.opencontainers.image.revision" }}' 2>/dev/null)"; then
-            echo "Tag $ref ist frei."
+            echo "Tag $ref is free."
             exit 0
           fi
           if [ "$out" = "${{ github.sha }}" ]; then
-            echo "Tag $ref stammt aus diesem Commit - Neulauf, wird neu geschrieben."
+            echo "Tag $ref comes from this commit - a re-run, will be rewritten."
             exit 0
           fi
-          msg="Version ${{ steps.ver.outputs.version }} von ${{ matrix.name }} ist bereits vergeben (aus Commit ${out:-unbekannt}). Bitte services/${{ matrix.name }}-service/VERSION anheben."
+          msg="Version ${{ steps.ver.outputs.version }} of ${{ matrix.name }} is already taken (from commit ${out:-unknown}). Please bump services/${{ matrix.name }}-service/VERSION."
           if [ "$MANUAL" = "true" ]; then
-            echo "::warning file=services/${{ matrix.name }}-service/VERSION::$msg Manueller Lauf - wird ueberschrieben."
+            echo "::warning file=services/${{ matrix.name }}-service/VERSION::$msg Manual run - will be overwritten."
             exit 0
           fi
           echo "::error file=services/${{ matrix.name }}-service/VERSION::$msg"
@@ -158,7 +157,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # GHCR verlangt kleingeschriebene Pfade.
+          # GHCR requires lowercase paths.
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
@@ -174,11 +173,11 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          # Kein "labels:" aus metadata-action: dessen
-          # org.opencontainers.image.version leitet sich vom Git-Ref ab (bei
-          # einem main-Push also "main") und wuerde das Label ueberschreiben,
-          # das der Dockerfile aus APP_VERSION setzt. Die Labels gehoeren hier
-          # dem Dockerfile, damit ein lokaler Build dieselbe Struktur erzeugt.
+          # No "labels:" from metadata-action: its
+          # org.opencontainers.image.version is derived from the git ref (so
+          # "main" on a main push) and would overwrite the label the Dockerfile
+          # sets from APP_VERSION. The labels belong to the Dockerfile here, so
+          # a local build produces the same structure.
           build-args: |
             APP_VERSION=${{ steps.ver.outputs.version }}
             GIT_SHA=${{ github.sha }}

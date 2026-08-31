@@ -1,24 +1,24 @@
 # Backend Service
 
 **Version:** 0.1.0  
-**Letzte Änderung:** 2026-02-15
+**Last change:** 2026-02-15
 
-Zentraler Orchestrierungs- und Datenservice für das Minabox-Projekt.
+Central orchestration and data service for the Minabox project.
 
 ---
 
-## Übersicht
+## Overview
 
-Der Backend-Service ist das Herzstück der Minabox. Er koordiniert alle anderen Services, verwaltet die Datenbank und fungiert als Brücke zwischen MQTT (intern) und WebSocket/REST (nach außen zur WebUI).
+The backend service is the heart of the Minabox. It coordinates all the other services, manages the database and acts as a bridge between MQTT (internal) and WebSocket/REST (outward to the web UI).
 
-### Hauptaufgaben
+### Main responsibilities
 
-- **Datenbank-Management:** Einziger Service mit direktem DB-Zugriff (SQLite)
-- **MQTT-WebSocket-Bridge:** Echtzeit-Updates an die WebUI
-- **REST-API:** Synchrone Queries und Commands
-- **Orchestrierung:** Service-übergreifende Workflows (Tag-Scan → Playlist-Lookup → Audio-Trigger)
-- **Config-Management:** Zentrale Verwaltung der Service-Konfigurationen
-- **Audio-Upload:** Track-Upload und Metadaten-Extraktion
+- **Database management:** the only service with direct DB access (SQLite)
+- **MQTT-WebSocket bridge:** real-time updates to the web UI
+- **REST API:** synchronous queries and commands
+- **Orchestration:** cross-service workflows (tag scan → playlist lookup → audio trigger)
+- **Config management:** central management of the service configurations
+- **Audio upload:** track upload and metadata extraction
 
 ---
 
@@ -30,9 +30,9 @@ Der Backend-Service ist das Herzstück der Minabox. Er koordiniert alle anderen 
 
 ### Test Results
 
-Der Backend-Service wurde vollständig implementiert und getestet:
+The backend service was fully implemented and tested:
 
-| Komponente | Status | Details |
+| Component | Status | Details |
 |------------|--------|----------|
 | **Health Check** | ✅ Pass | Service healthy, MQTT + DB connected |
 | **REST API** | ✅ Pass | All CRUD operations working |
@@ -71,7 +71,7 @@ Der Backend-Service wurde vollständig implementiert und getestet:
 
 ---
 
-## Architektur
+## Architecture
 
 ┌─────────────────────────────────────────────────────────┐
 │ Backend Service │
@@ -94,7 +94,7 @@ Der Backend-Service wurde vollständig implementiert und getestet:
 
 ---
 
-## Technologie-Stack
+## Technology stack
 
 - **Python:** 3.13+
 - **Web Framework:** FastAPI 0.126+
@@ -110,43 +110,43 @@ Der Backend-Service wurde vollständig implementiert und getestet:
 
 ## Installation
 
-### Voraussetzungen
+### Prerequisites
 
 - Python 3.13+
-- Docker (für Container-Deployment)
-- MQTT-Broker (Eclipse Mosquitto)
+- Docker (for container deployment)
+- MQTT broker (Eclipse Mosquitto)
 
-### Lokale Entwicklung
+### Local development
 
 ```bash
-# Repository klonen
+# Clone the repository
 cd services/backend-service
 
-# Virtual Environment erstellen
+# Create a virtual environment
 python3.13 -m venv venv
 source venv/bin/activate
 
-# Dependencies installieren
+# Install dependencies
 pip install -r requirements.txt
 
-# Environment Variables setzen
+# Set environment variables
 cp ../../.env.example ../../.env
-# Bearbeite .env und setze REQUIRED vars!
+# Edit .env and set the REQUIRED vars!
 
-# Datenbank initialisieren
+# Initialise the database
 alembic upgrade head
 
-# Service starten
+# Start the service
 python -m backend_service.main
 ```
 
 ### Docker
 
 ```bash
-# Image bauen
+# Build the image
 docker build -t minabox/backend:latest .
 
-# Container starten
+# Start the container
 docker run -d \
   --name backend \
   -p 8080:8080 \
@@ -161,37 +161,37 @@ docker run -d \
 
 ---
 
-## Konfiguration
+## Configuration
 
 ### Environment Variables (REQUIRED)
 
-**Globale Settings (ohne Prefix):**
+**Global settings (no prefix):**
 
 ```bash
 # Device Configuration
-MINABOX_DEVICE_ID=box1          # Device ID für MQTT-Topics
+MINABOX_DEVICE_ID=box1          # device ID for MQTT topics
 
 # MQTT Broker
-MQTT_BROKER=mqtt                # MQTT-Broker Hostname
-MQTT_PORT=1883                  # MQTT-Broker Port
+MQTT_BROKER=mqtt                # MQTT broker hostname
+MQTT_PORT=1883                  # MQTT broker port
 
 # Logging
 LOG_LEVEL=INFO                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 ```
 
-**Backend-spezifische Settings (mit MINABOX_BACKEND_ Prefix, optional):**
+**Backend-specific settings (with the MINABOX_BACKEND_ prefix, optional):**
 
 ```bash
-MINABOX_BACKEND_API_PORT=8080               # API Port
-MINABOX_BACKEND_WS_ENABLED=true             # WebSocket aktivieren
+MINABOX_BACKEND_API_PORT=8080               # API port
+MINABOX_BACKEND_WS_ENABLED=true             # enable WebSocket
 MINABOX_BACKEND_DATABASE_PATH=/data/minabox.db
 MINABOX_BACKEND_AUDIO_STORAGE_PATH=/mnt/audio/tracks
 ```
 
-**⚠️ Wichtig:**
-- Globale Settings (`MQTT_BROKER`, `MINABOX_DEVICE_ID`, `LOG_LEVEL`) sind **REQUIRED** ohne Defaults!
-- Service schlägt mit klarer Fehlermeldung fehl, wenn diese nicht gesetzt sind
-- Backend-spezifische Settings haben sinnvolle Defaults in `config_schema.py`
+**⚠️ Important:**
+- Global settings (`MQTT_BROKER`, `MINABOX_DEVICE_ID`, `LOG_LEVEL`) are **REQUIRED** with no defaults!
+- the service fails with a clear error message if these are not set
+- backend-specific settings have sensible defaults in `config_schema.py`
 
 ### Service Config (config/backend.json)
 
@@ -209,7 +209,7 @@ MINABOX_BACKEND_AUDIO_STORAGE_PATH=/mnt/audio/tracks
 
 ---
 
-## API-Dokumentation
+## API documentation
 
 ### REST API
 
@@ -217,40 +217,40 @@ MINABOX_BACKEND_AUDIO_STORAGE_PATH=/mnt/audio/tracks
 
 #### Tags
 
-- `GET /tags` - Liste aller RFID-Tags
-- `GET /tags/{tag_id}` - Tag-Details
-- `POST /tags` - Tag anlegen (Lern-Modus)
-- `PUT /tags/{tag_id}` - Tag aktualisieren
-- `DELETE /tags/{tag_id}` - Tag löschen
+- `GET /tags` - list all RFID tags
+- `GET /tags/{tag_id}` - tag details
+- `POST /tags` - create a tag (learn mode)
+- `PUT /tags/{tag_id}` - update a tag
+- `DELETE /tags/{tag_id}` - delete a tag
 
 #### Playlists
 
-- `GET /playlists` - Liste aller Playlists
-- `GET /playlists/{playlist_id}` - Playlist mit Tracks
-- `POST /playlists` - Playlist erstellen
-- `PUT /playlists/{playlist_id}` - Playlist bearbeiten
-- `DELETE /playlists/{playlist_id}` - Playlist löschen
+- `GET /playlists` - list all playlists
+- `GET /playlists/{playlist_id}` - playlist with tracks
+- `POST /playlists` - create a playlist
+- `PUT /playlists/{playlist_id}` - edit a playlist
+- `DELETE /playlists/{playlist_id}` - delete a playlist
 
 #### Tracks
 
-- `GET /tracks` - Liste aller Tracks
-- `GET /tracks/{track_id}` - Track-Details
-- `POST /tracks` - Track erstellen (Stream/Manuell)
-- `POST /tracks/upload` - Audio-Datei hochladen
-- `DELETE /tracks/{track_id}` - Track löschen
+- `GET /tracks` - list all tracks
+- `GET /tracks/{track_id}` - track details
+- `POST /tracks` - create a track (stream/manual)
+- `POST /tracks/upload` - upload an audio file
+- `DELETE /tracks/{track_id}` - delete a track
 
 #### Audio Control
 
-- `POST /audio/play` - Wiedergabe starten
-- `POST /audio/pause` - Pause
-- `POST /audio/stop` - Stop
-- `POST /audio/next` - Nächster Track
-- `POST /audio/prev` - Vorheriger Track
-- `POST /audio/volume` - Lautstärke setzen
+- `POST /audio/play` - start playback
+- `POST /audio/pause` - pause
+- `POST /audio/stop` - stop
+- `POST /audio/next` - next track
+- `POST /audio/prev` - previous track
+- `POST /audio/volume` - set the volume
 
 #### System
 
-- `GET /health` - Health-Check
+- `GET /health` - health check
 
 ### WebSocket
 
@@ -276,16 +276,16 @@ MINABOX_BACKEND_AUDIO_STORAGE_PATH=/mnt/audio/tracks
 
 ---
 
-## MQTT-Topics
+## MQTT topics
 
-### Subscribe (Backend empfängt)
+### Subscribe (the backend receives)
 
 - `minabox/<device-id>/rfid/tag-scanned`
 - `minabox/<device-id>/rfid/tag-scanned-learning`
 - `minabox/<device-id>/audio/status`
-- `minabox/<device-id>/button/+` (alle Button-Actions)
+- `minabox/<device-id>/button/+` (all button actions)
 
-### Publish (Backend sendet)
+### Publish (the backend sends)
 
 - `minabox/<device-id>/audio/play`
 - `minabox/<device-id>/audio/pause`
@@ -296,117 +296,117 @@ MINABOX_BACKEND_AUDIO_STORAGE_PATH=/mnt/audio/tracks
 
 ---
 
-## Datenbank-Schema
+## Database schema
 
 ### Tags
 
 - `id` (PK)
 - `tag_id` (UNIQUE, RFID UID)
-- `name` (Optional, Human-readable)
+- `name` (optional, human-readable)
 - `content_type` ('playlist' | 'track')
-- `content_id` (FK zu Playlist oder Track)
+- `content_id` (FK to a playlist or track)
 
 ### Playlists
 
 - `id` (PK)
 - `name`
-- `description` (Optional)
+- `description` (optional)
 
 ### Tracks
 
 - `id` (PK)
 - `title`
-- `artist` (Optional)
-- `album` (Optional)
-- `duration_ms` (Optional, NULL für Streams)
+- `artist` (optional)
+- `album` (optional)
+- `duration_ms` (optional, NULL for streams)
 - `source_type` ('file' | 'stream')
-- `source_uri` (Dateipfad oder URL)
+- `source_uri` (file path or URL)
 
 ### PlaylistTracks
 
 - `id` (PK)
 - `playlist_id` (FK)
 - `track_id` (FK)
-- `position` (0-basiert, sortiert)
+- `position` (0-based, sorted)
 
 ---
 
 ## Workflows
 
-### 1. Tag-Scan → Wiedergabe
+### 1. Tag scan → playback
 
-1. Backend empfängt `rfid/tag-scanned` mit `tag_id`
-2. Lookup in DB: Tag → Content (Playlist/Track)
-3. Falls Playlist: Lade alle Tracks, erstelle Session
-4. Sende `audio/play` mit erstem Track an Audio-Service
-5. Pushe Event via WebSocket an WebUI
+1. the backend receives `rfid/tag-scanned` with `tag_id`
+2. lookup in the DB: tag → content (playlist/track)
+3. if a playlist: load all tracks, create a session
+4. send `audio/play` with the first track to the audio service
+5. push the event via WebSocket to the web UI
 
-### 2. Tag anlernen (Lern-Modus)
+### 2. Learn a tag (learn mode)
 
-1. WebUI aktiviert Lern-Modus via `POST /api/v1/rfid/learning-mode`
-2. Backend sendet `rfid/cmd/set-mode` → `learning`
-3. RFID-Service scannt Tag, sendet `rfid/tag-scanned-learning`
-4. Backend prüft, ob Tag existiert
-5. WebUI zeigt Dialog: "Welchem Content zuordnen?"
-6. WebUI sendet `POST /api/v1/tags` mit Mapping
-7. Backend speichert in DB, deaktiviert Lern-Modus
+1. the web UI enables learn mode via `POST /api/v1/rfid/learning-mode`
+2. the backend sends `rfid/cmd/set-mode` → `learning`
+3. the RFID service scans the tag, sends `rfid/tag-scanned-learning`
+4. the backend checks whether the tag exists
+5. the web UI shows a dialog: "Which content to map to?"
+6. the web UI sends `POST /api/v1/tags` with the mapping
+7. the backend saves to the DB, disables learn mode
 
-### 3. Button → Audio-Control
+### 3. Button → audio control
 
-1. Backend empfängt `button/play-pause`
-2. Prüft aktuellen Audio-Status (gecacht)
-3. Sendet entsprechenden Audio-Command (`play`/`pause`)
-4. Pushe Action via WebSocket an WebUI
+1. the backend receives `button/play-pause`
+2. checks the current audio status (cached)
+3. sends the matching audio command (`play`/`pause`)
+4. pushes the action via WebSocket to the web UI
 
 ---
 
 ## Logging
 
-### Format-Switching basierend auf LOG_LEVEL
+### Format switching based on LOG_LEVEL
 
-Der Backend-Service verwendet **dynamisches Log-Format** abhängig vom `LOG_LEVEL`:
+The backend service uses a **dynamic log format** depending on `LOG_LEVEL`:
 
 **Development (LOG_LEVEL=DEBUG):**
 - Format: Console (human-readable)
-- Beispiel:
+- example:
   ```text
   2026-02-15 19:43:19 [info     ] rfid_tag_scanned_received    tag_id=04A224BC19
   2026-02-15 19:43:19 [info     ] tag_found                     content_type=playlist content_id=1
   ```
 
-**Production (LOG_LEVEL=INFO und höher):**
+**Production (LOG_LEVEL=INFO and higher):**
 - Format: JSON (structured)
-- Beispiel:
+- example:
   ```json
   {"event": "rfid_tag_scanned_received", "tag_id": "04A224BC19", "level": "info", "timestamp": "2026-02-15T19:43:19.123456Z"}
   {"event": "tag_found", "content_type": "playlist", "content_id": 1, "level": "info", "timestamp": "2026-02-15T19:43:19.234567Z"}
   ```
 
-**Wann welches Format verwenden:**
-- **Development:** `LOG_LEVEL=DEBUG` → Bessere Lesbarkeit beim Debuggen
-- **Production:** `LOG_LEVEL=INFO` → Optimal für Log-Aggregation (ELK, Grafana Loki)
+**When to use which format:**
+- **Development:** `LOG_LEVEL=DEBUG` → better readability while debugging
+- **Production:** `LOG_LEVEL=INFO` → optimal for log aggregation (ELK, Grafana Loki)
 
-### Wichtige Events
+### Important events
 
 - `backend_service_starting` / `backend_service_started_successfully`
 - `rfid_tag_scanned_received` / `tag_found` / `tag_not_found`
 - `playlist_playback_started` / `track_playback_started`
-- `api_*` (alle API-Calls)
-- `mqtt_*` (MQTT-Events)
-- `websocket_*` (WebSocket-Events)
+- `api_*` (all API calls)
+- `mqtt_*` (MQTT events)
+- `websocket_*` (WebSocket events)
 
 ---
 
 ## Testing
 
 ```bash
-# Unit-Tests
+# unit tests
 pytest tests/unit
 
-# Integration-Tests
+# integration tests
 pytest tests/integration
 
-# Mit Coverage
+# with coverage
 pytest --cov=backend_service tests/
 ```
 
@@ -416,7 +416,7 @@ pytest --cov=backend_service tests/
 
 ### Docker Compose
 
-Siehe `docker-compose.yml` im Root-Repository.
+See `docker-compose.yml` in the repo root.
 
 ```yaml
 services:
@@ -447,14 +447,14 @@ services:
 
 ## Troubleshooting
 
-### Service startet nicht
+### Service does not start
 
 ```bash
-# Logs prüfen
+# check the logs
 docker logs backend
 
-# Für bessere Lesbarkeit: DEBUG-Modus aktivieren
-# In .env setzen: LOG_LEVEL=DEBUG
+# for better readability: enable DEBUG mode
+# set in .env: LOG_LEVEL=DEBUG
 docker compose restart backend
 docker compose logs -f backend
 
@@ -462,72 +462,72 @@ docker compose logs -f backend
 curl http://localhost:8080/api/v1/health
 ```
 
-### Fehlermeldung: "Missing required environment variables"
+### Error message: "Missing required environment variables"
 
 ```bash
-# Prüfe .env Datei
+# check the .env file
 cat .env
 
-# Stelle sicher, dass alle REQUIRED Variablen gesetzt sind:
+# make sure all REQUIRED variables are set:
 # - MQTT_BROKER=mqtt
 # - MQTT_PORT=1883
 # - MINABOX_DEVICE_ID=box1
 # - LOG_LEVEL=INFO
 
-# Container neu starten
+# restart the container
 docker compose down
 docker compose up -d backend
 ```
 
-### MQTT-Verbindung fehlgeschlagen
+### MQTT connection failed
 
 ```bash
-# Prüfe, ob MQTT-Broker läuft
+# check whether the MQTT broker is running
 docker ps | grep mqtt
 
-# Prüfe MQTT_BROKER Environment Variable
+# check the MQTT_BROKER environment variable
 docker exec backend env | grep MQTT
 
-# Network-Verbindung prüfen
+# check the network connection
 docker network inspect minabox-network
 
-# MQTT-Broker-Logs
+# MQTT broker logs
 docker compose logs mqtt
 ```
 
-### Datenbank-Fehler
+### Database errors
 
 ```bash
-# Migrations prüfen
+# check migrations
 alembic current
 alembic upgrade head
 
-# Datenbank neu erstellen (ACHTUNG: Löscht alle Daten!)
+# recreate the database (WARNING: deletes all data!)
 rm /data/minabox.db
 alembic upgrade head
 ```
 
-### Log-Format ändern (DEBUG <-> INFO)
+### Change the log format (DEBUG <-> INFO)
 
 ```bash
-# Für Development: Console-Format
+# for development: console format
 echo "LOG_LEVEL=DEBUG" >> .env
 docker compose restart backend
 
-# Für Production: JSON-Format
+# for production: JSON format
 echo "LOG_LEVEL=INFO" >> .env
 docker compose restart backend
 ```
 
 ---
 
-## Weitere Dokumentation
+## Further documentation
 
-- [Backend-Architektur](../../docs/services/backend/README.md) - Detaillierte Architektur
-- [.env.example](../../.env.example) - Template für Environment Variables
+- [Backend architecture](../../docs/services/backend/README.md) - detailed architecture
+- [.env.example](../../.env.example) - template for environment variables
 
 ---
 
 **Maintainer:** Minabox Team  
-**Lizenz:** MIT  
+**License:** MIT  
 **Version:** 0.1.0

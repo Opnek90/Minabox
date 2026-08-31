@@ -135,8 +135,22 @@
       ]
     },
     "backend": {
-      "latest": "0.2.12",
+      "latest": "0.2.13",
       "releases": [
+        {
+          "version": "0.2.13",
+          "date": "2026-08-31",
+          "notes": {
+            "improved": {
+              "de": [
+                "Weitere Markierungen in den Log-Dateien des Diagnose-Pakets auf Englisch."
+              ],
+              "en": [
+                "More markers in the diagnostics package log files are now in English."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.12",
           "date": "2026-08-31",

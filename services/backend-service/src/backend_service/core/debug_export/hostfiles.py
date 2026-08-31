@@ -88,7 +88,7 @@ def read_text(relative: str, max_bytes: int = DEFAULT_MAX_BYTES) -> str | None:
     truncated = len(raw) > max_bytes
     text = raw[:max_bytes].decode("utf-8", errors="replace")
     if truncated:
-        text += "\n[gekürzt]\n"
+        text += "\n[truncated]\n"
     return text
 
 

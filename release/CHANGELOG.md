@@ -22,6 +22,11 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.13 - 2026-08-31
+
+#### Verbessert
+- Weitere Markierungen in den Log-Dateien des Diagnose-Pakets auf Englisch.
+
 ### 0.2.12 - 2026-08-31
 
 #### Verbessert
