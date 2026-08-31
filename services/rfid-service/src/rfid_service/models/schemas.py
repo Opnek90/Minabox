@@ -144,7 +144,7 @@ class RFIDStatusEvent(BaseModel):
         default=None,
         description=(
             "Error code if state is 'error': "
-            "reader_not_found, reader_init_failed, read_timeout, protocol_error."
+            "reader_not_found, reader_init_failed, read_timeout."
         ),
     )
     timestamp: str = Field(

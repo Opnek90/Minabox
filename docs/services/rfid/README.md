@@ -127,8 +127,10 @@ shared environment configuration; `API_PORT` defaults to `8000`.
 
 The image is a two-stage `python:3.13-slim` build. Build-only compiler and I2C
 headers stay in the builder stage. The runtime image contains the application,
-its installed Python packages, `curl` for the health check, and `i2c-tools`.
-It runs as user `minabox`; Compose overrides its group with the host I2C group.
+its installed Python packages, and `curl` for the health check. Build-only
+Python packaging tools and unused console scripts are excluded from the runtime
+image. It runs as user `minabox`; Compose overrides its group with the host I2C
+group.
 
 Compose bind-mounts the configuration directory read-write, exposes the
 unauthenticated health endpoint only on loopback, uses `unless-stopped`, and

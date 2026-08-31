@@ -682,6 +682,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## rfid
 
+### 0.2.4 - 2026-08-31
+
+#### Improved
+- The runtime image is smaller: no packaging tools (pip, setuptools) and no
+  `i2c-tools`, none of which the service ever calls.
+
 ### 0.2.3 - 2026-08-28
 
 #### Improved

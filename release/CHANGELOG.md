@@ -713,6 +713,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## rfid
 
+### 0.2.4 - 2026-08-31
+
+#### Verbessert
+- Das Laufzeit-Abbild ist kleiner: keine Paket-Werkzeuge (pip, setuptools) und
+  kein `i2c-tools` mehr, das der Dienst ohnehin nie aufruft.
+
 ### 0.2.3 - 2026-08-28
 
 #### Verbessert

@@ -1156,8 +1156,22 @@
       ]
     },
     "rfid": {
-      "latest": "0.2.3",
+      "latest": "0.2.4",
       "releases": [
+        {
+          "version": "0.2.4",
+          "date": "2026-08-31",
+          "notes": {
+            "improved": {
+              "de": [
+                "Das Laufzeit-Abbild ist kleiner: keine Paket-Werkzeuge (pip, setuptools) und kein `i2c-tools` mehr, das der Dienst ohnehin nie aufruft."
+              ],
+              "en": [
+                "The runtime image is smaller: no packaging tools (pip, setuptools) and no `i2c-tools`, none of which the service ever calls."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.3",
           "date": "2026-08-28",
