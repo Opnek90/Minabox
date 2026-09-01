@@ -12,6 +12,7 @@ from backend_service.api import api_router, routes_auth, routes_config, routes_t
 from backend_service.api.websocket import websocket_endpoint
 from backend_service.core import auth as auth_module
 from backend_service.core import general_settings, system_alerts
+from backend_service.core import track_metadata as track_metadata_module
 from backend_service.core.api_errors import ApiError, api_error_handler
 from backend_service.middleware.auth import web_auth_middleware
 
@@ -21,6 +22,10 @@ def _reset_current_alert():
     """The alert store is module-level state; keep tests independent."""
     system_alerts.clear_all()
     general_settings.invalidate()
+    routes_tracks._backfill_status.update(
+        running=False, total=0, processed=0, updated=0, online_used=0,
+        finished_at=None, error=None,
+    )
     yield
     system_alerts.clear_all()
     general_settings.invalidate()
@@ -51,6 +56,8 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(routes_tracks, "STATIC_DIR", static)
     monkeypatch.setattr(routes_tracks, "COVERS_DIR", static / "covers")
     monkeypatch.setattr(routes_tracks, "AUDIO_STORAGE_PATH", audio)
+    monkeypatch.setattr(track_metadata_module, "STATIC_DIR", static)
+    monkeypatch.setattr(track_metadata_module, "COVERS_DIR", static / "covers")
     monkeypatch.setattr(routes_config, "STATIC_DIR", static)
     monkeypatch.setattr(routes_config, "GENERAL_SETTINGS_PATH", data / "general_settings.json")
     monkeypatch.setattr(auth_module, "AUTH_SETTINGS_PATH", data / "auth_settings.json")

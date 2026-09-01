@@ -61,7 +61,8 @@ services/backend-service/src/backend_service/
 │   ├── routes_debug.py         debug export: build, preview, download, options
 │   ├── routes_host.py          host-helper proxy (power, network, WiFi, USB, BT, backup)
 │   ├── routes_tags.py          RFID tag mapping CRUD
-│   ├── routes_tracks.py        track CRUD, upload, URL import, cover art
+│   ├── routes_tracks.py        track CRUD, upload, URL import, cover art,
+│   │                           metadata backfill
 │   ├── routes_playlists.py  routes_streams.py  routes_podcasts.py
 │   ├── routes_track_folders.py  routes_stream_folders.py  routes_podcast_folders.py
 │   ├── routes_rfid.py  routes_scan_history.py  routes_stats.py  routes_system.py
@@ -83,6 +84,8 @@ services/backend-service/src/backend_service/
 │   ├── playback_stats.py       listening minutes: today, total, live
 │   ├── resume_position.py      per-URI resume positions
 │   ├── rfid_settings.py  sleep_settings.py  media_settings.py
+│   ├── track_metadata.py       format-aware tag + embedded-cover reader (ID3, Vorbis, MP4)
+│   ├── online_metadata.py      optional MusicBrainz / Cover Art Archive lookup (opt-in)
 │   ├── auth.py                 auth_settings.json, bcrypt, JWT session token
 │   ├── api_errors.py           ApiError: HTTP error with a stable, translatable code
 │   ├── container_registry.py   container discovery and stats via the Docker socket
@@ -287,8 +290,27 @@ every access so a change in the WebUI takes effect without a restart:
 to `AUDIO_STORAGE_PATH/{track_id}/original<ext>` and reads its tags. Both steps
 run in a worker thread via `asyncio.to_thread`: writing a large audiobook to the
 SD card takes seconds, and on the event loop that would freeze every other
-request including the player WebSocket. Embedded cover art is extracted to
-`STATIC_DIR/covers/`.
+request including the player WebSocket. `core/track_metadata.py` reads title,
+artist, album and duration across ID3, Vorbis (FLAC/OGG/Opus) and MP4/M4A, and
+extracts the embedded front cover to `STATIC_DIR/covers/track_<id>.<ext>` —
+capped at 3 MB. Artist and album only fill in fields the upload form left blank.
+If the file carries none of that **and** `online_metadata_lookup_enabled` is on,
+a fire-and-forget background task asks the online lookup for the rest so the
+upload response stays quick.
+
+**Metadata backfill** — `POST /tracks/metadata/backfill` starts one background
+run over every stored file track whose artist, album or cover is still empty:
+it re-reads each file's own tags first, and only falls back to the online
+lookup (when enabled) for what is still missing. `GET /tracks/metadata/backfill`
+reports `{running, total, processed, updated, online_used, finished_at, error}`
+from a module-level dict; only one run at a time (409 otherwise).
+
+**Online lookup** — `core/online_metadata.py`, behind
+`online_metadata_lookup_enabled` (default off, because it sends the track title
+and artist to a third party). Queries MusicBrainz for the recording and the
+Cover Art Archive for a front cover, with a descriptive `User-Agent` and a
+≥ 1.1 s throttle between MusicBrainz calls. Strictly best effort: any failure
+yields nothing.
 
 **URL import** — `POST /tracks/from-url` returns HTTP 202 immediately:
 
@@ -453,6 +475,8 @@ Base path `/api/v1`. Every response error carries a stable `code` — see 7.2.
 | GET | `/tracks/validate-url` | read metadata for a URL without importing |
 | POST | `/tracks/from-url` | start an asynchronous import → **HTTP 202** |
 | GET | `/tracks/{id}/download-status` | progress of an import started above |
+| POST | `/tracks/metadata/backfill` | fill missing artist/album/cover for existing file tracks → **HTTP 202** |
+| GET | `/tracks/metadata/backfill` | progress of the backfill started above |
 | PUT | `/tracks/{id}` | update metadata or folder |
 | DELETE | `/tracks/{id}` | delete record, file and cover art |
 | POST / DELETE | `/tracks/{id}/cover` | upload or remove cover art |
@@ -775,6 +799,10 @@ Structured through structlog, JSON in production. Noteworthy events:
   `tag_scanned_outside_allowed_time`, `tag_scanned_daily_limit_exceeded`
 - **Import:** `api_create_track_from_url_accepted`, `download_task_completed`,
   `download_task_failed`, `media_downloader_download_5xx_retry`
+- **Metadata:** `track_metadata_read_failed`, `track_cover_saved`,
+  `track_metadata_online_enriched`, `track_metadata_backfill_started`,
+  `track_metadata_backfill_finished`, `online_metadata_lookup_hit`,
+  `online_metadata_lookup_failed`
 - **Database:** `db_schema_migrated`, `db_schema_newer_than_code`,
   `db_streams_migrated`, `startup_cleanup_closed_orphaned_events`
 - **System:** `system_alert_set`, `system_alert_cleared`,
@@ -812,6 +840,7 @@ break silently:
 | `test_button_config_validation.py`, `test_display_config_validation.py` | that a config the backend writes is one the device service can load |
 | `test_debug_export*.py` | the export contract, the endpoint, the log filter, redaction |
 | `test_media_downloader_client.py`, `test_media_settings.py`, `test_track_domain_check.py` | retries, the allow-list, the domain check |
+| `test_track_metadata.py`, `test_online_metadata.py` | tag/cover mapping per format, the cover size cap, and that the online lookup swallows every failure |
 | `test_temperature_logger.py`, `test_folder_routes.py`, `test_api_smoke.py`, `test_network_status_public.py` | the loops, folder deletion semantics, route wiring |
 
 ```bash
@@ -858,7 +887,8 @@ break silently:
 - **A 401 from the host-helper is reported as 503.** Anything else logs the user
   out over a server-side misconfiguration.
 - **Route order matters in FastAPI.** Folder routers before media routers,
-  `/tracks/{id}/download-status` before `/tracks/{track_id}`.
+  `/tracks/{id}/download-status` and `/tracks/metadata/backfill` before
+  `/tracks/{track_id}`.
 - **Auth resolves by longest matching prefix,** not by map order.
 - **Blocking work goes into a thread.** An upload written on the event loop
   freezes the player WebSocket.

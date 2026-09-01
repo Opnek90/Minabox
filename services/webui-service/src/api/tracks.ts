@@ -1,5 +1,5 @@
 import apiClient, { TIMEOUT } from './client';
-import type { Track, TrackCreate, TrackUpdate, TrackFolder, TrackFolderCreate, TrackFolderUpdate } from '@/types/api';
+import type { Track, TrackCreate, TrackUpdate, TrackFolder, TrackFolderCreate, TrackFolderUpdate, MetadataBackfillStatus } from '@/types/api';
 
 export interface MediaUrlInfo {
   valid: boolean;
@@ -138,6 +138,17 @@ export const tracksApi = {
 
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`/tracks/${id}`);
+  },
+
+  /** Start the background job that fills missing artist/album/cover for existing file tracks. */
+  backfillMetadata: async (): Promise<void> => {
+    await apiClient.post('/tracks/metadata/backfill');
+  },
+
+  /** Poll the progress of the metadata backfill started via backfillMetadata(). */
+  getBackfillStatus: async (): Promise<MetadataBackfillStatus> => {
+    const response = await apiClient.get<MetadataBackfillStatus>('/tracks/metadata/backfill');
+    return response.data;
   },
 
   uploadCover: async (trackId: number, file: File): Promise<Track> => {

@@ -250,6 +250,42 @@ def test_the_upload_limit_is_clamped(client, sent, stored):
     assert response.json()["max_upload_size_mb"] == stored
 
 
+# --- Online metadata lookup is an opt-in runtime setting -------------------
+
+
+def test_online_metadata_lookup_defaults_to_off_and_can_be_toggled(client):
+    body = client.get("/api/v1/config/general").json()
+    assert body["online_metadata_lookup_enabled"] is False
+
+    saved = client.put(
+        "/api/v1/config/general", json={"online_metadata_lookup_enabled": True}
+    )
+    assert saved.status_code == 200
+    assert saved.json()["online_metadata_lookup_enabled"] is True
+
+
+def test_metadata_backfill_reports_progress_even_with_missing_files(client):
+    """A track whose file is gone must not blow up the whole run."""
+    created = client.post(
+        "/api/v1/tracks",
+        json={
+            "title": "Orphan",
+            "source_type": "file",
+            "source_uri": "/nowhere/gone.mp3",
+        },
+    )
+    assert created.status_code == 201
+
+    started = client.post("/api/v1/tracks/metadata/backfill")
+    assert started.status_code == 202
+
+    # The task runs on the event loop the TestClient drives; by the time the
+    # status call returns it has either finished or is safely in progress.
+    status = client.get("/api/v1/tracks/metadata/backfill").json()
+    assert set(status) >= {"running", "total", "processed", "updated", "error"}
+    assert status["error"] is None
+
+
 # --- Playlist order is a setting now (C4) -----------------------------------
 
 

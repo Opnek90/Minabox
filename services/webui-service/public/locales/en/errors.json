@@ -10,6 +10,7 @@
   "audio_storage_readonly": "Audio storage location is read-only",
   "auth_required": "Please sign in",
   "auth_settings_write_failed": "Could not save login settings",
+  "backfill_already_running": "A metadata backfill is already running",
   "backup_download_failed": "Backup download failed",
   "backup_restore_failed": "Restore failed",
   "bluetooth_connect_failed": "Connection failed",

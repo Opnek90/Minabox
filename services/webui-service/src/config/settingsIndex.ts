@@ -141,6 +141,15 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         titleKey: 'system.usb',
         searchKeys: ['system.usb_devices', 'system.usb_import'],
       },
+      {
+        key: 'media_metadata',
+        titleKey: 'general.online_metadata_title',
+        searchKeys: [
+          'general.online_metadata_label',
+          'general.metadata_backfill_title',
+          'general.metadata_backfill_start',
+        ],
+      },
     ],
   },
   {

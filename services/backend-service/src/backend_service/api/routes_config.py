@@ -148,6 +148,7 @@ def _general_settings_read() -> dict:
     # the WebUI is exactly the one that will be enforced.
     upload_size_mb = max_upload_size_mb()
     media_import_allowed_domains = sorted(DEFAULT_ALLOWED_DOMAINS)
+    online_metadata_lookup_enabled = False
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -175,6 +176,9 @@ def _general_settings_read() -> dict:
                 media_import_allowed_domains = clamp_allowed_domains(
                     data["media_import_allowed_domains"]
                 )
+            online_metadata_lookup_enabled = bool(
+                data.get("online_metadata_lookup_enabled", False)
+            )
             raw_times = data.get("allowed_usage_times")
             if isinstance(raw_times, list):
                 allowed_usage_times = [
@@ -208,6 +212,7 @@ def _general_settings_read() -> dict:
         "update_channel": update_channel,
         "max_upload_size_mb": upload_size_mb,
         "media_import_allowed_domains": media_import_allowed_domains,
+        "online_metadata_lookup_enabled": online_metadata_lookup_enabled,
     }
 
 
@@ -251,6 +256,7 @@ async def update_general_config(body: dict) -> dict:
         "update_channel",
         "max_upload_size_mb",
         "media_import_allowed_domains",
+        "online_metadata_lookup_enabled",
         # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
         # keys the filter below drops them silently, and the wizard would come
         # back on every visit.
@@ -306,6 +312,10 @@ async def update_general_config(body: dict) -> dict:
     if "media_import_allowed_domains" in data:
         data["media_import_allowed_domains"] = clamp_allowed_domains(
             data["media_import_allowed_domains"]
+        )
+    if "online_metadata_lookup_enabled" in data:
+        data["online_metadata_lookup_enabled"] = bool(
+            data["online_metadata_lookup_enabled"]
         )
     try:
         GENERAL_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -13,7 +14,7 @@ import httpx
 import structlog
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import JSONResponse
-from mutagen import File as MutagenFile
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend_service.config import get_config
@@ -21,6 +22,13 @@ from backend_service.core.api_errors import ApiError
 from backend_service.core.capabilities import require_feature
 from backend_service.core.db_manager import get_db
 from backend_service.core.media_settings import is_domain_allowed, read_allowed_domains
+from backend_service.core.online_metadata import lookup as online_lookup
+from backend_service.core.online_metadata import online_lookup_enabled
+from backend_service.core.track_metadata import (
+    extract_embedded_cover,
+    read_tags,
+    save_track_cover,
+)
 from backend_service.core.uploads import (
     copy_upload_limited,
     max_audio_upload_bytes,
@@ -84,40 +92,15 @@ def _strip_playlist_params(url: str) -> str:
 
 
 def _extract_cover_art(file_path: Path, track_id: int) -> str | None:
-    """Extract embedded cover art from audio file; save to COVERS_DIR and return URL path."""
-    try:
-        audio = MutagenFile(str(file_path))
-        if not audio:
-            return None
-        data: bytes | None = None
-        ext = ".jpg"
-        if hasattr(audio, "tags") and audio.tags:
-            apics: list[Any] = getattr(audio.tags, "getall", lambda _: [])("APIC")
-            if not apics:
-                for key in getattr(audio.tags, "keys", lambda: [])():
-                    if key and str(key).startswith("APIC"):
-                        apics = [audio.tags[key]]
-                        break
-            if apics:
-                frame = apics[0]
-                data = getattr(frame, "data", None)
-                if hasattr(frame, "mime") and frame.mime and "png" in (frame.mime or "").lower():
-                    ext = ".png"
-        if data is None and hasattr(audio, "pictures") and audio.pictures:
-            pic = audio.pictures[0]
-            data = getattr(pic, "data", None)
-            if getattr(pic, "mime", "") and "png" in (pic.mime or "").lower():
-                ext = ".png"
-        if not data or len(data) == 0:
-            return None
-        COVERS_DIR.mkdir(parents=True, exist_ok=True)
-        cover_path = COVERS_DIR / f"track_{track_id}{ext}"
-        cover_path.write_bytes(data)
-        logger.info("track_cover_extracted", track_id=track_id, path=str(cover_path))
-        return f"/static/covers/track_{track_id}{ext}"
-    except Exception as e:
-        logger.warning("track_cover_extract_failed", track_id=track_id, error=str(e))
+    """Save embedded cover art for *track_id* and return its ``/static`` URL.
+
+    Thin wrapper around ``core.track_metadata`` kept for the callers that only
+    want "embedded cover, if any" (the upload path and the URL import).
+    """
+    cover = extract_embedded_cover(file_path)
+    if cover is None:
         return None
+    return save_track_cover(track_id, *cover)
 
 
 def _set_download_status(
@@ -207,27 +190,13 @@ def _store_uploaded_track(
     track_dir.mkdir(parents=True, exist_ok=True)
     copy_upload_limited(upload_stream, file_path, limit_bytes)
 
+    tags = read_tags(file_path)
     metadata: dict[str, Any] = {
-        "duration_ms": None,
-        "artist": None,
-        "album": None,
-        "cover_url": None,
+        "duration_ms": tags.duration_ms,
+        "artist": tags.artist,
+        "album": tags.album,
+        "cover_url": _extract_cover_art(file_path, track_id),
     }
-    try:
-        audio_file = MutagenFile(str(file_path))
-        if audio_file and audio_file.info:
-            metadata["duration_ms"] = int(audio_file.info.length * 1000)
-            if audio_file.tags:
-                if "TPE1" in audio_file.tags:
-                    metadata["artist"] = str(audio_file.tags["TPE1"])
-                if "TALB" in audio_file.tags:
-                    metadata["album"] = str(audio_file.tags["TALB"])
-    except Exception as e:
-        logger.warning(
-            "api_upload_track_metadata_extraction_failed", track_id=track_id, error=str(e)
-        )
-
-    metadata["cover_url"] = _extract_cover_art(file_path, track_id)
     return file_path, metadata
 
 
@@ -251,6 +220,187 @@ async def _download_thumbnail(thumbnail_url: str, track_id: int) -> str | None:
     except Exception as e:
         logger.warning("track_thumbnail_download_failed", track_id=track_id, url=thumbnail_url, error=str(e))
         return None
+
+
+# --- Metadata enrichment (embedded tags + optional online lookup) -----------
+#
+# Two entry points share the helpers below: a fire-and-forget task after an
+# upload (online part only - the embedded tags were already read while the file
+# was written), and the "backfill" maintenance action that walks every stored
+# file track whose artist/album/cover is still empty.
+
+_backfill_status: dict[str, Any] = {
+    "running": False,
+    "total": 0,
+    "processed": 0,
+    "updated": 0,
+    "online_used": 0,
+    "finished_at": None,
+    "error": None,
+}
+
+
+def _resolve_track_file(track: Track) -> Path | None:
+    """The stored audio file of a track, or None when it is not a local file.
+
+    Only a path that really sits below the configured audio storage counts -
+    ``source_uri`` is a remote URL for a not-yet-downloaded import, and reading
+    an arbitrary path off disk as an "audio file" is not something a metadata
+    backfill should ever do.
+    """
+    raw = (track.source_uri or "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    if not path.is_absolute():
+        return None
+    base = Path(get_config().audio_storage_path).resolve()
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(base)
+    except (OSError, ValueError):
+        return None
+    return resolved if resolved.is_file() else None
+
+
+def _fill_missing_from_tags(track: Track, file_path: Path) -> bool:
+    """Fill empty artist/album/duration/cover from the file's own tags.
+
+    Returns True if the track row was changed.
+    """
+    changed = False
+    tags = read_tags(file_path)
+    if not track.artist and tags.artist:
+        track.artist = tags.artist
+        changed = True
+    if not track.album and tags.album:
+        track.album = tags.album
+        changed = True
+    if track.duration_ms is None and tags.duration_ms is not None:
+        track.duration_ms = tags.duration_ms
+        changed = True
+    if not track.cover_art_url:
+        cover = extract_embedded_cover(file_path)
+        if cover is not None:
+            url = save_track_cover(track.id, *cover)
+            if url:
+                track.cover_art_url = url
+                changed = True
+    return changed
+
+
+async def _fill_missing_from_online(track: Track) -> bool:
+    """Fill still-empty artist/album/cover via the online lookup.
+
+    Caller must have checked ``online_lookup_enabled()``. Returns True if the
+    track row was changed.
+    """
+    if track.artist and track.album and track.cover_art_url:
+        return False
+    meta = await online_lookup(track.title, track.artist)
+    if meta is None:
+        return False
+    changed = False
+    if not track.artist and meta.artist:
+        track.artist = meta.artist
+        changed = True
+    if not track.album and meta.album:
+        track.album = meta.album
+        changed = True
+    if not track.cover_art_url and meta.cover is not None:
+        url = save_track_cover(track.id, *meta.cover)
+        if url:
+            track.cover_art_url = url
+            changed = True
+    return changed
+
+
+def _session_and_engine(db_url: str) -> tuple[Any, Any]:
+    """A session plus its engine, both bound to a fresh connection pool.
+
+    Background tasks outlive the request that started them, so they cannot use
+    its session and have to hand back their own pool when done - the same
+    pattern as ``_run_download_task``.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine(db_url)
+    return sessionmaker(bind=engine)(), engine
+
+
+async def _enrich_track_online(track_id: int, db_url: str) -> None:
+    """Background task: ask the online lookup for the fields an upload left empty."""
+    db, engine = _session_and_engine(db_url)
+    try:
+        track = db.query(Track).filter(Track.id == track_id).first()
+        if track is None:
+            return
+        if await _fill_missing_from_online(track):
+            db.commit()
+            logger.info("track_metadata_online_enriched", track_id=track_id)
+    except Exception as exc:  # noqa: BLE001 - best effort, must not crash the loop
+        logger.warning("track_metadata_online_enrich_failed", track_id=track_id, error=str(exc))
+    finally:
+        db.close()
+        engine.dispose()
+
+
+async def _run_backfill_task(db_url: str) -> None:
+    """Walk every stored file track with a gap and fill it from tags / online."""
+    db, engine = _session_and_engine(db_url)
+    online = online_lookup_enabled()
+    try:
+        tracks = (
+            db.query(Track)
+            .filter(Track.source_type == "file")
+            .filter(
+                or_(
+                    Track.artist.is_(None),
+                    Track.album.is_(None),
+                    Track.cover_art_url.is_(None),
+                )
+            )
+            .all()
+        )
+        _backfill_status.update(total=len(tracks), processed=0, updated=0, online_used=0)
+        logger.info("track_metadata_backfill_started", total=len(tracks), online=online)
+        for track in tracks:
+            try:
+                changed = False
+                file_path = _resolve_track_file(track)
+                if file_path is not None:
+                    changed = _fill_missing_from_tags(track, file_path)
+                if online and not (track.artist and track.album and track.cover_art_url):
+                    if await _fill_missing_from_online(track):
+                        changed = True
+                        _backfill_status["online_used"] += 1
+                if changed:
+                    db.commit()
+                    _backfill_status["updated"] += 1
+                else:
+                    db.rollback()
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                logger.warning(
+                    "track_metadata_backfill_track_failed", track_id=track.id, error=str(exc)
+                )
+            finally:
+                _backfill_status["processed"] += 1
+        _backfill_status["finished_at"] = datetime.now(UTC).isoformat()
+        logger.info(
+            "track_metadata_backfill_finished",
+            processed=_backfill_status["processed"],
+            updated=_backfill_status["updated"],
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("track_metadata_backfill_failed", error=str(exc))
+        _backfill_status["error"] = "Unexpected error during backfill"
+        _backfill_status["finished_at"] = datetime.now(UTC).isoformat()
+    finally:
+        _backfill_status["running"] = False
+        db.close()
+        engine.dispose()
 
 
 async def _run_download_task(
@@ -406,6 +556,38 @@ def get_download_status(track_id: int, db: Session = Depends(get_db)) -> dict:
             raise ApiError(status_code=404, code="track_not_found", detail=f"Track {track_id} not found")
         return {"track_id": track_id, "status": "unknown", "error": None}
     return {"track_id": track_id, **status_entry}
+
+
+@router.post("/metadata/backfill", status_code=202)
+async def start_metadata_backfill(db: Session = Depends(get_db)) -> JSONResponse:
+    """Fill missing artist/album/cover for existing file tracks in the background.
+
+    Reads each track's own tags first; only if a gap remains and the user has
+    enabled ``online_metadata_lookup_enabled`` does it ask MusicBrainz / the
+    Cover Art Archive. Poll ``GET /tracks/metadata/backfill`` for progress.
+    """
+    if _backfill_status["running"]:
+        raise ApiError(
+            status_code=409,
+            code="backfill_already_running",
+            detail="A metadata backfill is already running",
+        )
+    _backfill_status.update(
+        running=True, total=0, processed=0, updated=0, online_used=0,
+        finished_at=None, error=None,
+    )
+    db_url = str(db.bind.url)  # type: ignore[union-attr]
+    task = asyncio.create_task(_run_backfill_task(db_url))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    logger.info("api_track_metadata_backfill_accepted")
+    return JSONResponse(status_code=202, content={"status": "started"})
+
+
+@router.get("/metadata/backfill", response_model=dict)
+def get_metadata_backfill_status() -> dict:
+    """Progress of the backfill started via POST /tracks/metadata/backfill."""
+    return dict(_backfill_status)
 
 
 @router.get("/{track_id}", response_model=TrackResponse)
@@ -607,6 +789,20 @@ async def upload_track(
         db.commit()
         db.refresh(track)
         logger.info("api_upload_track_completed", track_id=track.id, title=track.title)
+
+        # The file carried no artist/album/cover and the user has opted in to
+        # third-party lookups: resolve the rest in the background so the upload
+        # response stays quick. The WebUI picks the values up on its next
+        # refresh.
+        if online_lookup_enabled() and not (
+            track.artist and track.album and track.cover_art_url
+        ):
+            enrich = asyncio.create_task(
+                _enrich_track_online(track.id, str(db.bind.url))  # type: ignore[union-attr]
+            )
+            _background_tasks.add(enrich)
+            enrich.add_done_callback(_background_tasks.discard)
+
         return TrackResponse.model_validate(track)
 
     except ApiError:

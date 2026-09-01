@@ -583,6 +583,23 @@ export interface GeneralConfig {
   max_upload_size_mb?: number;
   /** Hostnames a media URL import may come from. Applied without a restart. */
   media_import_allowed_domains?: string[];
+  /**
+   * Look up artist, album and cover art online (MusicBrainz / Cover Art Archive)
+   * for imported files that carry no tags. Off by default; sends the track
+   * title and artist to a third party. Applied without a restart.
+   */
+  online_metadata_lookup_enabled?: boolean;
+}
+
+/** Progress of POST /tracks/metadata/backfill. */
+export interface MetadataBackfillStatus {
+  running: boolean;
+  total: number;
+  processed: number;
+  updated: number;
+  online_used: number;
+  finished_at: string | null;
+  error: string | null;
 }
 
 export interface SleepTimerStatus {
