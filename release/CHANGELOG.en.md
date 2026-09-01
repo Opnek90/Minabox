@@ -21,6 +21,17 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.3.1 - 2026-09-01
+
+#### Added
+- Groundwork for the weekly review: the box condenses one week of listening
+  data into a summary - total time, the change from the previous week, the
+  spread across weekdays, the most played card and cards that have never been
+  played.
+- New "data retention" setting (52 weeks by default): playback and scan history
+  older than that is deleted automatically every day. On existing boxes the
+  first run removes everything older than a year, once.
+
 ### 0.3.0 - 2026-09-01
 
 #### Added
@@ -260,6 +271,16 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.4.1 - 2026-09-01
+
+#### Added
+- New "weekly review" card on the dashboard under Listening statistics: the
+  week's listening time against the previous week, one bar per weekday, the
+  most played card and an expandable list of cards that were never played. The
+  arrows step through the weeks.
+- New "data retention" setting under Rules: sets how many weeks of playback and
+  scan history the box keeps (0 = keep forever).
 
 ### 0.4.0 - 2026-09-01
 

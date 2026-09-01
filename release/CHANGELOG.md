@@ -22,6 +22,17 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.3.1 - 2026-09-01
+
+#### Neu
+- Grundlage fuer den Wochenrueckblick: die Box fasst eine Woche Hoerdaten zu
+  einer Uebersicht zusammen - Gesamtzeit, Vergleich zur Vorwoche, Verteilung
+  ueber die Wochentage, meistgespielte Karte und Karten, die noch nie
+  abgespielt wurden.
+- Neue Einstellung "Datenaufbewahrung" (Standard 52 Wochen): Wiedergabe- und
+  Scan-Verlauf, der aelter ist, wird taeglich automatisch geloescht. Bestehende
+  Boxen entfernen beim ersten Lauf einmalig alles, was aelter als ein Jahr ist.
+
 ### 0.3.0 - 2026-09-01
 
 #### Neu
@@ -272,6 +283,16 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.4.1 - 2026-09-01
+
+#### Neu
+- Neue Karte "Wochenrueckblick" im Dashboard unter Hoerstatistiken: Hoerzeit
+  der Woche im Vergleich zur Vorwoche, ein Balken je Wochentag, die
+  meistgespielte Karte und eine ausklappbare Liste nie gespielter Karten. Mit
+  den Pfeilen blaettert man durch die Wochen.
+- Neue Einstellung "Datenaufbewahrung" bei den Regeln: legt fest, wie viele
+  Wochen Wiedergabe- und Scan-Verlauf die Box behaelt (0 = unbegrenzt).
 
 ### 0.4.0 - 2026-09-01
 
