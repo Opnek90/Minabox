@@ -48,8 +48,12 @@ describe('HelpTip', () => {
     );
 
     await user.click(questionMark());
-    // The popper hangs around for the fade-out.
-    await waitForElementToBeRemoved(() => screen.queryByRole('tooltip'));
+    // The popper hangs around for the fade-out. Give it well over the default
+    // second: on a loaded CI runner the MUI leave transition plus the unmount
+    // routinely overruns 1000ms, which made this the suite's flakiest test.
+    await waitForElementToBeRemoved(() => screen.queryByRole('tooltip'), {
+      timeout: 5000,
+    });
   });
 
   // For a screen reader the explanation is the *description* of the question
