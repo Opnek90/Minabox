@@ -182,7 +182,10 @@ export const UpdateBlock: React.FC = () => {
             <MenuItem value="beta">{t('system.update_channel_beta')}</MenuItem>
           </Select>
         </FormControl>
-        <HelpTip title={t('system.update_channel_hint')} />
+        <HelpTip
+          title={t('system.update_channel_hint')}
+          label={t('system.update_channel')}
+        />
       </Box>
 
       <FormControlLabel

@@ -30,7 +30,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
       <Typography variant="subtitle1" fontWeight={600}>
         {title}
       </Typography>
-      {help && <HelpTip title={help} />}
+      {help && <HelpTip title={help} label={title} />}
     </Box>
     {description && (
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>

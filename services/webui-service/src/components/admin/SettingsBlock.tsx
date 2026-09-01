@@ -51,7 +51,7 @@ export const SettingsBlock: React.FC<SettingsBlockProps> = ({
       >
         {title}
       </Typography>
-      {help && <HelpTip title={help} />}
+      {help && <HelpTip title={help} label={title} />}
     </Box>
     {description && (
       <Typography

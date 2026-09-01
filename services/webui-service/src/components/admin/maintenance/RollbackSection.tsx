@@ -47,7 +47,7 @@ export const RollbackSection: React.FC<{
     <Box sx={{ mt: 2 }}>
       <Box display="flex" alignItems="center" gap={0.5} sx={{ mb: 1 }}>
         <Typography variant="subtitle2">{t('system.rollback_title')}</Typography>
-        <HelpTip title={t('system.rollback_hint')} />
+        <HelpTip title={t('system.rollback_hint')} label={t('system.rollback_title')} />
       </Box>
 
       {candidates.map((candidate) => (

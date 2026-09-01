@@ -498,7 +498,10 @@ export const LEDConfigPanel: React.FC = () => {
                           InputProps={{
                             endAdornment: (
                               <InputAdornment position="end">
-                                <HelpTip title={t('leds.bindings.repeat_hint')} />
+                                <HelpTip
+                                  title={t('leds.bindings.repeat_hint')}
+                                  label={t('leds.bindings.repeat')}
+                                />
                               </InputAdornment>
                             ),
                           }}

@@ -38,7 +38,10 @@ export const SleepTimerSettingsForm: React.FC = () => {
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
-                <HelpTip title={t('general.sleep_timer_minutes_hint')} />
+                <HelpTip
+                  title={t('general.sleep_timer_minutes_hint')}
+                  label={t('general.sleep_timer_minutes')}
+                />
               </InputAdornment>
             ),
           }}

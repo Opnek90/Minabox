@@ -64,7 +64,10 @@ export const MediaImportDomainsForm: React.FC = () => {
             endAdornment: (
               // Bei mehrzeiligem Feld sonst mittig zwischen den Zeilen.
               <InputAdornment position="end" sx={{ alignSelf: 'flex-start', mt: 1.25 }}>
-                <HelpTip title={t('general.media_import_domains_hint')} />
+                <HelpTip
+                  title={t('general.media_import_domains_hint')}
+                  label={t('general.media_import_domains_label')}
+                />
               </InputAdornment>
             ),
           }}

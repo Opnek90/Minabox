@@ -158,7 +158,10 @@ export const PlaybackSettingsForm: React.FC = () => {
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <HelpTip title={t('playback.guard_minutes_hint')} />
+                    <HelpTip
+                      title={t('playback.guard_minutes_hint')}
+                      label={t('playback.guard_minutes')}
+                    />
                   </InputAdornment>
                 ),
               }}

@@ -48,7 +48,10 @@ export const UploadLimitForm: React.FC = () => {
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
-                <HelpTip title={t('general.upload_limit_mb_hint')} />
+                <HelpTip
+                  title={t('general.upload_limit_mb_hint')}
+                  label={t('general.upload_limit_mb')}
+                />
               </InputAdornment>
             ),
           }}
