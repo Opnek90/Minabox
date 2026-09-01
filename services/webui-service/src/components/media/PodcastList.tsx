@@ -39,15 +39,19 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import SearchIcon from '@mui/icons-material/Search';
+import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
 import { LastPlayedCaption } from '@/components/media/LastPlayedCaption';
 import { PodcastEditDialog } from '@/components/media/PodcastEditDialog';
+import { DetailsTable, type DetailsColumn } from './DetailsTable';
+import { RelativeTimeCell } from './RelativeTimeCell';
 import { FolderCreateDialog } from './FolderCreateDialog';
 import { FolderTree } from './FolderTree';
 import type { Podcast, PodcastFolder } from '@/types/api';
+import type { ViewMode } from '@/contexts/UserPrefsContext';
 import { useLayout } from '@/hooks/useLayout';
 
 type SortKey = 'title' | 'last_fetched_at' | 'last_played_at';
@@ -83,8 +87,8 @@ interface PodcastListProps {
   sortKey: string;
   sortDir: 'asc' | 'desc';
   onSortChange: (key: string, dir: 'asc' | 'desc') => void;
-  viewMode: 'card' | 'list';
-  onViewModeChange: (mode: 'card' | 'list') => void;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
   treeCollapsed?: boolean;
   onTreeCollapsedChange?: (collapsed: boolean) => void;
   pageSize?: number;
@@ -117,8 +121,14 @@ export const PodcastList: React.FC<PodcastListProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
-  const hasInlineControls = useLayout().hasRoomForInlineControls;
+  const layout = useLayout();
+  const hasInlineControls = layout.hasRoomForInlineControls;
   const hasSplitView = useMediaQuery(theme.breakpoints.up('md'));
+  // The details view needs real width for its columns, so it stays desktop-only
+  // (issue #115). Below that a stored "details" preference falls back to the
+  // list view without being overwritten.
+  const effectiveViewMode: ViewMode =
+    viewMode === 'details' && !layout.isDesktop ? 'list' : viewMode;
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -279,6 +289,46 @@ export const PodcastList: React.FC<PodcastListProps> = ({
       </Tooltip>
     </Box>
   );
+
+  const podcastColumns: DetailsColumn<Podcast>[] = [
+    {
+      key: 'cover',
+      label: '',
+      width: 44,
+      render: (p) =>
+        p.cover_art_url ? (
+          <Box
+            component="img"
+            src={p.cover_art_url}
+            alt=""
+            sx={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 0.5, display: 'block' }}
+          />
+        ) : (
+          <Box color="text.secondary" sx={{ display: 'flex' }}>
+            <PodcastsIcon fontSize="small" />
+          </Box>
+        ),
+    },
+    { key: 'title', label: t('podcasts.fields.title'), sortable: true, width: '32%', render: (p) => p.title },
+    {
+      key: 'latest_episode',
+      label: t('podcasts.latest_episode'),
+      width: '32%',
+      render: (p) => p.latest_episode_title || '—',
+    },
+    {
+      key: 'last_fetched_at',
+      label: t('podcasts.fields.last_fetched'),
+      sortable: true,
+      render: (p) => <RelativeTimeCell value={p.last_fetched_at} />,
+    },
+    {
+      key: 'last_played_at',
+      label: t('podcasts.fields.last_played'),
+      sortable: true,
+      render: (p) => <RelativeTimeCell value={p.last_played_at} />,
+    },
+  ];
 
   const desktopActions = (podcast: Podcast) => (
     <>
@@ -454,9 +504,12 @@ export const PodcastList: React.FC<PodcastListProps> = ({
       )}
 
       <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap">
-        <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
+        <ToggleButtonGroup value={effectiveViewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
           <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon fontSize="small" /></ToggleButton>
+          {layout.isDesktop && (
+            <ToggleButton value="details" aria-label={t('view_mode_details')}><ViewColumnIcon fontSize="small" /></ToggleButton>
+          )}
         </ToggleButtonGroup>
 
         <TextField
@@ -468,7 +521,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        {hasInlineControls && sortControls}
+        {hasInlineControls && effectiveViewMode !== 'details' && sortControls}
 
         {!hasInlineControls && (
           <Tooltip title={t('podcasts.sort.open')}>
@@ -556,7 +609,7 @@ export const PodcastList: React.FC<PodcastListProps> = ({
             <Box display="flex" justifyContent="center" py={6}>
               <Typography color="text.secondary">{t('podcasts.no_podcasts')}</Typography>
             </Box>
-          ) : viewMode === 'card' ? (
+          ) : effectiveViewMode === 'card' ? (
             <Grid container spacing={2}>
               {paginated.map((podcast) => (
                 <Grid item xs={12} sm={6} lg={4} key={podcast.id}>
@@ -564,6 +617,20 @@ export const PodcastList: React.FC<PodcastListProps> = ({
                 </Grid>
               ))}
             </Grid>
+          ) : effectiveViewMode === 'details' ? (
+            <DetailsTable<Podcast>
+              items={paginated}
+              columns={podcastColumns}
+              sortKey={typedSortKey}
+              sortDir={sortDir}
+              onSortChange={onSortChange}
+              rowKey={(p) => p.id}
+              emptyText={t('podcasts.no_podcasts')}
+              renderActions={desktopActions}
+              onRowDragStart={handleDragStart}
+              onRowDragEnd={handleDragEnd}
+              draggingKey={draggingPodcastId}
+            />
           ) : (
             <List dense>
               {paginated.map((podcast, index) => renderListItem(podcast, index))}

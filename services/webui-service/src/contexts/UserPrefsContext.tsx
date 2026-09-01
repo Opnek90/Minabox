@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 
-export type ViewMode = 'card' | 'list';
+export type ViewMode = 'card' | 'list' | 'details';
 export type SortDir = 'asc' | 'desc';
 
 export interface SortState {

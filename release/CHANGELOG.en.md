@@ -239,6 +239,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.2.2 - 2026-09-01
+
+#### Added
+- New details view for tracks, streams and podcasts: a table with sortable
+  columns (title, artist, duration, last played and more). Available on desktop
+  via the third view button; narrow screens keep the list or card view.
+
 ### 0.2.1 - 2026-08-31
 
 #### Fixed

@@ -2,6 +2,7 @@
   "title": "Media Library",
   "view_mode_card": "Card view",
   "view_mode_list": "List view",
+  "view_mode_details": "Details view",
   "never_played": "Not played yet",
   "tabs": {
     "recent": "Recent",

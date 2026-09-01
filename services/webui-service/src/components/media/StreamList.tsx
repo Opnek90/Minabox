@@ -39,15 +39,19 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SearchIcon from '@mui/icons-material/Search';
 import StreamIcon from '@mui/icons-material/Stream';
+import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
 import { LastPlayedCaption } from '@/components/media/LastPlayedCaption';
 import { StreamEditDialog } from '@/components/media/StreamEditDialog';
+import { DetailsTable, type DetailsColumn } from './DetailsTable';
+import { RelativeTimeCell } from './RelativeTimeCell';
 import { FolderCreateDialog } from './FolderCreateDialog';
 import { FolderTree } from './FolderTree';
 import type { Stream, StreamFolder } from '@/types/api';
+import type { ViewMode } from '@/contexts/UserPrefsContext';
 import { useLayout } from '@/hooks/useLayout';
 
 type SortKey = 'title' | 'artist' | 'last_played_at';
@@ -83,8 +87,8 @@ interface StreamListProps {
   sortKey: string;
   sortDir: 'asc' | 'desc';
   onSortChange: (key: string, dir: 'asc' | 'desc') => void;
-  viewMode: 'card' | 'list';
-  onViewModeChange: (mode: 'card' | 'list') => void;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
   treeCollapsed?: boolean;
   onTreeCollapsedChange?: (collapsed: boolean) => void;
   pageSize?: number;
@@ -117,8 +121,14 @@ export const StreamList: React.FC<StreamListProps> = ({
 }) => {
   const { t } = useTranslation('media');
   const theme = useTheme();
-  const hasInlineControls = useLayout().hasRoomForInlineControls;
+  const layout = useLayout();
+  const hasInlineControls = layout.hasRoomForInlineControls;
   const hasSplitView = useMediaQuery(theme.breakpoints.up('md'));
+  // The details view needs real width for its columns, so it stays desktop-only
+  // (issue #115). Below that a stored "details" preference falls back to the
+  // list view without being overwritten.
+  const effectiveViewMode: ViewMode =
+    viewMode === 'details' && !layout.isDesktop ? 'list' : viewMode;
   const filterBtnRef = useRef<HTMLButtonElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -278,6 +288,41 @@ export const StreamList: React.FC<StreamListProps> = ({
       </Tooltip>
     </Box>
   );
+
+  const streamColumns: DetailsColumn<Stream>[] = [
+    {
+      key: 'cover',
+      label: '',
+      width: 44,
+      render: (s) =>
+        s.cover_art_url ? (
+          <Box
+            component="img"
+            src={s.cover_art_url}
+            alt=""
+            sx={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 0.5, display: 'block' }}
+          />
+        ) : (
+          <Box color="text.secondary" sx={{ display: 'flex' }}>
+            <StreamIcon fontSize="small" />
+          </Box>
+        ),
+    },
+    { key: 'title', label: t('streams.fields.title'), sortable: true, width: '38%', render: (s) => s.title },
+    {
+      key: 'artist',
+      label: t('streams.fields.artist'),
+      sortable: true,
+      width: '32%',
+      render: (s) => s.artist || '—',
+    },
+    {
+      key: 'last_played_at',
+      label: t('streams.fields.last_played'),
+      sortable: true,
+      render: (s) => <RelativeTimeCell value={s.last_played_at} />,
+    },
+  ];
 
   const desktopActions = (stream: Stream) => (
     <>
@@ -446,9 +491,12 @@ export const StreamList: React.FC<StreamListProps> = ({
       )}
 
       <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap">
-        <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
+        <ToggleButtonGroup value={effectiveViewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
           <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
           <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon fontSize="small" /></ToggleButton>
+          {layout.isDesktop && (
+            <ToggleButton value="details" aria-label={t('view_mode_details')}><ViewColumnIcon fontSize="small" /></ToggleButton>
+          )}
         </ToggleButtonGroup>
 
         <TextField
@@ -460,7 +508,7 @@ export const StreamList: React.FC<StreamListProps> = ({
           sx={{ flex: 1, minWidth: 0 }}
         />
 
-        {hasInlineControls && sortControls}
+        {hasInlineControls && effectiveViewMode !== 'details' && sortControls}
 
         {!hasInlineControls && (
           <Tooltip title={t('streams.sort.open')}>
@@ -548,7 +596,7 @@ export const StreamList: React.FC<StreamListProps> = ({
             <Box display="flex" justifyContent="center" py={6}>
               <Typography color="text.secondary">{t('streams.no_streams')}</Typography>
             </Box>
-          ) : viewMode === 'card' ? (
+          ) : effectiveViewMode === 'card' ? (
             <Grid container spacing={2}>
               {paginated.map((stream) => (
                 <Grid item xs={12} sm={6} lg={4} key={stream.id}>
@@ -556,6 +604,20 @@ export const StreamList: React.FC<StreamListProps> = ({
                 </Grid>
               ))}
             </Grid>
+          ) : effectiveViewMode === 'details' ? (
+            <DetailsTable<Stream>
+              items={paginated}
+              columns={streamColumns}
+              sortKey={typedSortKey}
+              sortDir={sortDir}
+              onSortChange={onSortChange}
+              rowKey={(s) => s.id}
+              emptyText={t('streams.no_streams')}
+              renderActions={desktopActions}
+              onRowDragStart={handleDragStart}
+              onRowDragEnd={handleDragEnd}
+              draggingKey={draggingStreamId}
+            />
           ) : (
             <List dense>
               {paginated.map((stream, index) => renderListItem(stream, index))}

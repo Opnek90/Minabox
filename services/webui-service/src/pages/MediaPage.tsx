@@ -445,7 +445,7 @@ export const MediaPage: React.FC = () => {
           sortKey={getSort('tracks').key}
           sortDir={getSort('tracks').dir}
           onSortChange={(key, dir) => setSort('tracks', key, dir)}
-          viewMode={getViewMode('tracks') as 'card' | 'list'}
+          viewMode={getViewMode('tracks')}
           onViewModeChange={(mode) => setViewMode('tracks', mode)}
           filter={getFilter('tracks')}
           onFilterChange={(val) => setFilter('tracks', val)}
@@ -474,7 +474,7 @@ export const MediaPage: React.FC = () => {
           sortKey={getSort('streams').key}
           sortDir={getSort('streams').dir}
           onSortChange={(key, dir) => setSort('streams', key, dir)}
-          viewMode={getViewMode('streams') as 'card' | 'list'}
+          viewMode={getViewMode('streams')}
           onViewModeChange={(mode) => setViewMode('streams', mode)}
           treeCollapsed={prefs.treeCollapsed.streams ?? false}
           onTreeCollapsedChange={(collapsed) => setTreeCollapsed('streams', collapsed)}
@@ -500,7 +500,7 @@ export const MediaPage: React.FC = () => {
           sortKey={getSort('podcasts').key}
           sortDir={getSort('podcasts').dir}
           onSortChange={(key, dir) => setSort('podcasts', key, dir)}
-          viewMode={getViewMode('podcasts') as 'card' | 'list'}
+          viewMode={getViewMode('podcasts')}
           onViewModeChange={(mode) => setViewMode('podcasts', mode)}
           treeCollapsed={prefs.treeCollapsed.podcasts ?? false}
           onTreeCollapsedChange={(collapsed) => setTreeCollapsed('podcasts', collapsed)}
