@@ -1285,8 +1285,22 @@
       ]
     },
     "webui": {
-      "latest": "0.2.1",
+      "latest": "0.2.2",
       "releases": [
+        {
+          "version": "0.2.2",
+          "date": "2026-09-01",
+          "notes": {
+            "added": {
+              "de": [
+                "Neue Detailansicht fuer Tracks, Streams und Podcasts: eine Tabelle mit sortierbaren Spalten (Titel, Kuenstler, Dauer, zuletzt gespielt und mehr). Am Desktop ueber den dritten Ansichts-Knopf erreichbar, auf schmalen Bildschirmen bleibt es bei Listen- oder Kartenansicht."
+              ],
+              "en": [
+                "New details view for tracks, streams and podcasts: a table with sortable columns (title, artist, duration, last played and more). Available on desktop via the third view button; narrow screens keep the list or card view."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.1",
           "date": "2026-08-31",

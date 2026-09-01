@@ -250,6 +250,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.2.2 - 2026-09-01
+
+#### Neu
+- Neue Detailansicht fuer Tracks, Streams und Podcasts: eine Tabelle mit
+  sortierbaren Spalten (Titel, Kuenstler, Dauer, zuletzt gespielt und mehr).
+  Am Desktop ueber den dritten Ansichts-Knopf erreichbar, auf schmalen
+  Bildschirmen bleibt es bei Listen- oder Kartenansicht.
+
 ### 0.2.1 - 2026-08-31
 
 #### Behoben
