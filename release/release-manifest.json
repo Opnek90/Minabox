@@ -1414,8 +1414,23 @@
       ]
     },
     "webui": {
-      "latest": "0.3.0",
+      "latest": "0.4.0",
       "releases": [
+        {
+          "version": "0.4.0",
+          "date": "2026-09-01",
+          "channel": "stable",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die langen Erklaertexte in den Einstellungen stehen nicht mehr dauerhaft unter jedem Feld, sondern hinter einem Fragezeichen daneben: Mauszeiger drueber oder antippen zeigt sie. Auf dem Handy erscheinen sie als Blatt vom unteren Rand. Warnungen, Eingaberegeln und Beschreibungen zur Auswahl bleiben sichtbar."
+              ],
+              "en": [
+                "The long explanations in the settings no longer sit permanently under every field. A question mark next to it shows them on hover or on tap; on a phone they arrive as a sheet from the bottom edge. Warnings, input rules and descriptions of the options you are choosing between stay visible."
+              ]
+            }
+          }
+        },
         {
           "version": "0.3.0",
           "date": "2026-09-01",

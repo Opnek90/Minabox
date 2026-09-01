@@ -73,7 +73,7 @@ export const DisplayConfigPanel: React.FC = () => {
 
   return (
     <Box>
-      <SettingsBlock title={t('display.hardware')} description={t('display.hardware_hint')}>
+      <SettingsBlock title={t('display.hardware')} help={t('display.hardware_hint')}>
         <Paper sx={{ p: 2, mb: 2 }}>
           <Box
             display="flex"
@@ -132,7 +132,7 @@ export const DisplayConfigPanel: React.FC = () => {
 
       <SettingsBlock
         title={t('display.brightness')}
-        description={t('display.brightness_hint')}
+        help={t('display.brightness_hint')}
       >
         <Paper sx={{ p: 2, mb: 2 }}>
           <Box display="flex" flexDirection="column" gap={2}>

@@ -139,7 +139,7 @@ export const BluetoothSection: React.FC = () => {
     pairing === addr || connecting === addr || disconnecting === addr || removing === addr;
 
   return (
-    <SettingsBlock title={t('system.bluetooth')}>
+    <SettingsBlock title={t('system.bluetooth')} help={t('system.bluetooth_hint')}>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
         {t('system.bluetooth_paired')}
       </Typography>
@@ -235,9 +235,6 @@ export const BluetoothSection: React.FC = () => {
         >
           {scanning ? '…' : t('system.bluetooth_scan')}
         </ActionButton>
-        <Typography variant="caption" color="text.secondary">
-          {t('system.bluetooth_hint')}
-        </Typography>
         {scanDevices.length > 0 && (
           <Card variant="outlined">
             <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>

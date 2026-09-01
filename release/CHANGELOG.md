@@ -273,6 +273,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.4.0 - 2026-09-01
+
+#### Verbessert
+- Die langen Erklaertexte in den Einstellungen stehen nicht mehr dauerhaft
+  unter jedem Feld, sondern hinter einem Fragezeichen daneben: Mauszeiger
+  drueber oder antippen zeigt sie. Auf dem Handy erscheinen sie als Blatt vom
+  unteren Rand. Warnungen, Eingaberegeln und Beschreibungen zur Auswahl
+  bleiben sichtbar.
+
 ### 0.3.0 - 2026-09-01
 
 #### Neu

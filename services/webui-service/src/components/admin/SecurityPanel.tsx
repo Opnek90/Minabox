@@ -9,7 +9,6 @@ import {
   FormControlLabel,
   Switch,
   TextField,
-  Typography,
 } from '@mui/material';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +19,7 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { translateApiError } from '@/utils/apiError';
+import { HelpLabel } from '@/components/ui/HelpTip';
 
 export const SecurityPanel: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
@@ -90,12 +90,11 @@ export const SecurityPanel: React.FC = () => {
                   color="primary"
                 />
               }
-              label={t('system.ssh_toggle')}
+              label={
+                <HelpLabel text={t('system.ssh_toggle')} help={t('system.ssh_toggle_hint')} />
+              }
               sx={{ mt: 1 }}
             />
-            <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
-              {t('system.ssh_toggle_hint')}
-            </Typography>
           </>
         )}
         <Box display="flex" flexWrap="wrap" gap={1}>

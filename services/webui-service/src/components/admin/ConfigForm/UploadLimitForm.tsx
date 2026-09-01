@@ -1,9 +1,10 @@
 import React from 'react';
-import { Alert, Box, TextField } from '@mui/material';
+import { Alert, Box, InputAdornment, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useGeneralConfigField } from '@/hooks/useGeneralConfig';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { HelpTip } from '@/components/ui/HelpTip';
 
 const MIN_UPLOAD_MB = 1;
 const MAX_UPLOAD_MB = 2048;
@@ -44,7 +45,16 @@ export const UploadLimitForm: React.FC = () => {
           size="small"
           fullWidth
           inputProps={{ min: MIN_UPLOAD_MB, max: MAX_UPLOAD_MB }}
-          helperText={t('general.upload_limit_mb_hint')}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <HelpTip
+                  title={t('general.upload_limit_mb_hint')}
+                  label={t('general.upload_limit_mb')}
+                />
+              </InputAdornment>
+            ),
+          }}
         />
       </SettingsBlock>
 

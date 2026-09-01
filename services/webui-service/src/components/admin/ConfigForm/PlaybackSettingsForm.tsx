@@ -4,7 +4,7 @@ import {
   Box,
   Collapse,
   FormControlLabel,
-  FormHelperText,
+  InputAdornment,
   Switch,
   TextField,
   ToggleButton,
@@ -16,6 +16,7 @@ import { useGeneralConfigFields } from '@/hooks/useGeneralConfig';
 import type { PlaybackEndBehavior } from '@/types/api';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { HelpLabel, HelpTip } from '@/components/ui/HelpTip';
 
 /**
  * Playback behaviour: what happens when a tag is placed/removed and what
@@ -68,7 +69,7 @@ export const PlaybackSettingsForm: React.FC = () => {
     <Box>
       <SettingsBlock
         title={t('control.section_rfid')}
-        description={t('control.section_rfid_hint')}
+        help={t('control.section_rfid_hint')}
       >
       <FormControlLabel
         control={
@@ -94,7 +95,7 @@ export const PlaybackSettingsForm: React.FC = () => {
 
       <SettingsBlock
         title={t('playback.end_title')}
-        description={t('playback.end_hint')}
+        help={t('playback.end_hint')}
       >
       {/* Stacked instead of side by side: the labels are whole half-sentences
           and would otherwise overflow horizontally on the phone. */}
@@ -154,7 +155,16 @@ export const PlaybackSettingsForm: React.FC = () => {
               size="small"
               fullWidth
               inputProps={{ min: 5, max: 1440 }}
-              helperText={t('playback.guard_minutes_hint')}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <HelpTip
+                      title={t('playback.guard_minutes_hint')}
+                      label={t('playback.guard_minutes')}
+                    />
+                  </InputAdornment>
+                ),
+              }}
             />
           )}
         </Box>
@@ -167,9 +177,13 @@ export const PlaybackSettingsForm: React.FC = () => {
             onChange={(e) => setValue('playlist_shuffle', e.target.checked)}
           />
         }
-        label={t('playback.playlist_shuffle')}
+        label={
+          <HelpLabel
+            text={t('playback.playlist_shuffle')}
+            help={t('playback.playlist_shuffle_hint')}
+          />
+        }
       />
-      <FormHelperText>{t('playback.playlist_shuffle_hint')}</FormHelperText>
       </SettingsBlock>
 
       {error && <Alert severity="error">{error}</Alert>}

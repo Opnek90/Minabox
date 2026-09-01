@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FormControlLabel, Switch, Typography } from '@mui/material';
+import { FormControlLabel, Switch } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { systemApi, type BoardLedsResponse } from '@/api/system';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { HelpLabel } from '@/components/ui/HelpTip';
 
 /**
  * Turn off the Raspberry Pi's own green/red status LED - it belongs with the
@@ -45,12 +46,9 @@ export const BoardLedsToggle: React.FC = () => {
             color="primary"
           />
         }
-        label={t('system.stealth_mode')}
+        label={<HelpLabel text={t('system.stealth_mode')} help={t('system.stealth_hint')} />}
         sx={{ display: 'block' }}
       />
-      <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-        {t('system.stealth_hint')}
-      </Typography>
     </SettingsBlock>
   );
 };

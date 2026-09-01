@@ -1,9 +1,10 @@
 import React from 'react';
-import { Alert, Box, TextField } from '@mui/material';
+import { Alert, Box, InputAdornment, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useGeneralConfigField } from '@/hooks/useGeneralConfig';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { HelpTip } from '@/components/ui/HelpTip';
 
 const DEFAULT_MINUTES = 30;
 
@@ -34,7 +35,16 @@ export const SleepTimerSettingsForm: React.FC = () => {
           size="small"
           fullWidth
           inputProps={{ min: 1, max: 480 }}
-          helperText={t('general.sleep_timer_minutes_hint')}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <HelpTip
+                  title={t('general.sleep_timer_minutes_hint')}
+                  label={t('general.sleep_timer_minutes')}
+                />
+              </InputAdornment>
+            ),
+          }}
         />
       </SettingsBlock>
 

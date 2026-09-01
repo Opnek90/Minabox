@@ -1,10 +1,13 @@
 import React from 'react';
 import { Box, Divider, Typography } from '@mui/material';
+import { HelpTip } from '@/components/ui/HelpTip';
 
 interface SettingsSectionProps {
   title: string;
   /** Short explanation under the title - as in `SettingsBlock`, one level up. */
   description?: string;
+  /** Background knowledge behind a question mark - as in `SettingsBlock`. */
+  help?: string;
   children: React.ReactNode;
 }
 
@@ -19,12 +22,16 @@ interface SettingsSectionProps {
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
   title,
   description,
+  help,
   children,
 }) => (
   <Box sx={{ mb: 4, maxWidth: 720 }}>
-    <Typography variant="subtitle1" fontWeight={600} gutterBottom={!description}>
-      {title}
-    </Typography>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: description ? 0 : 0.5 }}>
+      <Typography variant="subtitle1" fontWeight={600}>
+        {title}
+      </Typography>
+      {help && <HelpTip title={help} label={title} />}
+    </Box>
     {description && (
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
         {description}

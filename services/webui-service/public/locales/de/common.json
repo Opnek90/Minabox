@@ -142,5 +142,8 @@
   "unsaved": {
     "title": "Nicht gespeicherte Änderungen",
     "hint": "Die Änderungen stehen nur in dieser Ansicht. Erst „Speichern\" schickt sie an die Box."
+  },
+  "help": {
+    "explain": "Erklärung anzeigen"
   }
 }

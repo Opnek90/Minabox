@@ -89,7 +89,7 @@ export const ChildSettingsForm: React.FC = () => {
     // *zwischen* den Themen - dasselbe Formular sah je nach Einstiegspunkt
     // anders aus.
     <Box display="flex" flexDirection="column">
-      <SettingsSection title={t('general.usage_times')} description={t('general.usage_times_hint')}>
+      <SettingsSection title={t('general.usage_times')} help={t('general.usage_times_hint')}>
         <Box display="flex" flexDirection="column" gap={2}>
           <FormControlLabel
             control={
@@ -150,7 +150,7 @@ export const ChildSettingsForm: React.FC = () => {
 
       <SettingsSection
         title={tCommon('dashboard.daily_limit')}
-        description={tCommon('dashboard.daily_limit_hint')}
+        help={tCommon('dashboard.daily_limit_hint')}
       >
         <Box display="flex" flexDirection="column" gap={2}>
           <FormControlLabel

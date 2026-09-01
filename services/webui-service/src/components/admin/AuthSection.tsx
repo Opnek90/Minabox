@@ -7,7 +7,6 @@ import {
   DialogContentText,
   DialogTitle,
   FormControlLabel,
-  FormHelperText,
   Switch,
   TextField,
 } from '@mui/material';
@@ -20,6 +19,7 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { apiErrorCode, translateApiError } from '@/utils/apiError';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { MIN_PASSWORD_LENGTH } from '@/utils/validators';
+import { HelpLabel } from '@/components/ui/HelpTip';
 
 // One area can cover several pages: "Player" also protects the cards page,
 // because both sit on the same backend routes.
@@ -152,9 +152,13 @@ export const AuthSection: React.FC = () => {
         />
         <FormControlLabel
           control={<Switch checked={playerProtected} onChange={(_, v) => setPlayerProtected(v)} />}
-          label={t('auth.protected_player')}
+          label={
+            <HelpLabel
+              text={t('auth.protected_player')}
+              help={t('auth.protected_player_hint')}
+            />
+          }
         />
-        <FormHelperText>{t('auth.protected_player_hint')}</FormHelperText>
         <Box sx={{ mt: 1 }}>
           <ActionButton
             actionType="primary"
