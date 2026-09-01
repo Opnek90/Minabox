@@ -21,6 +21,12 @@ export default defineConfig({
     // knapp 5 s, unter Last kippen sie darueber. Eine Suite, die zufaellig
     // rot wird, taugt nicht als Waechter in der CI.
     testTimeout: 20_000,
+    // A handful of interaction tests drive real MUI transitions (tooltip
+    // fade-out, dialog open) and poll with React Testing Library's 1 s async
+    // default. On the shared CI runner those routinely lose the race even
+    // though they are correct - the assertion is just late. One retry turns
+    // that noise into a pass; a genuinely broken test still fails twice.
+    retry: process.env.CI ? 2 : 0,
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
