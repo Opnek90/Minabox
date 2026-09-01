@@ -379,6 +379,28 @@ export const systemApi = {
     return response.data;
   },
 
+  /** What ran before, and which services can be put back on it. */
+  getUpdateHistory: async (): Promise<UpdateHistoryResponse> => {
+    const response = await apiClient.get<UpdateHistoryResponse>('/system/update-history', {
+      timeout: TIMEOUT.HOST_ACTION,
+    });
+    return response.data;
+  },
+
+  /**
+   * Put the named services back on the version they ran before. Goes through
+   * the same run as an update, so poll getUpdateStatus() afterwards.
+   */
+  rollback: async (
+    services: string[],
+  ): Promise<{ ok: boolean; message?: string; steps?: string[] }> => {
+    const response = await apiClient.post<{ ok: boolean; message?: string; steps?: string[] }>(
+      '/system/rollback',
+      { services },
+    );
+    return response.data;
+  },
+
   /** Run OS update (apt upgrade) on host. Requires Host-Helper. Starts in background. */
   updateOs: async (): Promise<{ ok: boolean; message?: string }> => {
     const response = await apiClient.post<{ ok: boolean; message?: string }>('/system/update-os');
@@ -578,9 +600,14 @@ export interface ReleaseNotes {
   fixed?: { de: string[]; en: string[] };
 }
 
+/** Which releases a box is offered. Beta additionally sees the candidates. */
+export type UpdateChannel = 'stable' | 'beta';
+
 export interface ServiceRelease {
   version: string;
   date: string | null;
+  /** Derived from the version string: a pre-release marker means beta. */
+  channel?: UpdateChannel;
   notes: ReleaseNotes;
 }
 
@@ -597,15 +624,47 @@ export interface ServiceUpdateInfo {
   releases: ServiceRelease[];
   /** The manifest knows this version but the registry does not have it yet. */
   pending_publish?: boolean;
+  /** The channel the *running* build came from, not the one the box follows. */
+  channel?: UpdateChannel;
 }
 
 export interface UpdateCheckResponse {
   checked_at: string;
   from_cache: boolean;
   update_available: boolean;
+  /** The channel this answer was computed for. */
+  channel?: UpdateChannel;
   /** Set when the check could not reach the manifest; never implies an update. */
   error: string | null;
   services: ServiceUpdateInfo[];
+}
+
+/** One service that can be put back on the version it ran before. */
+export interface RollbackCandidate {
+  service: string;
+  /** What runs now. */
+  installed: string;
+  /** What ran before the most recent change of this service. */
+  target: string;
+  /** When the update that replaced it was started. */
+  recorded_at: string | null;
+  allowed: boolean;
+  /** Why not, when `allowed` is false. Translated as system.rollback_reason_<code>. */
+  reason: string | null;
+}
+
+export interface UpdateHistoryResponse {
+  entries: Array<{
+    id?: string;
+    started_at?: string;
+    kind?: string;
+    previous?: Record<string, string>;
+    targets?: Record<string, string>;
+    schema_version?: number | null;
+  }>;
+  /** The database schema this build expects. */
+  schema_version: number;
+  candidates: RollbackCandidate[];
 }
 
 export interface UpdateStatusResponse {

@@ -20,6 +20,7 @@ const getUpdateCheck = vi.fn();
 const updateMinabox = vi.fn();
 const getUpdateStatus = vi.fn();
 const getUpdateOsLog = vi.fn();
+const getUpdateHistory = vi.fn();
 const getGeneral = vi.fn();
 
 vi.mock('@/api/system', () => ({
@@ -28,6 +29,7 @@ vi.mock('@/api/system', () => ({
     updateMinabox: (...a: unknown[]) => updateMinabox(...a),
     getUpdateStatus: (...a: unknown[]) => getUpdateStatus(...a),
     getUpdateOsLog: (...a: unknown[]) => getUpdateOsLog(...a),
+    getUpdateHistory: (...a: unknown[]) => getUpdateHistory(...a),
   },
 }));
 
@@ -94,6 +96,8 @@ describe('SystemMaintenanceSection - update completion (#137)', () => {
     vi.clearAllMocks();
     getGeneral.mockResolvedValue({ auto_update_check_enabled: false });
     getUpdateOsLog.mockResolvedValue({ running: false, log: '' });
+    // No update ran on this box yet, so there is nothing to step back to.
+    getUpdateHistory.mockResolvedValue({ entries: [], schema_version: 1, candidates: [] });
     getUpdateCheck.mockResolvedValue({
       checked_at: '2026-08-27T00:00:00Z',
       from_cache: false,

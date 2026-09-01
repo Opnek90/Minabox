@@ -27,7 +27,7 @@ from starlette.background import BackgroundTask
 
 from backend_service.config import get_config
 from backend_service.core.api_errors import ApiError
-from backend_service.core.db_manager import get_db
+from backend_service.core.db_manager import SCHEMA_VERSION, get_db
 from backend_service.core.system_alerts import get_all_alerts
 from backend_service.models.database import TemperatureReading
 
@@ -699,6 +699,12 @@ class UpdateTargetsBody(BaseModel):
     backup: bool = True
 
 
+class RollbackBody(BaseModel):
+    """The services to step back, by name. Empty is rejected, never read as "all"."""
+
+    services: list[str] = []
+
+
 @router.post("/update-minabox")
 async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
     """Start the update in the background. Proxied to the Host-Helper.
@@ -711,6 +717,11 @@ async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
     versions.
     """
     payload = body.model_dump() if body else {"targets": None, "backup": True}
+    # The schema version travels with every run and is filed in the history.
+    # It is the only thing that later says whether the way back crosses a
+    # migration - see /update-history.
+    payload["schema_version"] = SCHEMA_VERSION
+    payload["kind"] = "update"
     return await _proxy(
         "POST",
         "/system/update-minabox",
@@ -719,6 +730,126 @@ async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
         error_message="Update failed",
         error_code="update_failed",
         log_event="host_helper_update_minabox_failed",
+    )
+
+
+def _rollback_candidates(entries: list[dict], running: dict[str, str]) -> list[dict]:
+    """Per service the version it ran before the most recent change of it.
+
+    Walks the history from newest to oldest and stops at the first entry that
+    names a *different* version than the one running now. Anything older is
+    not "the way back" but a second step, and offering it as one would be a
+    promise about data that was written since.
+
+    A step back over a schema change is refused here, not attempted. Once the
+    database has been migrated, the older code looks for its data where the
+    newer version no longer puts it - and reports it as gone. That is not a
+    failure the box could recover from on its own, so it never starts.
+    """
+    candidates: list[dict] = []
+    for service, current in sorted(running.items()):
+        for entry in entries:
+            previous = (entry.get("previous") or {}).get(service)
+            if not previous or previous == current:
+                continue
+            recorded = entry.get("schema_version")
+            # Only the backend reads the database; the other services are free
+            # to move on their own, which is the whole point of a version per
+            # service.
+            blocked = (
+                service == "backend"
+                and isinstance(recorded, int)
+                and recorded != SCHEMA_VERSION
+            )
+            candidates.append(
+                {
+                    "service": service,
+                    "installed": current,
+                    "target": previous,
+                    "recorded_at": entry.get("started_at"),
+                    "allowed": not blocked,
+                    "reason": "schema_changed" if blocked else None,
+                }
+            )
+            break
+    return candidates
+
+
+@router.get("/update-history")
+async def update_history() -> dict:
+    """What ran before, and what may be gone back to.
+
+    Soft-fails like the other status reads: without the Host-Helper there is
+    simply nothing to offer, and the maintenance page should still open.
+    """
+    payload = await _proxy_optional(
+        "/system/update-history",
+        fallback={"entries": [], "running": {}},
+        log_event="host_helper_update_history_failed",
+    )
+    entries = [e for e in (payload.get("entries") or []) if isinstance(e, dict)]
+    running = {
+        k: v for k, v in (payload.get("running") or {}).items() if isinstance(v, str)
+    }
+    return {
+        "entries": entries,
+        "schema_version": SCHEMA_VERSION,
+        "candidates": _rollback_candidates(entries, running),
+    }
+
+
+@router.post("/rollback")
+async def rollback(body: RollbackBody) -> dict:
+    """Put the named services back on the version they ran before.
+
+    Runs through the same path as an update - backup, pin, pull, restart,
+    verify - only with older tags. The check against the history happens here
+    and not in the Host-Helper: whether a step back is safe is a question
+    about the database schema, and this is the service that knows it.
+    """
+    wanted = [name for name in dict.fromkeys(body.services) if name]
+    if not wanted:
+        raise ApiError(
+            status_code=400, code="rollback_no_services", detail="No service named"
+        )
+
+    history = await update_history()
+    by_service = {c["service"]: c for c in history["candidates"]}
+
+    targets: dict[str, str] = {}
+    for name in wanted:
+        candidate = by_service.get(name)
+        if candidate is None:
+            raise ApiError(
+                status_code=409,
+                code="rollback_unavailable",
+                detail=f"No earlier version recorded for {name}",
+            )
+        if not candidate["allowed"]:
+            raise ApiError(
+                status_code=409,
+                code="rollback_schema_changed",
+                detail=(
+                    f"{name} cannot be stepped back: the database was migrated "
+                    "in between, and the older version cannot read it."
+                ),
+            )
+        targets[name] = candidate["target"]
+
+    logger.info("rollback_started", targets=targets)
+    return await _proxy(
+        "POST",
+        "/system/update-minabox",
+        timeout=60.0,
+        json={
+            "targets": targets,
+            "backup": True,
+            "schema_version": SCHEMA_VERSION,
+            "kind": "rollback",
+        },
+        error_message="Rollback failed",
+        error_code="rollback_failed",
+        log_event="host_helper_rollback_failed",
     )
 
 

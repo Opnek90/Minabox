@@ -7,14 +7,23 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  FormControl,
   FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Select,
   Switch,
   Typography,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
-import { systemApi, type UpdateCheckResponse } from '@/api/system';
+import {
+  systemApi,
+  type RollbackCandidate,
+  type UpdateChannel,
+  type UpdateCheckResponse,
+} from '@/api/system';
 import { useGeneralConfigField } from '@/hooks/useGeneralConfig';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
@@ -22,6 +31,7 @@ import { translateApiError } from '@/utils/apiError';
 import { ServiceVersionRow } from './ServiceVersionRow';
 import { ReleaseNotesList } from './ReleaseNotesList';
 import { UpdateProgressDialog } from './UpdateProgressDialog';
+import { RollbackSection } from './RollbackSection';
 import { OsUpdateButton } from './OsUpdateButton';
 import { CleanupButton } from './CleanupButton';
 import { useUpdateRun } from './useUpdateRun';
@@ -37,6 +47,7 @@ export const UpdateBlock: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const { showError } = useToast();
   const [check, setCheck] = useState<UpdateCheckResponse | null>(null);
+  const [candidates, setCandidates] = useState<RollbackCandidate[]>([]);
   const [checking, setChecking] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -57,15 +68,51 @@ export const UpdateBlock: React.FC = () => {
     }
   }, [t]);
 
-  useEffect(() => { void loadCheck(false); }, [loadCheck]);
+  // The history is a separate read: it comes from the Host-Helper, not from
+  // the manifest, and its absence must not take the version list with it.
+  const loadHistory = useCallback(async () => {
+    try {
+      setCandidates((await systemApi.getUpdateHistory()).candidates);
+    } catch {
+      setCandidates([]);
+    }
+  }, []);
 
-  const run = useUpdateRun(() => void loadCheck(true));
+  useEffect(() => {
+    void loadCheck(false);
+    void loadHistory();
+  }, [loadCheck, loadHistory]);
+
+  const run = useUpdateRun(() => {
+    void loadCheck(true);
+    void loadHistory();
+  });
 
   const {
     value: autoCheck,
     setValue: setAutoCheck,
     save: saveAutoCheck,
   } = useGeneralConfigField('auto_update_check_enabled', false);
+
+  const {
+    value: channel,
+    setValue: setChannel,
+    save: saveChannel,
+  } = useGeneralConfigField('update_channel', 'stable');
+
+  // A switched channel points at other versions, so the cached answer is not
+  // just stale but about something else - hence the forced re-check.
+  const handleChannelChange = async (next: UpdateChannel) => {
+    const previous = channel ?? 'stable';
+    setChannel(next);
+    try {
+      await saveChannel();
+      await loadCheck(true);
+    } catch (err) {
+      setChannel(previous);
+      showError(translateApiError(t, i18n, err));
+    }
+  };
 
   const handleAutoCheckChange = async (checked: boolean) => {
     setAutoCheck(checked);
@@ -121,6 +168,22 @@ export const UpdateBlock: React.FC = () => {
         check && <Alert severity="success" sx={{ mb: 1.5 }}>{t('system.up_to_date')}</Alert>
       )}
 
+      <FormControl size="small" sx={{ minWidth: 200, mb: 0.5 }}>
+        <InputLabel id="update-channel-label">{t('system.update_channel')}</InputLabel>
+        <Select
+          labelId="update-channel-label"
+          value={channel ?? 'stable'}
+          label={t('system.update_channel')}
+          onChange={(e) => void handleChannelChange(e.target.value as UpdateChannel)}
+        >
+          <MenuItem value="stable">{t('system.update_channel_stable')}</MenuItem>
+          <MenuItem value="beta">{t('system.update_channel_beta')}</MenuItem>
+        </Select>
+      </FormControl>
+      <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1.5 }}>
+        {t('system.update_channel_hint')}
+      </Typography>
+
       <FormControlLabel
         control={
           <Switch
@@ -165,6 +228,12 @@ export const UpdateBlock: React.FC = () => {
           {t('system.checked_at', { time: new Date(check.checked_at).toLocaleString() })}
         </Typography>
       )}
+
+      <RollbackSection
+        candidates={candidates}
+        disabled={run.running}
+        onRollback={(service) => void run.startRollback([service])}
+      />
 
       {/* A dialog of its own instead of ConfirmDialog: the release notes go in here. */}
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="sm" fullWidth>

@@ -14,6 +14,12 @@ export const ServiceVersionRow: React.FC<{ service: ServiceUpdateInfo }> = ({ se
       <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
         {service.installed}
       </Typography>
+      {/* Not the channel the box follows but the one this build came from:
+          after switching back to stable, a running candidate stays visible as
+          one until it is replaced. "beta" is the same word in both languages. */}
+      {service.channel === 'beta' && (
+        <Chip size="small" color="warning" variant="outlined" label="beta" />
+      )}
       {service.update_available && service.latest && (
         <Chip size="small" color="primary" label={`→ ${service.latest}`} />
       )}

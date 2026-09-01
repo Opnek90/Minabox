@@ -22,6 +22,17 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.2.14 - 2026-09-01
+
+#### Neu
+- Ein Update-Kanal: "Stabil" bietet nur fertige Versionen an, "Beta"
+  zusaetzlich Vorabversionen zum Ausprobieren. Umschaltbar unter
+  Wartung -> Version & Update, ein Zurueckschalten genuegt.
+- "Zurueck auf die vorherige Version" je Dienst: die Box merkt sich, was vor
+  einem Update lief, und kann es ohne Konsole wieder herstellen.
+- Ein Rueckschritt wird abgelehnt, wenn das Update die Datenbank umgestellt
+  hat - mit Begruendung, statt ihn zu versuchen und Daten zu verlieren.
+
 ### 0.2.13 - 2026-08-31
 
 #### Verbessert
@@ -249,6 +260,19 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.2.3 - 2026-09-01
+
+#### Neu
+- Auswahl des Update-Kanals und ein Knopf "Zurueck auf <Version>" je Dienst
+  unter Wartung -> Version & Update. Laeuft eine Vorabversion, ist sie in der
+  Versionsliste als "beta" gekennzeichnet.
+
+#### Behoben
+- Einstellungen, die mit einem Klick gesetzt und gespeichert wurden, schrieben
+  den vorherigen Wert zurueck. Betroffen war unter anderem der Schalter
+  "automatisch nach Updates suchen", der sich umlegen liess, ohne dass die
+  Einstellung ankam.
 
 ### 0.2.2 - 2026-09-01
 
@@ -570,6 +594,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.2.4 - 2026-09-01
+
+#### Neu
+- Die Box fuehrt jetzt eine Update-Historie: zu jedem Lauf wird festgehalten,
+  welche Versionen vorher liefen. Das ist die Grundlage fuer den Rueckschritt
+  auf die vorherige Version.
 
 ### 0.2.3 - 2026-08-30
 

@@ -13,6 +13,12 @@ Two rules shape this module:
   commit, the images only once CI is through. In that window it knows a version
   the registry does not have yet, so every candidate is checked against the
   registry before it is offered.
+
+On top of that sits the channel. A box on the stable channel reads the
+manifest's ``latest`` and never sees a release candidate; a box on beta reads
+``latest_beta`` and gets them as soon as they are published. The choice is a
+setting, and switching it back is enough to be offered the finished version
+again - there is nothing to reinstall.
 """
 
 from __future__ import annotations
@@ -51,10 +57,25 @@ POLL_INTERVAL_SECONDS = 30 * 60
 
 ALERT_UPDATE_AVAILABLE = "update_available"
 
+#: The channels a box can follow. "stable" is what an untouched box gets.
+CHANNELS = ("stable", "beta")
+DEFAULT_CHANNEL = "stable"
+
 
 def _read_auto_update_check_enabled() -> bool:
     """Whether the background scan should run (default: off)."""
     return bool(read_general_settings().get("auto_update_check_enabled", False))
+
+
+def clamp_channel(value: Any) -> str:
+    """Turn whatever is in the settings file into a channel name."""
+    text = str(value or "").strip().lower()
+    return text if text in CHANNELS else DEFAULT_CHANNEL
+
+
+def read_update_channel() -> str:
+    """The channel this box follows (default: stable)."""
+    return clamp_channel(read_general_settings().get("update_channel"))
 
 
 def _manifest_url() -> str:
@@ -77,6 +98,21 @@ def parse_version(version: str) -> tuple:
 
 def is_newer(candidate: str, installed: str) -> bool:
     return parse_version(candidate) > parse_version(installed)
+
+
+def channel_of(version: str) -> str:
+    """Which channel a version belongs to - the marker in the string decides.
+
+    Mirrors ``channel_of`` in scripts/build_manifest.py. It is repeated here so
+    a manifest written before the channel field existed is still read
+    correctly, instead of counting every old entry as stable.
+    """
+    return "beta" if "-" in (version or "") else "stable"
+
+
+def _in_channel(version: str, channel: str) -> bool:
+    """Beta sees everything; stable only the finished releases."""
+    return channel == "beta" or channel_of(version) == "stable"
 
 
 async def _fetch_manifest(client: httpx.AsyncClient) -> dict[str, Any]:
@@ -143,8 +179,26 @@ def _write_cache(payload: dict[str, Any]) -> None:
         logger.debug("update_cache_unwritable", error=str(e))
 
 
+def _channel_target(info: dict[str, Any], channel: str) -> str | None:
+    """The newest version this channel offers for one service.
+
+    On beta that is ``latest_beta`` when the manifest carries one, otherwise
+    the stable release - a service that has no release candidate open must not
+    fall off the list just because the box follows beta.
+    """
+    latest = info.get("latest")
+    if channel != "beta":
+        return latest
+    candidate = info.get("latest_beta") or latest
+    if latest and candidate and is_newer(latest, candidate):
+        # A stable release published after the last candidate. Beta is meant
+        # to be ahead of stable, never behind it.
+        return latest
+    return candidate
+
+
 def _build_entries(
-    manifest: dict[str, Any], installed: dict[str, str]
+    manifest: dict[str, Any], installed: dict[str, str], channel: str = DEFAULT_CHANNEL
 ) -> list[dict[str, Any]]:
     """Per service: what runs, what exists, and what happened in between."""
     entries: list[dict[str, Any]] = []
@@ -163,16 +217,22 @@ def _build_entries(
                     "latest": None,
                     "update_available": False,
                     "managed": False,
+                    "channel": channel_of(running),
                     "releases": [],
                 }
             )
             continue
 
-        latest = info.get("latest")
+        latest = _channel_target(info, channel)
         newer = [
             release
             for release in info.get("releases") or []
-            if release.get("version") and is_newer(release["version"], running)
+            if release.get("version")
+            and is_newer(release["version"], running)
+            # A release candidate stays out of sight on the stable channel,
+            # including in the notes - reading about a change that will not
+            # arrive is worse than not reading about it.
+            and _in_channel(release["version"], channel)
         ]
         newer.sort(key=lambda r: parse_version(r["version"]), reverse=True)
 
@@ -183,6 +243,9 @@ def _build_entries(
                 "latest": latest,
                 "update_available": bool(latest and is_newer(latest, running)),
                 "managed": True,
+                # Which channel the *running* version came from. A box that
+                # switched back to stable still shows its beta build as one.
+                "channel": channel_of(running),
                 # Every release that was skipped, not just the newest: two
                 # versions behind, and half the information would be lost.
                 "releases": newer,
@@ -193,10 +256,15 @@ def _build_entries(
 
 async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, Any]:
     """Work out the update state. `installed` is {service: running version}."""
+    channel = read_update_channel()
     cached = _read_cache()
     if not force and cached:
         age = time.time() - float(cached.get("cached_at") or 0)
-        if age < CACHE_TTL_SECONDS:
+        # A cached answer belongs to the channel it was computed for. After a
+        # switch it would name the wrong versions, so it counts as a miss -
+        # the one extra fetch is the price of not lying about the target.
+        same_channel = (cached.get("result") or {}).get("channel", DEFAULT_CHANNEL) == channel
+        if age < CACHE_TTL_SECONDS and same_channel:
             return {**cached["result"], "from_cache": True}
 
     def _stale(error: str) -> dict[str, Any]:
@@ -207,6 +275,7 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
             "checked_at": datetime.now(UTC).isoformat(),
             "from_cache": False,
             "update_available": False,
+            "channel": channel,
             "error": error,
             "services": [
                 {
@@ -215,6 +284,7 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
                     "latest": None,
                     "update_available": False,
                     "managed": False,
+                    "channel": channel_of(version),
                     "releases": [],
                 }
                 for name, version in sorted(installed.items())
@@ -224,7 +294,7 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
     try:
         async with httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
             manifest = await _fetch_manifest(client)
-            entries = _build_entries(manifest, installed)
+            entries = _build_entries(manifest, installed, channel)
 
             registry = manifest.get("registry") or DEFAULT_REGISTRY
             pending = [e for e in entries if e["update_available"]]
@@ -256,6 +326,7 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
         "checked_at": datetime.now(UTC).isoformat(),
         "from_cache": False,
         "update_available": any(e["update_available"] for e in entries),
+        "channel": channel,
         "error": None,
         "services": entries,
     }

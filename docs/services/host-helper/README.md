@@ -194,10 +194,10 @@ model is **"whoever can reach this port owns the box"**.
 - **Backup archives.** `_backup_allowed_path()` mirrors what the backup builder
   produces: `data/minabox.db` and `data/general_settings.json` by name,
   `data/static/**` by prefix, and `services/<name>-service/state|config/` per
-  service. The rest of `data/` is refused — the update log, the OS-update PID
-  file, the pre-update archives and `minabox-update.sh`, which the host runs as
-  root, all live there and are this service's own runtime state, not something
-  an upload gets to write. Entries are extracted with `zipfile.read()` and
+  service. The rest of `data/` is refused — the update log, the update history,
+  the OS-update PID file, the pre-update archives and `minabox-update.sh`, which
+  the host runs as root, all live there and are this service's own runtime
+  state, not something an upload gets to write. Entries are extracted with `zipfile.read()` and
   `Path.write_bytes()`, so an archive cannot create symlinks or escape the
   workspace.
 - **USB imports.** Requested entries are rejected if they are absolute or
@@ -434,8 +434,9 @@ hotspot so the box stays reachable, and restarts the containers.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| POST | `/system/update-minabox` | body `{targets, backup}`, both optional; starts an update |
+| POST | `/system/update-minabox` | body `{targets, backup, schema_version, kind}`, all optional; starts an update |
 | GET | `/system/update-minabox/status` | progress, parsed step, exit code and the full log |
+| GET | `/system/update-history` | the recorded runs, newest first, plus the versions running now |
 | GET | `/system/version` | the commit the project directory sits on |
 | POST | `/system/update-os` | starts `apt-get update && apt-get upgrade -y` detached; `409` while one runs |
 | GET | `/system/update-os/log` | `{running, log}`, log truncated to the last 2000 lines |
@@ -464,6 +465,27 @@ build.
 Unless `backup: false` is passed, a pre-update backup is written to
 `data/backups/pre-update-<timestamp>.zip` before anything else happens, and the
 update is aborted if that fails. The five most recent archives are kept.
+
+**The update history.** Every started run appends what was running before it to
+`data/minabox-update-history.json` — the twenty most recent, newest first. That
+file is the whole basis of the way back: without it, "revert to the previous
+version" would be a guess and the only real answer would be an SSH session and
+an editor in `.env`, on a box that a family uses every day. It is written after
+`systemd-run` accepted the job, so a run that never started leaves no entry
+behind, but before the update finishes, because the run that dies halfway
+through is exactly the interesting one. A damaged file reads as no history and
+recovers on the next run — losing the way back is bad, refusing to update over
+it would be worse.
+
+`schema_version` is stored unread. The host-helper never decides whether a step
+back is safe; that is a question about the database, and the backend is the
+service that knows the answer. `kind` only labels the entry. A rollback is not
+a route of its own here — the backend works out the older tags and starts an
+ordinary update with them.
+
+The history is neither backed up nor restorable: it names the tags *this* box
+ran, and a restored one would offer a way back to versions that were never
+here.
 
 The OS update is started with `nsenter` and `start_new_session=True`, its PID is
 recorded in `data/os-update.pid`, and a watcher thread appends the exit code to

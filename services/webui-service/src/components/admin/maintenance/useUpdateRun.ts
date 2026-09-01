@@ -9,11 +9,15 @@ const POLL_MS = 2000;
 export interface UpdateRun {
   /** True from starting the update until the box reports an exit code. */
   running: boolean;
+  /** What the current or last run was - the messages differ. */
+  kind: 'update' | 'rollback';
   status: UpdateStatusResponse | null;
   progressOpen: boolean;
   closeProgress: () => void;
   /** Empty targets means "everything to latest". */
   start: (targets?: Record<string, string>) => Promise<void>;
+  /** Put the named services back on the version they ran before. */
+  startRollback: (services: string[]) => Promise<void>;
 }
 
 /**
@@ -31,19 +35,26 @@ export function useUpdateRun(onFinished?: () => void): UpdateRun {
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<UpdateStatusResponse | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
+  const [kind, setKind] = useState<'update' | 'rollback'>('update');
   // Without this latch the 2-second poll fires the success message again on
   // every further pass (#137).
   const notifiedRef = useRef(false);
   const finishedRef = useRef(onFinished);
   finishedRef.current = onFinished;
+  // Read inside the poll, which must not restart when the kind changes.
+  const kindRef = useRef(kind);
+  kindRef.current = kind;
 
-  const start = useCallback(
-    async (targets?: Record<string, string>) => {
+  // Both entry points do the same thing to the box - backup, pin, pull,
+  // restart, verify - and are followed by the same poll. Only the tags differ.
+  const begin = useCallback(
+    async (next: 'update' | 'rollback', call: () => Promise<unknown>) => {
+      setKind(next);
       setRunning(true);
       setStatus(null);
       notifiedRef.current = false;
       try {
-        await systemApi.updateMinabox(targets);
+        await call();
         // The call returns immediately; from here the progress window shows
         // what happens.
         setProgressOpen(true);
@@ -53,6 +64,17 @@ export function useUpdateRun(onFinished?: () => void): UpdateRun {
       }
     },
     [showError, t, i18n],
+  );
+
+  const start = useCallback(
+    (targets?: Record<string, string>) =>
+      begin('update', () => systemApi.updateMinabox(targets)),
+    [begin],
+  );
+
+  const startRollback = useCallback(
+    (services: string[]) => begin('rollback', () => systemApi.rollback(services)),
+    [begin],
   );
 
   useEffect(() => {
@@ -80,10 +102,10 @@ export function useUpdateRun(onFinished?: () => void): UpdateRun {
         if (notifiedRef.current) return;
         notifiedRef.current = true;
         if (next.exit_code === 0) {
-          showSuccess(t('system.update_success'));
+          showSuccess(t(kindRef.current === 'rollback' ? 'system.rollback_success' : 'system.update_success'));
           finishedRef.current?.();
         } else {
-          showError(t('system.update_failed'));
+          showError(t(kindRef.current === 'rollback' ? 'system.rollback_failed' : 'system.update_failed'));
         }
       } catch {
         if (active) {
@@ -102,5 +124,5 @@ export function useUpdateRun(onFinished?: () => void): UpdateRun {
 
   const closeProgress = useCallback(() => setProgressOpen(false), []);
 
-  return { running, status, progressOpen, closeProgress, start };
+  return { running, kind, status, progressOpen, closeProgress, start, startRollback };
 }

@@ -31,6 +31,7 @@ from backend_service.core.playback_settings import (
     clamp_end_behavior,
     clamp_loop_guard_minutes,
 )
+from backend_service.core.update_check import DEFAULT_CHANNEL, clamp_channel
 from backend_service.core.uploads import (
     clamp_upload_size_mb,
     max_upload_size_mb,
@@ -142,6 +143,7 @@ def _general_settings_read() -> dict:
     playback_loop_guard_minutes = DEFAULT_LOOP_GUARD_MINUTES
     playlist_shuffle = DEFAULT_PLAYLIST_SHUFFLE
     auto_update_check_enabled = False
+    update_channel = DEFAULT_CHANNEL
     # Read through the same helper the upload path uses, so the value shown in
     # the WebUI is exactly the one that will be enforced.
     upload_size_mb = max_upload_size_mb()
@@ -165,6 +167,7 @@ def _general_settings_read() -> dict:
                     data["playback_loop_guard_minutes"]
                 )
             auto_update_check_enabled = bool(data.get("auto_update_check_enabled", False))
+            update_channel = clamp_channel(data.get("update_channel"))
             playlist_shuffle = bool(data.get("playlist_shuffle", DEFAULT_PLAYLIST_SHUFFLE))
             if "max_upload_size_mb" in data:
                 upload_size_mb = clamp_upload_size_mb(data["max_upload_size_mb"])
@@ -202,6 +205,7 @@ def _general_settings_read() -> dict:
         "playlist_shuffle": playlist_shuffle,
         "allowed_usage_times": allowed_usage_times,
         "auto_update_check_enabled": auto_update_check_enabled,
+        "update_channel": update_channel,
         "max_upload_size_mb": upload_size_mb,
         "media_import_allowed_domains": media_import_allowed_domains,
     }
@@ -244,6 +248,7 @@ async def update_general_config(body: dict) -> dict:
         "playlist_shuffle",
         "allowed_usage_times",
         "auto_update_check_enabled",
+        "update_channel",
         "max_upload_size_mb",
         "media_import_allowed_domains",
         # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
@@ -294,6 +299,8 @@ async def update_general_config(body: dict) -> dict:
         data["playlist_shuffle"] = bool(data["playlist_shuffle"])
     if "auto_update_check_enabled" in data:
         data["auto_update_check_enabled"] = bool(data["auto_update_check_enabled"])
+    if "update_channel" in data:
+        data["update_channel"] = clamp_channel(data["update_channel"])
     if "max_upload_size_mb" in data:
         data["max_upload_size_mb"] = clamp_upload_size_mb(data["max_upload_size_mb"])
     if "media_import_allowed_domains" in data:
