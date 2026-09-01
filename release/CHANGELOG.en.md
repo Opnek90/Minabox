@@ -21,6 +21,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.3.2 - 2026-09-01
+
+#### Fixed
+- No visible change: 0.3.1 was never published as an image, because the build
+  was skipped after a red test run. This number ships it.
+
 ### 0.3.1 - 2026-09-01
 
 #### Added
@@ -271,6 +277,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.4.2 - 2026-09-01
+
+#### Fixed
+- Clicking a question mark twice in quick succession left the explanation
+  stuck open - it only closed again once you moved the pointer away.
+- Also ships 0.4.1, which was never published as an image.
 
 ### 0.4.1 - 2026-09-01
 

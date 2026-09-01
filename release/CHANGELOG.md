@@ -22,6 +22,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.3.2 - 2026-09-01
+
+#### Behoben
+- Keine sichtbare Aenderung: 0.3.1 wurde nie als Abbild veroeffentlicht, weil
+  der Bau nach einem roten Testlauf ausfiel. Diese Nummer holt ihn nach.
+
 ### 0.3.1 - 2026-09-01
 
 #### Neu
@@ -283,6 +289,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.4.2 - 2026-09-01
+
+#### Behoben
+- Ein Klick auf ein Fragezeichen liess die Erklaerung offen stehen, wenn man
+  zweimal schnell hintereinander klickte - sie ging erst wieder zu, nachdem
+  man den Zeiger weggezogen hatte.
+- Enthaelt ausserdem 0.4.1, das nie als Abbild veroeffentlicht wurde.
 
 ### 0.4.1 - 2026-09-01
 
