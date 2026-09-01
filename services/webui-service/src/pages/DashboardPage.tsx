@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { PageShell } from '@/components/common/PageShell';
 import { SectionTabs } from '@/components/common/SectionTabs';
 import { StatsDashboard } from '@/components/dashboard/StatsDashboard';
+import { WeeklyReviewCard } from '@/components/dashboard/WeeklyReviewCard';
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
 import { ScanHistoryPanel } from '@/components/dashboard/ScanHistoryPanel';
 import { ChildSettingsForm } from '@/components/dashboard/ChildSettingsForm';
@@ -37,6 +38,7 @@ export const DashboardPage: React.FC = () => {
         <ChildSettingsForm />
       </TabPanel>
       <TabPanel value={tab} index={2}>
+        <WeeklyReviewCard />
         <StatsDashboard />
       </TabPanel>
       <TabPanel value={tab} index={3}>

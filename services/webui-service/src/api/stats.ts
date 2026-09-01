@@ -3,6 +3,7 @@ import type {
   ListeningSummaryResponse,
   OverviewResponse,
   UsageTodayResponse,
+  WeeklyReviewResponse,
 } from '@/types/api';
 
 export const statsApi = {
@@ -18,6 +19,14 @@ export const statsApi = {
     const response = await apiClient.get<ListeningSummaryResponse>(
       '/stats/listening-summary',
       { params: { from_date: fromDate, to_date: toDate } }
+    );
+    return response.data;
+  },
+
+  getWeeklyReview: async (weekOffset: number): Promise<WeeklyReviewResponse> => {
+    const response = await apiClient.get<WeeklyReviewResponse>(
+      '/stats/weekly-review',
+      { params: { week_offset: weekOffset } }
     );
     return response.data;
   },

@@ -589,6 +589,11 @@ export interface GeneralConfig {
    * title and artist to a third party. Applied without a restart.
    */
   online_metadata_lookup_enabled?: boolean;
+  /**
+   * Weeks of listening/scan history to keep. Older playback_events and
+   * tag_scan_events are pruned daily. 0 = keep forever.
+   */
+  analytics_retention_weeks?: number;
 }
 
 /** Progress of POST /tracks/metadata/backfill. */
@@ -760,6 +765,35 @@ export interface UsageTodayResponse {
   minutes_today: number;
   daily_limit_enabled: boolean;
   daily_limit_minutes: number;
+}
+
+export interface MostPlayedItem {
+  tag_id: number;
+  name: string | null;
+  play_count: number;
+  minutes: number;
+}
+
+export interface NeverPlayedItem {
+  tag_id: number;
+  name: string | null;
+  created_at: string; // YYYY-MM-DD
+}
+
+/** One weekly listening review for parents (issue #170). */
+export interface WeeklyReviewResponse {
+  week_start: string; // YYYY-MM-DD (Monday)
+  week_end: string; // YYYY-MM-DD (Sunday)
+  total_minutes: number;
+  prev_total_minutes: number;
+  delta_minutes: number;
+  minutes_per_weekday: number[]; // length 7, Monday .. Sunday
+  daily_limit_enabled: boolean;
+  daily_limit_minutes: number;
+  average_minutes_per_day: number;
+  most_played: MostPlayedItem | null;
+  never_played: NeverPlayedItem[];
+  never_played_total: number;
 }
 
 export interface OverviewResponse {
