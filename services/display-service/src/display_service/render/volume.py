@@ -29,7 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from . import fonts
+from . import fonts, knuffel
 from .primitives import (
     HEIGHT,
     WIDTH,
@@ -167,9 +167,14 @@ def _render_level(view: VolumeView) -> Any:
 
 
 def _render_muted() -> Any:
-    """Mute gets the same stage as the volume - it is the same interaction."""
+    """Mute gets the same stage as the volume - it is the same interaction.
+
+    Knuffel with his lips pressed shut rather than a crossed-out speaker: the
+    box has one character, and a face that is plainly not making a sound beats
+    a glyph a child has to learn. "Stumm" stays underneath for whoever can read.
+    """
     img, draw = new_frame()
-    glyph = 34
-    speaker(draw, (WIDTH - glyph) // 2, 4, glyph, muted=True)
+    size = 40
+    knuffel.draw(draw, (WIDTH - size) // 2, 2, size, knuffel.HUSHED)
     draw_text_centered(draw, LABEL_MUTED, fonts.get(fonts.BOLD, 16), HEIGHT - 4)
     return img

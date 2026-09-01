@@ -112,6 +112,22 @@ class TestMuted:
     def test_muted_is_its_own_screen(self):
         assert render(view(20, muted=True)).tobytes() != render(view(20)).tobytes()
 
+    def test_muted_is_knuffel_with_his_lips_shut(self):
+        """The same character as every other screen, not a crossed-out speaker.
+
+        His filled body is a broad lit mass in the upper half; the old speaker
+        polygon covered far less of it.
+        """
+        from display_service.render import knuffel
+
+        muted = render(view(20, muted=True))
+        assert lit_count(muted, (44, 2, 84, 44)) > 600
+
+        smiling = render(view(20))
+        assert knuffel.HUSHED in knuffel.MOODS
+        # A sealed mouth, not the smile of the ordinary case.
+        assert muted.tobytes() != smiling.tobytes()
+
     def test_muted_does_not_depend_on_the_level_underneath(self):
         assert (
             render(view(0, muted=True)).tobytes()
