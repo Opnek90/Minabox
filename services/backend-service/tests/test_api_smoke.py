@@ -530,3 +530,32 @@ def test_a_secret_is_generated_per_box_instead_of_a_shared_default(env, monkeypa
     # Stable across calls, so sessions survive within a run.
     monkeypatch.setattr(auth_module, "_generated_secret", None)
     assert auth_module._auth_secret() == secret
+
+
+# --- Weekly review + analytics retention (issue #170) ----------------------
+
+
+def test_weekly_review_endpoint_returns_the_expected_shape(client):
+    body = client.get("/api/v1/stats/weekly-review").json()
+    assert len(body["minutes_per_weekday"]) == 7
+    assert body["total_minutes"] == 0
+    assert body["most_played"] is None
+    assert body["never_played"] == []
+    # week_start is a Monday
+    from datetime import date
+
+    assert date.fromisoformat(body["week_start"]).weekday() == 0
+
+
+def test_weekly_review_rejects_a_negative_offset(client):
+    assert client.get("/api/v1/stats/weekly-review?week_offset=-1").status_code == 422
+
+
+def test_analytics_retention_setting_round_trips(client):
+    assert client.get("/api/v1/config/general").json()["analytics_retention_weeks"] == 52
+    saved = client.put("/api/v1/config/general", json={"analytics_retention_weeks": 8})
+    assert saved.status_code == 200
+    assert saved.json()["analytics_retention_weeks"] == 8
+    # clamped, never rejected
+    clamped = client.put("/api/v1/config/general", json={"analytics_retention_weeks": 99999})
+    assert clamped.json()["analytics_retention_weeks"] == 520

@@ -152,6 +152,10 @@
   "general": {
     "accent_color": "Akzentfarbe",
     "advanced_title": "Erweiterte Einstellungen",
+    "analytics_retention": "Datenaufbewahrung",
+    "analytics_retention_hint": "Wiedergabe- und Scan-Verlauf sind Daten über das Kind. Nach Ablauf dieser Zeit werden sie automatisch gelöscht – auch aus der Gesamt-Hörzeit. Empfohlen: 52 Wochen.",
+    "analytics_retention_weeks": "Verlauf aufbewahren (Wochen)",
+    "analytics_retention_zero": "0 = unbegrenzt aufbewahren",
     "appearance": "Erscheinungsbild",
     "bedtime_fade": "Einschlaf-Fade",
     "bedtime_fade_duration_minutes": "Fade-Dauer (Minuten)",
@@ -373,7 +377,27 @@
     "weekday_3": "Do",
     "weekday_4": "Fr",
     "weekday_5": "Sa",
-    "weekday_6": "So"
+    "weekday_6": "So",
+    "weekly": {
+      "and_more_one": "und {{count}} weitere",
+      "and_more_other": "und {{count}} weitere",
+      "empty": "In dieser Woche wurde nichts gehört.",
+      "hours_minutes": "{{h}} Std. {{m}} Min.",
+      "limit_line": "Limit {{limit}} Min./Tag · Schnitt {{avg}} Min.",
+      "minutes_only": "{{m}} Min.",
+      "most_played": "Meistgespielt",
+      "never_played": "Nie gespielt",
+      "never_played_count_one": "{{count}} Karte",
+      "never_played_count_other": "{{count}} Karten",
+      "never_played_help": "Karten mit Inhalt, die noch nie abgespielt wurden – ein Hinweis darauf, was in der Sammlung liegen bleibt.",
+      "next_week": "Nächste Woche",
+      "no_limit_line": "Kein Tageslimit · Schnitt {{avg}} Min./Tag",
+      "prev_week": "Vorherige Woche",
+      "same_as_prev": "genauso viel wie in der Vorwoche",
+      "since": "seit {{date}}",
+      "title": "Wochenrückblick",
+      "vs_prev": "Vorwoche: {{value}}"
+    }
   },
   "system": {
     "auto_update_check": "Automatisch auf Updates prüfen",

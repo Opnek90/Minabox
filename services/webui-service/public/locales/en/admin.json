@@ -152,6 +152,10 @@
   "general": {
     "accent_color": "Accent Color",
     "advanced_title": "Advanced Settings",
+    "analytics_retention": "Data retention",
+    "analytics_retention_hint": "Playback and scan history is data about the child. After this many weeks it is deleted automatically - including its contribution to the all-time total. Recommended: 52 weeks.",
+    "analytics_retention_weeks": "Keep history (weeks)",
+    "analytics_retention_zero": "0 = keep forever",
     "appearance": "Appearance",
     "bedtime_fade": "Bedtime Fade",
     "bedtime_fade_duration_minutes": "Fade duration (minutes)",
@@ -373,7 +377,27 @@
     "weekday_3": "Thu",
     "weekday_4": "Fri",
     "weekday_5": "Sat",
-    "weekday_6": "Sun"
+    "weekday_6": "Sun",
+    "weekly": {
+      "and_more_one": "and {{count}} more",
+      "and_more_other": "and {{count}} more",
+      "empty": "Nothing was played this week.",
+      "hours_minutes": "{{h}} h {{m}} min",
+      "limit_line": "Limit {{limit}} min/day · average {{avg}} min",
+      "minutes_only": "{{m}} min",
+      "most_played": "Most played",
+      "never_played": "Never played",
+      "never_played_count_one": "{{count}} card",
+      "never_played_count_other": "{{count}} cards",
+      "never_played_help": "Cards that carry content but have never been played - a hint at what is being ignored in the library.",
+      "next_week": "Next week",
+      "no_limit_line": "No daily limit · average {{avg}} min/day",
+      "prev_week": "Previous week",
+      "same_as_prev": "same as the previous week",
+      "since": "since {{date}}",
+      "title": "Weekly review",
+      "vs_prev": "Previous week: {{value}}"
+    }
   },
   "system": {
     "auto_update_check": "Automatically check for updates",

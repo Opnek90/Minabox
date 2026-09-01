@@ -142,8 +142,25 @@
       ]
     },
     "backend": {
-      "latest": "0.3.0",
+      "latest": "0.3.1",
       "releases": [
+        {
+          "version": "0.3.1",
+          "date": "2026-09-01",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Grundlage fuer den Wochenrueckblick: die Box fasst eine Woche Hoerdaten zu einer Uebersicht zusammen - Gesamtzeit, Vergleich zur Vorwoche, Verteilung ueber die Wochentage, meistgespielte Karte und Karten, die noch nie abgespielt wurden.",
+                "Neue Einstellung \"Datenaufbewahrung\" (Standard 52 Wochen): Wiedergabe- und Scan-Verlauf, der aelter ist, wird taeglich automatisch geloescht. Bestehende Boxen entfernen beim ersten Lauf einmalig alles, was aelter als ein Jahr ist."
+              ],
+              "en": [
+                "Groundwork for the weekly review: the box condenses one week of listening data into a summary - total time, the change from the previous week, the spread across weekdays, the most played card and cards that have never been played.",
+                "New \"data retention\" setting (52 weeks by default): playback and scan history older than that is deleted automatically every day. On existing boxes the first run removes everything older than a year, once."
+              ]
+            }
+          }
+        },
         {
           "version": "0.3.0",
           "date": "2026-09-01",
@@ -1414,8 +1431,25 @@
       ]
     },
     "webui": {
-      "latest": "0.4.0",
+      "latest": "0.4.1",
       "releases": [
+        {
+          "version": "0.4.1",
+          "date": "2026-09-01",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Neue Karte \"Wochenrueckblick\" im Dashboard unter Hoerstatistiken: Hoerzeit der Woche im Vergleich zur Vorwoche, ein Balken je Wochentag, die meistgespielte Karte und eine ausklappbare Liste nie gespielter Karten. Mit den Pfeilen blaettert man durch die Wochen.",
+                "Neue Einstellung \"Datenaufbewahrung\" bei den Regeln: legt fest, wie viele Wochen Wiedergabe- und Scan-Verlauf die Box behaelt (0 = unbegrenzt)."
+              ],
+              "en": [
+                "New \"weekly review\" card on the dashboard under Listening statistics: the week's listening time against the previous week, one bar per weekday, the most played card and an expandable list of cards that were never played. The arrows step through the weeks.",
+                "New \"data retention\" setting under Rules: sets how many weeks of playback and scan history the box keeps (0 = keep forever)."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.0",
           "date": "2026-09-01",

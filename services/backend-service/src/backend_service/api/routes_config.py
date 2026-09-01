@@ -16,6 +16,12 @@ from shared_lib.mqtt import get_mqtt_topic
 
 from backend_service.api.websocket import ws_manager
 from backend_service.config import get_config
+from backend_service.core.analytics_retention import (
+    DEFAULT_RETENTION_WEEKS as DEFAULT_ANALYTICS_RETENTION_WEEKS,
+)
+from backend_service.core.analytics_retention import (
+    MAX_RETENTION_WEEKS as MAX_ANALYTICS_RETENTION_WEEKS,
+)
 from backend_service.core.api_errors import ApiError
 from backend_service.core.capabilities import require_feature
 from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
@@ -124,6 +130,14 @@ DATA_PATH = Path(os.environ.get("DATA_PATH", "/data"))
 GENERAL_SETTINGS_PATH = DATA_PATH / "general_settings.json"
 
 
+def _clamp_retention_weeks(value: Any) -> int:
+    """Weeks of analytics history to keep. 0 = keep forever."""
+    try:
+        return max(0, min(MAX_ANALYTICS_RETENTION_WEEKS, int(value)))
+    except (TypeError, ValueError):
+        return DEFAULT_ANALYTICS_RETENTION_WEEKS
+
+
 def _general_settings_read() -> dict:
     """Return current general settings (runtime config + env)."""
     config = get_config()
@@ -149,6 +163,7 @@ def _general_settings_read() -> dict:
     upload_size_mb = max_upload_size_mb()
     media_import_allowed_domains = sorted(DEFAULT_ALLOWED_DOMAINS)
     online_metadata_lookup_enabled = False
+    analytics_retention_weeks = DEFAULT_ANALYTICS_RETENTION_WEEKS
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -178,6 +193,9 @@ def _general_settings_read() -> dict:
                 )
             online_metadata_lookup_enabled = bool(
                 data.get("online_metadata_lookup_enabled", False)
+            )
+            analytics_retention_weeks = _clamp_retention_weeks(
+                data.get("analytics_retention_weeks", DEFAULT_ANALYTICS_RETENTION_WEEKS)
             )
             raw_times = data.get("allowed_usage_times")
             if isinstance(raw_times, list):
@@ -213,6 +231,7 @@ def _general_settings_read() -> dict:
         "max_upload_size_mb": upload_size_mb,
         "media_import_allowed_domains": media_import_allowed_domains,
         "online_metadata_lookup_enabled": online_metadata_lookup_enabled,
+        "analytics_retention_weeks": analytics_retention_weeks,
     }
 
 
@@ -257,6 +276,7 @@ async def update_general_config(body: dict) -> dict:
         "max_upload_size_mb",
         "media_import_allowed_domains",
         "online_metadata_lookup_enabled",
+        "analytics_retention_weeks",
         # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
         # keys the filter below drops them silently, and the wizard would come
         # back on every visit.
@@ -288,6 +308,10 @@ async def update_general_config(body: dict) -> dict:
         data["daily_limit_enabled"] = bool(data["daily_limit_enabled"])
     if "daily_limit_minutes" in data:
         data["daily_limit_minutes"] = max(1, min(1440, int(data["daily_limit_minutes"])))
+    if "analytics_retention_weeks" in data:
+        data["analytics_retention_weeks"] = _clamp_retention_weeks(
+            data["analytics_retention_weeks"]
+        )
     if "stop_playback_on_tag_remove" in data:
         data["stop_playback_on_tag_remove"] = bool(data.get("stop_playback_on_tag_remove", False))
     if "resume_on_tag_rescan" in data:
