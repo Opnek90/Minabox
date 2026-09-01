@@ -28,6 +28,7 @@ import { useGeneralConfigField } from '@/hooks/useGeneralConfig';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { translateApiError } from '@/utils/apiError';
+import { HelpLabel, HelpTip } from '@/components/ui/HelpTip';
 import { ServiceVersionRow } from './ServiceVersionRow';
 import { ReleaseNotesList } from './ReleaseNotesList';
 import { UpdateProgressDialog } from './UpdateProgressDialog';
@@ -168,21 +169,21 @@ export const UpdateBlock: React.FC = () => {
         check && <Alert severity="success" sx={{ mb: 1.5 }}>{t('system.up_to_date')}</Alert>
       )}
 
-      <FormControl size="small" sx={{ minWidth: 200, mb: 0.5 }}>
-        <InputLabel id="update-channel-label">{t('system.update_channel')}</InputLabel>
-        <Select
-          labelId="update-channel-label"
-          value={channel ?? 'stable'}
-          label={t('system.update_channel')}
-          onChange={(e) => void handleChannelChange(e.target.value as UpdateChannel)}
-        >
-          <MenuItem value="stable">{t('system.update_channel_stable')}</MenuItem>
-          <MenuItem value="beta">{t('system.update_channel_beta')}</MenuItem>
-        </Select>
-      </FormControl>
-      <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1.5 }}>
-        {t('system.update_channel_hint')}
-      </Typography>
+      <Box display="flex" alignItems="center" gap={0.5} sx={{ mb: 1.5 }}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel id="update-channel-label">{t('system.update_channel')}</InputLabel>
+          <Select
+            labelId="update-channel-label"
+            value={channel ?? 'stable'}
+            label={t('system.update_channel')}
+            onChange={(e) => void handleChannelChange(e.target.value as UpdateChannel)}
+          >
+            <MenuItem value="stable">{t('system.update_channel_stable')}</MenuItem>
+            <MenuItem value="beta">{t('system.update_channel_beta')}</MenuItem>
+          </Select>
+        </FormControl>
+        <HelpTip title={t('system.update_channel_hint')} />
+      </Box>
 
       <FormControlLabel
         control={
@@ -192,12 +193,14 @@ export const UpdateBlock: React.FC = () => {
             color="primary"
           />
         }
-        label={t('system.auto_update_check')}
-        sx={{ display: 'block', mb: 0.5 }}
+        label={
+          <HelpLabel
+            text={t('system.auto_update_check')}
+            help={t('system.auto_update_check_hint')}
+          />
+        }
+        sx={{ display: 'block', mb: 1.5 }}
       />
-      <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1.5 }}>
-        {t('system.auto_update_check_hint')}
-      </Typography>
 
       <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
         <ActionButton

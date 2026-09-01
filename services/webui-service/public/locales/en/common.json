@@ -142,5 +142,8 @@
   "unsaved": {
     "title": "Unsaved changes",
     "hint": "The changes exist only in this view. Only “Save” sends them to the box."
+  },
+  "help": {
+    "explain": "Show explanation"
   }
 }

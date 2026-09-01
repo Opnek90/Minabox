@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, TextField } from '@mui/material';
+import { Alert, Box, InputAdornment, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useGeneralConfigField } from '@/hooks/useGeneralConfig';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
+import { HelpTip } from '@/components/ui/HelpTip';
 
 const DEFAULT_DOMAINS = ['soundcloud.com', 'www.soundcloud.com', 'bandcamp.com'];
 
@@ -59,7 +60,14 @@ export const MediaImportDomainsForm: React.FC = () => {
           fullWidth
           multiline
           minRows={2}
-          helperText={t('general.media_import_domains_hint')}
+          InputProps={{
+            endAdornment: (
+              // Bei mehrzeiligem Feld sonst mittig zwischen den Zeilen.
+              <InputAdornment position="end" sx={{ alignSelf: 'flex-start', mt: 1.25 }}>
+                <HelpTip title={t('general.media_import_domains_hint')} />
+              </InputAdornment>
+            ),
+          }}
         />
       </SettingsBlock>
 

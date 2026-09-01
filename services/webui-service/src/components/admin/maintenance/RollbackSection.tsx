@@ -14,6 +14,7 @@ import UndoIcon from '@mui/icons-material/Undo';
 import { useTranslation } from 'react-i18next';
 import type { RollbackCandidate } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { HelpTip } from '@/components/ui/HelpTip';
 
 /**
  * The way back: per service, the version it ran before the last update.
@@ -44,12 +45,10 @@ export const RollbackSection: React.FC<{
 
   return (
     <Box sx={{ mt: 2 }}>
-      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-        {t('system.rollback_title')}
-      </Typography>
-      <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
-        {t('system.rollback_hint')}
-      </Typography>
+      <Box display="flex" alignItems="center" gap={0.5} sx={{ mb: 1 }}>
+        <Typography variant="subtitle2">{t('system.rollback_title')}</Typography>
+        <HelpTip title={t('system.rollback_hint')} />
+      </Box>
 
       {candidates.map((candidate) => (
         <Box

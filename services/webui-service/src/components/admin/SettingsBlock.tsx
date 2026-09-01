@@ -1,10 +1,21 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
+import { HelpTip } from '@/components/ui/HelpTip';
 
 interface SettingsBlockProps {
   title: string;
-  /** Short explanation under the title - full sentences belong here, not in the title. */
+  /**
+   * Short explanation under the title, permanently visible. For warnings and
+   * consequences ("takes effect after a restart") - background knowledge
+   * belongs in `help`.
+   */
   description?: string;
+  /**
+   * Background knowledge about the whole block, behind a question mark next to
+   * the title. Use it where the explanation covers several fields at once; an
+   * explanation about one single field belongs at that field.
+   */
+  help?: string;
   children: React.ReactNode;
 }
 
@@ -28,16 +39,20 @@ interface SettingsBlockProps {
 export const SettingsBlock: React.FC<SettingsBlockProps> = ({
   title,
   description,
+  help,
   children,
 }) => (
   <Box sx={{ mb: 3 }}>
-    <Typography
-      variant="overline"
-      color="text.secondary"
-      sx={{ display: 'block', lineHeight: 1.6 }}
-    >
-      {title}
-    </Typography>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <Typography
+        variant="overline"
+        color="text.secondary"
+        sx={{ display: 'block', lineHeight: 1.6 }}
+      >
+        {title}
+      </Typography>
+      {help && <HelpTip title={help} />}
+    </Box>
     {description && (
       <Typography
         variant="caption"

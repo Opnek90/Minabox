@@ -120,7 +120,7 @@ export const AudioConfigForm: React.FC = () => {
 
       <SettingsBlock
         title={t('audio.output_devices_section')}
-        description={t('audio.output_devices_bluetooth_hint')}
+        help={t('audio.output_devices_bluetooth_hint')}
       >
       <ActionButton
         actionType="secondary"

@@ -16,6 +16,7 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  InputAdornment,
   Paper,
   Stack,
   Step,
@@ -43,6 +44,7 @@ import { configApi } from '@/api/config';
 import type { LEDConfig, LED, LEDPattern, LEDPatternType } from '@/types/api';
 import { useLayout } from '@/hooks/useLayout';
 import { UnsavedChangesBar } from '@/components/admin/UnsavedChangesBar';
+import { HelpTip } from '@/components/ui/HelpTip';
 
 
 export const LEDConfigPanel: React.FC = () => {
@@ -493,7 +495,13 @@ export const LEDConfigPanel: React.FC = () => {
                           value={pat.repeat ?? ''}
                           onChange={(e) => updateBinding(state, { repeat: e.target.value ? parseInt(e.target.value, 10) : undefined })}
                           size="small" fullWidth inputProps={{ min: 0 }} placeholder="0"
-                          helperText={t('leds.bindings.repeat_hint')}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <HelpTip title={t('leds.bindings.repeat_hint')} />
+                              </InputAdornment>
+                            ),
+                          }}
                         />
                       )}
                     </CardContent>

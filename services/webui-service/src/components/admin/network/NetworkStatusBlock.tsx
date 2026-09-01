@@ -27,7 +27,12 @@ export const NetworkStatusBlock: React.FC<NetworkStatusBlockProps> = ({ status }
     status.mode === 'online' ? 'success' : status.mode === 'no_network' ? 'warning' : 'info';
 
   return (
-    <SettingsBlock title={t('system.net_status_title')}>
+    <SettingsBlock
+      title={t('system.net_status_title')}
+      help={t('system.net_status_fallback_hint', {
+        ssid: status.hotspot.ssid || 'Minabox-Setup',
+      })}
+    >
       <Stack spacing={1} sx={{ mt: 0.5 }}>
         <Alert severity={severity} sx={{ py: 0.25 }}>
           {modeLabel}
@@ -55,12 +60,6 @@ export const NetworkStatusBlock: React.FC<NetworkStatusBlockProps> = ({ status }
             {t('system.net_status_ssid')}: <strong>{status.ssid}</strong>
           </Typography>
         )}
-
-        <Typography variant="caption" color="text.secondary">
-          {t('system.net_status_fallback_hint', {
-            ssid: status.hotspot.ssid || 'Minabox-Setup',
-          })}
-        </Typography>
       </Stack>
     </SettingsBlock>
   );

@@ -8,6 +8,7 @@ import { translateApiError } from '@/utils/apiError';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import type { MetadataBackfillStatus } from '@/types/api';
+import { HelpLabel } from '@/components/ui/HelpTip';
 
 /**
  * Two things that belong together: whether the box may ask MusicBrainz for
@@ -99,18 +100,20 @@ export const MediaMetadataPanel: React.FC = () => {
               color="primary"
             />
           }
-          label={t('general.online_metadata_label')}
+          label={
+            <HelpLabel
+              text={t('general.online_metadata_label')}
+              help={t('general.online_metadata_hint')}
+            />
+          }
           sx={{ display: 'block' }}
         />
-        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-          {t('general.online_metadata_hint')}
-        </Typography>
       </SettingsBlock>
 
-      <SettingsBlock title={t('general.metadata_backfill_title')}>
-        <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
-          {t('general.metadata_backfill_hint')}
-        </Typography>
+      <SettingsBlock
+        title={t('general.metadata_backfill_title')}
+        help={t('general.metadata_backfill_hint')}
+      >
         <ActionButton
           actionType="primary"
           onClick={handleBackfill}
