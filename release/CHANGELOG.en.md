@@ -21,6 +21,17 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.2.14 - 2026-09-01
+
+#### Added
+- An update channel: "stable" only ever offers finished releases, "beta"
+  additionally offers pre-releases to try out. Switchable under
+  Maintenance -> Version & Update, and switching back is enough.
+- "Back to the previous version" per service: the box remembers what ran
+  before an update and can put it back without a console.
+- A step back is refused when the update migrated the database - with the
+  reason, instead of attempting it and losing data.
+
 ### 0.2.13 - 2026-08-31
 
 #### Improved
@@ -238,6 +249,18 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.2.3 - 2026-09-01
+
+#### Added
+- A choice of update channel, and a "Back to <version>" button per service
+  under Maintenance -> Version & Update. A running pre-release is marked
+  "beta" in the version list.
+
+#### Fixed
+- Settings that were set and saved in one click wrote the previous value back.
+  Among others this affected the "check for updates automatically" switch,
+  which could be flipped without the setting ever arriving.
 
 ### 0.2.2 - 2026-09-01
 
@@ -547,6 +570,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.2.4 - 2026-09-01
+
+#### Added
+- The box now keeps an update history: every run records which versions were
+  running before it. That is what the step back to the previous version rests
+  on.
 
 ### 0.2.3 - 2026-08-30
 

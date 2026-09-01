@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
 import { useFormState } from '@/hooks/useFormState';
@@ -60,6 +60,10 @@ export function useGeneralConfigFields<K extends keyof GeneralConfig>(
   const { showSuccess } = useToast();
   const { saving, error, setError, run } = useFormState();
   const [values, setValues] = useState<GeneralFields<K> | null>(null);
+  // The same values, readable without waiting for a render. Every form here
+  // sets a field and saves in one handler; with the state alone, `save` still
+  // held the values from before the click and wrote the old one back.
+  const valuesRef = useRef<GeneralFields<K> | null>(null);
 
   // The defaults are written inline at the call site, so the object identity
   // changes on every render - the keys are what matters, and those are static.
@@ -78,6 +82,7 @@ export function useGeneralConfigFields<K extends keyof GeneralConfig>(
             next[key] = fromServer as GeneralFields<K>[K];
           }
         }
+        valuesRef.current = next;
         setValues(next);
       })
       .catch(() => {
@@ -94,18 +99,23 @@ export function useGeneralConfigFields<K extends keyof GeneralConfig>(
   }, [keySignature]);
 
   const setValue = useCallback(<P extends K>(key: P, value: NonNullable<GeneralConfig[P]>) => {
-    setValues((prev) => (prev ? { ...prev, [key]: value } : prev));
+    const base = valuesRef.current;
+    if (!base) return;
+    const next = { ...base, [key]: value };
+    valuesRef.current = next;
+    setValues(next);
   }, []);
 
   const save = useCallback(
     () =>
       run(async () => {
-        if (!values) return;
-        await configApi.updateGeneral(values);
+        const current = valuesRef.current;
+        if (!current) return;
+        await configApi.updateGeneral(current);
         setError(null);
         showSuccess(t('general.save_success'));
       }),
-    [values, run, setError, showSuccess, t],
+    [run, setError, showSuccess, t],
   );
 
   return { values, setValue, save, saving, error };

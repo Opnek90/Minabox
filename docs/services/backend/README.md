@@ -362,6 +362,32 @@ Only entries that are **online** are probed, and all of them together.
 Results are cached for six hours. The background loop polls every 30 minutes,
 but only while the user has the automatic check switched on.
 
+**Channels.** `update_channel` in the general settings decides which releases a
+box is offered: `stable` (the default) reads the manifest's `latest` and never
+sees a release candidate, `beta` reads `latest_beta` and gets them as soon as
+they are published. The channel of a version is derived from the version string
+alone — a pre-release marker (`0.3.0-rc.1`) means beta — so it cannot be set
+wrong in two places. A cached result belongs to the channel it was computed
+for; after a switch it counts as a miss rather than naming the wrong target.
+Switching back to stable is enough to be offered finished releases again, and
+the running build keeps showing which channel it came from.
+
+**The way back.** `GET /system/update-history` reads the runs the host-helper
+recorded and works out, per service, the version it ran before the most recent
+change of it. `POST /system/rollback` puts the named services back on it, along
+the same path as an update — backup, pin, pull, restart, verify — only with
+older tags.
+
+The decision whether a step back is allowed is made **here**, not in the
+host-helper: it is a question about `SCHEMA_VERSION`, and this is the only
+service that knows it. Every update sends its schema version along and it is
+filed with the run. If the recorded one differs from what this build expects,
+the backend cannot be stepped back — the database was migrated in between, and
+the older code would look for its data where the newer version no longer puts
+it. The candidate is still shown, with the reason; hiding it would leave the
+same question unanswered one screen further away. The other services do not
+read the database, so they stay free to move on their own.
+
 ### 3.8 Diagnosis
 
 `system_alerts.py` holds active alerts keyed by code and shows the most severe
@@ -502,7 +528,9 @@ not cut off a minute early.
 | GET | `/system/status` | one entry per container: state, version, CPU, RAM, database schema state |
 | GET | `/system/capabilities` | per optional component (rfid, led, button, display, media_downloader): installed / running / healthy |
 | GET | `/system/logs?service=&tail=` | container logs (host-helper, then Docker, then file) |
-| GET | `/system/update-check?force=` | running versions against the release manifest |
+| GET | `/system/update-check?force=` | running versions against the release manifest, for the box's channel |
+| GET | `/system/update-history` | the recorded runs, and per service what may be stepped back to |
+| POST | `/system/rollback` | body `{services}`; puts them back on the recorded version |
 | GET | `/system/alerts` | all active system alerts, most severe first |
 | GET | `/system/temperature-history?hours=` | temperature time series |
 | POST / GET | `/system/debug-export`, `/preview`, `/download/{id}`, `/options` | diagnostic archive |
@@ -778,8 +806,8 @@ break silently:
 | `test_auto_advance_flags.py`, `test_fade_out_and_stop.py`, `test_playback_loop_guard.py` | the end-of-content logic of 3.3 — the flags, the fade abort, the guard |
 | `test_schema_version.py`, `test_schema_migrations.py` | that `SCHEMA_VERSION` and the migrations stay in step (2.1) |
 | `test_container_registry.py`, `test_reported_health.py`, `test_capabilities.py` | container discovery, the folded-in service verdict, the capability answer (3.7) |
-| `test_update_check.py` | "no network never means update available", and the registry check |
-| `test_routes_host_proxy.py` | the strict/soft proxy split and the 401 → 503 rule |
+| `test_update_check.py` | "no network never means update available", the registry check, and what each channel is offered |
+| `test_routes_host_proxy.py` | the strict/soft proxy split, the 401 → 503 rule, and the rollback guard |
 | `test_auth_prefix_areas.py` | the longest-matching-prefix rule of 4.5 |
 | `test_button_config_validation.py`, `test_display_config_validation.py` | that a config the backend writes is one the device service can load |
 | `test_debug_export*.py` | the export contract, the endpoint, the log filter, redaction |

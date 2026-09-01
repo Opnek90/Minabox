@@ -120,7 +120,17 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "major_minor=${version%.*}" >> "$GITHUB_OUTPUT"
+          # A pre-release (0.2.14-rc.1) is a beta and must not move the tags
+          # that stable installs fall back to. "${version%.*}" would also cut
+          # such a version in the wrong place - "0.2.14-rc1" would yield "0.2"
+          # and point a real moving tag at a candidate.
+          if printf '%s' "$version" | grep -q -- '-'; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "major_minor=" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "major_minor=${version%.*}" >> "$GITHUB_OUTPUT"
+          fi
           echo "build_date=$(git show -s --format=%cI ${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
       # A version tag is immutable. If it already exists and comes from a
@@ -159,11 +169,15 @@ jobs:
         with:
           # GHCR requires lowercase paths.
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          # The version tag is always pushed; the moving ones only for a
+          # finished release. A box on the stable channel reaches its images
+          # through "latest" when the manifest is unavailable, and that path
+          # must never land on a candidate.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && steps.ver.outputs.prerelease == 'false' }}
             type=sha,prefix=sha-,format=short
             type=raw,value=${{ steps.ver.outputs.version }}
-            type=raw,value=${{ steps.ver.outputs.major_minor }}
+            type=raw,value=${{ steps.ver.outputs.major_minor }},enable=${{ steps.ver.outputs.prerelease == 'false' }}
 
       - name: Build & push
         uses: docker/build-push-action@v6

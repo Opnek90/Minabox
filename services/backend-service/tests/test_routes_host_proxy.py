@@ -213,3 +213,136 @@ async def test_audio_path_uses_config_when_helper_has_none(api_key, fake_helper,
     monkeypatch.setattr(rh, "get_config", lambda: FakeConfig)
     got = await rh.get_audio_path()
     assert got == {"path": "/mnt/audio/tracks"}
+
+
+# ── Rollback: was zurueckgenommen werden darf ────────────────────────────────
+
+# The history is written by the Host-Helper, the decision is made here: only
+# this service knows the database schema its own build expects.
+
+
+def _history(schema_version: int | None) -> list[dict]:
+    return [
+        {
+            "id": "2026-08-30T10:00:00+00:00",
+            "started_at": "2026-08-30T10:00:00+00:00",
+            "kind": "update",
+            "previous": {"backend": "0.2.12", "audio": "0.2.3"},
+            "targets": {"backend": "0.2.13", "audio": "0.2.4"},
+            "schema_version": schema_version,
+        }
+    ]
+
+
+def test_rollback_candidate_is_the_version_before_the_last_change():
+    candidates = rh._rollback_candidates(
+        _history(rh.SCHEMA_VERSION), {"backend": "0.2.13", "audio": "0.2.4"}
+    )
+    assert {c["service"]: c["target"] for c in candidates} == {
+        "backend": "0.2.12",
+        "audio": "0.2.3",
+    }
+    assert all(c["allowed"] for c in candidates)
+
+
+def test_no_candidate_for_a_service_that_did_not_move():
+    """The recorded version is the running one - there is nothing to go back to."""
+    candidates = rh._rollback_candidates(
+        _history(rh.SCHEMA_VERSION), {"backend": "0.2.12"}
+    )
+    assert candidates == []
+
+
+def test_a_service_without_history_is_not_offered():
+    candidates = rh._rollback_candidates(_history(rh.SCHEMA_VERSION), {"led": "0.2.3"})
+    assert candidates == []
+
+
+def test_the_first_matching_entry_wins():
+    """Two steps back is a different promise about the data written since."""
+    entries = [
+        {"started_at": "b", "previous": {"backend": "0.2.12"}, "schema_version": rh.SCHEMA_VERSION},
+        {"started_at": "a", "previous": {"backend": "0.2.11"}, "schema_version": rh.SCHEMA_VERSION},
+    ]
+    candidates = rh._rollback_candidates(entries, {"backend": "0.2.13"})
+    assert [c["target"] for c in candidates] == ["0.2.12"]
+
+
+def test_a_migrated_database_blocks_the_backend():
+    """The older code would look for its data where the newer one no longer puts it."""
+    candidates = rh._rollback_candidates(
+        _history(rh.SCHEMA_VERSION - 1), {"backend": "0.2.13", "audio": "0.2.4"}
+    )
+    backend = next(c for c in candidates if c["service"] == "backend")
+    assert backend["allowed"] is False
+    assert backend["reason"] == "schema_changed"
+    # Only the backend reads the database; a version per service is the point.
+    audio = next(c for c in candidates if c["service"] == "audio")
+    assert audio["allowed"] is True
+
+
+def test_history_without_a_schema_version_does_not_block():
+    """Recorded before this field existed - unknown is not the same as changed."""
+    candidates = rh._rollback_candidates(_history(None), {"backend": "0.2.13"})
+    assert candidates[0]["allowed"] is True
+
+
+@pytest.mark.asyncio
+async def test_rollback_refuses_a_service_with_no_recorded_version(api_key, fake_helper, monkeypatch):
+    fake_helper(lambda r: httpx.Response(200, json={"entries": [], "running": {}}))
+    with pytest.raises(HTTPException) as exc:
+        await rh.rollback(rh.RollbackBody(services=["backend"]))
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_rollback_refuses_across_a_migration(api_key, fake_helper):
+    fake_helper(
+        lambda r: httpx.Response(
+            200,
+            json={
+                "entries": _history(rh.SCHEMA_VERSION - 1),
+                "running": {"backend": "0.2.13"},
+            },
+        )
+    )
+    with pytest.raises(HTTPException) as exc:
+        await rh.rollback(rh.RollbackBody(services=["backend"]))
+    assert exc.value.status_code == 409
+    assert "migrated" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_rollback_sends_the_recorded_tags(api_key, fake_helper):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/update-history"):
+            return httpx.Response(
+                200,
+                json={
+                    "entries": _history(rh.SCHEMA_VERSION),
+                    "running": {"backend": "0.2.13", "audio": "0.2.4"},
+                },
+            )
+        return httpx.Response(200, json={"ok": True})
+
+    state = fake_helper(handler)
+    got = await rh.rollback(rh.RollbackBody(services=["audio"]))
+
+    assert got == {"ok": True}
+    started = [r for r in state["requests"] if r.url.path.endswith("/update-minabox")]
+    assert len(started) == 1
+    import json as _json
+
+    body = _json.loads(started[0].content)
+    # Exactly the one service, on exactly the recorded tag - and labelled, so
+    # the history says what kind of run it was.
+    assert body["targets"] == {"audio": "0.2.3"}
+    assert body["kind"] == "rollback"
+    assert body["schema_version"] == rh.SCHEMA_VERSION
+
+
+@pytest.mark.asyncio
+async def test_rollback_without_a_service_is_rejected(api_key):
+    with pytest.raises(HTTPException) as exc:
+        await rh.rollback(rh.RollbackBody(services=[]))
+    assert exc.value.status_code == 400

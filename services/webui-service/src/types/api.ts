@@ -577,6 +577,8 @@ export interface GeneralConfig {
   setup_version?: number;
   /** Periodic background scan for updates; shows a header hint when one is ready. */
   auto_update_check_enabled?: boolean;
+  /** Which releases this box is offered: finished ones, or candidates too. */
+  update_channel?: 'stable' | 'beta';
   /** Largest audio upload accepted over the web UI, in MB. Applied without a restart. */
   max_upload_size_mb?: number;
   /** Hostnames a media URL import may come from. Applied without a restart. */

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { useGeneralConfigField, useGeneralConfigFields } from './useGeneralConfig';
@@ -83,5 +83,48 @@ describe('useGeneralConfig', () => {
     };
     render(<Probe />);
     await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('load_error'));
+  });
+
+  // Every form here sets a field and saves in the same handler. While `save`
+  // read the values out of state, it still held what was there before the
+  // click: the switch flipped and the old value went straight back.
+  it('saves the value that was just set, not the one before it', async () => {
+    getGeneral.mockResolvedValue(SERVER);
+    updateGeneral.mockResolvedValue({});
+    let field: ReturnType<typeof useGeneralConfigField<'sleep_timer_minutes'>> | null = null;
+    const Probe = () => {
+      field = useGeneralConfigField('sleep_timer_minutes', 30);
+      return <span data-testid="probe">{field.value === null ? 'loading' : String(field.value)}</span>;
+    };
+
+    render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('45'));
+
+    // Exactly what the settings forms do, in one handler.
+    await act(async () => {
+      field!.setValue(60);
+      await field!.save();
+    });
+
+    expect(updateGeneral).toHaveBeenCalledWith({ sleep_timer_minutes: 60 });
+  });
+
+  it('sends nothing while the first load is still out', async () => {
+    getGeneral.mockImplementation(() => new Promise(() => {}));
+    let field: ReturnType<typeof useGeneralConfigField<'sleep_timer_minutes'>> | null = null;
+    const Probe = () => {
+      field = useGeneralConfigField('sleep_timer_minutes', 30);
+      return <span data-testid="probe">loading</span>;
+    };
+
+    render(<Probe />);
+    await act(async () => {
+      field!.setValue(60);
+      await field!.save();
+    });
+
+    // Saving on top of values that were never loaded would write the defaults
+    // over whatever the box actually has.
+    expect(updateGeneral).not.toHaveBeenCalled();
   });
 });

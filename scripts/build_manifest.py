@@ -36,7 +36,7 @@ LANGUAGES: dict[str, tuple[str, tuple[str, ...]]] = {
 # joined, without needing a translation table.
 CATEGORY_KEYS = ("added", "improved", "fixed")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 RE_SERVICE = re.compile(r"^##\s+(?P<name>[a-z0-9][a-z0-9-]*)\s*$")
 RE_VERSION = re.compile(
@@ -142,6 +142,18 @@ def sort_key(version: str) -> tuple:
     return (numbers, 1 if not pre else 0, pre)
 
 
+def channel_of(version: str) -> str:
+    """Which update channel a version belongs to.
+
+    The version string decides, nothing else: a pre-release marker
+    (``0.3.0-rc1``) means beta, everything else is stable. That keeps the
+    channel out of the changelog format - there is no second place where it
+    could be set wrong, and a version cannot claim to be a finished release
+    while carrying a release-candidate number.
+    """
+    return "beta" if "-" in version else "stable"
+
+
 def build() -> dict[str, Any]:
     parsed = {
         lang: parse_changelog(ROOT / filename, categories)
@@ -180,6 +192,17 @@ def build() -> dict[str, Any]:
         for extra in sorted(set(other) - set(entries)):
             problems.append(f"{de_file}: {service} {extra} missing")
 
+        # The newest described version has to be the one that is built.
+        # Otherwise the manifest offers a tag that no CI run ever pushed -
+        # and the registry check on the box would quietly hide it forever.
+        if entries:
+            newest_described = sorted(entries, key=sort_key)[-1]
+            if newest_described != version:
+                problems.append(
+                    f"{de_file}: {service} describes {newest_described}, "
+                    f"but VERSION says {version}"
+                )
+
         releases = []
         for release_version in sorted(entries, key=sort_key, reverse=True):
             german = entries[release_version]
@@ -196,11 +219,25 @@ def build() -> dict[str, Any]:
                 {
                     "version": release_version,
                     "date": german.get("date"),
+                    "channel": channel_of(release_version),
                     "notes": notes,
                 }
             )
 
-        manifest_services[service] = {"latest": version, "releases": releases}
+        # "latest" stays what it always was: the newest *finished* version. A
+        # box that knows nothing about channels reads that field and therefore
+        # never lands on a release candidate by accident. The beta channel is
+        # a second field on top, and only appears when there is something in
+        # it that stable does not have.
+        stable = [r["version"] for r in releases if r["channel"] == "stable"]
+        newest = releases[0]["version"] if releases else version
+        entry: dict[str, Any] = {
+            "latest": stable[0] if stable else None,
+            "releases": releases,
+        }
+        if newest != entry["latest"]:
+            entry["latest_beta"] = newest
+        manifest_services[service] = entry
 
     if problems:
         raise ChangelogError("\n".join(f"  - {p}" for p in problems))

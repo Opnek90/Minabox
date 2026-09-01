@@ -317,6 +317,9 @@ def test_copytree_filter_keeps_ordinary_files(tmp_path: Path) -> None:
         "data/minabox-update.sh",
         "data/minabox-update.log",
         "data/minabox-update-state.json",
+        # The history names the tags *this* box ran. Restoring someone else's
+        # would offer a way back to versions that were never here.
+        "data/minabox-update-history.json",
         "data/os-update.pid",
         "data/os-update.log",
         "data/backups/pre-update-20260823.zip",
@@ -353,3 +356,60 @@ def test_backup_allowlist_accepts_everything_a_backup_produces(tmp_path: Path) -
     assert produced  # otherwise this test asserts nothing
     for arcname in produced:
         assert backup._backup_allowed_path(arcname, workspace) is True, arcname
+
+
+# ── Update history ──────────────────────────────────────────────────────────
+
+# The file behind "revert to the previous version". Every run records what was
+# running before it; without that, the way back would be a guess.
+
+
+@pytest.fixture
+def history_dir(tmp_path: Path, monkeypatch):
+    """Point the history at a temporary data directory."""
+
+    class _Cfg:
+        data_path = tmp_path
+
+    monkeypatch.setattr(update, "get_config", lambda: _Cfg())
+    return tmp_path
+
+
+def test_history_of_a_box_that_never_updated(history_dir: Path) -> None:
+    assert update.read_history() == []
+
+
+def test_history_is_newest_first(history_dir: Path) -> None:
+    update.append_history({"id": "first"})
+    update.append_history({"id": "second"})
+    assert [e["id"] for e in update.read_history()] == ["second", "first"]
+
+
+def test_history_is_capped(history_dir: Path, monkeypatch) -> None:
+    # An SD card, and a file that only ever grows otherwise.
+    monkeypatch.setattr(update, "HISTORY_KEEP", 3)
+    for i in range(6):
+        update.append_history({"id": str(i)})
+    assert [e["id"] for e in update.read_history()] == ["5", "4", "3"]
+
+
+def test_a_damaged_history_reads_as_empty(history_dir: Path) -> None:
+    """Losing the way back is bad; refusing to update over it would be worse."""
+    path = history_dir / "minabox-update-history.json"
+    path.write_text("{not json", encoding="utf-8")
+    assert update.read_history() == []
+    # And it recovers on the next run rather than staying broken forever.
+    update.append_history({"id": "after"})
+    assert [e["id"] for e in update.read_history()] == ["after"]
+
+
+def test_a_history_that_is_not_a_list_reads_as_empty(history_dir: Path) -> None:
+    path = history_dir / "minabox-update-history.json"
+    path.write_text('{"id": "x"}', encoding="utf-8")
+    assert update.read_history() == []
+
+
+def test_history_entries_that_are_not_objects_are_dropped(history_dir: Path) -> None:
+    path = history_dir / "minabox-update-history.json"
+    path.write_text('[{"id": "good"}, "junk", 3]', encoding="utf-8")
+    assert update.read_history() == [{"id": "good"}]
