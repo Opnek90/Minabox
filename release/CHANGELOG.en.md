@@ -21,6 +21,17 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.3.0-rc.1 - 2026-09-01
+
+#### Added
+- Uploads now read artist, album and the embedded cover art from the file -
+  including FLAC, OGG and M4A files, not just MP3.
+- New "Look up metadata online" switch (Maintenance -> Media, off by default):
+  for files with no tags of their own, the box asks MusicBrainz and the Cover
+  Art Archive. The track title and artist are sent to those services.
+- "Fill in cover art & metadata" completes missing details and cover art for
+  tracks already in the library, in the background.
+
 ### 0.2.14 - 2026-09-01
 
 #### Added
@@ -249,6 +260,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.3.0-rc.1 - 2026-09-01
+
+#### Added
+- New "Media" section in the settings: a switch for the online metadata lookup
+  and a "Fill in cover art & metadata" action that completes missing details
+  and cover art for the existing library, with a progress display.
 
 ### 0.2.3 - 2026-09-01
 

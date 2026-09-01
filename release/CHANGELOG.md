@@ -22,6 +22,18 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.3.0-rc.1 - 2026-09-01
+
+#### Neu
+- Beim Hochladen liest die Box jetzt Interpret, Album und das eingebettete
+  Titelbild aus der Datei - auch aus FLAC-, OGG- und M4A-Dateien, nicht nur MP3.
+- Neuer Schalter "Metadaten online nachschlagen" (Wartung -> Medien,
+  standardmaessig aus): fuer Dateien ohne eigene Angaben fragt die Box bei
+  MusicBrainz und dem Cover Art Archive nach. Dabei werden Titel und Interpret
+  an diese Dienste uebermittelt.
+- "Cover & Metadaten nachtragen" ergaenzt fehlende Angaben und Titelbilder fuer
+  bereits vorhandene Titel im Hintergrund.
+
 ### 0.2.14 - 2026-09-01
 
 #### Neu
@@ -260,6 +272,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.3.0-rc.1 - 2026-09-01
+
+#### Neu
+- Neuer Bereich "Medien" in den Einstellungen: ein Schalter fuer die
+  Online-Suche nach Metadaten und eine Aktion "Cover & Metadaten nachtragen",
+  die fehlende Angaben und Titelbilder fuer die bestehende Mediathek ergaenzt -
+  mit Fortschrittsanzeige.
 
 ### 0.2.3 - 2026-09-01
 
