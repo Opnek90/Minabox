@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from backend_service.core import weekly_review
 from backend_service.core.db_manager import get_db
 from backend_service.core.playback_stats import (
     get_live_listened_minutes,
@@ -62,6 +63,35 @@ class ListeningSummaryResponse(BaseModel):
     top_tags: list[TopTagItem]
     top_playlists: list[TopPlaylistItem]
     heatmap: list[HeatmapItem]
+
+
+class MostPlayedItem(BaseModel):
+    tag_id: int
+    name: str | None
+    play_count: int
+    minutes: float
+
+
+class NeverPlayedItem(BaseModel):
+    tag_id: int
+    name: str | None
+    created_at: str  # YYYY-MM-DD
+
+
+class WeeklyReviewResponse(BaseModel):
+    """One readable weekly listening review for parents (issue #170)."""
+    week_start: str  # YYYY-MM-DD (Monday, local)
+    week_end: str  # YYYY-MM-DD (Sunday, local)
+    total_minutes: float
+    prev_total_minutes: float
+    delta_minutes: float
+    minutes_per_weekday: list[float]  # length 7, Monday .. Sunday
+    daily_limit_enabled: bool
+    daily_limit_minutes: int
+    average_minutes_per_day: float
+    most_played: MostPlayedItem | None
+    never_played: list[NeverPlayedItem]
+    never_played_total: int
 
 
 class UsageTodayResponse(BaseModel):
@@ -262,4 +292,52 @@ def get_listening_summary(
         top_tags=top_tags,
         top_playlists=top_playlists,
         heatmap=heatmap,
+    )
+
+
+@router.get(
+    "/weekly-review",
+    response_model=WeeklyReviewResponse,
+    summary="Weekly listening review for parents",
+)
+def get_weekly_review(
+    week_offset: int = Query(
+        1,
+        ge=0,
+        le=520,
+        description="0 = current week, 1 = last week, ...",
+    ),
+    db: Session = Depends(get_db),
+) -> WeeklyReviewResponse:
+    """Aggregate one ISO week into a readable summary.
+
+    Honours the same honesty rules as the rest of the dashboard: only
+    listened_ms is counted and every event is capped (see core/playback_stats).
+    """
+    review = weekly_review.build(db, week_offset)
+    return WeeklyReviewResponse(
+        week_start=review.week_start,
+        week_end=review.week_end,
+        total_minutes=review.total_minutes,
+        prev_total_minutes=review.prev_total_minutes,
+        delta_minutes=review.delta_minutes,
+        minutes_per_weekday=review.minutes_per_weekday,
+        daily_limit_enabled=review.daily_limit_enabled,
+        daily_limit_minutes=review.daily_limit_minutes,
+        average_minutes_per_day=review.average_minutes_per_day,
+        most_played=(
+            MostPlayedItem(
+                tag_id=review.most_played.tag_id,
+                name=review.most_played.name,
+                play_count=review.most_played.play_count,
+                minutes=review.most_played.minutes,
+            )
+            if review.most_played
+            else None
+        ),
+        never_played=[
+            NeverPlayedItem(tag_id=n.tag_id, name=n.name, created_at=n.created_at)
+            for n in review.never_played
+        ],
+        never_played_total=review.never_played_total,
     )

@@ -34,6 +34,7 @@ from backend_service.api.routes_rfid import set_mqtt_client as set_rfid_mqtt_cli
 from backend_service.api.routes_system import set_mqtt_client as set_system_mqtt_client
 from backend_service.api.websocket import websocket_endpoint, ws_manager
 from backend_service.config_schema import AppConfig
+from backend_service.core.analytics_retention import run_analytics_retention_loop
 from backend_service.core.api_errors import ApiError, api_error_handler
 from backend_service.core.db_manager import DatabaseManager, init_db
 from backend_service.core.mqtt_client import MQTTClient
@@ -62,6 +63,7 @@ class BackendService:
         self._podcast_fetch_task: asyncio.Task | None = None
         self._temperature_log_task: asyncio.Task | None = None
         self._update_check_task: asyncio.Task | None = None
+        self._analytics_retention_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the backend service."""
@@ -183,6 +185,11 @@ class BackendService:
             run_update_check_loop(ws_manager.broadcast)
         )
 
+        # Start analytics-retention loop (prunes old playback/scan events daily)
+        self._analytics_retention_task = asyncio.create_task(
+            run_analytics_retention_loop(self._db)
+        )
+
         # Start FastAPI server
         await self._start_api_server()
 
@@ -301,6 +308,14 @@ class BackendService:
             self._update_check_task.cancel()
             try:
                 await self._update_check_task
+            except asyncio.CancelledError:
+                pass
+
+        # Stop analytics-retention loop
+        if self._analytics_retention_task:
+            self._analytics_retention_task.cancel()
+            try:
+                await self._analytics_retention_task
             except asyncio.CancelledError:
                 pass
 
