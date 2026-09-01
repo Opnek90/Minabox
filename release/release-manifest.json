@@ -142,12 +142,12 @@
       ]
     },
     "backend": {
-      "latest": "0.2.14",
+      "latest": "0.3.0",
       "releases": [
         {
-          "version": "0.3.0-rc.1",
+          "version": "0.3.0",
           "date": "2026-09-01",
-          "channel": "beta",
+          "channel": "stable",
           "notes": {
             "added": {
               "de": [
@@ -656,8 +656,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.3.0-rc.1"
+      ]
     },
     "button": {
       "latest": "0.2.3",
@@ -1415,12 +1414,12 @@
       ]
     },
     "webui": {
-      "latest": "0.2.3",
+      "latest": "0.3.0",
       "releases": [
         {
-          "version": "0.3.0-rc.1",
+          "version": "0.3.0",
           "date": "2026-09-01",
-          "channel": "beta",
+          "channel": "stable",
           "notes": {
             "added": {
               "de": [
@@ -1980,8 +1979,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.3.0-rc.1"
+      ]
     }
   }
 }

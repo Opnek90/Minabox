@@ -21,7 +21,7 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
-### 0.3.0-rc.1 - 2026-09-01
+### 0.3.0 - 2026-09-01
 
 #### Added
 - Uploads now read artist, album and the embedded cover art from the file -
@@ -261,7 +261,7 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
-### 0.3.0-rc.1 - 2026-09-01
+### 0.3.0 - 2026-09-01
 
 #### Added
 - New "Media" section in the settings: a switch for the online metadata lookup
