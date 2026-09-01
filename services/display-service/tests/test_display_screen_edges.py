@@ -37,8 +37,11 @@ def _frames():
     yield "quota_over", quota_over.render()
     yield "tag_blocked", tag_blocked.render()
     yield "tag_blocked+name", tag_blocked.render("Bibi Blocksberg und Kartoffelbrei")
-    yield "volume", render_volume(VolumeView(30, 20, 40, 5))
-    yield "volume_muted", render_volume(VolumeView(30, 20, 40, 5, muted=True))
+    for volume in range(20, 41, 5):
+        # Every singing level: the top note climbs into the corner, so this is
+        # where an off-by-one runs a note off the panel.
+        yield f"volume:{volume}", render_volume(VolumeView(volume, 20, 40))
+    yield "volume_muted", render_volume(VolumeView(30, 20, 40, muted=True))
     yield "playing", render_playing(PlayingView(LONG_TITLE, 5 * M, 10 * M))
     yield "playing_muted", render_playing(
         PlayingView("Ein Lama in Yokohama", 5 * M, 10 * M, muted=True)

@@ -21,8 +21,10 @@ PUZZLED = "puzzled"
 WAVE_UP = "wave_up"
 WAVE_DOWN = "wave_down"
 HUSHED = "hushed"
+SINGING = "singing"
+BELTING = "belting"
 
-MOODS = (AWAKE, BLINK, ASLEEP, PUZZLED, WAVE_UP, WAVE_DOWN, HUSHED)
+MOODS = (AWAKE, BLINK, ASLEEP, PUZZLED, WAVE_UP, WAVE_DOWN, HUSHED, SINGING, BELTING)
 WAVING = (WAVE_UP, WAVE_DOWN)
 
 # Everything below is in fortieths of the sprite's size.
@@ -110,6 +112,31 @@ def draw(canvas: Any, x: int, y: int, size: int, mood: str = AWAKE) -> None:
                 fill=0,
                 width=stroke(),
             )
+        return
+
+    if mood in (SINGING, BELTING):
+        # An open mouth for the sound to come out of. Belting is the loudest
+        # setting: the eyes scrunch shut and the mouth opens wider - that is
+        # the "as loud as it goes" cue, since there is no full row of blocks
+        # left to carry it.
+        belting = mood == BELTING
+        for cx, cy in eyes:
+            if belting:
+                canvas.arc(
+                    [cx - radius, cy - radius, cx + radius, cy + radius],
+                    start=180,
+                    end=360,
+                    fill=0,
+                    width=stroke(),
+                )
+            else:
+                canvas.ellipse(
+                    [cx - radius, cy - radius, cx + radius, cy + radius], fill=0
+                )
+        mx, my = point(20, 27)
+        w = round((6 if belting else 4) * unit)
+        h = round((8 if belting else 5) * unit)
+        canvas.ellipse([mx - w, my - h, mx + w, my + h], fill=0)
         return
 
     for cx, cy in eyes:

@@ -700,7 +700,13 @@ class DisplayService:
         frame on every tick.
         """
         if screen == SCREEN_HUD:
-            return f"hud:{self._hud_view}", render_volume(self._hud_view)
+            view = self._hud_view
+            # What the panel actually shows: mute, or one of five singing
+            # levels. Most knob clicks on a wide range land in the same level
+            # and change nothing here, so they cost no frame on the bus the
+            # RFID reader shares - even though each still flashes the overlay.
+            visible = "muted" if view.muted else f"L{view.level}"
+            return f"hud:{visible}", render_volume(view)
         if screen == SCREEN_NOTICE:
             kind, detail = self._notice
             return f"notice:{kind}:{detail}", _NOTICE_RENDERERS[kind](detail)
