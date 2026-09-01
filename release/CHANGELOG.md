@@ -22,7 +22,7 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
-### 0.3.0-rc.1 - 2026-09-01
+### 0.3.0 - 2026-09-01
 
 #### Neu
 - Beim Hochladen liest die Box jetzt Interpret, Album und das eingebettete
@@ -273,7 +273,7 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
-### 0.3.0-rc.1 - 2026-09-01
+### 0.3.0 - 2026-09-01
 
 #### Neu
 - Neuer Bereich "Medien" in den Einstellungen: ein Schalter fuer die
