@@ -10,6 +10,7 @@
   "audio_storage_readonly": "Speicherort für Audiodateien ist schreibgeschützt",
   "auth_required": "Bitte anmelden",
   "auth_settings_write_failed": "Anmeldedaten konnten nicht gespeichert werden",
+  "backfill_already_running": "Es läuft bereits ein Nachtragen von Metadaten",
   "backup_download_failed": "Backup-Download fehlgeschlagen",
   "backup_restore_failed": "Wiederherstellung fehlgeschlagen",
   "bluetooth_connect_failed": "Verbindung fehlgeschlagen",

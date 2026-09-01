@@ -18,6 +18,7 @@ import { ButtonConfigPanel } from '@/components/admin/ButtonConfigPanel';
 import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
 import { NetworkPanel } from '@/components/admin/NetworkPanel';
 import { UsbImportPanel } from '@/components/admin/UsbImportPanel';
+import { MediaMetadataPanel } from '@/components/admin/MediaMetadataPanel';
 import { SystemMaintenanceSection } from '@/components/admin/SystemMaintenanceSection';
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import { SettingsSection } from '@/components/admin/SettingsSection';
@@ -63,6 +64,7 @@ const SECTION_CONTENT: Record<string, React.ReactNode> = {
   upload_limit: <UploadLimitForm />,
   media_import_domains: <MediaImportDomainsForm />,
   usb: <UsbImportPanel />,
+  media_metadata: <MediaMetadataPanel />,
   maintenance: <SystemMaintenanceSection />,
   security: <SecurityPanel />,
   advanced: <AdvancedSettingsForm />,
