@@ -261,6 +261,14 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.4.0 - 2026-09-01
+
+#### Improved
+- The long explanations in the settings no longer sit permanently under every
+  field. A question mark next to it shows them on hover or on tap; on a phone
+  they arrive as a sheet from the bottom edge. Warnings, input rules and
+  descriptions of the options you are choosing between stay visible.
+
 ### 0.3.0 - 2026-09-01
 
 #### Added
