@@ -48,12 +48,35 @@ describe('HelpTip', () => {
     );
 
     await user.click(questionMark());
-    // The popper hangs around for the fade-out. Give it well over the default
-    // second: on a loaded CI runner the MUI leave transition plus the unmount
-    // routinely overruns 1000ms, which made this the suite's flakiest test.
-    await waitForElementToBeRemoved(() => screen.queryByRole('tooltip'), {
-      timeout: 5000,
-    });
+    // The popper hangs around for the fade-out.
+    await waitForElementToBeRemoved(() => screen.queryByRole('tooltip'));
+  });
+
+  // MUI opens the tooltip on hover/focus, but only after enterDelay (100ms).
+  // That timer outlives a click, so a click that closed the explanation used to
+  // be undone when it fired - and nothing closed it again, because the pointer
+  // never leaves the icon. On a fast machine the test above hit exactly this
+  // and the tooltip stayed open forever; on a slow one the timer had always
+  // fired before the second click, which is why it only ever failed in CI.
+  // Fake timers pin the order down, so this holds on any machine.
+  it('stays closed when the hover-open timer fires after the dismissing click', () => {
+    vi.useFakeTimers();
+    try {
+      render(<HelpTip title="Wird an einen Dritten uebermittelt." />);
+
+      fireEvent.mouseOver(questionMark()); // starts the 100ms enter timer
+      fireEvent.click(questionMark()); // opens
+      expect(screen.queryByRole('tooltip')).toBeInTheDocument();
+
+      fireEvent.click(questionMark()); // closes, while the timer is still pending
+      act(() => {
+        vi.advanceTimersByTime(2000); // enter timer fires, transitions finish
+      });
+
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // For a screen reader the explanation is the *description* of the question

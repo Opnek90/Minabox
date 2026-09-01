@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { Box, ClickAwayListener, Drawer, IconButton, Tooltip, Typography } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { useTranslation } from 'react-i18next';
@@ -61,6 +61,25 @@ export const HelpTip: React.FC<HelpTipProps> = ({ title, label, sx }) => {
   const [open, setOpen] = useState(false);
   const headingId = useId();
   const textId = useId();
+  /**
+   * Whether the explanation was just dismissed by a click.
+   *
+   * MUI opens the tooltip on hover and on focus, but only after `enterDelay`
+   * (100ms). That timer is started by the very interaction that carries our
+   * click, and nothing short of leaving the icon cancels it. A click that
+   * closed the explanation before the timer fires is therefore undone by it -
+   * and the tooltip then stays open for good, because the pointer never
+   * leaves. A quick double click on the question mark did exactly that.
+   *
+   * The click is the deliberate act, so it wins: a late `onOpen` is ignored
+   * until the pointer or the focus has actually left the icon. MUI's `onClose`
+   * cannot carry this reset - it only fires while `open` is still true, which
+   * after a click-dismissal it no longer is.
+   */
+  const clickDismissed = useRef(false);
+  const rearm = () => {
+    clickDismissed.current = false;
+  };
 
   const icon = (
     <IconButton
@@ -75,8 +94,12 @@ export const HelpTip: React.FC<HelpTipProps> = ({ title, label, sx }) => {
         // mark explains.
         event.preventDefault();
         event.stopPropagation();
-        setOpen((prev) => !prev);
+        clickDismissed.current = open;
+        setOpen(!open);
       }}
+      // Tooltip composes its own handlers with these instead of replacing them.
+      onMouseLeave={rearm}
+      onBlur={rearm}
       size="small"
       sx={{ color: 'text.secondary', p: 0.25, ...sx }}
     >
@@ -131,7 +154,9 @@ export const HelpTip: React.FC<HelpTipProps> = ({ title, label, sx }) => {
       <Tooltip
         title={title}
         open={open}
-        onOpen={() => setOpen(true)}
+        onOpen={() => {
+          if (!clickDismissed.current) setOpen(true);
+        }}
         onClose={() => setOpen(false)}
         describeChild
         arrow
