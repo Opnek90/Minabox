@@ -543,6 +543,9 @@ class DisplayService:
                 visible,
                 view.muted,
                 round(view.fraction * 118 / PROGRESS_QUANTUM_PX),
+                # Whether Knuffel is walking or waving - it flips a few pixels
+                # before the quantised position or the time text would.
+                view.arriving and not view.paused,
             ],
             sort_keys=True,
             default=str,

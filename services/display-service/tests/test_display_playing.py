@@ -8,7 +8,9 @@ from display_service.render.playing import (
     PAUSED_SLEEPER_TOP,
     PAUSED_Z_GAP,
     TIME_BASELINE,
+    TITLE_BAND_HEIGHT,
     UNKNOWN_TIME,
+    WALK_LINE_Y,
     PlayingView,
     render,
 )
@@ -102,20 +104,73 @@ class TestRender:
         assert first_line > 0
         assert second_line > 0
 
-    def test_a_short_title_does_not_grow_into_the_bar(self):
-        """The long title lands on 12 px whatever the rule, so it proves
-        nothing. A short one is offered 16 px by width alone - two lines of
-        which reach into the progress bar underneath."""
-        img = render(PlayingView(SHORT, 5 * M, 10 * M))
-        # Right half of the bar interior: empty at half-played, unless the
-        # second title line has grown down into it.
-        assert lit_count(img, (66, 34, 124, 44)) == 0
+    def test_a_short_title_does_not_grow_past_its_band(self):
+        """The long title lands on the smallest size whatever the rule, so it
+        proves nothing. A short one is offered 20 px by width alone - two lines
+        of which would spill below the band into Knuffel's headroom."""
+        # Fraction 0 keeps Knuffel far left, so the strip under the band on the
+        # right is title-only: empty unless a second line has grown into it.
+        img = render(PlayingView(SHORT, 10 * M, 10 * M))
+        assert lit_count(img, (40, TITLE_BAND_HEIGHT + 1, 124, WALK_LINE_Y)) == 0
 
-    def test_the_bar_moves_with_the_track(self):
+    def test_the_progress_advances_with_the_track(self):
+        """Knuffel and the stretch of line behind him both move to the right."""
         early = render(PlayingView(LONG, 9 * M, 10 * M))
         late = render(PlayingView(LONG, 1 * M, 10 * M))
-        band = (0, 32, WIDTH, 47)
+        band = (0, WALK_LINE_Y - 2, WIDTH, WALK_LINE_Y + 2)
         assert lit_count(late, band) > lit_count(early, band)
+
+
+class TestWalk:
+    """The progress bar is Knuffel walking the track to the end of the song."""
+
+    HEAD_BAND = (0, WALK_LINE_Y - 16, WIDTH, WALK_LINE_Y - 2)
+
+    def _knuffel_centre_x(self, img) -> float:
+        """Mean x of the lit pixels in the band between the title and the line -
+        which is Knuffel and nothing else."""
+        x0, y0, x1, y1 = self.HEAD_BAND
+        pixels = img.load()
+        xs = [x for x in range(x0, x1) for y in range(y0, y1) if pixels[x, y]]
+        assert xs, "Knuffel is not on the screen"
+        return sum(xs) / len(xs)
+
+    def test_he_is_on_the_track_while_playing(self):
+        assert lit_count(render(PlayingView(LONG, 5 * M, 10 * M)), self.HEAD_BAND) > 60
+
+    def test_he_walks_from_left_to_right_as_the_track_plays(self):
+        xs = [
+            self._knuffel_centre_x(render(PlayingView(LONG, r, 10 * M)))
+            for r in (10 * M, 7 * M, 4 * M, 1 * M)
+        ]
+        assert xs == sorted(xs)
+        assert xs[-1] - xs[0] > 40
+
+    def test_he_waves_in_the_home_stretch(self):
+        """Near the end he turns round - a different pose, not just a new
+        position."""
+        mid = render(PlayingView(SHORT, 5 * M, 10 * M))
+        end = render(PlayingView(SHORT, 5_000, 10 * M))
+        assert mid.tobytes() != end.tobytes()
+        # The wave reaches up and out: the top-right of the sprite band is lit
+        # near the end and was not mid-track.
+        arm = (WIDTH - 30, WALK_LINE_Y - 22, WIDTH - 2, WALK_LINE_Y - 12)
+        assert lit_count(end, arm) > lit_count(mid, arm)
+
+    def test_a_stream_leaves_him_at_the_start(self):
+        """No length means no end to walk to; he waits at the left."""
+        img = render(PlayingView("Radio Teddy", None, None))
+        assert self._knuffel_centre_x(img) < WIDTH / 3
+
+
+class TestArriving:
+    def test_true_only_in_the_last_seconds(self):
+        assert not PlayingView(LONG, 60_000, 10 * M).arriving
+        assert PlayingView(LONG, 10_000, 10 * M).arriving
+        assert PlayingView(LONG, 0, 10 * M).arriving
+
+    def test_a_stream_never_arrives(self):
+        assert not PlayingView("Radio Teddy", None, None).arriving
 
     def test_pause_keeps_the_bar_rather_than_hiding_it(self):
         """Paused has its own layout, but "how far in" is still true and still

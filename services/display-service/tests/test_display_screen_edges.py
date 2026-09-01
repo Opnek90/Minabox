@@ -46,6 +46,10 @@ def _frames():
     yield "playing_muted", render_playing(
         PlayingView("Ein Lama in Yokohama", 5 * M, 10 * M, muted=True)
     )
+    # The home stretch: Knuffel is at the right, waving - the pose that
+    # reaches furthest, at the position that reaches furthest.
+    yield "playing_arriving", render_playing(PlayingView(LONG_TITLE, 2_000, 10 * M))
+    yield "playing_done", render_playing(PlayingView(LONG_TITLE, 0, 10 * M))
     for mood in knuffel.MOODS:
         yield f"idle:{mood}", _idle_frame(mood)
     yield "idle+marks", _idle_frame(knuffel.WAVE_UP, ("error", "sleep_timer"))
