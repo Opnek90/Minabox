@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "tts-service"
+dynamic = ["version"]
+description = "Minabox TTS Service – short spoken announcements, synthesised locally"
+requires-python = ">=3.13"
+
+# The version lives in the VERSION file - one source per service.
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+ignore_missing_imports = true
