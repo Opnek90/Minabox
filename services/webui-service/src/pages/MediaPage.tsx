@@ -18,7 +18,7 @@ import RadioIcon from '@mui/icons-material/Radio';
 import { useTranslation } from 'react-i18next';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { CoverUploadField } from '@/components/media/CoverUploadField';
-import { MediaFab } from '@/components/media/MediaFab';
+import { MediaFab, type MediaTab } from '@/components/media/MediaFab';
 import { MediaImportDialog } from '@/components/media/MediaImportDialog';
 import { MediaOverviewTab } from '@/components/media/MediaOverviewTab';
 import { PlaylistList } from '@/components/media/PlaylistList';
@@ -50,13 +50,20 @@ import type {
   TrackFolder,
 } from '@/types/api';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
+import { useMediaFolderActions } from '@/hooks/useMediaFolderActions';
 import { useObjectUrl } from '@/hooks/useObjectUrl';
 import { TabPanel } from '@/components/common/TabPanel';
 
-type DeleteTarget =
-  | { type: 'track'; item: Track }
-  | { type: 'stream'; item: Stream }
-  | { type: 'podcast'; item: Podcast };
+/** The three media types the delete dialog works on. */
+type MediaKind = 'track' | 'stream' | 'podcast';
+
+/** Tab order of the page - the index in the state, the name for the FAB. */
+const TAB_ORDER: readonly MediaTab[] = ['overview', 'playlists', 'tracks', 'streams', 'podcasts'];
+
+interface DeleteTarget {
+  type: MediaKind;
+  item: { id: number };
+}
 
 export const MediaPage: React.FC = () => {
   const { t } = useTranslation('media');
@@ -138,131 +145,35 @@ export const MediaPage: React.FC = () => {
     setPlaylists((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   };
 
-  const handleFolderCreate = async (name: string, parentId: number | null) => {
-    try {
-      const folder = await trackFoldersApi.create({ name, parent_id: parentId });
-      setFolders((prev) => [...prev, folder]);
-      showSuccess(t('folders.created'));
-    } catch {
-      showError(t('folders.create_error'));
-    }
-  };
+  const trackFolderActions = useMediaFolderActions({
+    foldersApi: trackFoldersApi,
+    setFolders,
+    setItems: setTracks,
+    reloadItems: () => tracksApi.getAll(),
+    moveItem: (id, folderId) => tracksApi.update(id, { folder_id: folderId }),
+    movedMessage: t('folders.track_moved'),
+    moveErrorMessage: t('folders.move_error'),
+  });
 
-  const handleFolderRename = async (folder: TrackFolder, name: string) => {
-    try {
-      const updated = await trackFoldersApi.update(folder.id, { name });
-      setFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-      showSuccess(t('folders.renamed'));
-    } catch {
-      showError(t('folders.rename_error'));
-    }
-  };
+  const streamFolderActions = useMediaFolderActions({
+    foldersApi: streamFoldersApi,
+    setFolders: setStreamFolders,
+    setItems: setStreams,
+    reloadItems: () => streamsApi.getAll(),
+    moveItem: (id, folderId) => streamsApi.update(id, { folder_id: folderId }),
+    movedMessage: t('folders.stream_moved'),
+    moveErrorMessage: t('folders.stream_move_error'),
+  });
 
-  const handleFolderDelete = async (folder: TrackFolder) => {
-    try {
-      await trackFoldersApi.delete(folder.id);
-      setFolders((prev) => prev.filter((f) => f.id !== folder.id));
-      const updatedTracks = await tracksApi.getAll();
-      setTracks(updatedTracks);
-      showSuccess(t('folders.deleted'));
-    } catch {
-      showError(t('folders.delete_error'));
-    }
-  };
-
-  const handleMoveTrackToFolder = async (track: Track, folderId: number | null) => {
-    try {
-      const updated = await tracksApi.update(track.id, { folder_id: folderId });
-      setTracks((prev) => prev.map((tr) => (tr.id === updated.id ? updated : tr)));
-      showSuccess(t('folders.track_moved'));
-    } catch {
-      showError(t('folders.move_error'));
-    }
-  };
-
-  const handleStreamFolderCreate = async (name: string, parentId: number | null) => {
-    try {
-      const folder = await streamFoldersApi.create({ name, parent_id: parentId });
-      setStreamFolders((prev) => [...prev, folder]);
-      showSuccess(t('folders.created'));
-    } catch {
-      showError(t('folders.create_error'));
-    }
-  };
-
-  const handleStreamFolderRename = async (folder: StreamFolder, name: string) => {
-    try {
-      const updated = await streamFoldersApi.update(folder.id, { name });
-      setStreamFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-      showSuccess(t('folders.renamed'));
-    } catch {
-      showError(t('folders.rename_error'));
-    }
-  };
-
-  const handleStreamFolderDelete = async (folder: StreamFolder) => {
-    try {
-      await streamFoldersApi.delete(folder.id);
-      setStreamFolders((prev) => prev.filter((f) => f.id !== folder.id));
-      const updatedStreams = await streamsApi.getAll();
-      setStreams(updatedStreams);
-      showSuccess(t('folders.deleted'));
-    } catch {
-      showError(t('folders.delete_error'));
-    }
-  };
-
-  const handleMoveStreamToFolder = async (stream: Stream, folderId: number | null) => {
-    try {
-      const updated = await streamsApi.update(stream.id, { folder_id: folderId });
-      setStreams((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      showSuccess(t('folders.stream_moved'));
-    } catch {
-      showError(t('folders.stream_move_error'));
-    }
-  };
-
-  const handlePodcastFolderCreate = async (name: string, parentId: number | null) => {
-    try {
-      const folder = await podcastFoldersApi.create({ name, parent_id: parentId });
-      setPodcastFolders((prev) => [...prev, folder]);
-      showSuccess(t('folders.created'));
-    } catch {
-      showError(t('folders.create_error'));
-    }
-  };
-
-  const handlePodcastFolderRename = async (folder: PodcastFolder, name: string) => {
-    try {
-      const updated = await podcastFoldersApi.update(folder.id, { name });
-      setPodcastFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-      showSuccess(t('folders.renamed'));
-    } catch {
-      showError(t('folders.rename_error'));
-    }
-  };
-
-  const handlePodcastFolderDelete = async (folder: PodcastFolder) => {
-    try {
-      await podcastFoldersApi.delete(folder.id);
-      setPodcastFolders((prev) => prev.filter((f) => f.id !== folder.id));
-      const updatedPodcasts = await podcastsApi.list();
-      setPodcasts(updatedPodcasts);
-      showSuccess(t('folders.deleted'));
-    } catch {
-      showError(t('folders.delete_error'));
-    }
-  };
-
-  const handleMovePodcastToFolder = async (podcast: Podcast, folderId: number | null) => {
-    try {
-      const updated = await podcastsApi.update(podcast.id, { folder_id: folderId });
-      setPodcasts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      showSuccess(t('folders.podcast_moved'));
-    } catch {
-      showError(t('folders.podcast_move_error'));
-    }
-  };
+  const podcastFolderActions = useMediaFolderActions({
+    foldersApi: podcastFoldersApi,
+    setFolders: setPodcastFolders,
+    setItems: setPodcasts,
+    reloadItems: () => podcastsApi.list(),
+    moveItem: (id, folderId) => podcastsApi.update(id, { folder_id: folderId }),
+    movedMessage: t('folders.podcast_moved'),
+    moveErrorMessage: t('folders.podcast_move_error'),
+  });
 
   const checkAndConfirmDelete = async (target: DeleteTarget) => {
     try {
@@ -282,6 +193,38 @@ export const MediaPage: React.FC = () => {
     setDeleteDialogOpen(false);
     setDeleteTarget(null);
     setAssignedTagNames([]);
+  };
+
+  /** How each media type is deleted, and what to say about it afterwards. */
+  const deleteByKind: Record<MediaKind, {
+    remove: (id: number) => Promise<void>;
+    success: string;
+    error: string;
+  }> = {
+    track: {
+      remove: async (id) => {
+        await tracksApi.delete(id);
+        setTracks((prev) => prev.filter((tr) => tr.id !== id));
+      },
+      success: t('tracks.deleted'),
+      error: t('tracks.delete_error'),
+    },
+    stream: {
+      remove: async (id) => {
+        await streamsApi.delete(id);
+        setStreams((prev) => prev.filter((s) => s.id !== id));
+      },
+      success: t('tracks.stream_deleted'),
+      error: t('streams.delete_error'),
+    },
+    podcast: {
+      remove: async (id) => {
+        await podcastsApi.delete(id);
+        setPodcasts((prev) => prev.filter((p) => p.id !== id));
+      },
+      success: t('podcasts.deleted'),
+      error: t('podcasts.delete_error'),
+    },
   };
 
   const performDelete = async (unassignTags: boolean) => {
@@ -308,28 +251,12 @@ export const MediaPage: React.FC = () => {
         );
       } catch { /* ignore */ }
     }
+    const { remove, success, error: errorMessage } = deleteByKind[deleteTarget.type];
     try {
-      if (deleteTarget.type === 'track') {
-        await tracksApi.delete(deleteTarget.item.id);
-        setTracks((prev) => prev.filter((tr) => tr.id !== deleteTarget.item.id));
-        showSuccess(t('tracks.deleted'));
-      } else if (deleteTarget.type === 'stream') {
-        await streamsApi.delete(deleteTarget.item.id);
-        setStreams((prev) => prev.filter((s) => s.id !== deleteTarget.item.id));
-        showSuccess(t('tracks.stream_deleted'));
-      } else {
-        await podcastsApi.delete(deleteTarget.item.id);
-        setPodcasts((prev) => prev.filter((p) => p.id !== deleteTarget.item.id));
-        showSuccess(t('podcasts.deleted'));
-      }
+      await remove(deleteTarget.item.id);
+      showSuccess(success);
     } catch {
-      showError(
-        deleteTarget.type === 'track'
-          ? t('tracks.delete_error')
-          : deleteTarget.type === 'stream'
-          ? t('streams.delete_error')
-          : t('podcasts.delete_error')
-      );
+      showError(errorMessage);
     } finally {
       closeDeleteDialog();
     }
@@ -377,8 +304,6 @@ export const MediaPage: React.FC = () => {
   const getSort = (scope: string) => prefs.sort[scope] ?? { key: 'title', dir: 'asc' as const };
   const getViewMode = (scope: string) => prefs.viewMode[scope] ?? 'list';
   const getFilter = (scope: string) => prefs.filter[scope] ?? 'all';
-
-  const fabTabIndex = tab === 0 ? -1 : tab - 1;
 
   if (loading) return <LoadingSpinner message={t('title')} fullPage />;
 
@@ -431,15 +356,14 @@ export const MediaPage: React.FC = () => {
       <TabPanel value={tab} index={2}>
         <TrackList
           tracks={tracks}
-          allTracks={tracks}
           folders={folders}
           playlists={playlists}
           currentFolderId={currentFolderId}
           onNavigateFolder={setCurrentFolderId}
-          onFolderCreate={handleFolderCreate}
-          onFolderRename={handleFolderRename}
-          onFolderDelete={handleFolderDelete}
-          onMoveTrackToFolder={handleMoveTrackToFolder}
+          onFolderCreate={trackFolderActions.create}
+          onFolderRename={trackFolderActions.rename}
+          onFolderDelete={trackFolderActions.remove}
+          onMoveTrackToFolder={trackFolderActions.move}
           onDelete={(track) => void checkAndConfirmDelete({ type: 'track', item: track })}
           onEdit={handleTrackEdit}
           sortKey={getSort('tracks').key}
@@ -461,14 +385,13 @@ export const MediaPage: React.FC = () => {
       <TabPanel value={tab} index={3}>
         <StreamList
           streams={streams}
-          allStreams={streams}
           folders={streamFolders}
           currentFolderId={currentStreamFolderId}
           onNavigateFolder={setCurrentStreamFolderId}
-          onFolderCreate={handleStreamFolderCreate}
-          onFolderRename={handleStreamFolderRename}
-          onFolderDelete={handleStreamFolderDelete}
-          onMoveStreamToFolder={handleMoveStreamToFolder}
+          onFolderCreate={streamFolderActions.create}
+          onFolderRename={streamFolderActions.rename}
+          onFolderDelete={streamFolderActions.remove}
+          onMoveStreamToFolder={streamFolderActions.move}
           onDelete={(stream) => void checkAndConfirmDelete({ type: 'stream', item: stream })}
           onUpdate={(s) => setStreams((prev) => prev.map((x) => (x.id === s.id ? s : x)))}
           sortKey={getSort('streams').key}
@@ -487,14 +410,13 @@ export const MediaPage: React.FC = () => {
       <TabPanel value={tab} index={4}>
         <PodcastList
           podcasts={podcasts}
-          allPodcasts={podcasts}
           folders={podcastFolders}
           currentFolderId={currentPodcastFolderId}
           onNavigateFolder={setCurrentPodcastFolderId}
-          onFolderCreate={handlePodcastFolderCreate}
-          onFolderRename={handlePodcastFolderRename}
-          onFolderDelete={handlePodcastFolderDelete}
-          onMovePodcastToFolder={handleMovePodcastToFolder}
+          onFolderCreate={podcastFolderActions.create}
+          onFolderRename={podcastFolderActions.rename}
+          onFolderDelete={podcastFolderActions.remove}
+          onMovePodcastToFolder={podcastFolderActions.move}
           onDelete={(podcast) => void checkAndConfirmDelete({ type: 'podcast', item: podcast })}
           onUpdate={(p) => setPodcasts((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
           sortKey={getSort('podcasts').key}
@@ -512,7 +434,7 @@ export const MediaPage: React.FC = () => {
 
       {tab > 0 && (
         <MediaFab
-          activeTab={fabTabIndex}
+          tab={TAB_ORDER[tab]}
           onCreatePlaylist={() => setPlaylistCreateOpen(true)}
           onCreateFolder={() => createTrackFolderRef.current?.()}
           onUpload={() => setUploadOpen(true)}

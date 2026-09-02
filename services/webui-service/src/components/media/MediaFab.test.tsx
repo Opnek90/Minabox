@@ -21,7 +21,7 @@ const noop = () => undefined;
 const renderFab = () =>
   render(
     <MediaFab
-      activeTab={1}
+      tab="tracks"
       onCreatePlaylist={noop}
       onCreateFolder={noop}
       onUpload={noop}
