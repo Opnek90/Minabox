@@ -1,6 +1,6 @@
 """Which optional components this box has - the capability contract.
 
-An install offers five optional components (``install.sh``); the choice is
+An install offers six optional components (``install.sh``); the choice is
 stored as ``COMPOSE_PROFILES`` in ``.env`` and handed to this container through
 ``docker-compose.yml``. Compose is the only thing that acts on the value, so it
 stays the single source of truth - this module just reads it.
@@ -39,6 +39,7 @@ PROFILE_TO_FEATURE: dict[str, str] = {
     "button": "button",
     "display": "display",
     "media": "media_downloader",
+    "voice": "voice",
 }
 
 # Feature key -> container_registry service id (the Compose service name).
@@ -48,6 +49,7 @@ FEATURE_TO_SERVICE: dict[str, str] = {
     "button": "button",
     "display": "display",
     "media_downloader": "media-downloader",
+    "voice": "tts",
 }
 
 # Stable order for the API response and for iterating.

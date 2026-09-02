@@ -5,14 +5,23 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import structlog
 
+import backend_service.core.db_manager as _db_module
+from backend_service.core import announcements
+from backend_service.core.playback_stats import get_today_listened_minutes
 from backend_service.core.session_manager import session_manager
 from backend_service.core.sleep_settings import (
     read_bedtime_fade_settings,
     read_sleep_timer_minutes,
+)
+from backend_service.core.usage_limits import (
+    minutes_until_usage_window_ends,
+    read_allowed_usage_times,
+    read_daily_limit_settings,
 )
 
 if TYPE_CHECKING:
@@ -29,6 +38,7 @@ class TimerHandler:
         self.sleep_timer_duration_ms: int = 0
         self.bedtime_fade_task: asyncio.Task | None = None
         self.loop_guard_task: asyncio.Task | None = None
+        self.limit_warning_task: asyncio.Task | None = None
         #: Volume before the running fade started, restored once it is over.
         self.volume_before_fade: int | None = None
 
@@ -79,6 +89,87 @@ class TimerHandler:
         logger.info("loop_guard_fired", minutes=minutes)
         await self.fade_out_and_stop("loop_guard")
 
+    # -- Spoken warning before the listening time is over -------------------
+    #
+    # The limits themselves are enforced elsewhere and need no timer: the daily
+    # cap is checked when a card is scanned and again at every track boundary,
+    # and a window that has closed refuses the next card. A *warning* has no
+    # such moment to hang off - it has to arrive while the music is still
+    # playing, which is what this timer is for. Without it the box simply goes
+    # quiet mid-story, which is the part that upsets a four-year-old, not the
+    # limit.
+
+    def cancel_limit_warning(self) -> None:
+        """Drop a pending warning - playback ended, or the numbers moved."""
+        task = self.limit_warning_task
+        self.limit_warning_task = None
+        if task and not task.done():
+            task.cancel()
+
+    def minutes_of_listening_left(self, now: datetime) -> int | None:
+        """Minutes until this box stops on its own, or None when nothing will.
+
+        The earlier of the two limits wins: a daily cap with 40 minutes left
+        does not matter when the allowed window closes in five.
+        """
+        remaining: list[int] = []
+
+        daily_enabled, daily_minutes = read_daily_limit_settings()
+        if daily_enabled and _db_module.db_manager:
+            session = _db_module.db_manager.get_session()
+            try:
+                listened = get_today_listened_minutes(session)
+            finally:
+                session.close()
+            remaining.append(max(0, daily_minutes - listened))
+
+        window = minutes_until_usage_window_ends(now, read_allowed_usage_times())
+        if window is not None:
+            remaining.append(window)
+
+        return min(remaining) if remaining else None
+
+    def start_limit_warning(self) -> None:
+        """Schedule the warning for this listening session, if one is due."""
+        self.cancel_limit_warning()
+        settings = announcements.read_settings()
+        if not settings.allows("limit_warning") or settings.limit_warning_minutes <= 0:
+            return
+
+        left = self.minutes_of_listening_left(datetime.now())
+        if left is None:
+            return
+        warn_at = settings.limit_warning_minutes
+        if left <= warn_at:
+            # Already inside the warning window - and past it is not a warning
+            # any more, it is the limit doing its own job.
+            if left <= 0:
+                return
+            delay_sec, minutes = 0.0, left
+        else:
+            delay_sec, minutes = (left - warn_at) * 60.0, warn_at
+
+        self.limit_warning_task = asyncio.create_task(
+            self._limit_warning_coroutine(delay_sec, minutes)
+        )
+        logger.info("limit_warning_scheduled", in_minutes=left - minutes)
+
+    async def _limit_warning_coroutine(self, delay_sec: float, minutes: int) -> None:
+        try:
+            await asyncio.sleep(delay_sec)
+        except asyncio.CancelledError:
+            logger.debug("limit_warning_cancelled")
+            return
+        self.limit_warning_task = None
+        if not self.dispatcher.playback_intent_active:
+            # Stopped in the meantime by hand. Nothing is about to be taken
+            # away, so there is nothing to warn about.
+            logger.debug("limit_warning_skipped_not_playing")
+            return
+        await announcements.announce(
+            self.dispatcher.mqtt_client, "limit_warning", minutes=minutes
+        )
+
     async def _restore_volume(self) -> None:
         """Put the volume back after a fade.
 
@@ -113,6 +204,15 @@ class TimerHandler:
         stop, same as before.
         """
         self._cancel_bedtime_fade()
+        self.cancel_limit_warning()
+        if reason == "daily_limit":
+            # Said before the fade, not after the silence: the point is that
+            # the music stopping was a decision, not a fault. The loop guard
+            # gets no phrase - "that is it for today" would be a lie, the box
+            # only cut a card that had been repeating for hours.
+            await announcements.announce(
+                self.dispatcher.mqtt_client, "limit_reached"
+            )
         enabled, duration_min, interval_sec, step_pct = read_bedtime_fade_settings()
         if enabled:
             self.volume_before_fade = self._current_volume()

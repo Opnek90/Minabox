@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 import backend_service.core.db_manager as _db_module
+from backend_service.core import announcements
 from backend_service.core.handlers.utils import close_open_playback_event
 from backend_service.core.playback_stats import get_today_listened_minutes
 from backend_service.core.session_manager import session_manager
@@ -88,10 +89,29 @@ class AudioHandler:
 
         prev_state = self.dispatcher.audio_status_cache.get("state")
         new_state = data.get("state")
+        prev_muted = bool(self.dispatcher.audio_status_cache.get("muted"))
+        new_muted = bool(data.get("muted"))
 
         self.dispatcher.audio_status_cache = data
         self.dispatcher._last_audio_status.clear()
         self.dispatcher._last_audio_status.update(data)
+
+        # Muting is the one action on the box with no feedback at all: the
+        # button gives way, and then nothing happens. Announced from the status,
+        # not from the command, so it covers every route to it - the button, the
+        # WebUI, the player page. Not awaited: this is a message handler, and
+        # the next status must not queue up behind a synthesis.
+        if new_muted and not prev_muted:
+            announcements.announce_soon(self.dispatcher.mqtt_client, "muted")
+
+        # The warning about the listening time running out belongs to a playing
+        # box: scheduled when one starts, dropped when it stops. Restarting it
+        # on every fresh start is also what keeps it honest after a pause - the
+        # minutes left have moved on while nothing was playing.
+        if new_state == "playing" and prev_state != "playing":
+            self.dispatcher.timer_handler.start_limit_warning()
+        elif prev_state == "playing" and new_state != "playing":
+            self.dispatcher.timer_handler.cancel_limit_warning()
 
         # Transition into playing: start accumulator
         if new_state == "playing" and prev_state != "playing":

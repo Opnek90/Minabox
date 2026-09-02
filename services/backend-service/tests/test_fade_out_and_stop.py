@@ -146,3 +146,65 @@ async def test_disabled_fade_still_stops_immediately(fade_settings) -> None:
 
     assert dispatcher.mqtt_client.volumes() == []
     assert dispatcher.mqtt_client.commands == [("stop", {})]
+
+
+# --- the spoken end of the listening time -----------------------------------
+
+
+@pytest.fixture
+def spoken(monkeypatch: pytest.MonkeyPatch):
+    """Announcements switched on, with the TTS service stood in for."""
+    import httpx
+
+    from backend_service.core import announcements, general_settings
+
+    monkeypatch.setenv("COMPOSE_PROFILES", "voice")
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json={"path": "/announcements/x.wav"})
+    )
+    original = httpx.AsyncClient
+
+    def factory(*args, **kwargs):
+        kwargs["transport"] = transport
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(announcements.httpx, "AsyncClient", factory)
+    general_settings.invalidate()
+    yield
+    general_settings.invalidate()
+
+
+@pytest.mark.asyncio
+async def test_the_daily_limit_says_so_before_the_fade(
+    fade_settings, instant_sleep, spoken
+) -> None:
+    """The music stopping has to read as a decision, not a fault - so the
+    phrase comes before the fade, while there is still something to duck."""
+    fade_settings(
+        announcements_enabled=True,
+        bedtime_fade_duration_minutes=2,
+        bedtime_fade_interval_seconds=30,
+        bedtime_fade_step_percent=10,
+    )
+    dispatcher = FakeDispatcher(volume=40)
+    handler = TimerHandler(dispatcher)
+
+    await handler.fade_out_and_stop("daily_limit")
+
+    commands = dispatcher.mqtt_client.commands
+    assert commands[0][0] == "announce"
+    assert commands[0][1]["source_uri"] == "/announcements/x.wav"
+
+
+@pytest.mark.asyncio
+async def test_the_loop_guard_says_nothing(fade_settings, instant_sleep, spoken) -> None:
+    """"That is it for today" would be a lie: the box only cut a card that had
+    been repeating for hours."""
+    fade_settings(announcements_enabled=True, enabled=False)
+    dispatcher = FakeDispatcher(volume=40)
+    handler = TimerHandler(dispatcher)
+
+    await handler.fade_out_and_stop("loop_guard")
+
+    assert [c for c, _ in dispatcher.mqtt_client.commands] == ["stop"]

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 import backend_service.core.db_manager as _db_module
+from backend_service.core import announcements
 from backend_service.core.handlers.audio_handler import AudioHandler
 from backend_service.core.handlers.button_handler import ButtonHandler
 from backend_service.core.handlers.rfid_handler import RFIDHandler
@@ -160,6 +161,11 @@ class MQTTHandlers:
                     "data": {"tag_id": tag_id, "timestamp": now.isoformat()},
                 }
             )
+        # Covers both refusals - outside the allowed times and over the daily
+        # limit. From the child's side they are the same event: the card was
+        # read and nothing happened. Not awaited: this runs inside the card
+        # scan, which is holding a database session.
+        announcements.announce_soon(self.mqtt_client, "usage_denied")
 
     async def schedule_stream_reconnect(
         self,

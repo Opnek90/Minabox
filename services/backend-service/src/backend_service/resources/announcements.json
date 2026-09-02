@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "phrases": {
+    "card": {
+      "de": "{name}",
+      "en": "{name}"
+    },
+    "card_unknown": {
+      "de": "Diese Karte kenne ich nicht.",
+      "en": "I do not know this card."
+    },
+    "card_empty": {
+      "de": "Auf dieser Karte ist noch nichts.",
+      "en": "There is nothing on this card yet."
+    },
+    "card_blocked": {
+      "de": "Diese Karte ist gerade ausgeschaltet.",
+      "en": "This card is switched off right now."
+    },
+    "limit_warning": {
+      "de": "Noch {minutes} Minuten.",
+      "en": "{minutes} minutes left."
+    },
+    "limit_reached": {
+      "de": "Für heute ist Schluss.",
+      "en": "That is it for today."
+    },
+    "usage_denied": {
+      "de": "Jetzt ist keine Hörzeit.",
+      "en": "It is not listening time right now."
+    },
+    "muted": {
+      "de": "Der Ton ist aus.",
+      "en": "The sound is off."
+    }
+  }
+}

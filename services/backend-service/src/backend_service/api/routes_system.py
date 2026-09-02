@@ -50,6 +50,7 @@ SERVICE_IDS = (
     "led",
     "display",
     "media-downloader",
+    "tts",
     "host-helper",
 )
 SERVICE_HEALTH_URLS = {
@@ -60,6 +61,7 @@ SERVICE_HEALTH_URLS = {
     "display":          "http://display:8000/health",
     "webui":            "http://webui:80/",
     "media-downloader": "http://media-downloader:8007/health",
+    "tts":              "http://tts:8008/health",
     "host-helper":      "http://host-helper:8000/health",
 }
 CONTAINER_NAMES = {
@@ -72,6 +74,7 @@ CONTAINER_NAMES = {
     "backend":          "minabox-backend",
     "mqtt":             "minabox-mqtt",
     "media-downloader": "minabox-media-downloader",
+    "tts":              "minabox-tts",
     "host-helper":      "minabox-host-helper",
 }
 HEALTH_TIMEOUT = 2.0

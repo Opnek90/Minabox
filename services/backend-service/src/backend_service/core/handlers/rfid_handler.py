@@ -10,6 +10,7 @@ import structlog
 from sqlalchemy.orm import Session
 
 import backend_service.core.db_manager as _db_module
+from backend_service.core import announcements
 from backend_service.core.playback_stats import get_today_listened_minutes
 from backend_service.core.resume_position import get_resume_position
 from backend_service.core.rfid_settings import (
@@ -135,6 +136,12 @@ class RFIDHandler:
                             "data": {"tag_id": tag_id, "timestamp": datetime.now(UTC).isoformat()},
                         }
                     )
+                # The LED code says the same thing, but only to somebody who
+                # knows it. This is the moment a child is standing there
+                # waiting for music that is never coming.
+                announcements.announce_soon(
+                    self.dispatcher.mqtt_client, "card_unknown"
+                )
                 return
 
             # Issue #63: blocked tag — no playback, fire tag_blocked event instead
@@ -155,6 +162,9 @@ class RFIDHandler:
                             "data": {"tag_id": tag_id, "name": tag.name, "timestamp": now_ts},
                         }
                     )
+                announcements.announce_soon(
+                    self.dispatcher.mqtt_client, "card_blocked"
+                )
                 return
 
             now = datetime.now(UTC)
@@ -218,7 +228,20 @@ class RFIDHandler:
                 # An unassigned card: it exists, it is not blocked, but there is
                 # nothing to play. The scan is already recorded above.
                 logger.info("tag_without_content", tag_id=tag_id)
+                announcements.announce_soon(
+                    self.dispatcher.mqtt_client, "card_empty"
+                )
                 return
+
+            # Not awaited - like every announcement raised on this path. The
+            # music must not wait for a phrase: the first time a card is played
+            # the clip still has to be made, which is seconds on a Pi, and this
+            # scan is holding a database session open besides.
+            announcements.announce_soon(
+                self.dispatcher.mqtt_client,
+                "card",
+                name=media_title or tag.name or "",
+            )
 
             if tag.content_type == "playlist":
                 await self._handle_playlist_playback(session, tag.content_id, tag_id=tag_db_id)
