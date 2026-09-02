@@ -254,6 +254,34 @@ def _build_entries(
     return entries
 
 
+def _cached_services(cached: dict[str, Any]) -> set[str]:
+    """The services a cached answer was computed for."""
+    entries = (cached.get("result") or {}).get("services") or []
+    return {e.get("service") for e in entries if isinstance(e, dict)}
+
+
+def _only_installed(result: dict[str, Any], installed: dict[str, str]) -> dict[str, Any]:
+    """The same answer without the services this box no longer has.
+
+    Untouched when nothing is missing. Rebuilding the top-level flag from the
+    entries is only correct where an entry was actually dropped; doing it
+    always would overwrite what an earlier run concluded.
+    """
+    all_entries = result.get("services") or []
+    entries = [
+        e for e in all_entries if isinstance(e, dict) and e.get("service") in installed
+    ]
+    if len(entries) == len(all_entries):
+        return result
+    return {
+        **result,
+        "services": entries,
+        # The header hint hangs off this, so a withdrawn entry has to withdraw
+        # its update with it.
+        "update_available": any(e.get("update_available") for e in entries),
+    }
+
+
 async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, Any]:
     """Work out the update state. `installed` is {service: running version}."""
     channel = read_update_channel()
@@ -264,13 +292,28 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
         # switch it would name the wrong versions, so it counts as a miss -
         # the one extra fetch is the price of not lying about the target.
         same_channel = (cached.get("result") or {}).get("channel", DEFAULT_CHANNEL) == channel
-        if age < CACHE_TTL_SECONDS and same_channel:
+        # And it belongs to the components the box had at the time. Switching
+        # one off removes its container, so it drops out of `installed` - but
+        # the cache would keep listing it, and keep offering an update for six
+        # hours that "compose pull" could no longer even carry out.
+        same_services = _cached_services(cached) == set(installed)
+        if age < CACHE_TTL_SECONDS and same_channel and same_services:
             return {**cached["result"], "from_cache": True}
 
     def _stale(error: str) -> dict[str, Any]:
-        """On failure: show the last known state, but claim nothing."""
+        """On failure: show the last known state, but claim nothing.
+
+        Trimmed to what the box still has. Nothing is invented here - entries
+        for components that were switched off in the meantime are dropped,
+        because a version for a component that is gone is not "last known
+        state" but a leftover.
+        """
         if cached:
-            return {**cached["result"], "from_cache": True, "error": error}
+            return {
+                **_only_installed(cached["result"], installed),
+                "from_cache": True,
+                "error": error,
+            }
         return {
             "checked_at": datetime.now(UTC).isoformat(),
             "from_cache": False,

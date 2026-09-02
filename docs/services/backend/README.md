@@ -384,6 +384,16 @@ Only entries that are **online** are probed, and all of them together.
 Results are cached for six hours. The background loop polls every 30 minutes,
 but only while the user has the automatic check switched on.
 
+A cached answer belongs to the box it was computed for, in two ways: the
+channel (below) and the set of services. The version list is one row per
+*existing* container, so switching a component off under *Maintenance →
+Components* drops it — but the cache would keep listing it, and keep offering
+an update for six hours that `compose pull` could no longer carry out, because
+the profile is gone. A different set of services therefore counts as a miss.
+When the fetch then fails and the last known state is shown instead, entries
+for components the box no longer has are dropped from it: a version for a
+component that is gone is not "last known state" but a leftover.
+
 **Channels.** `update_channel` in the general settings decides which releases a
 box is offered: `stable` (the default) reads the manifest's `latest` and never
 sees a release candidate, `beta` reads `latest_beta` and gets them as soon as
@@ -836,7 +846,7 @@ break silently:
 | `test_auto_advance_flags.py`, `test_fade_out_and_stop.py`, `test_playback_loop_guard.py` | the end-of-content logic of 3.3 — the flags, the fade abort, the guard |
 | `test_schema_version.py`, `test_schema_migrations.py` | that `SCHEMA_VERSION` and the migrations stay in step (2.1) |
 | `test_container_registry.py`, `test_reported_health.py`, `test_capabilities.py` | container discovery, the folded-in service verdict, the capability answer (3.7) |
-| `test_update_check.py` | "no network never means update available", the registry check, and what each channel is offered |
+| `test_update_check.py` | "no network never means update available", the registry check, what each channel is offered, and that the cache forgets a component that was switched off |
 | `test_routes_host_proxy.py` | the strict/soft proxy split, the 401 → 503 rule, and the rollback guard |
 | `test_auth_prefix_areas.py` | the longest-matching-prefix rule of 4.5 |
 | `test_button_config_validation.py`, `test_display_config_validation.py` | that a config the backend writes is one the device service can load |

@@ -276,3 +276,118 @@ async def test_cached_answer_of_another_channel_is_not_reused(
     # The fetch was attempted and failed - which is the proof that the fresh
     # cache entry was not simply handed back.
     assert result["error"]
+
+
+# ── Wahlkomponenten ─────────────────────────────────────────────────────────
+#
+# Switching a component off removes its container, so it drops out of the
+# `installed` map. The cache lives six hours and does not notice on its own -
+# it kept listing the component and kept offering an update that "compose
+# pull" could no longer carry out, because the profile is gone.
+
+
+@pytest.mark.asyncio
+async def test_cached_answer_for_other_components_is_not_reused(
+    monkeypatch, tmp_path
+) -> None:
+    """A component switched off must not linger in the list for six hours."""
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("MINABOX_MANIFEST_URL", "http://127.0.0.1:9/manifest.json")
+    monkeypatch.setattr(uc, "read_update_channel", lambda: "stable")
+    uc._write_cache(
+        {
+            "cached_at": time.time(),  # fresh, so only the service set can reject it
+            "result": {
+                "checked_at": "2026-08-21T10:00:00+00:00",
+                "from_cache": False,
+                "update_available": True,
+                "channel": "stable",
+                "error": None,
+                "services": [
+                    {"service": "backend", "installed": "0.1.0"},
+                    {"service": "display", "installed": "0.3.0"},
+                ],
+            },
+        }
+    )
+
+    result = await uc.check({"backend": "0.1.0"}, force=False)
+
+    # The fetch was attempted and failed - which is the proof that the fresh
+    # cache entry was not simply handed back.
+    assert result["error"]
+    # And the fallback drops what the box no longer has.
+    assert [s["service"] for s in result["services"]] == ["backend"]
+
+
+@pytest.mark.asyncio
+async def test_a_component_switched_back_on_is_not_read_from_the_cache(
+    monkeypatch, tmp_path
+) -> None:
+    """The other direction: a component that is back has no cached entry."""
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("MINABOX_MANIFEST_URL", "http://127.0.0.1:9/manifest.json")
+    monkeypatch.setattr(uc, "read_update_channel", lambda: "stable")
+    uc._write_cache(
+        {
+            "cached_at": time.time(),
+            "result": {
+                "checked_at": "2026-08-21T10:00:00+00:00",
+                "from_cache": False,
+                "update_available": False,
+                "channel": "stable",
+                "error": None,
+                "services": [{"service": "backend", "installed": "0.1.0"}],
+            },
+        }
+    )
+
+    result = await uc.check({"backend": "0.1.0", "display": "0.3.0"}, force=False)
+
+    assert result["error"]
+
+
+@pytest.mark.asyncio
+async def test_an_unchanged_box_still_answers_from_the_cache(
+    monkeypatch, tmp_path
+) -> None:
+    """The check must not turn into a fetch on every call."""
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("MINABOX_MANIFEST_URL", "http://127.0.0.1:9/manifest.json")
+    monkeypatch.setattr(uc, "read_update_channel", lambda: "stable")
+    uc._write_cache(
+        {
+            "cached_at": time.time(),
+            "result": {
+                "checked_at": "2026-08-21T10:00:00+00:00",
+                "from_cache": False,
+                "update_available": False,
+                "channel": "stable",
+                "error": None,
+                "services": [{"service": "backend", "installed": "0.1.0"}],
+            },
+        }
+    )
+
+    result = await uc.check({"backend": "0.1.0"}, force=False)
+
+    assert result["from_cache"] is True
+    assert result["error"] is None
+
+
+def test_dropping_a_component_withdraws_its_update(tmp_path) -> None:
+    """The header hint hangs off update_available, so it has to be recomputed."""
+    result = {
+        "update_available": True,
+        "services": [
+            {"service": "backend", "installed": "0.1.0", "update_available": False},
+            {"service": "display", "installed": "0.3.0", "update_available": True},
+        ],
+    }
+
+    trimmed = uc._only_installed(result, {"backend": "0.1.0"})
+
+    assert [s["service"] for s in trimmed["services"]] == ["backend"]
+    # Without this the box would keep pointing at an update for a component it
+    # no longer has.
+    assert trimmed["update_available"] is False
