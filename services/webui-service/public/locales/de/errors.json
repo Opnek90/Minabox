@@ -21,6 +21,7 @@
   "button_config_read_failed": "Tasten-Konfiguration konnte nicht gelesen werden",
   "button_config_unavailable": "Tasten-Konfiguration nicht verfügbar",
   "button_config_write_failed": "Tasten-Konfiguration konnte nicht gespeichert werden",
+  "components_failed": "Die Komponenten konnten nicht geändert werden",
   "config_invalid": "Ungültige Konfiguration",
   "current_password_invalid": "Aktuelles Passwort ist falsch",
   "current_password_required": "Bitte das aktuelle Passwort eingeben",

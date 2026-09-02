@@ -488,6 +488,7 @@ cd services/webui-service && npm run lint && npm run test && npm run check:local
 | `components/common/Navigation.test.tsx` | which entries appear for which capabilities |
 | `components/media/MediaFab.test.tsx`, `MediaImportDialog.test.tsx` | the import flow and its confirmation |
 | `components/admin/SystemMaintenanceSection.test.tsx` | the maintenance panel's destructive actions |
+| `components/admin/maintenance/ComponentsBlock.test.tsx` | a flipped switch is a wish, not a restart; an unchanged selection starts nothing |
 | `hooks/useGeneralConfig.test.tsx` | config loading and its defaults |
 | `i18n/debugMode.test.ts` | the fallback switch-off under `log_level: debug` |
 

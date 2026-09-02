@@ -139,8 +139,11 @@ describe('MediaImportDialog - confirmation of lawful use', () => {
     expect(importButton()).toBeDisabled();
   });
 
-  // Real POLL_INTERVAL_MS (2s) plus the waitFor budget below exceeds
-  // vitest's 5s default test timeout, hence the explicit timeout argument.
+  // These two run against the real POLL_INTERVAL_MS (2s) plus the waitFor
+  // budget below. They used to carry an 8 s override, from when vitest's
+  // default was 5 s; the config now grants 20 s for exactly this reason, and
+  // the override had become the tighter of the two - which is what made them
+  // go red under a loaded suite rather than over a real regression.
   it('shows the reported import stage, not just a spinner', async () => {
     const user = userEvent.setup();
     fromUrl.mockResolvedValue({ track_id: 7, status: 'pending' });
@@ -166,7 +169,7 @@ describe('MediaImportDialog - confirmation of lawful use', () => {
     expect(screen.getByText(text('media_import.stage_embedding_thumbnail'))).toBeInTheDocument();
     expect(screen.getByText(text('media_import.stage_embedding_metadata'))).toBeInTheDocument();
     expect(screen.getByText(text('media_import.stage_saving'))).toBeInTheDocument();
-  }, 8000);
+  });
 
   it('appends the percentage and speed/ETA while the stage is "downloading"', async () => {
     const user = userEvent.setup();
@@ -197,7 +200,7 @@ describe('MediaImportDialog - confirmation of lawful use', () => {
     // this checks the eta key was used and rendered alongside the speed -
     // real {{time}} substitution is i18next's own job, not this dialog's.
     expect(screen.getByText(`1.2 MB/s · ${text('media_import.eta')}`)).toBeInTheDocument();
-  }, 8000);
+  });
 
   it('links the checkbox to the help text while not confirmed', async () => {
     const user = userEvent.setup();
