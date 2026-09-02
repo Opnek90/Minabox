@@ -46,6 +46,22 @@ class VolumeStepCommand(BaseModel):
     step: int = DEFAULT_VOLUME_STEP
 
 
+class AnnounceCommand(BaseModel):
+    """Announce command payload schema.
+
+    The backend decides *what* is said and has the clip made; this service only
+    plays it. ``source_uri`` is therefore a path into the shared clip volume,
+    not a sentence - nothing here synthesises anything.
+    """
+
+    source_uri: str
+    #: What the music is turned down to while the phrase runs, as a percentage
+    #: of the level it is at. 100 means no ducking at all.
+    duck_percent: int = 30
+    #: How loud the phrase itself is, as a percentage of full gain.
+    volume_percent: int = 100
+
+
 class MQTTMessageHandler:
     """Handles incoming MQTT messages for the Audio Service.
 
@@ -64,6 +80,7 @@ class MQTTMessageHandler:
         on_volume_up: Callable[[VolumeStepCommand], None] | None = None,
         on_volume_down: Callable[[VolumeStepCommand], None] | None = None,
         on_mute_toggle: Callable[[], None] | None = None,
+        on_announce: Callable[[AnnounceCommand], None] | None = None,
         on_config_update: Callable[[AudioConfig], None] | None = None,
         on_config_reload: Callable[[], None] | None = None,
         on_config_get: Callable[[], None] | None = None,
@@ -82,6 +99,7 @@ class MQTTMessageHandler:
             on_volume_up: Callback for volume up commands
             on_volume_down: Callback for volume down commands
             on_mute_toggle: Callback for mute toggle (mute/unmute)
+            on_announce: Callback for announce commands (spoken phrases)
             on_config_update: Callback for config update commands
             on_config_reload: Callback for config reload commands
             on_config_get: Callback for config get requests
@@ -98,6 +116,7 @@ class MQTTMessageHandler:
         self._on_volume_up = on_volume_up
         self._on_volume_down = on_volume_down
         self._on_mute_toggle = on_mute_toggle
+        self._on_announce = on_announce
         self._on_config_update = on_config_update
         self._on_config_reload = on_config_reload
         self._on_config_get = on_config_get
@@ -183,6 +202,8 @@ class MQTTMessageHandler:
             await self._handle_volume_down(data)
         elif action == "mute-toggle":
             await self._handle_mute_toggle()
+        elif action == "announce":
+            await self._handle_announce(data)
         elif action == "config/update":
             await self._handle_config_update(data)
         elif action == "config/reload":
@@ -272,6 +293,17 @@ class MQTTMessageHandler:
         logger.debug("mute_toggle_command_received")
         if self._on_mute_toggle:
             await self._on_mute_toggle()
+
+    async def _handle_announce(self, data: dict[str, Any]) -> None:
+        """Handle announce command (play one spoken phrase over the music)."""
+        try:
+            command = AnnounceCommand(**data)
+        except ValidationError as e:
+            logger.error("invalid_announce_command", error=str(e))
+            return
+        logger.debug("announce_command_received", source_uri=command.source_uri)
+        if self._on_announce:
+            await self._on_announce(command)
 
     async def _handle_config_update(self, data: dict[str, Any]) -> None:
         """Handle config update command."""

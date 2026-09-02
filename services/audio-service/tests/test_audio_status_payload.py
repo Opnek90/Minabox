@@ -77,6 +77,8 @@ def _service(
     service._config = _FakeConfig()
     service._muted = False
     service._last_published_fingerprint = None
+    # Not ducking: an announcement holds the periodic publish off.
+    service._ducking = False
     service._audio_config = audio
     service._get_audio_config = lambda: service._audio_config
 

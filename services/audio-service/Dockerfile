@@ -70,6 +70,14 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 RUN useradd -u 1000 -M -d /nonexistent -s /usr/sbin/nologin minabox && \
     chown -R minabox:minabox /app
 
+# Mount point for the spoken announcements (named volume, shared with the tts
+# service). The directory is created here even though this service only reads
+# from it: Docker takes the ownership of a fresh named volume from the image of
+# whichever container mounts it first, and this one has no dependency on the
+# tts service - without it, an audio container that happened to start first
+# would leave the volume owned by root and the tts service unable to write.
+RUN mkdir -p /announcements && chown minabox:minabox /announcements
+
 # Switch to non-root user
 USER minabox
 
