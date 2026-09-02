@@ -76,6 +76,41 @@ def _check_api_key(x_api_key: str | None = Header(None, alias="X-Api-Key")) -> N
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
+def parse_step_markers(text: str, default_step_count: int) -> dict:
+    """Read the current step and the result out of a run log.
+
+    Every long-running job on the host writes the same two markers, because
+    they have to survive a restart of this service:
+
+        === MINABOX-STEP <n>/<total> <key>
+        === MINABOX-DONE <exit code>
+
+    The step keys are part of the contract with the WebUI, which translates
+    them; the parser itself does not care what they are called.
+    """
+    step: int | None = None
+    step_count = default_step_count
+    step_key: str | None = None
+    exit_code: int | None = None
+    for line in text.splitlines():
+        if line.startswith("=== MINABOX-STEP "):
+            parts = line.removeprefix("=== MINABOX-STEP ").split()
+            if len(parts) >= 2 and "/" in parts[0]:
+                current, _, total = parts[0].partition("/")
+                if current.isdigit() and total.isdigit():
+                    step, step_count = int(current), int(total)
+                    step_key = parts[1]
+        elif line.startswith("=== MINABOX-DONE "):
+            value = line.removeprefix("=== MINABOX-DONE ").strip()
+            exit_code = int(value) if value.lstrip("-").isdigit() else -1
+    return {
+        "step": step,
+        "step_count": step_count,
+        "step_key": step_key,
+        "exit_code": exit_code,
+    }
+
+
 def _host_root() -> Path:
     """Where the host filesystem is mounted inside this container.
 

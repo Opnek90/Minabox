@@ -24,6 +24,7 @@ from host_helper.api.routes.deps import (
     _nsenter_bin,
     _run_on_host_via_nsenter,
     get_config,
+    parse_step_markers,
 )
 
 logger = structlog.get_logger(__name__)
@@ -285,27 +286,7 @@ def _update_unit_active() -> bool:
 
 def _parse_update_log(text: str) -> dict:
     """Read the current step and the result from the markers in the log."""
-    step: int | None = None
-    step_count = len(UPDATE_STEPS)
-    step_key: str | None = None
-    exit_code: int | None = None
-    for line in text.splitlines():
-        if line.startswith("=== MINABOX-STEP "):
-            parts = line.removeprefix("=== MINABOX-STEP ").split()
-            if len(parts) >= 2 and "/" in parts[0]:
-                current, _, total = parts[0].partition("/")
-                if current.isdigit() and total.isdigit():
-                    step, step_count = int(current), int(total)
-                    step_key = parts[1]
-        elif line.startswith("=== MINABOX-DONE "):
-            value = line.removeprefix("=== MINABOX-DONE ").strip()
-            exit_code = int(value) if value.lstrip("-").isdigit() else -1
-    return {
-        "step": step,
-        "step_count": step_count,
-        "step_key": step_key,
-        "exit_code": exit_code,
-    }
+    return parse_step_markers(text, len(UPDATE_STEPS))
 
 
 @router.post("/system/update-minabox")

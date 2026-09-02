@@ -70,6 +70,7 @@ services/host-helper-service/
 │       ├── system.py             host status, syslog, clock, hostname, LEDs
 │       ├── maintenance.py        password, SSH, prune, factory reset
 │       ├── update.py             Minabox update, version, OS update
+│       ├── components.py         adding and removing the optional components
 │       ├── bluetooth.py          scan, pair, connect
 │       └── diagnostics.py        container logs, host diagnostics
 └── tests/                        see section 8
@@ -78,7 +79,8 @@ services/host-helper-service/
 `deps.py` imports nothing from its siblings, so there are no cycles. Two links
 cross between domains and are the exceptions: `maintenance` uses the hotspot
 from `network` for the factory reset, and `update` uses the archive builder
-from `backup` for the pre-update snapshot.
+from `backup` for the pre-update snapshot. `components` reads the update unit
+name from `update` so the two runs cannot start on top of each other.
 
 ## 3. Runtime Flow
 
@@ -494,7 +496,73 @@ namespace, so that recorded PID can be checked with signal 0 — which is how bo
 the log route reports `running` and the start route refuses a second run that
 would only fight the first over the dpkg lock.
 
-### 4.12 Bluetooth
+### 4.12 Optional components
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/system/components` | the five optional components and which of them this box is set up for |
+| PUT | `/system/components` | body `{profiles: [...]}`; writes the choice and brings the stack to it |
+| GET | `/system/components/status` | progress, parsed step, exit code and the full log |
+
+The four steps are `stop`, `pull`, `start`, `verify`. **The WebUI translates
+these keys, so they are part of the contract and must not be renamed.**
+
+The components are the compose profiles `rfid`, `led`, `button`, `display` and
+`media`, stored as `COMPOSE_PROFILES` in `.env`. Until this route existed, the
+only way to change that choice after the install was an SSH session and the
+maintenance menu of `install.sh` — the last setup step that still needed a
+terminal.
+
+The run goes into the transient systemd unit `minabox-components`, for the same
+reason the update does: `compose up -d` recreates the backend, whose
+`COMPOSE_PROFILES` has just changed, and a child process of this container would
+not survive a recreate of the host-helper. A `409` is returned while either that
+unit or the update unit is active — two runs in the same project directory is a
+fight nobody wins. A selection that matches what the box already has answers
+`{"changed": false}` without starting anything, so an accidental "apply" does
+not restart the box for nothing.
+
+Three things happen that a plain write into `.env` would miss:
+
+- **Switching off.** Taking a profile out of `COMPOSE_PROFILES` does not stop a
+  container that is already running — compose only stops *starting* it. The
+  containers of the deselected profiles are removed explicitly, with those
+  profiles handed back in for the length of that one command so compose still
+  knows the services.
+- **Switching on.** A box installed without the display never pulled that image,
+  so the newly selected services are pulled first. Not fatal if it fails: an
+  image already on disk is enough, and a box without internet must still be able
+  to switch a component on.
+- **I2C.** The card reader and the display get `/dev/i2c-1` mapped in and do not
+  start without it. If the device node is missing, I2C is switched on with the
+  same `raspi-config nonint do_i2c 0` call `install.sh` makes. That only takes
+  effect after a reboot, so those services are left out of this run and the
+  response carries `reboot_required` with the services in `blocked`. The choice
+  is written to `.env` either way, so the reboot finishes the job.
+
+When testing this locally, remember that the `up -d` inside the run has no
+`MINABOX_*_TAG=local` in its environment: it puts every service back on the
+version pinned in `.env`, so a locally built backend or webui is replaced
+mid-run. That is correct on a real box — the pins are the truth — but it means
+the overrides have to be re-applied after each run.
+
+**Nothing is deleted.** A component that is switched off loses its container,
+not its data: card assignments and settings stay where they are, the backend
+answers calls into an absent component with a `409 feature_not_installed`
+(`require_feature`), and switching it back on is lossless.
+
+Nothing the caller sends reaches the generated script. The request is a list
+of profile names, checked against the fixed `PROFILE_SERVICES` table; every
+value written into the script is looked up in that table, so an unknown name is
+a `400` and never a string in a shell.
+
+An empty selection is written as `COMPOSE_PROFILES=none`, not as an empty value.
+Compose passes an empty value into the backend both for "no component chosen"
+and for a `.env` that never had the line, and the backend reads the second case
+as "everything installed" (fail-open, `core/capabilities.py`). No service
+carries the `none` profile, so compose starts nothing extra for it.
+
+### 4.13 Bluetooth
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -647,6 +715,7 @@ PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest serv
 | `test_network_ops.py` | `nmcli` command building and output parsing |
 | `test_netwatch.py` | the watchdog's decisions, the grace period and the anti-flap |
 | `test_audio_repair.py` | the repair steps, including "only what is demonstrably wrong" |
+| `test_components.py` | reading and writing `COMPOSE_PROFILES`, and the generated run script |
 
 ```bash
 .venv/bin/ruff check services/host-helper-service
@@ -666,6 +735,7 @@ PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest serv
 | use a host tool for the first time | `deps.py` (the tool lookup) | make its absence a `503`; add it to the list in 6 |
 | add a path the service may touch | `config.py` (`ALLOWED_BASE_PATHS`) or the backup allowlist in `backup.py` | `test_update_env.py` — this is the security boundary, not a convenience list |
 | change the update steps | `update.py` | **the WebUI's translations** — the step keys are contract; `test_update_env.py` |
+| add an optional component | `components.py` (`PROFILE_SERVICES`) | the profile in `docker-compose.yml`, `install.sh`, `core/capabilities.py` in the backend, the WebUI's `api/components.ts`; `test_components.py` |
 | change WiFi or hotspot behaviour | `network_ops.py` | `netwatch.py` uses the same functions; `test_network_ops.py`, `test_netwatch.py` |
 | change the watchdog | `netwatch.py` | `test_netwatch.py`; keep the anti-flap — a flapping AP is worse than none |
 | add a long-running operation | a background job plus a status route, like `/move` | answer `202`, refuse a second start with `409`, and give the WebUI something to poll |
