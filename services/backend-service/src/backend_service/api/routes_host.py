@@ -878,6 +878,79 @@ async def update_minabox_status() -> dict:
     )
 
 
+# ── Optional components ──────────────────────────────────────────────────────
+#
+# Which components a box has is COMPOSE_PROFILES in .env. The Host-Helper is
+# the only service that may write it and the only one that can drive compose,
+# so all three routes are plain proxies. What the WebUI shows *per* component -
+# installed, running, healthy - keeps coming from /system/capabilities.
+
+
+class ComponentsBody(BaseModel):
+    """The components this box should have, as compose profiles."""
+
+    profiles: list[str]
+
+
+@router.get("/components")
+async def get_components() -> dict:
+    """The optional components and which of them this box is set up for.
+
+    Soft-fails like the other status reads: without the Host-Helper the
+    maintenance page should still open, and an empty list is what the section
+    needs to say "cannot be changed here right now".
+    """
+    return await _proxy_optional(
+        "/system/components",
+        fallback={"components": [], "profiles": [], "busy": False, "unreachable": True},
+        log_event="host_helper_components_failed",
+    )
+
+
+@router.put("/components")
+async def put_components(body: ComponentsBody) -> dict:
+    """Set the components of this box. Returns as soon as the run has started.
+
+    Nothing is deleted: a component that is switched off loses its container,
+    not its data. Progress comes from /components/status.
+    """
+    return await _proxy(
+        "PUT",
+        "/system/components",
+        timeout=60.0,
+        json=body.model_dump(),
+        error_message="Changing the components failed",
+        error_code="components_failed",
+        log_event="host_helper_put_components_failed",
+    )
+
+
+@router.get("/components/status")
+async def get_components_status() -> dict:
+    """Progress and output of the running or last component change.
+
+    Soft-fails on purpose: the run recreates the backend, so this very service
+    is briefly gone. The WebUI should keep asking rather than show an error.
+    """
+    return await _proxy_optional(
+        "/system/components/status",
+        fallback={
+            "running": True,
+            "step": None,
+            "step_count": None,
+            "step_key": None,
+            "exit_code": None,
+            "steps": [],
+            "log": "",
+            "profiles": [],
+            "reboot_required": False,
+            "blocked": [],
+            "unreachable": True,
+        },
+        log_event="host_helper_components_status_failed",
+    )
+
+
 @router.post("/update-os")
 async def update_os() -> dict:
     """Run OS update (apt upgrade) on host. Proxied to Host-Helper. Blocks until done."""
