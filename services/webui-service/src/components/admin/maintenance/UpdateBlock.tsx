@@ -37,6 +37,17 @@ import { OsUpdateButton } from './OsUpdateButton';
 import { CleanupButton } from './CleanupButton';
 import { useUpdateRun } from './useUpdateRun';
 
+interface UpdateBlockProps {
+  /**
+   * Bumped whenever the components of this box changed. The version list is
+   * one row per *existing* container, so switching a component off drops it -
+   * but this block reads that list once, when it mounts. Without the signal
+   * the row of a component that is gone would stay on screen until the page
+   * is reloaded.
+   */
+  refreshKey?: number;
+}
+
 /**
  * Which versions are running, what is new, and the buttons that change it.
  *
@@ -44,7 +55,7 @@ import { useUpdateRun } from './useUpdateRun';
  * the "what can I maintain on this box" row, and it looked the same before the
  * split. Both bring their own state.
  */
-export const UpdateBlock: React.FC = () => {
+export const UpdateBlock: React.FC<UpdateBlockProps> = ({ refreshKey = 0 }) => {
   const { t, i18n } = useTranslation('admin');
   const { showError } = useToast();
   const [check, setCheck] = useState<UpdateCheckResponse | null>(null);
@@ -83,6 +94,12 @@ export const UpdateBlock: React.FC = () => {
     void loadCheck(false);
     void loadHistory();
   }, [loadCheck, loadHistory]);
+
+  // force: the components just changed, so the cached answer was computed for
+  // a different box.
+  useEffect(() => {
+    if (refreshKey > 0) void loadCheck(true);
+  }, [refreshKey, loadCheck]);
 
   const run = useUpdateRun(() => {
     void loadCheck(true);

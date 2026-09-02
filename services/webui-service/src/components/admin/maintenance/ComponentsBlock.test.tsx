@@ -167,6 +167,25 @@ describe('ComponentsBlock', () => {
     await waitFor(() => expect(refreshCapabilities).toHaveBeenCalled());
   });
 
+  it('tells the version list to re-read after a run', async () => {
+    // The list above is one row per existing container, and it reads once on
+    // mount. Without this the row of a component that is gone would stay on
+    // screen until someone reloads the page.
+    const onChanged = vi.fn();
+    const user = userEvent.setup();
+    render(<ComponentsBlock onChanged={onChanged} />);
+
+    const apply = await screen.findByRole('button', { name: text('system.components_apply') });
+    await user.click(screen.getByRole('checkbox', { name: /LEDs/ }));
+    await user.click(apply);
+    const dialog = await screen.findByRole('dialog');
+    await user.click(
+      within(dialog).getByRole('button', { name: commonText('actions.confirm') }),
+    );
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
   it('picks up a change that was already running', async () => {
     // The run recreates the backend, so a page that comes back mid-run is not
     // an edge case. Without this it would show switches that do nothing.
