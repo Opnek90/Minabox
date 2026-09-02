@@ -7,9 +7,9 @@ from display_service.render.playing import (
     PAUSED_SLEEPER_SIZE,
     PAUSED_SLEEPER_TOP,
     PAUSED_Z_GAP,
-    TIME_BASELINE,
     TITLE_BAND_HEIGHT,
     UNKNOWN_TIME,
+    WALK_KNUFFEL,
     WALK_LINE_Y,
     PlayingView,
     render,
@@ -124,7 +124,7 @@ class TestRender:
 class TestWalk:
     """The progress bar is Knuffel walking the track to the end of the song."""
 
-    HEAD_BAND = (0, WALK_LINE_Y - 16, WIDTH, WALK_LINE_Y - 2)
+    HEAD_BAND = (0, WALK_LINE_Y - WALK_KNUFFEL + 2, WIDTH, WALK_LINE_Y - 3)
 
     def _knuffel_centre_x(self, img) -> float:
         """Mean x of the lit pixels in the band between the title and the line -
@@ -212,7 +212,7 @@ class TestPausedSleeper:
         paused = render(PlayingView(LONG, 5 * M, 10 * M, paused=True))
         # Centred text reaches the outer thirds of the panel; the centred
         # sleeper group does not.
-        assert lit_count(paused, (2, TIME_BASELINE - 11, left_margin(), HEIGHT)) == 0
+        assert lit_count(paused, (2, HEIGHT - 12, left_margin(), HEIGHT)) == 0
 
     def test_each_phase_adds_a_z(self):
         """One Z, then two, then three. On a panel that cannot fade anything

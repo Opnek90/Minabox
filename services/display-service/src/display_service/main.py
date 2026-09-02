@@ -533,18 +533,16 @@ class DisplayService:
         which changes once a minute - and the bar, quantised to the pixel step
         it is drawn in.
         """
-        # Paused draws Knuffel asleep instead of the time, so the phase of his
-        # Zs is what is visible there and the frozen remaining time is not.
-        visible = view.sleep_phase if view.paused else view.time_text
+        # The active screen shows no text any more - only Knuffel's position
+        # and whether he is walking or waving. Paused still animates its Zs, so
+        # their phase is what is visible there.
         return "play:" + json.dumps(
             [
                 view.title,
                 view.paused,
-                visible,
+                view.sleep_phase if view.paused else None,
                 view.muted,
                 round(view.fraction * 118 / PROGRESS_QUANTUM_PX),
-                # Whether Knuffel is walking or waving - it flips a few pixels
-                # before the quantised position or the time text would.
                 view.arriving and not view.paused,
             ],
             sort_keys=True,

@@ -1,24 +1,23 @@
 """The screen for "something is playing".
 
-Three things share 128x64, and each of them is there for a different reader:
+Two things share 128x64, one for each reader:
 
 * the **title**, complete rather than cut off, for the parent who wants to know
   what is on;
 * the **progress**, drawn as Knuffel walking a line to the end of the song -
   his position is the one thing on this panel a four-year-old can read, "this
-  far to go", and near the end he turns and waves;
-* the **remaining time** in words, for the parent again.
+  far to go", and near the end he turns and waves.
+
+The remaining time in words used to sit along the bottom, for the parent. It is
+gone: the panel is the child's, the parent has the phone, and dropping it buys
+the room to draw Knuffel large enough to have a face. ``PlayingView.time_text``
+stays - it is the obvious thing to put back if a parent-facing view ever wants
+it - it is just not on the glass.
 
 The title's font size follows its length instead of being fixed, which is what
-makes "complete" possible at all: "Ein Lama in Yokohama" comes back at 12 px on
-two lines, "Das Lied von der Raupe Nimmersatt" at the same size and also whole.
+makes "complete" possible at all: "Ein Lama in Yokohama" comes back on two
+lines, "Das Lied von der Raupe Nimmersatt" at the same size and also whole.
 Only a title too long for two lines even at the smallest size is trimmed.
-
-The remaining time is counted **locally**. position_ms is deliberately excluded
-from the audio status fingerprint so a playing track does not publish every two
-seconds; every event that moves the position out of band - a seek, a resume,
-the next track - runs through the play command, which publishes unconditionally
-and re-anchors the count.
 """
 
 from __future__ import annotations
@@ -35,7 +34,6 @@ from .primitives import (
     bar,
     block_height,
     draw_text,
-    draw_text_centered,
     fit_lines,
     new_frame,
     sleep_zs,
@@ -53,14 +51,14 @@ TITLE_BAND_HEIGHT = 22
 TITLE_LINE_GAP = 2
 
 # The progress bar is Knuffel walking to the end of the song. The track he
-# walks is a full-width line; behind him it is thickened to show the part that
-# is done, and he stands at the join. His position is the thing a four-year-old
-# reads - "this far to go" - so the line itself stays thin and quiet.
-WALK_LINE_Y = 45
-WALK_KNUFFEL = 18
+# walks is a full-width line low on the panel; behind him it is thickened to
+# show the part that is done, and he stands at the join. His position is the
+# thing a four-year-old reads - "this far to go" - so the line itself stays
+# thin and quiet, and with the remaining time gone he gets most of the height.
+WALK_LINE_Y = 56
+WALK_KNUFFEL = 28
 WALK_X0 = 3
 WALK_X1 = WIDTH - 3
-TIME_BASELINE = 61
 
 # The last stretch of the track: close enough to the end that Knuffel turns
 # round and waves rather than trudging the last few pixels.
@@ -226,5 +224,4 @@ def render(view: PlayingView) -> Any:
     img, draw = new_frame()
     _title(draw, view, TITLE_TOP, TITLE_BAND_HEIGHT)
     _walk(draw, view)
-    draw_text_centered(draw, view.time_text, fonts.get(fonts.BOLD, 15), TIME_BASELINE)
     return img
