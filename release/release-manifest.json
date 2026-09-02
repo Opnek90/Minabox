@@ -797,8 +797,27 @@
       ]
     },
     "display": {
-      "latest": "0.2.3",
+      "latest": "0.3.0",
       "releases": [
+        {
+          "version": "0.3.0",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "improved": {
+              "de": [
+                "Die Lautstaerke zeigt jetzt Knuffel, der singt - je lauter, desto mehr Noten steigen aus ihm auf.",
+                "Beim Abspielen laeuft Knuffel die Fortschrittsleiste ab und winkt zum Schluss; die Restzeit macht dafuer Platz.",
+                "Der Stumm-Bildschirm zeigt Knuffel mit geschlossenem Mund statt eines durchgestrichenen Lautsprechers."
+              ],
+              "en": [
+                "The volume screen now shows Knuffel singing - the louder it is set, the more notes rise from him.",
+                "While playing, Knuffel walks the progress bar and waves near the end; the remaining time makes way for him.",
+                "The mute screen shows Knuffel with his mouth shut instead of a crossed-out speaker."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.3",
           "date": "2026-08-29",
