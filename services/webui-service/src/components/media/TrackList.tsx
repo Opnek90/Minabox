@@ -1,87 +1,35 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Avatar,
-  Box,
-  Card,
-  CardActions,
-  CardContent,
-  CardMedia,
-  Chip,
-  Divider,
-  Grid,
-  IconButton,
-  InputAdornment,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  Menu,
-  MenuItem,
-  Pagination,
-  Paper,
-  Popover,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import React, { useState } from 'react';
+import { Avatar, Box, Chip, Typography } from '@mui/material';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteIcon from '@mui/icons-material/Delete';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
 import EditIcon from '@mui/icons-material/Edit';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import LinkIcon from '@mui/icons-material/Link';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
-import SearchIcon from '@mui/icons-material/Search';
-import ViewColumnIcon from '@mui/icons-material/ViewColumn';
-import ViewListIcon from '@mui/icons-material/ViewList';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useTranslation } from 'react-i18next';
 import { audioApi } from '@/api/audio';
-import type { Playlist, Track, TrackFolder } from '@/types/api';
+import type { Playlist, Track } from '@/types/api';
 import type { ViewMode } from '@/contexts/UserPrefsContext';
 import { formatTime } from '@/utils/formatTime';
+import { timeValue } from '@/utils/sortValue';
 import { AddToPlaylistDialog } from './AddToPlaylistDialog';
-import { DetailsTable, type DetailsColumn } from './DetailsTable';
+import { CollectionView, type CollectionDescriptor } from './CollectionView';
 import { LastPlayedCaption } from './LastPlayedCaption';
 import { RelativeTimeCell } from './RelativeTimeCell';
-import { FolderCreateDialog } from './FolderCreateDialog';
-import { FolderTree } from './FolderTree';
-import { useLayout } from '@/hooks/useLayout';
-
-type SortKey = 'title' | 'artist' | 'duration_ms' | 'last_played_at';
-type FilterSource = 'all' | 'file' | 'remote';
-
-const DEFAULT_FILTER: FilterSource = 'all';
-const DEFAULT_SORT_KEY: SortKey = 'title';
-const DEFAULT_SORT_DIR = 'asc' as const;
-
-const TREE_WIDTH = 220;
-const TREE_COLLAPSED_WIDTH = 36;
+import type { MediaFolder } from './FolderTree';
 
 /** MIME type used for DnD transfer of a track ID */
 const TRACK_DRAG_TYPE = 'application/minabox-track-id';
 
 interface TrackListProps {
   tracks: Track[];
-  allTracks: Track[];
-  folders: TrackFolder[];
+  folders: MediaFolder[];
   playlists: Playlist[];
   currentFolderId: number | null;
   onNavigateFolder: (folderId: number | null) => void;
   onFolderCreate: (name: string, parentId: number | null) => Promise<void>;
-  onFolderRename: (folder: TrackFolder, name: string) => Promise<void>;
-  onFolderDelete: (folder: TrackFolder) => Promise<void>;
+  onFolderRename: (folder: MediaFolder, name: string) => Promise<void>;
+  onFolderDelete: (folder: MediaFolder) => Promise<void>;
   onMoveTrackToFolder: (track: Track, folderId: number | null) => Promise<void>;
   onDelete: (track: Track) => void;
   onEdit?: (track: Track) => void;
@@ -96,822 +44,166 @@ interface TrackListProps {
   onTreeCollapsedChange?: (collapsed: boolean) => void;
   pageSize?: number;
   onPageSizeChange?: (size: number) => void;
-  selectionMode?: boolean;
-  onSelect?: (track: Track) => void;
   onRegisterCreateFolder?: (fn: () => void) => void;
   onPlaylistUpdated?: (playlist: Playlist) => void;
 }
 
-const PAGE_SIZE_OPTIONS = [25, 50] as const;
-const DEFAULT_PAGE_SIZE = 25;
-
 export const TrackList: React.FC<TrackListProps> = ({
   tracks,
-  allTracks,
-  folders,
   playlists,
-  currentFolderId,
-  onNavigateFolder,
-  onFolderCreate,
-  onFolderRename,
-  onFolderDelete,
-  onMoveTrackToFolder,
   onDelete,
   onEdit,
-  sortKey,
-  sortDir,
-  onSortChange,
-  viewMode,
-  onViewModeChange,
+  onMoveTrackToFolder,
   filter,
   onFilterChange,
-  treeCollapsed = false,
-  onTreeCollapsedChange,
-  pageSize = DEFAULT_PAGE_SIZE,
-  onPageSizeChange,
-  selectionMode = false,
-  onSelect,
-  onRegisterCreateFolder,
   onPlaylistUpdated,
+  ...viewProps
 }) => {
   const { t } = useTranslation('media');
-  const theme = useTheme();
-  // Two questions that used to hang off the same boundary and were therefore
-  // both answered wrongly on tablets:
-  // (1) Is there room for sorting, filters and row actions in the bar?
-  //     Yes from tablet up - 834px is plenty for that.
-  const layout = useLayout();
-  const hasInlineControls = layout.hasRoomForInlineControls;
-  // The details view needs real width for its columns, so it stays desktop-only
-  // (issue #115). Below that a stored "details" preference falls back to the
-  // list view without being overwritten.
-  const effectiveViewMode: ViewMode =
-    viewMode === 'details' && !layout.isDesktop ? 'list' : viewMode;
-  // (2) Do the folder tree and track list fit side by side? The tree takes a
-  //     fixed 220px; below that too little would remain for the list, so the
-  //     master-detail switch deliberately stays at 900px, not the tablet edge.
-  const hasSplitView = useMediaQuery(theme.breakpoints.up('md'));
-  const filterBtnRef = useRef<HTMLButtonElement>(null);
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  const [search, setSearch] = useState('');
-
-  const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [renameFolder, setRenameFolder] = useState<TrackFolder | null>(null);
-  const [moveTrack, setMoveTrack] = useState<Track | null>(null);
-
-  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  const [menuTrack, setMenuTrack] = useState<Track | null>(null);
-
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
 
-  const [mobileView, setMobileView] = useState<'tree' | 'tracks'>(
-    currentFolderId === null ? 'tree' : 'tracks'
-  );
+  const thumbnail = (track: Track, size: number) =>
+    track.cover_art_url ? (
+      <Avatar src={track.cover_art_url} variant="rounded" sx={{ width: size, height: size }}>
+        <AudiotrackIcon fontSize="small" />
+      </Avatar>
+    ) : (
+      <Avatar variant="rounded" sx={{ width: size, height: size, bgcolor: 'action.selected' }}>
+        {track.source_type === 'remote' ? <LinkIcon fontSize="small" /> : <AudiotrackIcon fontSize="small" />}
+      </Avatar>
+    );
 
-  const [page, setPage] = useState(1);
-
-  /** Track that is currently being dragged (set on dragstart, cleared on dragend) */
-  const [draggingTrackId, setDraggingTrackId] = useState<number | null>(null);
-
-  useEffect(() => {
-    onRegisterCreateFolder?.(() => setCreateFolderOpen(true));
-  }, [onRegisterCreateFolder]);
-
-  const typedSortKey = sortKey as SortKey;
-  const typedFilter = filter as FilterSource;
-
-  const hasActiveFilter = typedFilter !== DEFAULT_FILTER;
-  const hasNonDefaultSort = typedSortKey !== DEFAULT_SORT_KEY || sortDir !== DEFAULT_SORT_DIR;
-  const hasAnyActiveChip = hasActiveFilter || hasNonDefaultSort;
-  const activeBadgeCount = (hasActiveFilter ? 1 : 0) + (hasNonDefaultSort ? 1 : 0);
-
-  const filterLabel: Record<FilterSource, string> = {
-    all: t('tracks.filter.all'),
-    file: t('tracks.filter.files'),
-    remote: t('tracks.filter.remote'),
-  };
-  const sortKeyLabel: Record<SortKey, string> = {
-    title: t('tracks.fields.title'),
-    artist: t('tracks.fields.artist'),
-    duration_ms: t('tracks.fields.duration'),
-    last_played_at: t('tracks.fields.last_played'),
-  };
-
-  const tracksInCurrentFolder = tracks.filter((tr) =>
-    currentFolderId === null ? tr.folder_id == null : tr.folder_id === currentFolderId
-  );
-
-  const filtered = tracksInCurrentFolder.filter((tr) => {
-    const q = search.toLowerCase();
-    const matchesSearch =
-      tr.title.toLowerCase().includes(q) ||
-      (tr.artist ?? '').toLowerCase().includes(q) ||
-      (tr.album ?? '').toLowerCase().includes(q);
-    const matchesFilter = typedFilter === 'all' || tr.source_type === typedFilter;
-    return matchesSearch && matchesFilter;
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    let aVal: string | number;
-    let bVal: string | number;
-    if (typedSortKey === 'duration_ms') {
-      aVal = a.duration_ms ?? 0; bVal = b.duration_ms ?? 0;
-    } else if (typedSortKey === 'last_played_at') {
-      aVal = a.last_played_at ? new Date(a.last_played_at).getTime() : 0;
-      bVal = b.last_played_at ? new Date(b.last_played_at).getTime() : 0;
-    } else if (typedSortKey === 'artist') {
-      aVal = (a.artist ?? '').toLowerCase(); bVal = (b.artist ?? '').toLowerCase();
-    } else {
-      aVal = a.title.toLowerCase(); bVal = b.title.toLowerCase();
-    }
-    if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const paginated = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, typedFilter, typedSortKey, sortDir, currentFolderId, pageSize]);
-
-  const handlePageSizeChange = (size: number) => {
-    onPageSizeChange?.(size);
-  };
-
-  const handleSortKey = (_: React.MouseEvent, key: SortKey | null) => {
-    if (!key) return;
-    if (key === typedSortKey) onSortChange(key, sortDir === 'asc' ? 'desc' : 'asc');
-    else onSortChange(key, 'asc');
-  };
-
-  const handleSortDirToggle = () =>
-    onSortChange(typedSortKey, sortDir === 'asc' ? 'desc' : 'asc');
-
-  const handleNavigateFolder = (folderId: number | null) => {
-    onNavigateFolder(folderId);
-    if (!hasSplitView) setMobileView('tracks');
-  };
-
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, track: Track) => {
-    event.stopPropagation();
-    setMenuAnchor(event.currentTarget);
-    setMenuTrack(track);
-  };
-
-  const handleMenuClose = () => {
-    setMenuAnchor(null);
-    setMenuTrack(null);
-  };
-
-  // --- Drag & Drop helpers ---
-  const handleDragStart = (e: React.DragEvent, track: Track) => {
-    e.dataTransfer.setData(TRACK_DRAG_TYPE, String(track.id));
-    e.dataTransfer.effectAllowed = 'move';
-    setDraggingTrackId(track.id);
-  };
-
-  const handleDragEnd = () => setDraggingTrackId(null);
-
-  /**
-   * Called by FolderTree when a track is dropped onto a folder node.
-   * Looks up the full Track object and delegates to onMoveTrackToFolder.
-   */
-  const handleDropTrackOnFolder = (trackId: number, targetFolderId: number | null) => {
-    const track = allTracks.find((tr) => tr.id === trackId);
-    if (track) {
-      void onMoveTrackToFolder(track, targetFolderId);
-    }
-  };
-
-  const MoveMenu = moveTrack ? (
-    <Popover
-      open
-      onClose={() => setMoveTrack(null)}
-      anchorReference="anchorPosition"
-      anchorPosition={{ top: window.innerHeight / 2, left: window.innerWidth / 2 }}
-      transformOrigin={{ vertical: 'center', horizontal: 'center' }}
-      slotProps={{ paper: { sx: { minWidth: 220, borderRadius: 2, p: 1 } } }}
-    >
-      <Box sx={{ fontWeight: 600, px: 1, pb: 0.5, fontSize: '0.85rem', color: 'text.secondary' }}>
-        {t('folders.move_to')}
-      </Box>
-      <Divider sx={{ mb: 0.5 }} />
-      {currentFolderId !== null && (
-        <Box
-          component="button"
-          onClick={() => { void onMoveTrackToFolder(moveTrack, null); setMoveTrack(null); }}
-          sx={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', px: 2, py: 0.75, borderRadius: 1, fontSize: '0.875rem', '&:hover': { bgcolor: 'action.hover' } }}
-        >
-          📁 {t('folders.root')}
-        </Box>
-      )}
-      {folders.map((f) => f.id !== currentFolderId && (
-        <Box
-          key={f.id}
-          component="button"
-          onClick={() => { void onMoveTrackToFolder(moveTrack, f.id); setMoveTrack(null); }}
-          sx={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', px: 2, py: 0.75, borderRadius: 1, fontSize: '0.875rem', '&:hover': { bgcolor: 'action.hover' } }}
-        >
-          📂 {f.name}
-        </Box>
-      ))}
-    </Popover>
-  ) : null;
-
-  const filterControls = (
-    <ToggleButtonGroup value={typedFilter} exclusive onChange={(_, v) => v && onFilterChange(v)} size="small">
-      <ToggleButton value="all">{t('tracks.filter.all')}</ToggleButton>
-      <ToggleButton value="file">{t('tracks.filter.files')}</ToggleButton>
-      <ToggleButton value="remote">{t('tracks.filter.remote')}</ToggleButton>
-    </ToggleButtonGroup>
-  );
-
-  const sortControls = (
-    <Box display="flex" alignItems="center" gap={0.5}>
-      <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey} size="small">
-        <ToggleButton value="title">{t('tracks.fields.title')}</ToggleButton>
-        <ToggleButton value="artist">{t('tracks.fields.artist')}</ToggleButton>
-        <ToggleButton value="duration_ms">{t('tracks.fields.duration')}</ToggleButton>
-        <ToggleButton value="last_played_at">{t('tracks.fields.last_played')}</ToggleButton>
-      </ToggleButtonGroup>
-      <Tooltip title={sortDir === 'asc' ? t('tracks.sort.asc') : t('tracks.sort.desc')}>
-        <IconButton size="small" onClick={handleSortDirToggle}>
-          {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
-        </IconButton>
-      </Tooltip>
-    </Box>
-  );
-
-  /** Full row action set for wide layouts (list secondary action + details view). */
-  const desktopRowActions = (track: Track) => (
-    <>
-      <Tooltip title={t('tracks.play')}>
-        <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
-          <PlayArrowIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-      {playlists.length > 0 && (
-        <Tooltip title={t('playlists.add_to_playlist')}>
-          <IconButton size="small" onClick={() => setAddToPlaylistTrack(track)}>
-            <PlaylistAddIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {onEdit && (
-        <Tooltip title={t('tracks.edit')}>
-          <IconButton size="small" onClick={() => onEdit(track)}>
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      {folders.length > 0 && (
-        <Tooltip title={t('folders.move_to')}>
-          <IconButton size="small" onClick={() => setMoveTrack(track)}>
-            <DriveFileMoveIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
-      <Tooltip title={t('tracks.delete')}>
-        <IconButton size="small" color="error" onClick={() => onDelete(track)}>
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-    </>
-  );
-
-  const trackColumns: DetailsColumn<Track>[] = [
-    {
-      key: 'cover',
-      label: '',
-      width: 44,
-      render: (tr) =>
-        tr.cover_art_url ? (
-          <Avatar src={tr.cover_art_url} variant="rounded" sx={{ width: 28, height: 28 }}>
-            <AudiotrackIcon fontSize="small" />
-          </Avatar>
-        ) : (
-          <Avatar variant="rounded" sx={{ width: 28, height: 28, bgcolor: 'action.selected' }}>
-            {tr.source_type === 'remote' ? <LinkIcon fontSize="small" /> : <AudiotrackIcon fontSize="small" />}
-          </Avatar>
-        ),
+  const descriptor: CollectionDescriptor<Track> = {
+    dragType: TRACK_DRAG_TYPE,
+    treeLabel: t('tabs.tracks'),
+    searchPlaceholder: t('track_selector.search_placeholder'),
+    emptyText: t('tracks.no_tracks'),
+    sortLabel: t('tracks.sort.label'),
+    sortOpenLabel: t('tracks.filter.open'),
+    sortAscLabel: t('tracks.sort.asc'),
+    sortDescLabel: t('tracks.sort.desc'),
+    resetLabel: t('tracks.filter.reset_all'),
+    defaultSortKey: 'title',
+    sortOptions: [
+      { key: 'title', label: t('tracks.fields.title'), value: (tr) => tr.title.toLowerCase() },
+      { key: 'artist', label: t('tracks.fields.artist'), value: (tr) => (tr.artist ?? '').toLowerCase() },
+      { key: 'duration_ms', label: t('tracks.fields.duration'), value: (tr) => tr.duration_ms ?? 0 },
+      { key: 'last_played_at', label: t('tracks.fields.last_played'), value: (tr) => timeValue(tr.last_played_at) },
+    ],
+    searchFields: (tr) => [tr.title, tr.artist, tr.album],
+    filter: {
+      value: filter,
+      defaultValue: 'all',
+      onChange: onFilterChange,
+      label: t('tracks.filter.label'),
+      options: [
+        { value: 'all', label: t('tracks.filter.all') },
+        { value: 'file', label: t('tracks.filter.files') },
+        { value: 'remote', label: t('tracks.filter.remote') },
+      ],
+      matches: (tr, value) => value === 'all' || tr.source_type === value,
     },
-    { key: 'title', label: t('tracks.fields.title'), sortable: true, width: '26%', render: (tr) => tr.title },
-    {
-      key: 'artist',
-      label: t('tracks.fields.artist'),
-      sortable: true,
-      width: '20%',
-      render: (tr) => tr.artist || '—',
-    },
-    { key: 'album', label: t('tracks.fields.album'), width: '20%', render: (tr) => tr.album || '—' },
-    {
-      key: 'duration_ms',
-      label: t('tracks.fields.duration'),
-      sortable: true,
-      numeric: true,
-      width: 96,
-      render: (tr) => (tr.duration_ms != null ? formatTime(tr.duration_ms) : '—'),
-    },
-    {
-      key: 'last_played_at',
-      label: t('tracks.fields.last_played'),
-      sortable: true,
-      render: (tr) => <RelativeTimeCell value={tr.last_played_at} />,
-    },
-  ];
-
-  const renderListItem = (index: number, track: Track) => (
-    <ListItem
-      key={track.id}
-      draggable={!selectionMode}
-      onDragStart={!selectionMode ? (e) => handleDragStart(e, track) : undefined}
-      onDragEnd={!selectionMode ? handleDragEnd : undefined}
-      divider={index < paginated.length - 1}
-      secondaryAction={
-        !selectionMode && (
-          <Box display="flex" alignItems="center">
-            {hasInlineControls && desktopRowActions(track)}
-            {!hasInlineControls && (
-              <IconButton size="small" onClick={(e) => handleMenuOpen(e, track)}>
-                <MoreVertIcon fontSize="small" />
-              </IconButton>
-            )}
-          </Box>
-        )
-      }
-      sx={{
-        py: 0.5,
-        pr: selectionMode ? undefined : hasInlineControls ? '180px' : '40px',
-        opacity: draggingTrackId === track.id ? 0.4 : 1,
-        cursor: selectionMode ? 'default' : 'grab',
-        transition: 'opacity 0.15s',
-        ...(selectionMode ? { cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } } : {}),
-      }}
-      onClick={selectionMode && onSelect ? () => onSelect(track) : undefined}
-    >
-      <ListItemAvatar sx={{ minWidth: 40 }}>
-        {track.cover_art_url ? (
-          <Avatar src={track.cover_art_url} variant="rounded" sx={{ width: 32, height: 32 }}>
-            <AudiotrackIcon fontSize="small" />
-          </Avatar>
-        ) : (
-          <Avatar variant="rounded" sx={{ width: 32, height: 32, bgcolor: 'action.selected' }}>
-            {track.source_type === 'remote' ? <LinkIcon fontSize="small" /> : <AudiotrackIcon fontSize="small" />}
-          </Avatar>
-        )}
-      </ListItemAvatar>
-      <ListItemText
-        primary={track.title}
-        primaryTypographyProps={{ noWrap: true }}
-        secondaryTypographyProps={{ component: 'span' }}
-        secondary={
-          <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
-            {track.artist && <Typography component="span" variant="caption" noWrap>{track.artist}</Typography>}
-            {track.album && <Typography component="span" variant="caption" color="text.secondary" noWrap>· {track.album}</Typography>}
-            {track.duration_ms != null && (
-              <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined"
-                sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
-            )}
-            <LastPlayedCaption
-              value={track.last_played_at}
-              label={t('tracks.fields.last_played')}
-              emptyLabel={t('never_played')}
-              separator
-            />
-          </Box>
-        }
-      />
-    </ListItem>
-  );
-
-  const renderGridItem = (_index: number, track: Track) => (
-    <Box
-      sx={{ p: 1, height: '100%' }}
-      draggable={!selectionMode}
-      onDragStart={!selectionMode ? (e) => handleDragStart(e, track) : undefined}
-      onDragEnd={!selectionMode ? handleDragEnd : undefined}
-    >
-      <Card
-        variant="outlined"
-        sx={{
-          borderRadius: 2,
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          opacity: draggingTrackId === track.id ? 0.4 : 1,
-          cursor: selectionMode ? 'default' : 'grab',
-          transition: 'opacity 0.15s',
-        }}
-      >
-        {track.cover_art_url && (
-          <CardMedia component="img" height="120" image={track.cover_art_url} alt={track.title} sx={{ objectFit: 'cover' }} />
-        )}
-        <CardContent sx={{ pb: 0, flex: 1 }}>
-          <Typography variant="subtitle1" fontWeight={600} display="flex" alignItems="center" gap={1}>
-            {track.source_type === 'remote'
-              ? <LinkIcon fontSize="small" color="primary" />
-              : <AudiotrackIcon fontSize="small" color="primary" />}
-            {track.title}
+    renderThumbnail: thumbnail,
+    renderIcon: (tr) =>
+      tr.source_type === 'remote'
+        ? <LinkIcon fontSize="small" color="primary" />
+        : <AudiotrackIcon fontSize="small" color="primary" />,
+    renderCardBody: (tr) => (
+      <>
+        {(tr.artist || tr.album) && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
+            {[tr.artist, tr.album].filter(Boolean).join(' · ')}
           </Typography>
-          {(track.artist || track.album) && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
-              {[track.artist, track.album].filter(Boolean).join(' · ')}
-            </Typography>
+        )}
+        <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" sx={{ mt: 1 }}>
+          {tr.duration_ms != null && (
+            <Chip label={formatTime(tr.duration_ms)} size="small" variant="outlined" />
           )}
-          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" sx={{ mt: 1 }}>
-            {track.duration_ms != null && (
-              <Chip label={formatTime(track.duration_ms)} size="small" variant="outlined" />
-            )}
-            <LastPlayedCaption
-              value={track.last_played_at}
-              label={t('tracks.fields.last_played')}
-              emptyLabel={t('never_played')}
-              separator={track.duration_ms != null}
-            />
-          </Box>
-        </CardContent>
-        <CardActions sx={{ pt: 0 }}>
-          {!selectionMode && (
-            <>
-              <Tooltip title={t('tracks.play')}>
-                <IconButton size="small" color="primary" onClick={() => audioApi.play({ track_id: track.id })}>
-                  <PlayArrowIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              {playlists.length > 0 && (
-                <Tooltip title={t('playlists.add_to_playlist')}>
-                  <IconButton size="small" onClick={() => setAddToPlaylistTrack(track)}>
-                    <PlaylistAddIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {onEdit && (
-                <Tooltip title={t('tracks.edit')}>
-                  <IconButton size="small" onClick={() => onEdit(track)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {folders.length > 0 && (
-                <Tooltip title={t('folders.move_to')}>
-                  <IconButton size="small" onClick={() => setMoveTrack(track)}>
-                    <DriveFileMoveIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Tooltip title={t('tracks.delete')}>
-                <IconButton size="small" color="error" onClick={() => onDelete(track)}>
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </>
-          )}
-        </CardActions>
-      </Card>
-    </Box>
-  );
-
-  const mobileActionsMenu = (
-    <Menu
-      anchorEl={menuAnchor}
-      open={Boolean(menuAnchor) && menuTrack !== null}
-      onClose={handleMenuClose}
-      transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-      anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-    >
-      <MenuItem onClick={() => { if (menuTrack) audioApi.play({ track_id: menuTrack.id }); handleMenuClose(); }}>
-        <PlayArrowIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} />
-        {t('tracks.play')}
-      </MenuItem>
-      {playlists.length > 0 && (
-        <MenuItem onClick={() => { if (menuTrack) setAddToPlaylistTrack(menuTrack); handleMenuClose(); }}>
-          <PlaylistAddIcon fontSize="small" sx={{ mr: 1.5 }} />
-          {t('playlists.add_to_playlist')}
-        </MenuItem>
-      )}
-      {onEdit && (
-        <MenuItem onClick={() => { if (menuTrack) onEdit(menuTrack); handleMenuClose(); }}>
-          <EditIcon fontSize="small" sx={{ mr: 1.5 }} />
-          {t('tracks.edit')}
-        </MenuItem>
-      )}
-      {folders.length > 0 && (
-        <MenuItem onClick={() => { if (menuTrack) setMoveTrack(menuTrack); handleMenuClose(); }}>
-          <DriveFileMoveIcon fontSize="small" sx={{ mr: 1.5 }} />
-          {t('folders.move_to')}
-        </MenuItem>
-      )}
-      <Divider />
-      <MenuItem
-        onClick={() => { if (menuTrack) onDelete(menuTrack); handleMenuClose(); }}
-        sx={{ color: 'error.main' }}
-      >
-        <DeleteIcon fontSize="small" sx={{ mr: 1.5 }} />
-        {t('tracks.delete')}
-      </MenuItem>
-    </Menu>
-  );
-
-  const trackPanel = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      {!hasSplitView && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <IconButton size="small" onClick={() => setMobileView('tree')}>
-            <ArrowBackIcon fontSize="small" />
-          </IconButton>
-          <Typography variant="body2" fontWeight={600} noWrap>
-            {currentFolderId === null
-              ? t('folders.root')
-              : folders.find((f) => f.id === currentFolderId)?.name ?? ''}
-          </Typography>
+          <LastPlayedCaption
+            value={tr.last_played_at}
+            label={t('tracks.fields.last_played')}
+            emptyLabel={t('never_played')}
+            separator={tr.duration_ms != null}
+          />
         </Box>
-      )}
-
-      <Box display="flex" gap={1} mb={1} alignItems="center" flexWrap="wrap" flexShrink={0}>
-        <ToggleButtonGroup value={effectiveViewMode} exclusive onChange={(_, v) => v && onViewModeChange(v)} size="small">
-          <ToggleButton value="card" aria-label={t('view_mode_card')}><ViewModuleIcon fontSize="small" /></ToggleButton>
-          <ToggleButton value="list" aria-label={t('view_mode_list')}><ViewListIcon fontSize="small" /></ToggleButton>
-          {layout.isDesktop && (
-            <ToggleButton value="details" aria-label={t('view_mode_details')}><ViewColumnIcon fontSize="small" /></ToggleButton>
-          )}
-        </ToggleButtonGroup>
-
-        <TextField
-          placeholder={t('track_selector.search_placeholder')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          size="small"
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
-          sx={{ flex: 1, minWidth: 0 }}
+      </>
+    ),
+    renderListSecondary: (tr) => (
+      <Box component="span" display="flex" gap={1} alignItems="center" flexWrap="wrap">
+        {tr.artist && <Typography component="span" variant="caption" noWrap>{tr.artist}</Typography>}
+        {tr.album && <Typography component="span" variant="caption" color="text.secondary" noWrap>· {tr.album}</Typography>}
+        {tr.duration_ms != null && (
+          <Chip label={formatTime(tr.duration_ms)} size="small" variant="outlined"
+            sx={{ height: 18, fontSize: '0.65rem', flexShrink: 0 }} />
+        )}
+        <LastPlayedCaption
+          value={tr.last_played_at}
+          label={t('tracks.fields.last_played')}
+          emptyLabel={t('never_played')}
+          separator
         />
-
-        {hasInlineControls && (
-          <>
-            {filterControls}
-            {effectiveViewMode !== 'details' && sortControls}
-          </>
-        )}
-
-        {!hasInlineControls && (
-          <Tooltip title={t('tracks.filter.open')}>
-            <IconButton
-              ref={filterBtnRef}
-              size="small"
-              onClick={() => setPopoverOpen(true)}
-              sx={{
-                overflow: 'visible',
-                color: activeBadgeCount > 0 ? 'primary.main' : 'text.secondary',
-                border: '1px solid',
-                borderColor: activeBadgeCount > 0 ? 'primary.main' : 'divider',
-                borderRadius: 1, px: 1,
-              }}
-            >
-              <FilterListIcon fontSize="small" />
-              {activeBadgeCount > 0 && (
-                <Box component="span" sx={{
-                  position: 'absolute', top: -6, right: -6,
-                  width: 16, height: 16, borderRadius: '50%',
-                  bgcolor: 'primary.main', color: 'primary.contrastText',
-                  fontSize: '0.65rem', fontWeight: 700,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  pointerEvents: 'none',
-                }}>
-                  {activeBadgeCount}
-                </Box>
-              )}
-            </IconButton>
-          </Tooltip>
-        )}
       </Box>
-
-      {hasAnyActiveChip && (
-        <Box display="flex" gap={0.75} flexWrap="wrap" mb={1} alignItems="center" flexShrink={0}>
-          {hasActiveFilter && (
-            <Chip size="small" label={filterLabel[typedFilter]}
-              onDelete={() => onFilterChange(DEFAULT_FILTER)} color="primary" variant="outlined" />
-          )}
-          {hasNonDefaultSort && (
-            <Chip size="small"
-              icon={sortDir === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
-              label={sortKeyLabel[typedSortKey]}
-              onDelete={() => onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR)}
-              color="primary" variant="outlined" />
-          )}
-        </Box>
-      )}
-
-      <Popover
-        open={popoverOpen && !hasInlineControls}
-        anchorEl={filterBtnRef.current}
-        onClose={() => setPopoverOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        slotProps={{ paper: { sx: { mt: 0.5, borderRadius: 2, minWidth: 300 } } }}
-      >
-        <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.75}>
-              {t('tracks.filter.label')}
-            </Typography>
-            <ToggleButtonGroup value={typedFilter} exclusive onChange={(_, v) => v && onFilterChange(v)}
-              size="small" fullWidth sx={{ '& .MuiToggleButton-root': { flex: 1, fontSize: '0.78rem' } }}>
-              <ToggleButton value="all">{t('tracks.filter.all')}</ToggleButton>
-              <ToggleButton value="file">{t('tracks.filter.files')}</ToggleButton>
-              <ToggleButton value="remote">{t('tracks.filter.remote')}</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
-          <Divider />
-          <Box>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.75}>
-              {t('tracks.sort.label')}
-            </Typography>
-            <Box display="flex" gap={1} alignItems="center">
-              <ToggleButtonGroup value={typedSortKey} exclusive onChange={handleSortKey}
-                size="small" sx={{ flex: 1, '& .MuiToggleButton-root': { flex: 1, fontSize: '0.7rem' } }}>
-                <ToggleButton value="title">{t('tracks.fields.title')}</ToggleButton>
-                <ToggleButton value="artist">{t('tracks.fields.artist')}</ToggleButton>
-                <ToggleButton value="duration_ms">{t('tracks.fields.duration')}</ToggleButton>
-                <ToggleButton value="last_played_at">{t('tracks.fields.last_played')}</ToggleButton>
-              </ToggleButtonGroup>
-              <Tooltip title={sortDir === 'asc' ? t('tracks.sort.asc') : t('tracks.sort.desc')}>
-                <IconButton size="small" onClick={handleSortDirToggle}>
-                  {sortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
-          {hasAnyActiveChip && (
-            <>
-              <Divider />
-              <Box component="button"
-                onClick={() => { onFilterChange(DEFAULT_FILTER); onSortChange(DEFAULT_SORT_KEY, DEFAULT_SORT_DIR); setPopoverOpen(false); }}
-                sx={{ background: 'none', border: 'none', cursor: 'pointer', color: 'text.secondary', fontSize: '0.8rem', textAlign: 'left', p: 0 }}>
-                {t('tracks.filter.reset_all')}
-              </Box>
-            </>
-          )}
-        </Paper>
-      </Popover>
-
-      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-        <Box>
-          {sorted.length === 0 ? (
-            <Box display="flex" justifyContent="center" py={6}>
-              <Typography color="text.secondary">{t('tracks.no_tracks')}</Typography>
-            </Box>
-          ) : effectiveViewMode === 'card' ? (
-            <Grid container spacing={2} sx={{ p: 1 }}>
-              {paginated.map((track, index) => (
-                <Grid item xs={12} sm={6} lg={4} key={track.id}>
-                  {renderGridItem(index, track)}
-                </Grid>
-              ))}
-            </Grid>
-          ) : effectiveViewMode === 'details' ? (
-            <DetailsTable<Track>
-              items={paginated}
-              columns={trackColumns}
-              sortKey={typedSortKey}
-              sortDir={sortDir}
-              onSortChange={onSortChange}
-              rowKey={(tr) => tr.id}
-              emptyText={t('tracks.no_tracks')}
-              renderActions={selectionMode ? undefined : desktopRowActions}
-              onRowDragStart={selectionMode ? undefined : handleDragStart}
-              onRowDragEnd={selectionMode ? undefined : handleDragEnd}
-              draggingKey={draggingTrackId}
-            />
-          ) : (
-            <List disablePadding>
-              {paginated.map((track, index) => renderListItem(index, track))}
-            </List>
-          )}
-        </Box>
-
-        {sorted.length > 0 && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 1,
-              pt: 1,
-              mt: 1,
-              flexShrink: 0,
-              borderTop: 1,
-              borderColor: 'divider',
-            }}
-          >
-            <ToggleButtonGroup
-              size="small"
-              value={pageSize}
-              exclusive
-              onChange={(_, v) => v && handlePageSizeChange(v)}
-            >
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <ToggleButton key={size} value={size}>{size}</ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-            <Pagination
-              size="small"
-              count={totalPages}
-              page={currentPage}
-              onChange={(_, p) => setPage(p)}
-              siblingCount={0}
-            />
-          </Box>
-        )}
-      </Box>
-    </Box>
-  );
+    ),
+    columns: [
+      { key: 'cover', label: '', width: 44, render: (tr) => thumbnail(tr, 28) },
+      { key: 'title', label: t('tracks.fields.title'), sortable: true, width: '26%', render: (tr) => tr.title },
+      { key: 'artist', label: t('tracks.fields.artist'), sortable: true, width: '20%', render: (tr) => tr.artist || '—' },
+      { key: 'album', label: t('tracks.fields.album'), width: '20%', render: (tr) => tr.album || '—' },
+      {
+        key: 'duration_ms',
+        label: t('tracks.fields.duration'),
+        sortable: true,
+        numeric: true,
+        width: 96,
+        render: (tr) => (tr.duration_ms != null ? formatTime(tr.duration_ms) : '—'),
+      },
+      {
+        key: 'last_played_at',
+        label: t('tracks.fields.last_played'),
+        sortable: true,
+        render: (tr) => <RelativeTimeCell value={tr.last_played_at} />,
+      },
+    ],
+    actions: [
+      {
+        key: 'play',
+        label: t('tracks.play'),
+        icon: <PlayArrowIcon fontSize="small" />,
+        primary: true,
+        onClick: (tr) => audioApi.play({ track_id: tr.id }),
+      },
+      {
+        key: 'playlist',
+        label: t('playlists.add_to_playlist'),
+        icon: <PlaylistAddIcon fontSize="small" />,
+        available: playlists.length > 0,
+        onClick: (tr) => setAddToPlaylistTrack(tr),
+      },
+      {
+        key: 'edit',
+        label: t('tracks.edit'),
+        icon: <EditIcon fontSize="small" />,
+        available: Boolean(onEdit),
+        onClick: (tr) => onEdit?.(tr),
+      },
+      {
+        key: 'delete',
+        label: t('tracks.delete'),
+        icon: <DeleteIcon fontSize="small" />,
+        destructive: true,
+        onClick: onDelete,
+      },
+    ],
+  };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-      {hasSplitView ? (
-        <Box sx={{ display: 'flex', gap: 0 }}>
-          <Box
-            sx={{
-              width: treeCollapsed ? TREE_COLLAPSED_WIDTH : TREE_WIDTH,
-              flexShrink: 0,
-              borderRight: treeCollapsed ? 1 : 0,
-              borderColor: 'divider',
-            }}
-          >
-            {treeCollapsed ? (
-              <Tooltip title={t('folders.expand_tree')} placement="right">
-                <IconButton
-                  size="small"
-                  onClick={() => onTreeCollapsedChange?.(false)}
-                  sx={{ display: 'flex', mx: 'auto', mt: 1 }}
-                >
-                  <ChevronRightIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 0.5, pt: 0.5 }}>
-                  <Tooltip title={t('folders.collapse_tree')}>
-                    <IconButton size="small" onClick={() => onTreeCollapsedChange?.(true)}>
-                      <ChevronLeftIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-                <FolderTree
-                  folders={folders}
-                  items={allTracks}
-                  currentFolderId={currentFolderId}
-                  onNavigate={handleNavigateFolder}
-                  onRename={(folder) => setRenameFolder(folder as TrackFolder)}
-                  onDelete={(folder) => void onFolderDelete(folder as TrackFolder)}
-                  onDropItem={handleDropTrackOnFolder}
-                  dragType={TRACK_DRAG_TYPE}
-                  treeLabel={t('tabs.tracks')}
-                />
-              </Box>
-            )}
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0, pl: 2, display: 'flex', flexDirection: 'column' }}>
-            {trackPanel}
-          </Box>
-        </Box>
-      ) : (
-        <Box>
-          {mobileView === 'tree' ? (
-            <FolderTree
-              folders={folders}
-              items={allTracks}
-              currentFolderId={currentFolderId}
-              onNavigate={handleNavigateFolder}
-              onRename={(folder) => setRenameFolder(folder as TrackFolder)}
-              onDelete={(folder) => void onFolderDelete(folder as TrackFolder)}
-              onDropItem={handleDropTrackOnFolder}
-              dragType={TRACK_DRAG_TYPE}
-              treeLabel={t('tabs.tracks')}
-            />
-          ) : (
-            trackPanel
-          )}
-        </Box>
-      )}
-
-      <FolderCreateDialog
-        open={createFolderOpen}
-        onClose={() => setCreateFolderOpen(false)}
-        onSubmit={(name) => onFolderCreate(name, currentFolderId)}
+    <>
+      <CollectionView<Track>
+        {...viewProps}
+        items={tracks}
+        onMoveToFolder={onMoveTrackToFolder}
+        descriptor={descriptor}
       />
-      <FolderCreateDialog
-        open={!!renameFolder}
-        initialName={renameFolder?.name}
-        onClose={() => setRenameFolder(null)}
-        onSubmit={(name) => onFolderRename(renameFolder!, name)}
-      />
-
-      {MoveMenu}
-      {mobileActionsMenu}
 
       <AddToPlaylistDialog
         open={!!addToPlaylistTrack}
@@ -920,6 +212,6 @@ export const TrackList: React.FC<TrackListProps> = ({
         onClose={() => setAddToPlaylistTrack(null)}
         onAdded={(pl) => onPlaylistUpdated?.(pl)}
       />
-    </Box>
+    </>
   );
 };

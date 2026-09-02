@@ -1465,8 +1465,23 @@
       ]
     },
     "webui": {
-      "latest": "0.4.2",
+      "latest": "0.4.3",
       "releases": [
+        {
+          "version": "0.4.3",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "improved": {
+              "de": [
+                "Titel, Sender und Podcasts stehen unter der Haube jetzt auf einer gemeinsamen Ansicht statt auf drei fast gleichen - sichtbar ist davon nur, dass die Knopfreihe in Listenzeilen bei allen dreien gleich breit ist und Titel-Karten etwas enger stehen. Neue Ansichten und Spalten muessen kuenftig nur noch einmal gebaut werden statt dreimal."
+              ],
+              "en": [
+                "Tracks, streams and podcasts now sit on one shared view under the hood instead of three near-identical ones. All you see of it: the button row in list rows is the same width for all three, and track cards sit a little tighter. New views and columns now only have to be built once instead of three times."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.2",
           "date": "2026-09-01",

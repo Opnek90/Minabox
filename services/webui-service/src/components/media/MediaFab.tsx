@@ -23,9 +23,11 @@ import { useLayout } from '@/hooks/useLayout';
 import { MINI_PLAYER_HEIGHT } from '@/components/common/MiniPlayer';
 import { MOBILE_BOTTOM_NAV_HEIGHT, SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
 
+/** The MediaPage tabs. The overview has no create actions of its own. */
+export type MediaTab = 'overview' | 'playlists' | 'tracks' | 'streams' | 'podcasts';
+
 interface MediaFabProps {
-  /** 0=Playlists, 1=Tracks, 2=Streams, 3=Podcasts */
-  activeTab: number;
+  tab: MediaTab;
   onCreatePlaylist: () => void;
   onCreateFolder: () => void;
   onUpload: () => void;
@@ -44,7 +46,7 @@ const FAB_GAP = 8;
 const FAB_BOTTOM_DEFAULT = 24;
 
 export const MediaFab: React.FC<MediaFabProps> = ({
-  activeTab,
+  tab,
   onCreatePlaylist,
   onCreateFolder,
   onUpload,
@@ -83,11 +85,11 @@ export const MediaFab: React.FC<MediaFabProps> = ({
   // The action menu sits directly above the FAB
   const menuBottom = `calc(${fabBottomPx + FAB_SIZE + FAB_GAP}px${safeOffset})`;
 
-  const actionsByTab: Record<number, { icon: React.ReactNode; name: string; onClick: () => void }[]> = {
-    0: [
+  const actionsByTab: Partial<Record<MediaTab, { icon: React.ReactNode; name: string; onClick: () => void }[]>> = {
+    playlists: [
       { icon: <PlaylistAddIcon fontSize="small" />, name: t('playlists.add_playlist'), onClick: onCreatePlaylist },
     ],
-    1: [
+    tracks: [
       { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new'), onClick: onCreateFolder },
       { icon: <LinkIcon fontSize="small" />, name: t('tracks.add_remote'), onClick: onRemoteTrack },
       ...(mediaDownloaderInstalled
@@ -95,17 +97,17 @@ export const MediaFab: React.FC<MediaFabProps> = ({
         : []),
       { icon: <CloudUploadIcon fontSize="small" />, name: t('tracks.upload'), onClick: onUpload },
     ],
-    2: [
+    streams: [
       { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new'), onClick: onCreateStreamFolder },
       { icon: <StreamIcon fontSize="small" />, name: t('tracks.add_stream'), onClick: onCreateStream },
     ],
-    3: [
+    podcasts: [
       { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new'), onClick: onCreatePodcastFolder },
       { icon: <PodcastsIcon fontSize="small" />, name: t('podcasts.add'), onClick: onCreatePodcast },
     ],
   };
 
-  const actions = actionsByTab[activeTab] ?? [];
+  const actions = actionsByTab[tab] ?? [];
 
   const handleAction = (fn: () => void) => {
     setOpen(false);
