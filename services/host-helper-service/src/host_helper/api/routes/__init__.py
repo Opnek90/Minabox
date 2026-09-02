@@ -11,6 +11,7 @@ from host_helper.api.routes import (
     audio,
     backup,
     bluetooth,
+    components,
     diagnostics,
     health,
     maintenance,
@@ -37,6 +38,7 @@ for _module in (
     bluetooth,
     diagnostics,
     audio,
+    components,
 ):
     router.include_router(_module.router)
 

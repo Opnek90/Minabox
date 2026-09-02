@@ -69,8 +69,9 @@ MQTT, backend, host-helper, audio and the web UI always run and are not
 optional. Only select what you have actually connected — a selected component
 without its hardware restarts forever.
 
-None of this is final: the installer can be started again at any time to add or
-remove components later.
+None of this is final. Components can be added or removed later in the web
+interface under *Maintenance → Components*, without a terminal; the installer's
+maintenance menu still does the same job.
 
 **Basics** — device name, web interface port (default 80), time zone, log
 level.
@@ -132,7 +133,8 @@ session. The installer enables this permanently with `loginctl enable-linger`;
 check with `loginctl show-user $USER | grep Linger`.
 
 **A container keeps restarting.** Usually a component is selected whose hardware
-is not connected. Deselect it in the maintenance menu.
+is not connected. Switch it off under *Maintenance → Components* in the web
+interface, or in the installer's maintenance menu.
 
 **Web interface not reachable.** The first start takes a moment. Check the state
 with:

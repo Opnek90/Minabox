@@ -346,3 +346,48 @@ async def test_rollback_without_a_service_is_rejected(api_key):
     with pytest.raises(HTTPException) as exc:
         await rh.rollback(rh.RollbackBody(services=[]))
     assert exc.value.status_code == 400
+
+
+# ── Optional components ──────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_components_are_passed_through(api_key, fake_helper):
+    payload = {
+        "components": [{"profile": "rfid", "service": "rfid", "installed": True}],
+        "profiles": ["rfid"],
+        "busy": False,
+    }
+    fake_helper(lambda r: httpx.Response(200, json=payload))
+    assert await rh.get_components() == payload
+
+
+@pytest.mark.asyncio
+async def test_components_without_the_helper_do_not_break_the_page(no_api_key):
+    """The maintenance page has to open even when nothing can be changed there."""
+    got = await rh.get_components()
+    assert got["components"] == []
+    assert got["unreachable"] is True
+
+
+@pytest.mark.asyncio
+async def test_put_components_sends_the_profiles(api_key, fake_helper):
+    state = fake_helper(lambda r: httpx.Response(200, json={"ok": True, "changed": True}))
+
+    got = await rh.put_components(rh.ComponentsBody(profiles=["rfid", "media"]))
+
+    assert got["changed"] is True
+    import json as _json
+
+    sent = [r for r in state["requests"] if r.url.path.endswith("/system/components")]
+    assert len(sent) == 1
+    assert sent[0].method == "PUT"
+    assert _json.loads(sent[0].content) == {"profiles": ["rfid", "media"]}
+
+
+@pytest.mark.asyncio
+async def test_components_status_survives_the_restart(no_api_key):
+    """The run recreates this very service - a failed poll is not an error."""
+    got = await rh.get_components_status()
+    assert got["running"] is True
+    assert got["unreachable"] is True

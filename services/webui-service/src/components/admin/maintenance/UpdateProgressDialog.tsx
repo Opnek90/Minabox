@@ -18,19 +18,40 @@ import { useTranslation } from 'react-i18next';
 import type { UpdateStatusResponse } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 
+/** The part of a run this dialog reads. Update and component change agree on it. */
+export interface ProgressStatus {
+  step: number | null;
+  step_count: number | null;
+  step_key: string | null;
+  exit_code: number | null;
+  log: string;
+  unreachable?: boolean;
+}
+
 interface UpdateProgressDialogProps {
   open: boolean;
   running: boolean;
-  status: UpdateStatusResponse | null;
+  status: UpdateStatusResponse | ProgressStatus | null;
   onClose: () => void;
+  /** Everything below is for the second caller, the component change. The
+   *  defaults are the update wording, so that call site stays unchanged. */
+  title?: string;
+  successText?: string;
+  failedText?: string;
+  /** i18n key prefix for the step names; the step key is appended to it. */
+  stepPrefix?: string;
 }
 
-/** What is happening to the box while it updates itself. */
+/** What is happening to the box while it changes itself. */
 export const UpdateProgressDialog: React.FC<UpdateProgressDialogProps> = ({
   open,
   running,
   status,
   onClose,
+  title,
+  successText,
+  failedText,
+  stepPrefix = 'system.update_step_',
 }) => {
   const { t } = useTranslation('admin');
   const [logOpen, setLogOpen] = useState(false);
@@ -58,7 +79,7 @@ export const UpdateProgressDialog: React.FC<UpdateProgressDialogProps> = ({
       maxWidth="md"
       fullWidth
     >
-      <DialogTitle>{t('system.update_progress_title')}</DialogTitle>
+      <DialogTitle>{title ?? t('system.update_progress_title')}</DialogTitle>
       <DialogContent>
         <Box display="flex" alignItems="center" gap={1.5} sx={{ mb: 1 }}>
           {running ? (
@@ -72,13 +93,13 @@ export const UpdateProgressDialog: React.FC<UpdateProgressDialogProps> = ({
             <Typography variant="body2">{stepLabel}</Typography>
             <Typography variant="caption" color="text.secondary">
               {succeeded
-                ? t('system.update_success')
+                ? (successText ?? t('system.update_success'))
                 : failed
-                  ? t('system.update_failed')
+                  ? (failedText ?? t('system.update_failed'))
                   : status?.step_key
                     // step_key comes from the orchestration script and is not
                     // bound to a fixed set of values - it is not statically checkable.
-                    ? t(`system.update_step_${status.step_key}` as never)
+                    ? t(`${stepPrefix}${status.step_key}` as never)
                     : ''}
             </Typography>
           </Box>

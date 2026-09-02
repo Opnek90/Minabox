@@ -551,6 +551,7 @@ not cut off a minute early.
 | GET | `/system/health` | health with DB and MQTT state |
 | GET | `/system/status` | one entry per container: state, version, CPU, RAM, database schema state |
 | GET | `/system/capabilities` | per optional component (rfid, led, button, display, media_downloader): installed / running / healthy |
+| GET / PUT | `/system/components` | which optional components the box is set up for, and changing that (proxied; see host-helper 4.12) |
 | GET | `/system/logs?service=&tail=` | container logs (host-helper, then Docker, then file) |
 | GET | `/system/update-check?force=` | running versions against the release manifest, for the box's channel |
 | GET | `/system/update-history` | the recorded runs, and per service what may be stepped back to |
@@ -562,7 +563,8 @@ not cut off a minute early.
 **Host operations** — all proxied to the host-helper: power and lifecycle,
 storage (`audio-path`, `move-audio`), system (`timezone`, `hostname`,
 `board-leds`, `network`, `password`, `ssh-*`, `docker-prune`, `factory-reset`),
-update (`update-minabox`, `update-os`, `version`), `time-status`, `syslog`,
+update (`update-minabox`, `update-os`, `version`), the optional components
+(`components`, `components/status`), `time-status`, `syslog`,
 `wifi/*`, `usb/*`, `bluetooth/*`, `backup/*`. The full list is in
 `routes_host.py`.
 

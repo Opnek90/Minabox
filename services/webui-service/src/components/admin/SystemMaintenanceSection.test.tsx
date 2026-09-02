@@ -33,6 +33,23 @@ vi.mock('@/api/system', () => ({
   },
 }));
 
+// The section also carries the component switches, which read from their own
+// endpoint the moment they render. Unmocked they would go out over axios.
+vi.mock('@/api/components', () => ({
+  PROFILE_FEATURE: {
+    rfid: 'rfid',
+    led: 'led',
+    button: 'button',
+    display: 'display',
+    media: 'media_downloader',
+  },
+  componentsApi: {
+    get: () => Promise.resolve({ components: [], profiles: [], busy: false }),
+    put: vi.fn(),
+    getStatus: vi.fn(),
+  },
+}));
+
 vi.mock('@/api/config', () => ({
   configApi: {
     getGeneral: (...a: unknown[]) => getGeneral(...a),
@@ -142,5 +159,8 @@ describe('SystemMaintenanceSection - update completion (#137)', () => {
     await new Promise((r) => setTimeout(r, 5000));
     expect(getUpdateStatus.mock.calls.length).toBe(callsAfterSettle);
     expect(showSuccess).toHaveBeenCalledTimes(1);
-  }, 15000);
+    // Well above the global 20 s: five of these seconds are the deliberate
+    // sleep above, the rest is two real-timer interactions against the whole
+    // maintenance section - on a Pi, under a suite running in parallel.
+  }, 30000);
 });

@@ -21,6 +21,7 @@
   "button_config_read_failed": "Could not read button configuration",
   "button_config_unavailable": "Button configuration not available",
   "button_config_write_failed": "Could not save button configuration",
+  "components_failed": "Changing the components failed",
   "config_invalid": "Invalid configuration",
   "current_password_invalid": "Current password is incorrect",
   "current_password_required": "Please enter your current password",

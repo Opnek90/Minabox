@@ -22,6 +22,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.4.0-rc.1 - 2026-09-02
+
+#### Neu
+- Die Oberflaeche kann die Wahlkomponenten der Box jetzt abfragen und
+  aendern; der Dienst reicht das an den Host-Helper weiter.
+
 ### 0.3.2 - 2026-09-01
 
 #### Behoben
@@ -289,6 +295,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.4.4-rc.1 - 2026-09-02
+
+#### Neu
+- Unter Wartung lassen sich Kartenleser, LEDs, Tasten, Display und
+  Medien-Import ergaenzen oder entfernen - der letzte Einrichtungsschritt, der
+  bisher ein Terminal brauchte. Abschalten loescht nichts: Kartenzuordnungen
+  und Einstellungen bleiben, Wiedereinschalten holt alles zurueck.
 
 ### 0.4.3 - 2026-09-02
 
@@ -667,6 +681,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.3.0-rc.1 - 2026-09-02
+
+#### Neu
+- Kartenleser, LEDs, Tasten, Display und Medien-Import lassen sich jetzt auch
+  nach der Installation ergaenzen oder entfernen, ohne SSH. Beim Einschalten
+  von Kartenleser oder Display schaltet die Box I2C selbst dazu und sagt
+  Bescheid, wenn dafuer noch ein Neustart fehlt.
 
 ### 0.2.4 - 2026-09-01
 

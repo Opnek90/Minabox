@@ -145,6 +145,21 @@
       "latest": "0.3.2",
       "releases": [
         {
+          "version": "0.4.0-rc.1",
+          "date": "2026-09-02",
+          "channel": "beta",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Oberflaeche kann die Wahlkomponenten der Box jetzt abfragen und aendern; der Dienst reicht das an den Host-Helper weiter."
+              ],
+              "en": [
+                "The interface can now read and change the box's optional components; this service passes that on to the host-helper."
+              ]
+            }
+          }
+        },
+        {
           "version": "0.3.2",
           "date": "2026-09-01",
           "channel": "stable",
@@ -688,7 +703,8 @@
             }
           }
         }
-      ]
+      ],
+      "latest_beta": "0.4.0-rc.1"
     },
     "button": {
       "latest": "0.2.3",
@@ -937,6 +953,21 @@
       "latest": "0.2.4",
       "releases": [
         {
+          "version": "0.3.0-rc.1",
+          "date": "2026-09-02",
+          "channel": "beta",
+          "notes": {
+            "added": {
+              "de": [
+                "Kartenleser, LEDs, Tasten, Display und Medien-Import lassen sich jetzt auch nach der Installation ergaenzen oder entfernen, ohne SSH. Beim Einschalten von Kartenleser oder Display schaltet die Box I2C selbst dazu und sagt Bescheid, wenn dafuer noch ein Neustart fehlt."
+              ],
+              "en": [
+                "Card reader, LEDs, buttons, display and media import can now be added or removed after the install as well, without SSH. Switching the card reader or the display on enables I2C by itself, and says so when a restart is still needed for it."
+              ]
+            }
+          }
+        },
+        {
           "version": "0.2.4",
           "date": "2026-09-01",
           "channel": "stable",
@@ -1128,7 +1159,8 @@
             }
           }
         }
-      ]
+      ],
+      "latest_beta": "0.3.0-rc.1"
     },
     "led": {
       "latest": "0.2.3",
@@ -1467,6 +1499,21 @@
     "webui": {
       "latest": "0.4.3",
       "releases": [
+        {
+          "version": "0.4.4-rc.1",
+          "date": "2026-09-02",
+          "channel": "beta",
+          "notes": {
+            "added": {
+              "de": [
+                "Unter Wartung lassen sich Kartenleser, LEDs, Tasten, Display und Medien-Import ergaenzen oder entfernen - der letzte Einrichtungsschritt, der bisher ein Terminal brauchte. Abschalten loescht nichts: Kartenzuordnungen und Einstellungen bleiben, Wiedereinschalten holt alles zurueck."
+              ],
+              "en": [
+                "Under maintenance, card reader, LEDs, buttons, display and media import can be added or removed - the last setup step that still needed a terminal. Switching one off deletes nothing: card assignments and settings stay, and switching it back on brings everything back."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.3",
           "date": "2026-09-02",
@@ -2094,7 +2141,8 @@
             }
           }
         }
-      ]
+      ],
+      "latest_beta": "0.4.4-rc.1"
     }
   }
 }

@@ -21,6 +21,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.4.0-rc.1 - 2026-09-02
+
+#### Added
+- The interface can now read and change the box's optional components; this
+  service passes that on to the host-helper.
+
 ### 0.3.2 - 2026-09-01
 
 #### Fixed
@@ -277,6 +283,14 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.4.4-rc.1 - 2026-09-02
+
+#### Added
+- Under maintenance, card reader, LEDs, buttons, display and media import can
+  be added or removed - the last setup step that still needed a terminal.
+  Switching one off deletes nothing: card assignments and settings stay, and
+  switching it back on brings everything back.
 
 ### 0.4.3 - 2026-09-02
 
@@ -639,6 +653,14 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.3.0-rc.1 - 2026-09-02
+
+#### Added
+- Card reader, LEDs, buttons, display and media import can now be added or
+  removed after the install as well, without SSH. Switching the card reader or
+  the display on enables I2C by itself, and says so when a restart is still
+  needed for it.
 
 ### 0.2.4 - 2026-09-01
 
