@@ -34,7 +34,7 @@ from typing import Any
 import httpx
 import structlog
 
-from backend_service.core import container_registry
+from backend_service.core import component_catalog, container_registry
 from backend_service.core.general_settings import read_general_settings
 from backend_service.core.system_alerts import clear_alert, set_alert
 
@@ -337,6 +337,11 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
     try:
         async with httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
             manifest = await _fetch_manifest(client)
+            # The catalogue rides along on this one fetch: the manifest also
+            # describes the components that are *not* installed, and asking
+            # for the file a second time from there would stall the whole
+            # timeout on a box without internet.
+            component_catalog.remember(manifest)
             entries = _build_entries(manifest, installed, channel)
 
             registry = manifest.get("registry") or DEFAULT_REGISTRY

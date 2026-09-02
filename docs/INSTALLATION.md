@@ -71,7 +71,9 @@ without its hardware restarts forever.
 
 None of this is final. Components can be added or removed later in the web
 interface under *Maintenance → Components*, without a terminal; the installer's
-maintenance menu still does the same job.
+maintenance menu still does the same job. That page lists the components this
+box does not have too, with what each one is for and what it needs — so nothing
+has to be decided here for good.
 
 **Basics** — device name, web interface port (default 80), time zone, log
 level.

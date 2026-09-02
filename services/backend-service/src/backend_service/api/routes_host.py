@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 from backend_service.config import get_config
+from backend_service.core import component_catalog, update_check
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import SCHEMA_VERSION, get_db
 from backend_service.core.system_alerts import get_all_alerts
@@ -894,16 +895,25 @@ class ComponentsBody(BaseModel):
 
 @router.get("/components")
 async def get_components() -> dict:
-    """The optional components and which of them this box is set up for.
+    """The catalogue: every optional component, with or without this box having it.
+
+    The Host-Helper answers which profiles are written in .env; the catalogue
+    adds what each component is for, what it needs and which version it is at
+    (component_catalog.py) - so a component can be found and added without
+    reading the documentation first (#181).
 
     Soft-fails like the other status reads: without the Host-Helper the
-    maintenance page should still open, and an empty list is what the section
-    needs to say "cannot be changed here right now".
+    maintenance page should still open. The list then comes from the
+    catalogue instead, and only *changing* it is out of reach - which
+    `unreachable` says.
     """
-    return await _proxy_optional(
+    payload = await _proxy_optional(
         "/system/components",
         fallback={"components": [], "profiles": [], "busy": False, "unreachable": True},
         log_event="host_helper_components_failed",
+    )
+    return await component_catalog.enrich(
+        payload, channel=update_check.read_update_channel()
     )
 
 

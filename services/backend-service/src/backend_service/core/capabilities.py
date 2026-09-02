@@ -33,7 +33,7 @@ logger = structlog.get_logger(__name__)
 # Compose profile (docker-compose.yml / COMPOSE_PROFILES) -> feature key.
 # Only "media" is renamed; the media-downloader is one service behind the
 # profile and "media_downloader" is what the WebUI gates on.
-_PROFILE_TO_FEATURE: dict[str, str] = {
+PROFILE_TO_FEATURE: dict[str, str] = {
     "rfid": "rfid",
     "led": "led",
     "button": "button",
@@ -42,7 +42,7 @@ _PROFILE_TO_FEATURE: dict[str, str] = {
 }
 
 # Feature key -> container_registry service id (the Compose service name).
-_FEATURE_TO_SERVICE: dict[str, str] = {
+FEATURE_TO_SERVICE: dict[str, str] = {
     "rfid": "rfid",
     "led": "led",
     "button": "button",
@@ -51,7 +51,7 @@ _FEATURE_TO_SERVICE: dict[str, str] = {
 }
 
 # Stable order for the API response and for iterating.
-OPTIONAL_FEATURES: tuple[str, ...] = tuple(_FEATURE_TO_SERVICE)
+OPTIONAL_FEATURES: tuple[str, ...] = tuple(FEATURE_TO_SERVICE)
 
 
 def installed_features() -> set[str]:
@@ -66,15 +66,21 @@ def installed_features() -> set[str]:
     profiles = {p.strip() for p in raw.split(",") if p.strip()}
     return {
         feature
-        for profile, feature in _PROFILE_TO_FEATURE.items()
+        for profile, feature in PROFILE_TO_FEATURE.items()
         if profile in profiles
     }
 
 
-async def feature_states() -> dict[str, dict[str, bool]]:
-    """``installed`` merged with the live container state, per optional feature."""
+def feature_states_from(
+    entries: list[dict] | None,
+) -> dict[str, dict[str, bool]]:
+    """``installed`` merged with the container state in *entries*.
+
+    Split off from ``feature_states`` so a caller that already has the
+    container list - the component catalogue reads the running version out of
+    the same list - does not ask Docker a second time for the same answer.
+    """
     installed = installed_features()
-    entries = await container_registry.discover()
     by_service = (
         {e["service"]: e for e in entries if e.get("service")}
         if entries is not None
@@ -84,7 +90,7 @@ async def feature_states() -> dict[str, dict[str, bool]]:
     result: dict[str, dict[str, bool]] = {}
     for feature in OPTIONAL_FEATURES:
         is_installed = feature in installed
-        entry = by_service.get(_FEATURE_TO_SERVICE[feature])
+        entry = by_service.get(FEATURE_TO_SERVICE[feature])
         if entries is None:
             # No Docker socket: running/healthy cannot be observed, so mirror
             # what was installed rather than claim everything is down.
@@ -102,6 +108,11 @@ async def feature_states() -> dict[str, dict[str, bool]]:
             "healthy": healthy,
         }
     return result
+
+
+async def feature_states() -> dict[str, dict[str, bool]]:
+    """``installed`` merged with the live container state, per optional feature."""
+    return feature_states_from(await container_registry.discover())
 
 
 def require_feature(feature: str) -> None:
