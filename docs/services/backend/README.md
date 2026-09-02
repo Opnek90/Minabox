@@ -13,7 +13,7 @@ child is still allowed to listen.
 | Version | `services/backend-service/VERSION` |
 | Compose service | `backend` (no profile — always on) |
 | Runtime | Python 3.13, asyncio, FastAPI/uvicorn, SQLAlchemy + SQLite |
-| Speaks | REST `/api/v1` and WebSocket `/ws` on port `8080`; MQTT; HTTP to audio, host-helper and media-downloader |
+| Speaks | REST `/api/v1` and WebSocket `/ws` on port `8080`; MQTT; HTTP to audio, host-helper, media-downloader and tts |
 | Needs | `/data` (database, settings, static files), `/mnt/audio`, the other services' config directories, the Docker socket (read-only) |
 
 ## 1. Purpose & Responsibility
@@ -38,6 +38,7 @@ It deliberately does **not**:
 | Button debouncing, LED patterns, screen layout | the respective device service |
 | Anything needing host privileges (reboot, network, USB, backup, OS update) | host-helper — the backend validates and proxies |
 | The media download itself | media-downloader |
+| Synthesising a spoken phrase | tts |
 | Multi-tenancy | not supported: one box is one backend instance |
 
 Web authentication exists but is optional: without a configured password every
@@ -80,6 +81,7 @@ services/backend-service/src/backend_service/
 │   │   └── utils.py            shared playback-event helpers
 │   ├── session_manager.py      in-memory playback session: queue, index, shuffle, repeat
 │   ├── usage_limits.py         allowed time windows and the daily listening limit
+│   ├── announcements.py        what the box says out loud, and when
 │   ├── playback_settings.py    playback_end_behavior and the loop guard
 │   ├── playback_stats.py       listening minutes: today, total, live
 │   ├── resume_position.py      per-URI resume positions
@@ -286,6 +288,12 @@ every access so a change in the WebUI takes effect without a restart:
   Enforced when a tag is scanned, when the REST API starts playback, and at
   every track boundary; the last of these fades out instead of cutting off.
 
+With the announcements switched on (3.9) both limits also get a voice: a
+warning a settable number of minutes before the earlier of the two runs out,
+and a sentence when the box stops itself. The warning is the one thing here
+that needs a timer of its own — the limits have a moment to hang off, a warning
+does not (`handlers/timer_handler.py`).
+
 ### 3.6 Media import
 
 **Upload** — `POST /tracks/upload` creates the record first, then writes the file
@@ -458,6 +466,55 @@ Container logs rotate and MQTT traffic is not persisted at all, yet "the button
 press never reached the backend" is only answerable if the last few hundred
 messages are still around.
 
+### 3.9 Spoken announcements
+
+`core/announcements.py` is the only place that decides a sentence is worth
+saying. Everything else is a one-line call from the handler that already knows
+the event happened:
+
+| Phrase key | Raised in | Switch |
+| --- | --- | --- |
+| `card` | `handlers/rfid_handler.py`, before the play command | `announce_card_name` |
+| `card_unknown`, `card_empty`, `card_blocked` | the three dead ends of the same scan | `announce_unknown_card` |
+| `limit_warning` | `handlers/timer_handler.py`, on its own timer | `announce_usage_limit` |
+| `limit_reached` | `fade_out_and_stop("daily_limit")`, before the fade | `announce_usage_limit` |
+| `usage_denied` | `notify_usage_denied` — outside the window *or* over the limit | `announce_usage_limit` |
+| `muted` | `handlers/audio_handler.py`, on the `muted` edge in the status | `announce_mute` |
+
+The wordings are **not** in the Python. They live in
+`resources/announcements.json`, next to the component descriptions and for the
+same reasons: a wording is content, it is translated, and it is the only way
+the German phrases can carry real umlauts — a phrase spelled `Hoerzeit` is
+spoken "Ho-er-zeit". Placeholders are substituted literally, not through
+`str.format`: a card name is arbitrary user text and a brace in it would
+otherwise take the announcement down.
+
+The call then asks the [tts service](../tts/README.md) for a clip and publishes
+`audio/announce` with its path. **Every step gives up quietly.** A box whose
+`voice` component is switched off, whose tts container is still starting, or
+whose broker refuses, behaves exactly like a box that was never asked to speak:
+`announce()` returns `False` and the card scan carries on. An announcement is a
+courtesy — it never blocks anything and never becomes an error somebody has to
+acknowledge.
+
+`muted` is announced from the *status*, not from the command, so it covers
+every route to muting — the physical button, the WebUI, the player page.
+
+Almost every call goes through `announce_soon`, which does **not** wait for
+the phrase. A phrase the box has said before comes back in about 70 ms, but the
+first time one is made it costs one and a half to two seconds on a Raspberry Pi
+(and about seven for the very first after a restart — see the
+[tts service](../tts/README.md#31-what-a-phrase-costs)). The places that raise
+one are all places where seconds are expensive: inside a card scan, which is
+holding a database session open and is followed by the play command, or inside
+an MQTT message handler processing the box's status. None of them depends on
+the phrase having been said; the audio service ducks around it whenever it
+arrives.
+
+`announce` is awaited in exactly two places, where the announcement *is* the
+moment: the warning on its own timer, and the sentence before the box fades
+itself out.
+
 ## 4. Public Interfaces
 
 ### 4.1 REST API
@@ -572,7 +629,7 @@ not cut off a minute early.
 | GET | `/health` (root, outside `/api/v1`) | liveness for the container health check |
 | GET | `/system/health` | health with DB and MQTT state |
 | GET | `/system/status` | one entry per container: state, version, CPU, RAM, database schema state |
-| GET | `/system/capabilities` | per optional component (rfid, led, button, display, media_downloader): installed / running / healthy |
+| GET | `/system/capabilities` | per optional component (rfid, led, button, display, media_downloader, voice): installed / running / healthy |
 | GET / PUT | `/system/components` | the catalogue of optional components — including the ones this box does not have — and changing the selection (proxied; see host-helper 4.12) |
 | GET | `/system/logs?service=&tail=` | container logs (host-helper, then Docker, then file) |
 | GET | `/system/update-check?force=` | running versions against the release manifest, for the box's channel |
@@ -655,6 +712,7 @@ the card lies there" mode work after a restart.
 | `audio/pause`, `audio/stop` | `{}` |
 | `audio/set-volume` | `volume` |
 | `audio/mute-toggle` | `{}` |
+| `audio/announce` | `source_uri` (a clip in the shared volume), `duck_percent`, `volume_percent` |
 | `audio/switch-device` | `sink_name` or `direction` |
 | `rfid/cmd/set-mode` | `mode: "learning" \| "normal"` |
 | `rfid/unknown-tag`, `rfid/tag-blocked` | `tag_id`, optional `name` |
@@ -708,6 +766,7 @@ enforces its own private-network check, rate limit and privacy tier instead.
 | `HOST_HELPER_URL`, `HOST_HELPER_API_KEY` | host-helper connection; **without the key every host route answers 503** |
 | `WEB_AUTH_SECRET` | JWT signing secret; falls back to `HOST_HELPER_API_KEY` |
 | `MEDIA_DOWNLOADER_URL` | default `http://media-downloader:8007` |
+| `TTS_SERVICE_URL` | default `http://tts:8008`; only reached when announcements are on |
 | `ALLOWED_AUDIO_PATHS` | base paths a media directory may be moved to |
 | `HOST_DIAG_ROOT` | default `/host`; root of the read-only host mounts |
 | `CORS_ALLOWED_ORIGINS` | allowed origins; `['*']` for local development only |
@@ -722,6 +781,11 @@ clamps every value, and **merges** with the file on disk so a partial update
 from one tab does not drop the keys another tab owns. Changing `log_level` takes
 effect in this process immediately and is published retained on `config/general`
 so the other services follow.
+
+The announcement settings live in the same file: `announcements_enabled` plus
+one switch per topic, the language, the two levels and the warning lead time.
+They are read through `core/announcements.py`, which carries their defaults and
+clamps, so the settings form and the code that acts on them cannot drift apart.
 
 **Service configs** are the other services' own JSON files, mounted under
 `CONFIG_SERVICES_PATH`. `GET` returns the file, `PUT` writes it and publishes
@@ -746,6 +810,7 @@ and protected areas), `update-check.json` (cached update result),
 | MQTT broker (Mosquitto) | bus for every internal event |
 | RFID service | tag events, presence, learning mode |
 | Audio service | playback commands and status; also an HTTP proxy target for devices, the test tone and the troubleshoot chain |
+| TTS service | optional (`voice`); asked for a clip per announcement. Absent, unreachable or slow costs the phrase and nothing else |
 | Button service | action and raw hardware events |
 | LED / display services | receive config reloads and self-test triggers |
 | WebUI service | the REST and WebSocket client |
@@ -864,6 +929,7 @@ break silently:
 | `test_button_config_validation.py`, `test_display_config_validation.py` | that a config the backend writes is one the device service can load |
 | `test_debug_export*.py` | the export contract, the endpoint, the log filter, redaction |
 | `test_media_downloader_client.py`, `test_media_settings.py`, `test_track_domain_check.py` | retries, the allow-list, the domain check |
+| `test_announcements.py`, `test_limit_warning.py` | that every path of 3.9 gives up quietly, the clamps, both languages, and how much listening time is left |
 | `test_track_metadata.py`, `test_online_metadata.py` | tag/cover mapping per format, the cover size cap, and that the online lookup swallows every failure |
 | `test_temperature_logger.py`, `test_folder_routes.py`, `test_api_smoke.py`, `test_network_status_public.py` | the loops, folder deletion semantics, route wiring |
 
@@ -887,6 +953,7 @@ break silently:
 | add a WebSocket message | `api/websocket.py` + the handler that raises it | the table in 4.2, `useWebSocketEvent` in the WebUI |
 | subscribe to a new MQTT topic | the handler registry in `app_factory.py` | a handler under `core/handlers/`, table 4.3, the publishing service |
 | add a setting | `general_settings.json` via `PUT /config/general` — extend the allow-list and clamps in `routes_config.py` | a reader module under `core/` (read fresh, do not cache), `settingsIndex.ts` + both locales in the WebUI |
+| add a spoken announcement | `resources/announcements.json` (both languages) | `PHRASE_SWITCH` in `core/announcements.py`, the one call site in the handler that already sees the event, `test_announcements.py` |
 | expose another service's config | `routes_config.py` | that service's reload topic, and a validation test like `test_display_config_validation.py` — a config the backend writes must be one the service can load |
 | proxy a new host action | `api/routes_host.py` | the host-helper route; choose `_proxy()` or `_proxy_optional()` deliberately |
 | add a system alert | `core/system_alerts.py` | its severity, the `errors`/`admin` translations, and who clears it |
@@ -919,6 +986,12 @@ break silently:
 - **The daily limit fades out at a track boundary, it does not cut off.**
 - **Statistics count measured playing time,** never wall-clock — a power loss
   must not read as listening.
+- **An announcement never blocks, fails or delays what raised it.** Every path
+  through `core/announcements.py` returns `False` instead of raising; a card
+  scan must not get slower because a container is starting up.
+- **Announcement wordings stay in `resources/announcements.json`.** In the
+  Python they could not carry umlauts, and a phrase spelled `Hoerzeit` is spoken
+  as one.
 
 ## 10. Related Documents
 

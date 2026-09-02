@@ -15,6 +15,7 @@ somewhere else.
 | mqtt | minabox-mqtt | message bus between all services | **when it is gone, apparently nothing responds anymore** |
 | host-helper | minabox-host-helper | host access: logs, network, updates, USB | network/log areas missing from the export |
 | media-downloader | minabox-media-downloader | downloads (podcasts, streams) | missing files, full disk |
+| tts | minabox-tts | spoken announcements (Piper) | missing voice file, clips not written |
 
 ## Rules of thumb
 
