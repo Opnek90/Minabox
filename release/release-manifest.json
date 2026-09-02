@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
@@ -142,8 +142,23 @@
       ]
     },
     "backend": {
-      "latest": "0.4.0",
+      "latest": "0.5.0",
       "releases": [
+        {
+          "version": "0.5.0",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Abschnitt \"Komponenten\" liefert jetzt zu jedem Teil, wofuer es gut ist, welche Hardware es braucht und ob es eine Internetverbindung braucht - auch fuer Teile, die diese Box gar nicht hat, samt der Version, die das Einschalten holen wuerde. Die Beschreibungen stecken im Dienst selbst, sie stehen also auch ohne Internet zur Verfuegung."
+              ],
+              "en": [
+                "The components section now says what each part is for, what hardware it needs and whether it needs an internet connection - for the parts this box does not have too, together with the version that switching it on would fetch. The descriptions travel inside the service, so they are there without an internet connection as well."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.0",
           "date": "2026-09-02",
@@ -1525,8 +1540,31 @@
       ]
     },
     "webui": {
-      "latest": "0.4.4",
+      "latest": "0.5.0",
       "releases": [
+        {
+          "version": "0.5.0",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Komponenten unter Wartung sind jetzt ein Katalog: jeder Eintrag nennt Zweck, benoetigte Hardware, ob eine Internetverbindung noetig ist, und die Version - bei einem Teil, das die Box nicht hat, die Version, die das Einschalten holen wuerde."
+              ],
+              "en": [
+                "The components under maintenance are a catalogue now: every entry names what it is for, the hardware it needs, whether it needs an internet connection, and its version - for a part the box does not have, the version switching it on would fetch."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Der Abschnitt bleibt lesbar, wenn der Dienst zum Umschalten gerade nicht erreichbar ist: die Liste steht weiterhin da, nur die Schalter sind gesperrt."
+              ],
+              "en": [
+                "The section stays readable when the service that changes it cannot be reached: the list is still there, only the switches are locked."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.4",
           "date": "2026-09-02",
@@ -2185,6 +2223,85 @@
           }
         }
       ]
+    }
+  },
+  "components": {
+    "rfid": {
+      "service": "rfid",
+      "name": {
+        "de": "Kartenleser",
+        "en": "Card reader"
+      },
+      "summary": {
+        "de": "Liest die Karten und Figuren, die auf die Box gelegt werden, und startet damit die zugeordnete Wiedergabe. Ohne den Kartenleser wird die Box über die Weboberfläche bedient.",
+        "en": "Reads the cards and figures placed on the box and starts whatever is assigned to them. Without the card reader the box is played from the web interface."
+      },
+      "hardware": {
+        "de": "PN532-Kartenleser am I2C-Anschluss. Beim Einschalten wird I2C aktiviert; danach muss die Box einmal neu starten.",
+        "en": "A PN532 reader on the I2C pins. Switching it on enables I2C, and the box needs one reboot before the reader can start."
+      },
+      "network": false
+    },
+    "led": {
+      "service": "led",
+      "name": {
+        "de": "LEDs",
+        "en": "LEDs"
+      },
+      "summary": {
+        "de": "Zeigt mit den Status-LEDs, was die Box gerade tut: Wiedergabe, Pause, Warten auf eine Karte oder ein Problem.",
+        "en": "Shows on the status LEDs what the box is doing: playing, paused, waiting for a card, or in trouble."
+      },
+      "hardware": {
+        "de": "Einfarbige LEDs an den GPIO-Anschlüssen.",
+        "en": "Single-colour LEDs on the GPIO pins."
+      },
+      "network": false
+    },
+    "button": {
+      "service": "button",
+      "name": {
+        "de": "Tasten",
+        "en": "Buttons"
+      },
+      "summary": {
+        "de": "Macht die Tasten und den Drehregler am Gehäuse nutzbar: Wiedergabe, Pause, Titelwechsel und Lautstärke ohne Weboberfläche.",
+        "en": "Makes the buttons and the rotary encoder on the case work: play, pause, skip and volume without the web interface."
+      },
+      "hardware": {
+        "de": "Taster und Drehregler an den GPIO-Anschlüssen.",
+        "en": "Push buttons and a rotary encoder on the GPIO pins."
+      },
+      "network": false
+    },
+    "display": {
+      "service": "display",
+      "name": {
+        "de": "Display",
+        "en": "Display"
+      },
+      "summary": {
+        "de": "Zeigt auf dem kleinen Bildschirm, was läuft: Titel, Uhrzeit und Lautstärke.",
+        "en": "Shows what is playing on the small screen: title, clock and volume."
+      },
+      "hardware": {
+        "de": "OLED-Display (SSD1306, 128x64) am I2C-Anschluss. Beim Einschalten wird I2C aktiviert; danach muss die Box einmal neu starten.",
+        "en": "An OLED display (SSD1306, 128x64) on the I2C pins. Switching it on enables I2C, and the box needs one reboot before the display can start."
+      },
+      "network": false
+    },
+    "media": {
+      "service": "media-downloader",
+      "name": {
+        "de": "Medien-Import",
+        "en": "Media import"
+      },
+      "summary": {
+        "de": "Lädt die Tonspur eines Links herunter und legt sie als MP3 in der Mediathek ab.",
+        "en": "Downloads the audio track behind a link and files it in the library as an MP3."
+      },
+      "hardware": null,
+      "network": true
     }
   }
 }

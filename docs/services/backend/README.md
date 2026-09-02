@@ -90,6 +90,8 @@ services/backend-service/src/backend_service/
 │   ├── api_errors.py           ApiError: HTTP error with a stable, translatable code
 │   ├── container_registry.py   container discovery and stats via the Docker socket
 │   ├── update_check.py         running versions against the release manifest
+│   ├── component_catalog.py    what the optional components are, for a box
+│   │                           that does not have them yet
 │   ├── system_alerts.py        active alerts, keyed by code, most severe wins
 │   ├── temperature_logger.py   background loop: sample, retain, alert
 │   ├── podcast_fetcher.py      background loop: fetch RSS, insert new episodes
@@ -384,6 +386,16 @@ Only entries that are **online** are probed, and all of them together.
 Results are cached for six hours. The background loop polls every 30 minutes,
 but only while the user has the automatic check switched on.
 
+`core/component_catalog.py` rides along on the same fetch. The manifest also
+describes the *optional components* — what each one is for, what hardware it
+needs, whether it needs the network — and that block is remembered next to the
+cache, so `GET /system/components` can answer as a catalogue that includes the
+components this box does not have. The descriptions themselves ship inside the
+image (`resources/components.json`), so the catalogue works on a box that has
+never reached the internet; the manifest copy only wins when it is there. What
+earns a container of its own is written down in
+[docs/services/README.md](../README.md).
+
 A cached answer belongs to the box it was computed for, in two ways: the
 channel (below) and the set of services. The version list is one row per
 *existing* container, so switching a component off under *Maintenance →
@@ -561,7 +573,7 @@ not cut off a minute early.
 | GET | `/system/health` | health with DB and MQTT state |
 | GET | `/system/status` | one entry per container: state, version, CPU, RAM, database schema state |
 | GET | `/system/capabilities` | per optional component (rfid, led, button, display, media_downloader): installed / running / healthy |
-| GET / PUT | `/system/components` | which optional components the box is set up for, and changing that (proxied; see host-helper 4.12) |
+| GET / PUT | `/system/components` | the catalogue of optional components — including the ones this box does not have — and changing the selection (proxied; see host-helper 4.12) |
 | GET | `/system/logs?service=&tail=` | container logs (host-helper, then Docker, then file) |
 | GET | `/system/update-check?force=` | running versions against the release manifest, for the box's channel |
 | GET | `/system/update-history` | the recorded runs, and per service what may be stepped back to |

@@ -26,6 +26,19 @@ ROOT = Path(__file__).resolve().parent.parent
 SERVICES_DIR = ROOT / "services"
 MANIFEST = ROOT / "release" / "release-manifest.json"
 
+# The catalogue of optional components. It lives in the backend, because the
+# backend ships it inside its image and serves it to the WebUI even when the
+# box has never reached the internet; the manifest carries a copy so a
+# description can be corrected without a new backend image (#181).
+COMPONENTS = (
+    SERVICES_DIR
+    / "backend-service"
+    / "src"
+    / "backend_service"
+    / "resources"
+    / "components.json"
+)
+
 # language -> (changelog file, allowed section headings)
 LANGUAGES: dict[str, tuple[str, tuple[str, ...]]] = {
     "de": ("release/CHANGELOG.md", ("Neu", "Verbessert", "Behoben")),
@@ -36,7 +49,10 @@ LANGUAGES: dict[str, tuple[str, tuple[str, ...]]] = {
 # joined, without needing a translation table.
 CATEGORY_KEYS = ("added", "improved", "fixed")
 
-SCHEMA_VERSION = 2
+# 3: the "components" block - what an optional component is for, what hardware
+# it needs and whether it needs the network. Older boxes ignore the field;
+# newer ones fall back to the copy in their own image when it is missing.
+SCHEMA_VERSION = 3
 
 RE_SERVICE = re.compile(r"^##\s+(?P<name>[a-z0-9][a-z0-9-]*)\s*$")
 RE_VERSION = re.compile(
@@ -154,6 +170,45 @@ def channel_of(version: str) -> str:
     return "beta" if "-" in version else "stable"
 
 
+def read_components(services: set[str]) -> dict[str, Any]:
+    """The component catalogue, checked against the services that exist.
+
+    Checked here and not only in the backend: a typo in the service name would
+    otherwise reach a box as a component whose version can never be found.
+    """
+    data = json.loads(COMPONENTS.read_text(encoding="utf-8"))
+    components = data.get("components")
+    if not isinstance(components, dict):
+        raise ChangelogError(f"  - {COMPONENTS.name}: no 'components' object")
+
+    problems: list[str] = []
+    for profile, entry in components.items():
+        where = f"{COMPONENTS.name}: {profile}"
+        service = entry.get("service")
+        if service not in services:
+            problems.append(f"{where}: '{service}' is not a service")
+        for field in ("name", "summary", "hardware"):
+            value = entry.get(field)
+            # hardware is null for a component that needs no accessory; name
+            # and summary are not optional - a component the WebUI cannot even
+            # name is worse than one it does not list.
+            if value is None and field == "hardware":
+                continue
+            if not isinstance(value, dict) or not all(
+                isinstance(value.get(lang), str) and value.get(lang)
+                for lang in LANGUAGES
+            ):
+                problems.append(
+                    f"{where}: {field} needs a text in "
+                    f"{' and '.join(LANGUAGES)}"
+                )
+        if not isinstance(entry.get("network"), bool):
+            problems.append(f"{where}: network has to be true or false")
+    if problems:
+        raise ChangelogError("\n".join(f"  - {p}" for p in problems))
+    return components
+
+
 def build() -> dict[str, Any]:
     parsed = {
         lang: parse_changelog(ROOT / filename, categories)
@@ -246,6 +301,7 @@ def build() -> dict[str, Any]:
         "schema": SCHEMA_VERSION,
         "registry": "ghcr.io/opnek90",
         "services": manifest_services,
+        "components": read_components(services),
     }
 
 
@@ -285,7 +341,10 @@ def main() -> int:
         return 0
 
     MANIFEST.write_text(text, encoding="utf-8")
-    print(f"{MANIFEST.name} written: {len(manifest['services'])} services")
+    print(
+        f"{MANIFEST.name} written: {len(manifest['services'])} services, "
+        f"{len(manifest['components'])} optional components"
+    )
     for name, data in manifest["services"].items():
         print(f"  {name:18s} {data['latest']}  ({len(data['releases'])} entries)")
     return 0

@@ -21,6 +21,15 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.5.0 - 2026-09-02
+
+#### Added
+- The components section now says what each part is for, what hardware it
+  needs and whether it needs an internet connection - for the parts this box
+  does not have too, together with the version that switching it on would
+  fetch. The descriptions travel inside the service, so they are there without
+  an internet connection as well.
+
 ### 0.4.0 - 2026-09-02
 
 #### Fixed
@@ -290,6 +299,18 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.5.0 - 2026-09-02
+
+#### Added
+- The components under maintenance are a catalogue now: every entry names what
+  it is for, the hardware it needs, whether it needs an internet connection,
+  and its version - for a part the box does not have, the version switching it
+  on would fetch.
+
+#### Improved
+- The section stays readable when the service that changes it cannot be
+  reached: the list is still there, only the switches are locked.
 
 ### 0.4.4 - 2026-09-02
 

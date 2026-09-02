@@ -22,6 +22,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.5.0 - 2026-09-02
+
+#### Neu
+- Der Abschnitt "Komponenten" liefert jetzt zu jedem Teil, wofuer es gut ist,
+  welche Hardware es braucht und ob es eine Internetverbindung braucht - auch
+  fuer Teile, die diese Box gar nicht hat, samt der Version, die das
+  Einschalten holen wuerde. Die Beschreibungen stecken im Dienst selbst, sie
+  stehen also auch ohne Internet zur Verfuegung.
+
 ### 0.4.0 - 2026-09-02
 
 #### Behoben
@@ -302,6 +311,18 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.5.0 - 2026-09-02
+
+#### Neu
+- Die Komponenten unter Wartung sind jetzt ein Katalog: jeder Eintrag nennt
+  Zweck, benoetigte Hardware, ob eine Internetverbindung noetig ist, und die
+  Version - bei einem Teil, das die Box nicht hat, die Version, die das
+  Einschalten holen wuerde.
+
+#### Verbessert
+- Der Abschnitt bleibt lesbar, wenn der Dienst zum Umschalten gerade nicht
+  erreichbar ist: die Liste steht weiterhin da, nur die Schalter sind gesperrt.
 
 ### 0.4.4 - 2026-09-02
 

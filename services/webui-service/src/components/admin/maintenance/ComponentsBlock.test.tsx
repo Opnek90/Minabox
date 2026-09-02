@@ -7,11 +7,13 @@ import deCommon from '../../../../public/locales/de/common.json';
 import { ComponentsBlock } from './ComponentsBlock';
 
 /**
- * Adding and removing the optional components (#180).
+ * The catalogue of optional components (#180, #181).
  *
- * The two things worth pinning down are the ones a user notices: a switch is a
- * wish until "apply" - flipping it must not restart anything by itself - and a
- * selection that matches what the box already has must not start a run at all.
+ * The things worth pinning down are the ones a user notices: a switch is a
+ * wish until "apply" - flipping it must not restart anything by itself - a
+ * selection that matches what the box already has must not start a run at all,
+ * and a component this box does *not* have is still described well enough to
+ * decide on it.
  */
 
 const showSuccess = vi.fn();
@@ -30,6 +32,10 @@ vi.mock('@/api/components', () => ({
     display: 'display',
     media: 'media_downloader',
   },
+  // The real one - it decides which language of a catalogue text is shown,
+  // and mocking that away would test nothing.
+  pickText: (text: Record<string, string> | null, language: string) =>
+    text ? (text[language.slice(0, 2)] ?? text.en ?? text.de) : undefined,
   componentsApi: {
     get: (...a: unknown[]) => get(...a),
     put: (...a: unknown[]) => put(...a),
@@ -79,9 +85,13 @@ vi.mock('react-i18next', () => ({
       const wanted = (options?.ns as string | undefined) ?? ns ?? 'admin';
       const bundle = wanted === 'common' ? deCommon : deAdmin;
       const hit = lookup(bundle, key) ?? key;
-      return typeof options?.names === 'string'
-        ? hit.replace('{{names}}', options.names)
-        : hit;
+      return ['names', 'text', 'version'].reduce(
+        (acc, name) =>
+          typeof options?.[name] === 'string'
+            ? acc.replace(`{{${name}}}`, options[name] as string)
+            : acc,
+        hit,
+      );
     },
     i18n: { language: 'de', changeLanguage: vi.fn() },
   }),
@@ -98,16 +108,40 @@ const commonText = (key: string): string => {
   return hit;
 };
 
+/** One catalogue entry as the backend sends it. */
+const entry = (
+  profile: string,
+  service: string,
+  installed: boolean,
+  extra: Record<string, unknown> = {},
+) => ({
+  profile,
+  service,
+  installed,
+  name: null,
+  summary: { de: `Was ${profile} tut`, en: `What ${profile} does` },
+  hardware: null,
+  network: false,
+  running: installed,
+  healthy: installed,
+  version: installed ? '0.2.4' : null,
+  latest: '0.2.4',
+  ...extra,
+});
+
 /** A box that was installed with the card reader only. */
 const BOX = {
   components: [
-    { profile: 'rfid', service: 'rfid', installed: true },
-    { profile: 'led', service: 'led', installed: false },
-    { profile: 'button', service: 'button', installed: false },
-    { profile: 'display', service: 'display', installed: false },
-    { profile: 'media', service: 'media-downloader', installed: false },
+    entry('rfid', 'rfid', true, {
+      hardware: { de: 'PN532 am I2C', en: 'A PN532 on I2C' },
+    }),
+    entry('led', 'led', false),
+    entry('button', 'button', false),
+    entry('display', 'display', false),
+    entry('media', 'media-downloader', false, { network: true }),
   ],
   profiles: ['rfid'],
+  channel: 'stable',
   busy: false,
 };
 
@@ -208,6 +242,53 @@ describe('ComponentsBlock', () => {
     await waitFor(() => expect(getStatus).toHaveBeenCalled());
     // Nothing was started from here - it was already going.
     expect(put).not.toHaveBeenCalled();
+  });
+
+  it('describes a component this box does not have', async () => {
+    // The catalogue is what makes a component findable without the
+    // documentation: what it does, what it needs, and what would be installed.
+    render(<ComponentsBlock />);
+
+    expect(await screen.findByText('Was media tut')).toBeInTheDocument();
+    expect(screen.getByText(text('system.components_needs_network'))).toBeInTheDocument();
+    // Four components are not installed here, and each names what adding it
+    // would bring.
+    expect(
+      screen.getAllByText(
+        text('system.components_version_available').replace('{{version}}', '0.2.4'),
+      ),
+    ).toHaveLength(4);
+    // And for the one that is installed: what it needs on the box, and what
+    // is running there.
+    expect(
+      screen.getByText(
+        text('system.components_needs_hardware').replace('{{text}}', 'PN532 am I2C'),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(text('system.components_version').replace('{{version}}', '0.2.4')),
+    ).toBeInTheDocument();
+  });
+
+  it('lists a component this WebUI release does not know', async () => {
+    // The name comes from the backend, so a component added after this build
+    // appears under its own name instead of a raw translation key - without a
+    // WebUI release.
+    get.mockResolvedValue({
+      ...BOX,
+      components: [
+        ...BOX.components,
+        entry('camera', 'camera', false, {
+          name: { de: 'Kamera', en: 'Camera' },
+          summary: { de: 'Nimmt Bilder auf', en: 'Takes pictures' },
+        }),
+      ],
+      profiles: ['rfid'],
+    });
+    render(<ComponentsBlock />);
+
+    expect(await screen.findByRole('checkbox', { name: 'Kamera' })).toBeInTheDocument();
+    expect(screen.getByText('Nimmt Bilder auf')).toBeInTheDocument();
   });
 
   it('does not restart anything for a selection the box already has', async () => {

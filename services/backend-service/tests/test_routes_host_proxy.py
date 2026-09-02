@@ -352,21 +352,41 @@ async def test_rollback_without_a_service_is_rejected(api_key):
 
 
 @pytest.mark.asyncio
-async def test_components_are_passed_through(api_key, fake_helper):
+async def test_components_are_answered_as_a_catalogue(api_key, fake_helper):
+    """The Host-Helper says which profiles are set; the answer says what they are."""
     payload = {
         "components": [{"profile": "rfid", "service": "rfid", "installed": True}],
         "profiles": ["rfid"],
         "busy": False,
     }
     fake_helper(lambda r: httpx.Response(200, json=payload))
-    assert await rh.get_components() == payload
+
+    got = await rh.get_components()
+
+    assert got["profiles"] == ["rfid"] and got["busy"] is False
+    entry = got["components"][0]
+    assert entry["profile"] == "rfid" and entry["installed"] is True
+    # What the catalogue adds: what it is for, and what it needs (#181).
+    assert entry["summary"]["en"]
+    assert entry["hardware"]["en"]
+    assert entry["network"] is False
 
 
 @pytest.mark.asyncio
 async def test_components_without_the_helper_do_not_break_the_page(no_api_key):
-    """The maintenance page has to open even when nothing can be changed there."""
+    """The maintenance page has to open even when nothing can be changed there.
+
+    The catalogue is still worth reading then - only the switches are out of
+    reach, which is what `unreachable` says.
+    """
     got = await rh.get_components()
-    assert got["components"] == []
+    assert {c["profile"] for c in got["components"]} == {
+        "rfid",
+        "led",
+        "button",
+        "display",
+        "media",
+    }
     assert got["unreachable"] is True
 
 
