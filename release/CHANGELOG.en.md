@@ -278,6 +278,15 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
+### 0.4.3 - 2026-09-02
+
+#### Improved
+- Tracks, streams and podcasts now sit on one shared view under the hood
+  instead of three near-identical ones. All you see of it: the button row in
+  list rows is the same width for all three, and track cards sit a little
+  tighter. New views and columns now only have to be built once instead of
+  three times.
+
 ### 0.4.2 - 2026-09-01
 
 #### Fixed

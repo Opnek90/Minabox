@@ -290,6 +290,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
+### 0.4.3 - 2026-09-02
+
+#### Verbessert
+- Titel, Sender und Podcasts stehen unter der Haube jetzt auf einer
+  gemeinsamen Ansicht statt auf drei fast gleichen - sichtbar ist davon nur,
+  dass die Knopfreihe in Listenzeilen bei allen dreien gleich breit ist und
+  Titel-Karten etwas enger stehen. Neue Ansichten und Spalten muessen kuenftig
+  nur noch einmal gebaut werden statt dreimal.
+
 ### 0.4.2 - 2026-09-01
 
 #### Behoben
