@@ -5,7 +5,13 @@ import apiClient from './client';
  * the backend (`core/capabilities.py`) - not always the same as the compose
  * profile (`media` -> `media_downloader`).
  */
-export type FeatureKey = 'rfid' | 'led' | 'button' | 'display' | 'media_downloader';
+export type FeatureKey =
+  | 'rfid'
+  | 'led'
+  | 'button'
+  | 'display'
+  | 'media_downloader'
+  | 'voice';
 
 export interface FeatureCapability {
   /** Selected at install time (from COMPOSE_PROFILES, not from the running
@@ -23,6 +29,7 @@ export const FEATURE_KEYS: FeatureKey[] = [
   'button',
   'display',
   'media_downloader',
+  'voice',
 ];
 
 export const capabilitiesApi = {

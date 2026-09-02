@@ -584,6 +584,28 @@ export interface GeneralConfig {
   /** Hostnames a media URL import may come from. Applied without a restart. */
   media_import_allowed_domains?: string[];
   /**
+   * Spoken announcements (optional "voice" component). Off until switched on:
+   * a box that starts talking after an update would be a surprise in a child's
+   * bedroom.
+   */
+  announcements_enabled?: boolean;
+  /** Say the name of the card that was placed. */
+  announce_card_name?: boolean;
+  /** Say something for a card the box does not know, cannot play or blocks. */
+  announce_unknown_card?: boolean;
+  /** Warn before the listening time is over, and say so when it is. */
+  announce_usage_limit?: boolean;
+  /** Say that the sound has been switched off - the one action with no other feedback. */
+  announce_mute?: boolean;
+  /** Which language the box speaks. Independent of the language of this interface. */
+  announce_language?: 'de' | 'en';
+  /** Loudness of a phrase, as a percentage of full volume. */
+  announce_volume_percent?: number;
+  /** What the music is turned down to while a phrase runs, in percent. 100 = no ducking. */
+  announce_duck_percent?: number;
+  /** Minutes of warning before the listening time runs out; 0 = no warning. */
+  announce_limit_warning_minutes?: number;
+  /**
    * Look up artist, album and cover art online (MusicBrainz / Cover Art Archive)
    * for imported files that carry no tags. Off by default; sends the track
    * title and artist to a third party. Applied without a restart.

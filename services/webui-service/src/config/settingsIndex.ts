@@ -90,6 +90,26 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'system.bluetooth_pair',
         ],
       },
+      {
+        // Under "Sound" rather than "Playback": what a parent is deciding here
+        // is what comes out of the speaker, and the two levels that go with it
+        // - how loud a phrase is, and how far the music ducks under it - are
+        // sound settings by any reading.
+        key: 'announcements',
+        titleKey: 'announce.title',
+        searchKeys: [
+          'announce.enabled',
+          'announce.card_name',
+          'announce.unknown_card',
+          'announce.usage_limit',
+          'announce.mute',
+          'announce.warning_minutes',
+          'announce.voice_title',
+          'announce.volume',
+          'announce.duck',
+        ],
+        requiresFeature: 'voice',
+      },
     ],
   },
   {

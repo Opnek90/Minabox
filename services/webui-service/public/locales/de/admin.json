@@ -1,4 +1,22 @@
 {
+  "announce": {
+    "card_name": "Namen der Karte ansagen",
+    "duck": "Musik währenddessen absenken auf",
+    "enabled": "Ansagen einschalten",
+    "hint": "Die Box sagt kurze Sätze, statt nur zu blinken. Für Kinder, die das Display noch nicht lesen können: Eine unbekannte Karte, ein erreichtes Zeitlimit und ein stummer Lautsprecher sehen von aussen sonst alle gleich aus.",
+    "language_de": "Deutsch",
+    "language_en": "Englisch",
+    "mute": "Sagen, wenn der Ton aus ist",
+    "title": "Ansagen",
+    "unknown_card": "Sagen, wenn eine Karte nicht gespielt werden kann",
+    "usage_limit": "Vor dem Ende der Hörzeit warnen",
+    "voice_title": "Stimme und Lautstärke",
+    "volume": "Lautstärke der Ansage",
+    "warning_minutes": "Vorwarnung (Minuten)",
+    "warning_minutes_hint": "So viele Minuten vor dem Ende der Hörzeit sagt die Box Bescheid. 0 schaltet die Vorwarnung ab; das Ende wird trotzdem angesagt.",
+    "what_hint": "Ein Schalter deckt jeweils alle Sätze zu einem Thema ab - eine unbekannte, eine leere und eine gesperrte Karte gehören für ein Kind zum selben Erlebnis: Es passiert nichts.",
+    "what_title": "Was angesagt wird"
+  },
   "audio": {
     "default_volume": "Standard-Lautstärke",
     "device_display_name_placeholder": "Klartextname (optional)",
@@ -445,6 +463,8 @@
     "component_media_hint": "Lädt Audio von einem Link in die Mediathek.",
     "component_rfid": "Kartenleser",
     "component_rfid_hint": "Liest die RFID-Karten, die die Wiedergabe starten.",
+    "component_voice": "Ansagen",
+    "component_voice_hint": "Sagt kurze Sätze an, statt nur zu blinken.",
     "components_apply": "Änderungen übernehmen",
     "components_confirm_off": "Wird abgeschaltet: {{names}}. Es wird nichts gelöscht - Einstellungen und Kartenzuordnungen bleiben.",
     "components_confirm_on": "Wird eingeschaltet: {{names}}.",

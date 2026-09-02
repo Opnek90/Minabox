@@ -1,4 +1,22 @@
 {
+  "announce": {
+    "card_name": "Say the name of the card",
+    "duck": "Turn the music down to",
+    "enabled": "Switch announcements on",
+    "hint": "The box says short things out loud instead of only blinking. For children who cannot read the display yet: from the outside, a card the box does not know, an exhausted time limit and a muted speaker all look the same.",
+    "language_de": "German",
+    "language_en": "English",
+    "mute": "Say when the sound is off",
+    "title": "Announcements",
+    "unknown_card": "Say when a card cannot be played",
+    "usage_limit": "Warn before the listening time is over",
+    "voice_title": "Voice and volume",
+    "volume": "Volume of a phrase",
+    "warning_minutes": "Warning (minutes)",
+    "warning_minutes_hint": "How many minutes before the listening time is over the box says so. 0 switches the warning off; the end is still announced.",
+    "what_hint": "One switch covers every phrase on a topic - a card the box does not know, an empty one and a blocked one are the same experience for a child: nothing happens.",
+    "what_title": "What is announced"
+  },
   "audio": {
     "default_volume": "Default Volume",
     "device_display_name_placeholder": "Custom name (optional)",
@@ -445,6 +463,8 @@
     "component_media_hint": "Downloading audio from a link into the library.",
     "component_rfid": "Card reader",
     "component_rfid_hint": "Reads the RFID cards that start playback.",
+    "component_voice": "Announcements",
+    "component_voice_hint": "Says short things out loud instead of only blinking.",
     "components_apply": "Apply changes",
     "components_confirm_off": "Switching off: {{names}}. Nothing is deleted - settings and card assignments stay.",
     "components_confirm_on": "Switching on: {{names}}.",

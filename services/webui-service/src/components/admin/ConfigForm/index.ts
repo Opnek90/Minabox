@@ -1,4 +1,5 @@
 export { AudioConfigForm } from './AudioConfigForm';
+export { AnnouncementSettingsForm } from './AnnouncementSettingsForm';
 export { RFIDConfigForm } from './RFIDConfigForm';
 export { PlaybackSettingsForm } from './PlaybackSettingsForm';
 export { SleepTimerSettingsForm } from './SleepTimerSettingsForm';
