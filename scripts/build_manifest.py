@@ -187,10 +187,11 @@ def read_components(services: set[str]) -> dict[str, Any]:
         service = entry.get("service")
         if service not in services:
             problems.append(f"{where}: '{service}' is not a service")
-        for field in ("summary", "hardware"):
+        for field in ("name", "summary", "hardware"):
             value = entry.get(field)
-            # hardware is null for a component that needs no accessory; a
-            # summary is not optional - it is the whole point of the entry.
+            # hardware is null for a component that needs no accessory; name
+            # and summary are not optional - a component the WebUI cannot even
+            # name is worse than one it does not list.
             if value is None and field == "hardware":
                 continue
             if not isinstance(value, dict) or not all(

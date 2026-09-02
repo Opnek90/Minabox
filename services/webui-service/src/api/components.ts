@@ -39,6 +39,12 @@ export interface ComponentEntry {
   /** The compose service behind the profile (`media` -> `media-downloader`). */
   service: string;
   installed: boolean;
+  /**
+   * What it is called. Comes from the backend so a component that is newer
+   * than this WebUI release still appears under its own name; the locale key
+   * stays as the fallback.
+   */
+  name: LocalizedText | null;
   /** What the component is for. Null on a box whose catalogue is unreadable. */
   summary: LocalizedText | null;
   /** The accessory it needs, or null when it needs none. */

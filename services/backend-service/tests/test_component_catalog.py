@@ -59,6 +59,16 @@ def test_describes_a_component_that_is_not_installed():
     assert media["hardware"] is None
 
 
+def test_the_name_travels_with_the_entry():
+    # Without it, a component that the WebUI release on the box has never
+    # heard of would appear under a raw translation key - and every new
+    # component would need a WebUI release to be listed properly.
+    listed = _by_profile(
+        component_catalog.merge(HELPER_PAYLOAD, channel="stable", entries=CONTAINERS)
+    )
+    assert listed["media"]["name"] == {"de": "Medien-Import", "en": "Media import"}
+
+
 def test_hardware_and_state_of_an_installed_component():
     result = component_catalog.merge(
         HELPER_PAYLOAD, channel="stable", entries=CONTAINERS

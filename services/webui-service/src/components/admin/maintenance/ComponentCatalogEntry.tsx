@@ -8,9 +8,10 @@ import { pickText, type ComponentEntry } from '@/api/components';
  *
  * The catalogue also lists what this box does *not* have (#181), so an entry
  * has to answer three questions on its own: what does this do, what do I need
- * for it, and what would I get. The description comes from the backend
- * (`component_catalog.py`) - the locale text stays as a fallback for a box
- * whose backend is older than this page.
+ * for it, and what would I get. Name and description come from the backend
+ * (`component_catalog.py`), which is what lets a component that is newer than
+ * this WebUI release show up as itself; the locale texts stay as the fallback
+ * for a box whose backend is older than this page.
  *
  * The switch is a wish, not a command: nothing happens until "apply" in the
  * block above.
@@ -34,7 +35,12 @@ export const ComponentCatalogEntry: React.FC<ComponentCatalogEntryProps> = ({
 }) => {
   const { t, i18n } = useTranslation('admin');
 
-  const name = t(`system.component_${entry.profile}` as never);
+  // Backend before locale, for both name and description: that is what makes
+  // a component the backend knows but this WebUI release does not appear as
+  // itself rather than as a raw translation key.
+  const name =
+    pickText(entry.name, i18n.language) ??
+    t(`system.component_${entry.profile}` as never);
   const summary =
     pickText(entry.summary, i18n.language) ??
     t(`system.component_${entry.profile}_hint` as never);

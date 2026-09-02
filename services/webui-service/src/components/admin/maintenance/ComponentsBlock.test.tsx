@@ -118,6 +118,7 @@ const entry = (
   profile,
   service,
   installed,
+  name: null,
   summary: { de: `Was ${profile} tut`, en: `What ${profile} does` },
   hardware: null,
   network: false,
@@ -267,6 +268,27 @@ describe('ComponentsBlock', () => {
     expect(
       screen.getByText(text('system.components_version').replace('{{version}}', '0.2.4')),
     ).toBeInTheDocument();
+  });
+
+  it('lists a component this WebUI release does not know', async () => {
+    // The name comes from the backend, so a component added after this build
+    // appears under its own name instead of a raw translation key - without a
+    // WebUI release.
+    get.mockResolvedValue({
+      ...BOX,
+      components: [
+        ...BOX.components,
+        entry('camera', 'camera', false, {
+          name: { de: 'Kamera', en: 'Camera' },
+          summary: { de: 'Nimmt Bilder auf', en: 'Takes pictures' },
+        }),
+      ],
+      profiles: ['rfid'],
+    });
+    render(<ComponentsBlock />);
+
+    expect(await screen.findByRole('checkbox', { name: 'Kamera' })).toBeInTheDocument();
+    expect(screen.getByText('Nimmt Bilder auf')).toBeInTheDocument();
   });
 
   it('does not restart anything for a selection the box already has', async () => {

@@ -3,6 +3,10 @@
   "components": {
     "rfid": {
       "service": "rfid",
+      "name": {
+        "de": "Kartenleser",
+        "en": "Card reader"
+      },
       "summary": {
         "de": "Liest die Karten und Figuren, die auf die Box gelegt werden, und startet damit die zugeordnete Wiedergabe. Ohne den Kartenleser wird die Box über die Weboberfläche bedient.",
         "en": "Reads the cards and figures placed on the box and starts whatever is assigned to them. Without the card reader the box is played from the web interface."
@@ -15,6 +19,10 @@
     },
     "led": {
       "service": "led",
+      "name": {
+        "de": "LEDs",
+        "en": "LEDs"
+      },
       "summary": {
         "de": "Zeigt mit den Status-LEDs, was die Box gerade tut: Wiedergabe, Pause, Warten auf eine Karte oder ein Problem.",
         "en": "Shows on the status LEDs what the box is doing: playing, paused, waiting for a card, or in trouble."
@@ -27,6 +35,10 @@
     },
     "button": {
       "service": "button",
+      "name": {
+        "de": "Tasten",
+        "en": "Buttons"
+      },
       "summary": {
         "de": "Macht die Tasten und den Drehregler am Gehäuse nutzbar: Wiedergabe, Pause, Titelwechsel und Lautstärke ohne Weboberfläche.",
         "en": "Makes the buttons and the rotary encoder on the case work: play, pause, skip and volume without the web interface."
@@ -39,6 +51,10 @@
     },
     "display": {
       "service": "display",
+      "name": {
+        "de": "Display",
+        "en": "Display"
+      },
       "summary": {
         "de": "Zeigt auf dem kleinen Bildschirm, was läuft: Titel, Uhrzeit und Lautstärke.",
         "en": "Shows what is playing on the small screen: title, clock and volume."
@@ -51,6 +67,10 @@
     },
     "media": {
       "service": "media-downloader",
+      "name": {
+        "de": "Medien-Import",
+        "en": "Media import"
+      },
       "summary": {
         "de": "Lädt die Tonspur eines Links herunter und legt sie als MP3 in der Mediathek ab.",
         "en": "Downloads the audio track behind a link and files it in the library as an MP3."

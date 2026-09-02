@@ -202,6 +202,10 @@ def merge(
         components.append(
             {
                 **component,
+                # The name too, not just the description: it is what lets a
+                # component that this WebUI release has never heard of appear
+                # in the list under its own name instead of a raw key.
+                "name": _text(described.get("name")),
                 "summary": _text(described.get("summary")),
                 "hardware": _text(described.get("hardware")),
                 "network": bool(described.get("network")),

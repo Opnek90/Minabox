@@ -45,6 +45,15 @@ catalogue also works on a box that has never reached the internet, and
 publishes a copy in `release/release-manifest.json` so a description can be
 corrected without a new backend image.
 
+Adding a component to the catalogue does not need a web-interface release: the
+name and the description travel with the API answer, so a component the browser
+build has never heard of still appears under its own name. What it does need is
+a backend that knows the profile (`core/capabilities.py`, plus its entry in
+`components.json`), a host-helper that knows the service
+(`routes/components.py`) and the Compose file on the box — which arrives with
+the `git pull` at the start of every update run. A web-interface release is
+only needed when the component brings settings of its own.
+
 Switching a component on pulls its image straight away and starts it; there is
 no waiting for the next update run. The card reader and the display need I2C,
 which only appears as `/dev/i2c-1` after a reboot — the run says so and starts
