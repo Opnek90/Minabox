@@ -1,16 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Chip,
-  FormControlLabel,
-  Switch,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import {
   componentsApi,
-  PROFILE_FEATURE,
   type ComponentEntry,
   type ComponentProfile,
 } from '@/api/components';
@@ -18,12 +10,18 @@ import { useCapabilities } from '@/contexts/CapabilitiesContext';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
-import { HelpLabel } from '@/components/ui/HelpTip';
+import { ComponentCatalogEntry } from './ComponentCatalogEntry';
 import { UpdateProgressDialog } from './UpdateProgressDialog';
 import { useComponentsRun } from './useComponentsRun';
 
 /**
- * Adding and removing card reader, LEDs, buttons, display and media import.
+ * The catalogue: card reader, LEDs, buttons, display and media import.
+ *
+ * It lists every optional component, including the ones this box does not
+ * have, each with what it is for, what it needs and which version it is at
+ * (#181) - so a component can be found and added without reading the
+ * documentation first. The descriptions come from the backend
+ * (`component_catalog.py`); this block owns the run.
  *
  * This was the last setup step that still needed an SSH session and the
  * maintenance menu of `install.sh` (#180). The switches are a *wish*, not a
@@ -42,7 +40,7 @@ interface ComponentsBlockProps {
 
 export const ComponentsBlock: React.FC<ComponentsBlockProps> = ({ onChanged }) => {
   const { t } = useTranslation('admin');
-  const { capabilities, refresh: refreshCapabilities } = useCapabilities();
+  const { refresh: refreshCapabilities } = useCapabilities();
   const [entries, setEntries] = useState<ComponentEntry[]>([]);
   const [saved, setSaved] = useState<ComponentProfile[]>([]);
   const [wanted, setWanted] = useState<ComponentProfile[]>([]);
@@ -123,21 +121,6 @@ export const ComponentsBlock: React.FC<ComponentsBlockProps> = ({ onChanged }) =
     void run.start(wanted);
   };
 
-  const stateLabel = (entry: ComponentEntry): string => {
-    if (!entry.installed) return t('system.components_state_off');
-    const state = capabilities[PROFILE_FEATURE[entry.profile]];
-    if (state?.healthy) return t('system.components_state_running');
-    if (state?.running) return t('system.components_state_unhealthy');
-    return t('system.components_state_stopped');
-  };
-
-  const stateColor = (entry: ComponentEntry): 'success' | 'warning' | 'default' => {
-    if (!entry.installed) return 'default';
-    const state = capabilities[PROFILE_FEATURE[entry.profile]];
-    if (state?.healthy) return 'success';
-    return 'warning';
-  };
-
   const names = (profiles: ComponentProfile[]) =>
     profiles.map((p) => t(`system.component_${p}` as never)).join(', ');
 
@@ -156,35 +139,15 @@ export const ComponentsBlock: React.FC<ComponentsBlockProps> = ({ onChanged }) =
       )}
 
       <Box>
-        {entries.map((entry) => (
-          <Box
+        {entries.map((entry, index) => (
+          <ComponentCatalogEntry
             key={entry.profile}
-            sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 42 }}
-          >
-            <FormControlLabel
-              sx={{ flexGrow: 1, mr: 0 }}
-              control={
-                <Switch
-                  checked={wanted.includes(entry.profile)}
-                  onChange={(_, checked) => toggle(entry.profile, checked)}
-                  disabled={busy || unreachable}
-                  color="primary"
-                />
-              }
-              label={
-                <HelpLabel
-                  text={t(`system.component_${entry.profile}` as never)}
-                  help={t(`system.component_${entry.profile}_hint` as never)}
-                />
-              }
-            />
-            <Chip
-              size="small"
-              variant="outlined"
-              color={stateColor(entry)}
-              label={stateLabel(entry)}
-            />
-          </Box>
+            entry={entry}
+            checked={wanted.includes(entry.profile)}
+            disabled={busy || unreachable}
+            divider={index > 0}
+            onToggle={(on) => toggle(entry.profile, on)}
+          />
         ))}
       </Box>
 

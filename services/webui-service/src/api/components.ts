@@ -6,8 +6,14 @@ import type { FeatureKey } from './capabilities';
  *
  * The choice lives in `COMPOSE_PROFILES` in the `.env` on the box; only the
  * Host-Helper may write it and drive compose, so all three calls are proxied
- * (backend `routes_host.py`). What a component's state *is* - installed,
- * running, healthy - keeps coming from `/system/capabilities`.
+ * (backend `routes_host.py`).
+ *
+ * The GET is a catalogue, not just a list of switches (#181): every component
+ * comes with what it is for, what hardware it needs, whether it needs the
+ * network, its state and its version - for the ones this box does not have
+ * too, which is what makes them findable without the documentation. The state
+ * is the same one `/system/capabilities` reports; it travels with the entry so
+ * the section does not have to pair two answers of different ages.
  */
 
 /** The compose profile, which is what the API speaks in. */
@@ -22,16 +28,46 @@ export const PROFILE_FEATURE: Record<ComponentProfile, FeatureKey> = {
   media: 'media_downloader',
 };
 
+/**
+ * A text the backend delivers in every language it has, so the choice happens
+ * where the current language is known - here, not in a REST header.
+ */
+export type LocalizedText = Partial<Record<'de' | 'en', string>>;
+
 export interface ComponentEntry {
   profile: ComponentProfile;
   /** The compose service behind the profile (`media` -> `media-downloader`). */
   service: string;
   installed: boolean;
+  /** What the component is for. Null on a box whose catalogue is unreadable. */
+  summary: LocalizedText | null;
+  /** The accessory it needs, or null when it needs none. */
+  hardware: LocalizedText | null;
+  /** Whether it needs an internet connection to do its job. */
+  network: boolean;
+  running: boolean;
+  healthy: boolean;
+  /** The running version - null for a component that is switched off. */
+  version: string | null;
+  /** What the box would install for it, as far as the last update check knows. */
+  latest: string | null;
 }
+
+/** The text for the current language, falling back to the other one. */
+export const pickText = (
+  text: LocalizedText | null | undefined,
+  language: string,
+): string | undefined => {
+  if (!text) return undefined;
+  const short = language.slice(0, 2) as keyof LocalizedText;
+  return text[short] ?? text.en ?? text.de;
+};
 
 export interface ComponentsResponse {
   components: ComponentEntry[];
   profiles: ComponentProfile[];
+  /** The update channel of this box - which version `latest` is from. */
+  channel?: 'stable' | 'beta';
   /** True while a change is running - started here or from somewhere else. */
   busy: boolean;
   /** Set by the backend when the Host-Helper could not be reached. */
