@@ -31,7 +31,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-ALL_SERVICES=(backend host-helper audio rfid button led display media-downloader webui)
+ALL_SERVICES=(backend host-helper audio rfid button led display media-downloader tts webui)
 SERVICES=("${@:-}")
 if [ -z "${SERVICES[0]:-}" ]; then
   SERVICES=("${ALL_SERVICES[@]}")

@@ -95,6 +95,7 @@ declare -A MSG_de=(
     [comp_button]="Taster / Drehregler (GPIO)"
     [comp_display]="OLED-Display (I2C)"
     [comp_media]="Medienimport von URL"
+    [comp_voice]="Ansagen (gesprochene Hinweise)"
     [dev_prompt]="Geraetename dieser Minabox\n\nWird in den MQTT-Topics verwendet. Nur Kleinbuchstaben, Ziffern und Bindestrich."
     [dev_invalid]="Ungueltiger Geraetename. Erlaubt sind Kleinbuchstaben, Ziffern und Bindestrich."
     [port_prompt]="Auf welchem Port soll die Bedienoberflaeche erreichbar sein?"
@@ -179,6 +180,7 @@ declare -A MSG_en=(
     [comp_button]="Buttons / rotary encoder (GPIO)"
     [comp_display]="OLED display (I2C)"
     [comp_media]="Media import from URL"
+    [comp_voice]="Announcements (spoken hints)"
     [dev_prompt]="Device name for this Minabox\n\nUsed in the MQTT topics. Lowercase letters, digits and hyphens only."
     [dev_invalid]="Invalid device name. Use lowercase letters, digits and hyphens."
     [port_prompt]="Which port should the web interface listen on?"
@@ -429,18 +431,19 @@ ask_components() {
     local result
     if [ "$USE_WHIPTAIL" = "1" ]; then
         result=$(whiptail --title "$(t title)" --ok-button "$(t ok)" --cancel-button "$(t cancel)" \
-            --checklist "$(t comp_prompt)" 18 74 5 \
+            --checklist "$(t comp_prompt)" 19 74 6 \
             "rfid"    "$(t comp_rfid)"    "$(state rfid)" \
             "led"     "$(t comp_led)"     "$(state led)" \
             "button"  "$(t comp_button)"  "$(state button)" \
             "display" "$(t comp_display)" "$(state display)" \
             "media"   "$(t comp_media)"   "$(state media)" \
+            "voice"   "$(t comp_voice)"   "$(state voice)" \
             3>&1 1>&2 2>&3) || die "$(t abort)"
     else
         printf '\n%s\n\n' "$(t comp_prompt)"
         local c answer
         result=""
-        for c in rfid led button display media; do
+        for c in rfid led button display media voice; do
             local def="n"; [ "$(state "$c")" = "ON" ] && def="j"
             read -r -p "$(t "comp_$c") [${def}] " answer
             answer="${answer:-$def}"
@@ -641,6 +644,7 @@ pin_service_versions() {
     has_component button  && services+=(button)
     has_component display && services+=(display)
     has_component media   && services+=(media-downloader)
+    has_component voice   && services+=(tts)
 
     local service version repo
     for service in "${services[@]}"; do

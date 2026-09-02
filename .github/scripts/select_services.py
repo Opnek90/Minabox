@@ -33,6 +33,7 @@ SERVICE_NAMES = [
     "led",
     "display",
     "media-downloader",
+    "tts",
     "webui",
 ]
 
