@@ -204,7 +204,7 @@ def test_volume_bounds_come_from_the_status():
     payload = _status(min_volume=0, max_volume=40, volume_step=5)
     sm.update_audio(STATUS, payload.encode())
     view = sm.get_volume_view()
-    assert (view.min_volume, view.max_volume, view.step) == (0, 40, 5)
+    assert (view.min_volume, view.max_volume) == (0, 40)
     assert view.percent == 100
 
 
@@ -214,7 +214,7 @@ def test_without_bounds_the_volume_is_read_as_a_percentage():
     sm.update_audio(STATUS, _status().encode())
     view = sm.get_volume_view()
     assert view.percent == 40
-    assert not view.use_blocks  # step unknown, so a bar rather than wrong blocks
+    assert view.level == 3  # a plain 0-100 percentage, quantised to five levels
 
 
 def test_a_narrower_maximum_changes_what_the_same_volume_means():

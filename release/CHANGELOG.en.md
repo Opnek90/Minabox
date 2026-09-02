@@ -943,6 +943,16 @@ A version without a visible change may stay empty - the interface then says
 
 ## display
 
+### 0.3.0 - 2026-09-02
+
+#### Improved
+- The volume screen now shows Knuffel singing - the louder it is set, the more
+  notes rise from him.
+- While playing, Knuffel walks the progress bar and waves near the end; the
+  remaining time makes way for him.
+- The mute screen shows Knuffel with his mouth shut instead of a crossed-out
+  speaker.
+
 ### 0.2.3 - 2026-08-29
 
 #### Added

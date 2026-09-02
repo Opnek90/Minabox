@@ -150,7 +150,6 @@ class StateManager:
             volume=audio["volume"],
             min_volume=audio["min_volume"],
             max_volume=audio["max_volume"],
-            step=audio["volume_step"],
             muted=bool(audio["muted"]),
         )
 

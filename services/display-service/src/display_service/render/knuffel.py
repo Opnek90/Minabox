@@ -20,8 +20,11 @@ ASLEEP = "asleep"
 PUZZLED = "puzzled"
 WAVE_UP = "wave_up"
 WAVE_DOWN = "wave_down"
+HUSHED = "hushed"
+SINGING = "singing"
+BELTING = "belting"
 
-MOODS = (AWAKE, BLINK, ASLEEP, PUZZLED, WAVE_UP, WAVE_DOWN)
+MOODS = (AWAKE, BLINK, ASLEEP, PUZZLED, WAVE_UP, WAVE_DOWN, HUSHED, SINGING, BELTING)
 WAVING = (WAVE_UP, WAVE_DOWN)
 
 # Everything below is in fortieths of the sprite's size.
@@ -111,6 +114,31 @@ def draw(canvas: Any, x: int, y: int, size: int, mood: str = AWAKE) -> None:
             )
         return
 
+    if mood in (SINGING, BELTING):
+        # An open mouth for the sound to come out of. Belting is the loudest
+        # setting: the eyes scrunch shut and the mouth opens wider - that is
+        # the "as loud as it goes" cue, since there is no full row of blocks
+        # left to carry it.
+        belting = mood == BELTING
+        for cx, cy in eyes:
+            if belting:
+                canvas.arc(
+                    [cx - radius, cy - radius, cx + radius, cy + radius],
+                    start=180,
+                    end=360,
+                    fill=0,
+                    width=stroke(),
+                )
+            else:
+                canvas.ellipse(
+                    [cx - radius, cy - radius, cx + radius, cy + radius], fill=0
+                )
+        mx, my = point(20, 27)
+        w = round((6 if belting else 4) * unit)
+        h = round((8 if belting else 5) * unit)
+        canvas.ellipse([mx - w, my - h, mx + w, my + h], fill=0)
+        return
+
     for cx, cy in eyes:
         canvas.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=0)
 
@@ -122,6 +150,16 @@ def draw(canvas: Any, x: int, y: int, size: int, mood: str = AWAKE) -> None:
             fill=0,
             width=stroke(),
         )
+        return
+
+    if mood == HUSHED:
+        # Lips pressed shut: a short flat bar where the smile's arc would be.
+        # A raised finger does not survive being cut into a thirty-pixel blob -
+        # it reads as a gap, not a hand - but a sealed mouth does, and against
+        # the "Stumm" underneath it is unambiguous.
+        lx, my = point(13, 27)
+        rx, _ = point(27, 27)
+        canvas.line([(lx, my), (rx, my)], fill=0, width=max(2, round(3 * unit)))
         return
 
     mx, my = point(20, 26)

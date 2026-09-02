@@ -1,23 +1,23 @@
 """The screen for "something is playing".
 
-Three things share 128x64, and each of them is there for a different reader:
+Two things share 128x64, one for each reader:
 
 * the **title**, complete rather than cut off, for the parent who wants to know
   what is on;
-* the **progress bar**, the only element on this panel a four-year-old can
-  read - "this much left";
-* the **remaining time** in words, for the parent again.
+* the **progress**, drawn as Knuffel walking a line to the end of the song -
+  his position is the one thing on this panel a four-year-old can read, "this
+  far to go", and near the end he turns and waves.
+
+The remaining time in words used to sit along the bottom, for the parent. It is
+gone: the panel is the child's, the parent has the phone, and dropping it buys
+the room to draw Knuffel large enough to have a face. ``PlayingView.time_text``
+stays - it is the obvious thing to put back if a parent-facing view ever wants
+it - it is just not on the glass.
 
 The title's font size follows its length instead of being fixed, which is what
-makes "complete" possible at all: "Ein Lama in Yokohama" comes back at 12 px on
-two lines, "Das Lied von der Raupe Nimmersatt" at the same size and also whole.
+makes "complete" possible at all: "Ein Lama in Yokohama" comes back on two
+lines, "Das Lied von der Raupe Nimmersatt" at the same size and also whole.
 Only a title too long for two lines even at the smallest size is trimmed.
-
-The remaining time is counted **locally**. position_ms is deliberately excluded
-from the audio status fingerprint so a playing track does not publish every two
-seconds; every event that moves the position out of band - a seek, a resume,
-the next track - runs through the play command, which publishes unconditionally
-and re-anchors the count.
 """
 
 from __future__ import annotations
@@ -34,7 +34,6 @@ from .primitives import (
     bar,
     block_height,
     draw_text,
-    draw_text_centered,
     fit_lines,
     new_frame,
     sleep_zs,
@@ -43,15 +42,27 @@ from .primitives import (
 
 # The title block is a fixed band, so the layout below it does not move when a
 # shorter title picks a larger size. The band decides the size, not the other
-# way round: two lines fit up to 12 px, a single line up to 20.
+# way round: two lines fit up to 10 px, a single line up to 20. It is a little
+# shorter than it was, to give Knuffel headroom above the track he walks.
 TITLE_SIZES = (20, 18, 16, 14, 13, 12, 11, 10, 9)
 TITLE_TOP = 1
 TITLE_MAX_LINES = 2
-TITLE_BAND_HEIGHT = 27
+TITLE_BAND_HEIGHT = 22
 TITLE_LINE_GAP = 2
 
-BAR_BOX = (3, 32, WIDTH - 3, 46)
-TIME_BASELINE = 61
+# The progress bar is Knuffel walking to the end of the song. The track he
+# walks is a full-width line low on the panel; behind him it is thickened to
+# show the part that is done, and he stands at the join. His position is the
+# thing a four-year-old reads - "this far to go" - so the line itself stays
+# thin and quiet, and with the remaining time gone he gets most of the height.
+WALK_LINE_Y = 56
+WALK_KNUFFEL = 28
+WALK_X0 = 3
+WALK_X1 = WIDTH - 3
+
+# The last stretch of the track: close enough to the end that Knuffel turns
+# round and waves rather than trudging the last few pixels.
+ARRIVING_MS = 15_000
 
 # While playing, this screen replaces the widget grid - and with it the grid's
 # permanent mute icon. Playback is exactly when that icon matters, so it comes
@@ -127,6 +138,14 @@ class PlayingView:
         # this size is noise, and the number is not that precise anyway.
         return f"noch {max(10, round(seconds / 10) * 10)} Sek."
 
+    @property
+    def arriving(self) -> bool:
+        """In the home stretch - near enough the end for Knuffel to wave.
+
+        A stream has no end to arrive at, so it is never true there.
+        """
+        return self.remaining_ms is not None and 0 <= self.remaining_ms <= ARRIVING_MS
+
 
 def _title(draw: Any, view: PlayingView, band_top: int, band_height: int) -> None:
     """Fit the title into its band and draw it, centred vertically."""
@@ -176,6 +195,27 @@ def _render_paused(view: PlayingView) -> Any:
     return img
 
 
+def _walk(draw: Any, view: PlayingView) -> None:
+    """Knuffel on the track, at the point the song has reached.
+
+    Behind him the line is thickened - that stretch is done; ahead it stays a
+    thin rule. He stands at the join, and near the end he turns to wave.
+    """
+    fraction = max(0.0, min(1.0, view.fraction))
+    overhang = knuffel.wave_overhang(WALK_KNUFFEL)
+    x_max = WALK_X1 - WALK_KNUFFEL - overhang
+    kx = WALK_X0 + round(fraction * (x_max - WALK_X0))
+    join = kx + WALK_KNUFFEL // 2
+
+    # Ahead of him a thin rule; behind him a thicker bar for the stretch that
+    # is done, so a parent gets "this much played" as well as "this far to go".
+    draw.line([(join, WALK_LINE_Y), (WALK_X1, WALK_LINE_Y)], fill=1, width=1)
+    draw.rectangle([WALK_X0, WALK_LINE_Y - 2, join, WALK_LINE_Y + 2], fill=1)
+
+    mood = knuffel.WAVE_UP if view.arriving else knuffel.AWAKE
+    knuffel.draw(draw, kx, WALK_LINE_Y - WALK_KNUFFEL, WALK_KNUFFEL, mood)
+
+
 def render(view: PlayingView) -> Any:
     """Return the frame for *view* as a mode-'1' image."""
     if view.paused:
@@ -183,6 +223,5 @@ def render(view: PlayingView) -> Any:
 
     img, draw = new_frame()
     _title(draw, view, TITLE_TOP, TITLE_BAND_HEIGHT)
-    bar(draw, BAR_BOX, view.fraction)
-    draw_text_centered(draw, view.time_text, fonts.get(fonts.BOLD, 15), TIME_BASELINE)
+    _walk(draw, view)
     return img

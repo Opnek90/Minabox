@@ -985,6 +985,16 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## display
 
+### 0.3.0 - 2026-09-02
+
+#### Verbessert
+- Die Lautstaerke zeigt jetzt Knuffel, der singt - je lauter, desto mehr Noten
+  steigen aus ihm auf.
+- Beim Abspielen laeuft Knuffel die Fortschrittsleiste ab und winkt zum
+  Schluss; die Restzeit macht dafuer Platz.
+- Der Stumm-Bildschirm zeigt Knuffel mit geschlossenem Mund statt eines
+  durchgestrichenen Lautsprechers.
+
 ### 0.2.3 - 2026-08-29
 
 #### Neu
