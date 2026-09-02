@@ -35,7 +35,12 @@ import { useComponentsRun } from './useComponentsRun';
  * switching it back on is lossless - which is why there is no warning dialog
  * about data, only about the restart.
  */
-export const ComponentsBlock: React.FC = () => {
+interface ComponentsBlockProps {
+  /** Called after a finished run, so the version list above can re-read. */
+  onChanged?: () => void;
+}
+
+export const ComponentsBlock: React.FC<ComponentsBlockProps> = ({ onChanged }) => {
   const { t } = useTranslation('admin');
   const { capabilities, refresh: refreshCapabilities } = useCapabilities();
   const [entries, setEntries] = useState<ComponentEntry[]>([]);
@@ -67,12 +72,18 @@ export const ComponentsBlock: React.FC = () => {
     void load();
   }, [load]);
 
+  const changedRef = useRef(onChanged);
+  changedRef.current = onChanged;
+
   const run = useComponentsRun(() => {
     void load();
     // The backend was recreated with the new COMPOSE_PROFILES, so this is the
     // moment its capabilities answer changes - and with it the whole
     // navigation.
     void refreshCapabilities();
+    // A component that is gone has no container, so it drops out of the
+    // version list above too.
+    changedRef.current?.();
   });
 
   // Whether the box needs a restart is only known once a run has answered.

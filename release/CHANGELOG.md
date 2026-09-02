@@ -22,6 +22,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.4.0 - 2026-09-02
+
+#### Behoben
+- Eine abgeschaltete Komponente verschwindet sofort aus der Versionsliste,
+  statt dort bis zu sechs Stunden weiterzustehen und ein Update anzubieten,
+  das gar nicht mehr durchlaufen koennte.
+
 ### 0.4.0-rc.1 - 2026-09-02
 
 #### Neu
@@ -295,6 +302,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.4.4 - 2026-09-02
+
+#### Behoben
+- Die Versionsliste aktualisiert sich direkt nach einem Komponenten-Wechsel,
+  statt die abgeschaltete Komponente bis zum Neuladen der Seite weiter zu
+  zeigen.
 
 ### 0.4.4-rc.1 - 2026-09-02
 
@@ -681,6 +695,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## host-helper
+
+### 0.3.0 - 2026-09-02
+
+#### Neu
+- Freigabe von 0.3.0-rc.1, inhaltlich unveraendert: Kartenleser, LEDs, Tasten,
+  Display und Medien-Import lassen sich ohne SSH ergaenzen oder entfernen.
 
 ### 0.3.0-rc.1 - 2026-09-02
 

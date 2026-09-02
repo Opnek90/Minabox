@@ -21,6 +21,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.4.0 - 2026-09-02
+
+#### Fixed
+- A component that was switched off disappears from the version list at once,
+  instead of standing there for up to six hours offering an update that could
+  no longer be carried out.
+
 ### 0.4.0-rc.1 - 2026-09-02
 
 #### Added
@@ -283,6 +290,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.4.4 - 2026-09-02
+
+#### Fixed
+- The version list refreshes right after a component change, instead of
+  showing the component that was switched off until the page is reloaded.
 
 ### 0.4.4-rc.1 - 2026-09-02
 
@@ -653,6 +666,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## host-helper
+
+### 0.3.0 - 2026-09-02
+
+#### Added
+- The release of 0.3.0-rc.1, unchanged in substance: card reader, LEDs,
+  buttons, display and media import can be added or removed without SSH.
 
 ### 0.3.0-rc.1 - 2026-09-02
 

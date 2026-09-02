@@ -142,8 +142,23 @@
       ]
     },
     "backend": {
-      "latest": "0.3.2",
+      "latest": "0.4.0",
       "releases": [
+        {
+          "version": "0.4.0",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Eine abgeschaltete Komponente verschwindet sofort aus der Versionsliste, statt dort bis zu sechs Stunden weiterzustehen und ein Update anzubieten, das gar nicht mehr durchlaufen koennte."
+              ],
+              "en": [
+                "A component that was switched off disappears from the version list at once, instead of standing there for up to six hours offering an update that could no longer be carried out."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.0-rc.1",
           "date": "2026-09-02",
@@ -703,8 +718,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.4.0-rc.1"
+      ]
     },
     "button": {
       "latest": "0.2.3",
@@ -950,8 +964,23 @@
       ]
     },
     "host-helper": {
-      "latest": "0.2.4",
+      "latest": "0.3.0",
       "releases": [
+        {
+          "version": "0.3.0",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Freigabe von 0.3.0-rc.1, inhaltlich unveraendert: Kartenleser, LEDs, Tasten, Display und Medien-Import lassen sich ohne SSH ergaenzen oder entfernen."
+              ],
+              "en": [
+                "The release of 0.3.0-rc.1, unchanged in substance: card reader, LEDs, buttons, display and media import can be added or removed without SSH."
+              ]
+            }
+          }
+        },
         {
           "version": "0.3.0-rc.1",
           "date": "2026-09-02",
@@ -1159,8 +1188,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.3.0-rc.1"
+      ]
     },
     "led": {
       "latest": "0.2.3",
@@ -1497,8 +1525,23 @@
       ]
     },
     "webui": {
-      "latest": "0.4.3",
+      "latest": "0.4.4",
       "releases": [
+        {
+          "version": "0.4.4",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "fixed": {
+              "de": [
+                "Die Versionsliste aktualisiert sich direkt nach einem Komponenten-Wechsel, statt die abgeschaltete Komponente bis zum Neuladen der Seite weiter zu zeigen."
+              ],
+              "en": [
+                "The version list refreshes right after a component change, instead of showing the component that was switched off until the page is reloaded."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.4-rc.1",
           "date": "2026-09-02",
@@ -2141,8 +2184,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.4.4-rc.1"
+      ]
     }
   }
 }
