@@ -142,8 +142,23 @@
       ]
     },
     "backend": {
-      "latest": "0.4.0",
+      "latest": "0.5.0",
       "releases": [
+        {
+          "version": "0.5.0",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Der Abschnitt \"Komponenten\" liefert jetzt zu jedem Teil, wofuer es gut ist, welche Hardware es braucht und ob es eine Internetverbindung braucht - auch fuer Teile, die diese Box gar nicht hat, samt der Version, die das Einschalten holen wuerde. Die Beschreibungen stecken im Dienst selbst, sie stehen also auch ohne Internet zur Verfuegung."
+              ],
+              "en": [
+                "The components section now says what each part is for, what hardware it needs and whether it needs an internet connection - for the parts this box does not have too, together with the version that switching it on would fetch. The descriptions travel inside the service, so they are there without an internet connection as well."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.0",
           "date": "2026-09-02",
@@ -1525,8 +1540,31 @@
       ]
     },
     "webui": {
-      "latest": "0.4.4",
+      "latest": "0.5.0",
       "releases": [
+        {
+          "version": "0.5.0",
+          "date": "2026-09-02",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Komponenten unter Wartung sind jetzt ein Katalog: jeder Eintrag nennt Zweck, benoetigte Hardware, ob eine Internetverbindung noetig ist, und die Version - bei einem Teil, das die Box nicht hat, die Version, die das Einschalten holen wuerde."
+              ],
+              "en": [
+                "The components under maintenance are a catalogue now: every entry names what it is for, the hardware it needs, whether it needs an internet connection, and its version - for a part the box does not have, the version switching it on would fetch."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Der Abschnitt bleibt lesbar, wenn der Dienst zum Umschalten gerade nicht erreichbar ist: die Liste steht weiterhin da, nur die Schalter sind gesperrt."
+              ],
+              "en": [
+                "The section stays readable when the service that changes it cannot be reached: the list is still there, only the switches are locked."
+              ]
+            }
+          }
+        },
         {
           "version": "0.4.4",
           "date": "2026-09-02",
