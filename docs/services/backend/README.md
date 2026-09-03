@@ -92,8 +92,8 @@ services/backend-service/src/backend_service/
 │   ├── api_errors.py           ApiError: HTTP error with a stable, translatable code
 │   ├── container_registry.py   container discovery and stats via the Docker socket
 │   ├── update_check.py         running versions against the release manifest
-│   ├── component_catalog.py    what the optional components are, for a box
-│   │                           that does not have them yet
+│   ├── component_catalog.py    what the addons are, for a box that does not
+│   │                           have them yet - and how each one is switched on
 │   ├── system_alerts.py        active alerts, keyed by code, most severe wins
 │   ├── temperature_logger.py   background loop: sample, retain, alert
 │   ├── podcast_fetcher.py      background loop: fetch RSS, insert new episodes
@@ -395,19 +395,27 @@ Results are cached for six hours. The background loop polls every 30 minutes,
 but only while the user has the automatic check switched on.
 
 `core/component_catalog.py` rides along on the same fetch. The manifest also
-describes the *optional components* — what each one is for, what hardware it
-needs, whether it needs the network — and that block is remembered next to the
-cache, so `GET /system/components` can answer as a catalogue that includes the
-components this box does not have. The descriptions themselves ship inside the
-image (`resources/components.json`), so the catalogue works on a box that has
-never reached the internet; the manifest copy only wins when it is there. What
-earns a container of its own is written down in
-[docs/services/README.md](../README.md).
+describes the *addons* — what each one is for, what hardware it needs, whether
+it needs the network, and how it is switched on — and that block is remembered
+next to the cache, so `GET /system/components` can answer as a catalogue that
+includes the addons this box does not have. The descriptions themselves ship
+inside the image (`resources/components.json`), so the catalogue works on a box
+that has never reached the internet; the manifest copy only wins when it is
+there.
+
+Not every addon is a container. An entry whose `install` says
+`{"type": "setting", "field": ...}` is one field of `general_settings.json`
+instead of a Compose profile — it has no service, no version and nothing to
+update, and it is only offered when that field is in `WRITABLE_KEYS`
+(`core/general_settings.py`), because a switch that cannot be saved is worse
+than an addon that is not there. Which of the two an addon is, and what earns a
+container of its own, is written down in
+[docs/services/README.md](../README.md#addons).
 
 A cached answer belongs to the box it was computed for, in two ways: the
 channel (below) and the set of services. The version list is one row per
-*existing* container, so switching a component off under *Maintenance →
-Components* drops it — but the cache would keep listing it, and keep offering
+*existing* container, so switching an addon off under *Settings → Addons*
+drops it — but the cache would keep listing it, and keep offering
 an update for six hours that `compose pull` could no longer carry out, because
 the profile is gone. A different set of services therefore counts as a miss.
 When the fetch then fails and the last known state is shown instead, entries

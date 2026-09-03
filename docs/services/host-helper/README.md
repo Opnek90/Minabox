@@ -500,15 +500,18 @@ would only fight the first over the dpkg lock.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/system/components` | the five optional components and which of them this box is set up for |
+| GET | `/system/components` | the six compose profiles and which of them this box is set up for |
 | PUT | `/system/components` | body `{profiles: [...]}`; writes the choice and brings the stack to it |
 | GET | `/system/components/status` | progress, parsed step, exit code and the full log |
 
 The four steps are `stop`, `pull`, `start`, `verify`. **The WebUI translates
 these keys, so they are part of the contract and must not be renamed.**
 
-The components are the compose profiles `rfid`, `led`, `button`, `display` and
-`media`, stored as `COMPOSE_PROFILES` in `.env`. Until this route existed, the
+The components are the compose profiles `rfid`, `led`, `button`, `display`,
+`media` and `voice`, stored as `COMPOSE_PROFILES` in `.env`. The backend adds
+the descriptions and, for the addons that are a setting rather than a container,
+entries this route never sees — see
+[docs/services/README.md](../README.md#addons). Until this route existed, the
 only way to change that choice after the install was an SSH session and the
 maintenance menu of `install.sh` — the last setup step that still needed a
 terminal.

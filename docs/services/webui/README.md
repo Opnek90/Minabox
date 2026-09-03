@@ -275,7 +275,12 @@ deleting only the media leaves a card pointing at a track that no longer exists.
 
 **Dashboard and settings.** The settings page is cut by everyday question
 ("Playback", "Sound", "Appearance") rather than by where a value happens to live
-in the backend; everything technical collects under "Advanced". The search field
+in the backend; everything technical collects under "System". One group is not a
+question but a shop: "Addons" is where an optional component is added, removed,
+updated and configured, in a table with one row per addon (see
+[services/README.md](../README.md#addons)). It used to be a block inside
+"Maintenance", between backup and factory reset — maintenance is "I am
+repairing something", addons is "I am extending my box". The search field
 renders a jump list, not the expanded forms: a two-letter query matches almost
 every section, and mounting eleven panels at once would fire eleven API calls on
 a Raspberry Pi. Sections that hang off an optional component carry
@@ -488,7 +493,7 @@ cd services/webui-service && npm run lint && npm run test && npm run check:local
 | `components/common/Navigation.test.tsx` | which entries appear for which capabilities |
 | `components/media/MediaFab.test.tsx`, `MediaImportDialog.test.tsx` | the import flow and its confirmation |
 | `components/admin/SystemMaintenanceSection.test.tsx` | the maintenance panel's destructive actions |
-| `components/admin/maintenance/ComponentsBlock.test.tsx` | a flipped switch is a wish, not a restart; an unchanged selection starts nothing |
+| `components/admin/addons/AddonsPanel.test.tsx` | a flipped switch is a wish, not a restart; an unchanged selection starts nothing; an addon that is a setting is written at once |
 | `hooks/useGeneralConfig.test.tsx` | config loading and its defaults |
 | `i18n/debugMode.test.ts` | the fallback switch-off under `log_level: debug` |
 
@@ -514,6 +519,7 @@ survived as long as it did.
 | --- | --- | --- |
 | add a page | `pages/` + a lazy route in `App.tsx` | `Navigation.tsx`, the route table in 4.1, a locale namespace if it needs one |
 | add a settings section | `config/settingsIndex.ts` (data, not JSX) | the panel under `components/admin/`, both locale files, `requiresFeature` if it depends on an optional component |
+| give an addon a settings panel | `config/addonSettings.tsx` — the map the settings page *and* the gear button of an addon row both render | `settings_section` in the backend's `components.json`, so the catalogue names the panel |
 | call a new backend endpoint | a module under `api/` — **always through `client.ts`** | `types/api.ts` to mirror the backend schema; a `TIMEOUT` entry if it runs long |
 | react to a new WebSocket message | `useWebSocketEvent` in the component | the message list in 3.2; the backend must send it. **Never `window.addEventListener`** |
 | add a translated string | both `public/locales/de/` and `en/` | `npm run check:locales && npm run check:i18n-calls` — the guards fail on a missing pair |
