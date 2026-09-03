@@ -15,7 +15,8 @@ import { UpdateProgressDialog } from './UpdateProgressDialog';
 import { useComponentsRun } from './useComponentsRun';
 
 /**
- * The catalogue: card reader, LEDs, buttons, display and media import.
+ * The catalogue: card reader, LEDs, buttons, display, media import and
+ * announcements.
  *
  * It lists every optional component, including the ones this box does not
  * have, each with what it is for, what it needs and which version it is at
