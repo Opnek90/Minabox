@@ -26,6 +26,20 @@ class RecordingButtonHandler:
         self.next_calls += 1
 
 
+class RecordingTimerHandler:
+    """Only the two calls the audio handler makes on the play/stop edges."""
+
+    def __init__(self) -> None:
+        self.started = 0
+        self.cancelled = 0
+
+    def start_limit_warning(self) -> None:
+        self.started += 1
+
+    def cancel_limit_warning(self) -> None:
+        self.cancelled += 1
+
+
 class FakeDispatcher:
     def __init__(self) -> None:
         self.audio_status_cache: dict = {}
@@ -36,6 +50,9 @@ class FakeDispatcher:
         self.deliberate_stop = False
         self.websocket_manager = None
         self.button_handler = RecordingButtonHandler()
+        # The spoken warning before the listening time is over hangs off the
+        # same play/stop transitions this file is about.
+        self.timer_handler = RecordingTimerHandler()
 
     def mark_deliberate_stop(self) -> None:
         self.deliberate_stop = True

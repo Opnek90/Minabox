@@ -21,6 +21,7 @@ from ..infrastructure.mqtt_client import MQTTClient
 from ..infrastructure.vlc_backend import VLCBackend
 from .mqtt_handler import (
     DEFAULT_VOLUME_STEP,
+    AnnounceCommand,
     MQTTMessageHandler,
     PlayCommand,
     VolumeCommand,
@@ -34,6 +35,11 @@ from .state_manager import StateManager
 TEST_TONE_PATH = os.getenv("AUDIO_TEST_TONE_PATH", "/app/assets/test-tone.wav")
 TEST_TONE_TIMEOUT = 15.0
 TROUBLESHOOT_TONE_TIMEOUT = 15.0
+
+# An announcement is a sentence, not a track. The cap is a deadlock guard, not
+# a budget: a clip that is still running after this is a stuck paplay, and
+# holding the ducked volume there would leave the music quiet indefinitely.
+ANNOUNCE_TIMEOUT = 20.0
 
 # How long /health is willing to wait for the sink list.
 #
@@ -123,6 +129,7 @@ class AudioService:
             on_volume_up=self._handle_volume_up,
             on_volume_down=self._handle_volume_down,
             on_mute_toggle=self._handle_mute_toggle,
+            on_announce=self._handle_announce,
             on_config_update=self._handle_config_update,
             on_config_reload=self._handle_config_reload,
             on_config_get=self._handle_config_get,
@@ -144,6 +151,14 @@ class AudioService:
 
         # Last-published fingerprint for change detection in the periodic loop
         self._last_published_fingerprint: tuple[Any, ...] | None = None
+
+        # One announcement at a time. Two overlapping phrases are unintelligible
+        # anyway, and the second one's duck/restore would fight the first one's
+        # over the same volume.
+        self._announce_lock = asyncio.Lock()
+        #: True while the music is turned down for a phrase. Only the periodic
+        #: status publish looks at it - see _publish_status().
+        self._ducking = False
 
     @property
     def mqtt_client(self) -> MQTTClient:
@@ -266,6 +281,7 @@ class AudioService:
             self._config.get_mqtt_topic("audio", "volume-up"),
             self._config.get_mqtt_topic("audio", "volume-down"),
             self._config.get_mqtt_topic("audio", "mute-toggle"),
+            self._config.get_mqtt_topic("audio", "announce"),
             self._config.get_mqtt_topic("audio", "config/update"),
             self._config.get_mqtt_topic("audio", "config/reload"),
             self._config.get_mqtt_topic("audio", "config/get"),
@@ -289,6 +305,13 @@ class AudioService:
 
     async def _publish_status(self, *, force: bool = True) -> None:
         """Publish current audio status to MQTT."""
+        # The ducked level is not a level anybody set, and it is gone again a
+        # second later. Publishing it would drag the WebUI slider down and back
+        # up for every announcement. Only the periodic loop is held off here;
+        # everything that really changes state publishes with force=True and
+        # gets through.
+        if not force and self._ducking:
+            return
         try:
             status = await self._vlc_backend.get_status()
 
@@ -662,6 +685,59 @@ class AudioService:
         except Exception as exc:
             logger.error("mute_toggle_failed", error=str(exc))
             await self._publish_error("volume_error", str(exc))
+
+    async def _handle_announce(self, command: AnnounceCommand) -> None:
+        """Say one phrase over whatever is running.
+
+        Ducking, not pausing. A pause would have to be undone at a position,
+        and a radio stream has none - it would come back at "now", which for a
+        story is the wrong place and for a live stream is not even defined.
+        Turning the music down for a second and back up needs no memory of
+        where anything was, and it is what a person in the room would do.
+
+        The volume is restored in every exit path, including a clip that never
+        finishes: a box left quiet by a failed announcement looks exactly like
+        a broken speaker, and that is a support case, not a missed sentence.
+        """
+        async with self._announce_lock:
+            config = self._get_audio_config()
+            sink = (getattr(config, "output_device_name", None) or "").strip() or None
+
+            # Only duck what is actually audible. With nothing playing there is
+            # no level worth touching, and set_volume() would publish a change
+            # nobody made.
+            restore_to: int | None = None
+            if command.duck_percent < 100 and self._vlc_backend.is_playing():
+                current = await self._vlc_backend.get_volume()
+                ducked = round(current * max(0, command.duck_percent) / 100)
+                if ducked < current:
+                    restore_to = current
+                    self._ducking = True
+                    await self._vlc_backend.set_volume(ducked)
+
+            try:
+                await self._vlc_backend.play_announcement(
+                    command.source_uri,
+                    sink,
+                    volume_percent=command.volume_percent,
+                    timeout_sec=ANNOUNCE_TIMEOUT,
+                )
+                logger.info("announcement_played", source_uri=command.source_uri)
+            except Exception as exc:
+                # Not an audio/error event: a phrase that did not come out is a
+                # missing courtesy, not a playback fault, and putting it on the
+                # error topic would light up the LED and the WebUI for it.
+                logger.warning(
+                    "announcement_failed",
+                    source_uri=command.source_uri,
+                    error=str(exc),
+                )
+            finally:
+                if restore_to is not None:
+                    try:
+                        await self._vlc_backend.set_volume(restore_to)
+                    finally:
+                        self._ducking = False
 
     async def _handle_config_update(self, new_config: AudioConfig) -> None:
         """Handle config update command."""

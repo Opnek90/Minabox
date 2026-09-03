@@ -77,6 +77,19 @@
       },
       "hardware": null,
       "network": true
+    },
+    "voice": {
+      "service": "tts",
+      "name": {
+        "de": "Ansagen",
+        "en": "Announcements"
+      },
+      "summary": {
+        "de": "Sagt kurze Sätze an: den Namen der aufgelegten Karte, dass eine Karte unbekannt ist, eine Vorwarnung, bevor die Hörzeit zu Ende ist. Für Kinder, die das Display noch nicht lesen können.",
+        "en": "Says short things out loud: the name of the card that was placed, that a card is unknown, a warning before the listening time runs out. For children who cannot read the display yet."
+      },
+      "hardware": null,
+      "network": false
     }
   }
 }

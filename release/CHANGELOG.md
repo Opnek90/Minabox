@@ -22,6 +22,17 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.6.0-rc.1 - 2026-09-03
+
+#### Neu
+- Die Box kann sprechen: sie sagt den Namen der aufgelegten Karte, meldet eine
+  Karte, die sie nicht kennt oder nicht abspielen kann, warnt vor dem Ende der
+  Hoerzeit und sagt Bescheid, wenn der Ton ausgeschaltet wurde. Gedacht fuer
+  Kinder, die das Display noch nicht lesen koennen - bisher sahen eine
+  unbekannte Karte, ein erreichtes Zeitlimit und ein stummer Lautsprecher von
+  aussen alle gleich aus. Was gesagt wird, laesst sich einzeln abschalten;
+  ohne die Wahlkomponente "Ansagen" bleibt alles wie bisher.
+
 ### 0.5.0 - 2026-09-02
 
 #### Neu
@@ -311,6 +322,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.6.0-rc.1 - 2026-09-03
+
+#### Neu
+- Neuer Einstellungsabschnitt "Ansagen" unter "Klang": Hauptschalter, was
+  angesagt wird, in welcher Sprache, wie laut, wie weit die Musik dabei
+  abgesenkt wird und wie viele Minuten vor dem Ende der Hoerzeit gewarnt wird.
+  Der Abschnitt erscheint, sobald die Wahlkomponente "Ansagen" eingeschaltet
+  ist.
 
 ### 0.5.0 - 2026-09-02
 
@@ -715,7 +735,23 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ---
 
+## tts
+
+### 0.1.0 - 2026-09-03
+
+#### Neu
+- Neuer Wahlbestandteil: der Dienst, der die Ansagen erzeugt. Er wandelt kurze
+  Saetze auf der Box selbst in Sprache um - ohne Internet, es wird nichts
+  verschickt - und merkt sich das Ergebnis, sodass jeder Satz nur beim ersten
+  Mal berechnet wird und danach sofort da ist.
+
 ## host-helper
+
+### 0.3.1-rc.1 - 2026-09-03
+
+#### Neu
+- Kennt die neue Wahlkomponente "Ansagen" und kann sie wie alle anderen ueber
+  die Oberflaeche ein- und ausschalten.
 
 ### 0.3.0 - 2026-09-02
 
@@ -831,6 +867,14 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## audio
+
+### 0.3.0-rc.1 - 2026-09-03
+
+#### Neu
+- Spielt gesprochene Ansagen ueber die laufende Musik und senkt sie dafuer
+  kurz ab, statt sie anzuhalten - ein Radiosender laesst sich nicht an einer
+  Stelle fortsetzen. Eine Ansage ist auch dann zu hoeren, wenn der Ton
+  stummgeschaltet ist; genau dafuer gibt es den Satz "Der Ton ist aus".
 
 ### 0.2.4 - 2026-08-28
 

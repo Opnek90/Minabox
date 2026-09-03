@@ -1,0 +1,13 @@
+# Core Framework
+fastapi>=0.126.0,<0.127.0
+# Plain uvicorn, not [standard]: no WebSocket endpoint, no YAML config, no
+# --reload here - the same reasoning as in the media-downloader.
+uvicorn>=0.34.0,<0.35.0
+pydantic>=2.12.0,<2.13.0
+
+# Logging
+structlog>=25.4.0,<25.5.0
+
+# Nothing for the synthesis itself: Piper comes as a self-contained binary
+# from its GitHub release (see Dockerfile), not as a wheel. That is what keeps
+# this image free of onnxruntime and a compiler.

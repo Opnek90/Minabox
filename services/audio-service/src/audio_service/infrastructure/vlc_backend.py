@@ -37,6 +37,20 @@ _SEEK_CONFIRM_TIMEOUT_SEC = 1.0
 # purpose - see its docstring.
 _PIPEWIRE_MUSIC_ROLE = "Music"
 
+# The role announcements run under. Deliberately not "Music": that is the role
+# this service mutes, and WirePlumber remembers mute per role - see
+# play_announcement().
+_PIPEWIRE_NOTIFICATION_ROLE = "Notification"
+
+# PA_VOLUME_NORM: full software gain, the point paplay's --volume scale calls
+# "unchanged".
+_PA_VOLUME_NORM = 65536
+
+
+def _pa_volume(percent: int) -> int:
+    """A percentage of full gain, as paplay's --volume wants it."""
+    return round(_PA_VOLUME_NORM * max(0, min(100, percent)) / 100)
+
 
 class VLCBackend(AudioBackend):
     """VLC-based audio backend implementation.
@@ -539,18 +553,78 @@ class VLCBackend(AudioBackend):
           volume here keeps a quiet remembered role volume from being mistaken
           for "sound is fine" the same way a remembered mute would be.
         """
+        await self._paplay(
+            tone_path,
+            sink_name=sink_name,
+            role=_PIPEWIRE_MUSIC_ROLE,
+            app_name="minabox-soundtest",
+            volume=_PA_VOLUME_NORM,
+            timeout_sec=timeout_sec,
+            what="Test tone",
+        )
+
+    async def play_announcement(
+        self,
+        clip_path: str,
+        sink_name: str | None = None,
+        *,
+        volume_percent: int = 100,
+        timeout_sec: float = 20.0,
+    ) -> None:
+        """Say one short phrase over whatever is playing.
+
+        A second client, like the test tone, and for the same reason: the
+        announcement must not take the player away from the music. The service
+        turns the music down around this call (see AudioService._handle_announce)
+        rather than pausing it - a radio stream cannot be resumed at a position.
+
+        The role is the one thing this does *not* share with the test tone.
+        Announcements run as ``Notification``, not ``Music``, because
+        WirePlumber remembers mute per role and the music role is the one this
+        service mutes: on a muted box every announcement would be swallowed -
+        including "the sound is off", which is the one sentence that exists for
+        exactly that moment. The sink is named explicitly, so the different role
+        changes which stream is muted and nothing about where it comes out.
+        """
+        await self._paplay(
+            clip_path,
+            sink_name=sink_name,
+            role=_PIPEWIRE_NOTIFICATION_ROLE,
+            app_name="minabox-announcement",
+            volume=_pa_volume(volume_percent),
+            timeout_sec=timeout_sec,
+            what="Announcement",
+        )
+
+    async def _paplay(
+        self,
+        path: str,
+        *,
+        sink_name: str | None,
+        role: str,
+        app_name: str,
+        volume: int,
+        timeout_sec: float,
+        what: str,
+    ) -> None:
+        """Play one file through paplay and wait for it to finish.
+
+        Shared by the test tone and the announcements. Both need a client of
+        their own that outlives neither the music nor the player, and both are
+        short enough to be waited out rather than tracked.
+        """
         if not os.environ.get("PULSE_SERVER"):
-            raise VLCError("PULSE_SERVER not set - cannot play the test tone")
+            raise VLCError(f"PULSE_SERVER not set - cannot play the {what.lower()}")
 
         cmd = [
             "paplay",
-            f"--property=media.role={_PIPEWIRE_MUSIC_ROLE}",
-            "--property=application.name=minabox-soundtest",
-            "--volume=65536",  # PA_VOLUME_NORM - full software gain
+            f"--property=media.role={role}",
+            f"--property=application.name={app_name}",
+            f"--volume={volume}",
         ]
         if sink_name:
             cmd += ["--device", sink_name]
-        cmd.append(tone_path)
+        cmd.append(path)
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -564,7 +638,7 @@ class VLCBackend(AudioBackend):
         except TimeoutError:
             proc.kill()
             await proc.wait()
-            raise VLCError("Test tone timed out") from None
+            raise VLCError(f"{what} timed out") from None
 
         if proc.returncode != 0:
             message = (stderr or b"").decode(errors="replace").strip()

@@ -14,6 +14,7 @@ REST API. Each service has its own version number and its own image
 | [led](led/README.md) | Output stage for the single-colour status LEDs. |
 | [display](display/README.md) | Output stage for the small I2C OLED (SSD1306, 128x64). |
 | [media-downloader](media-downloader/README.md) | Standalone service for local media import (audio track of a URL to MP3). |
+| [tts](tts/README.md) | Standalone service for the spoken announcements: turns a sentence into a cached WAV file, locally with Piper. |
 | [host-helper](host-helper/README.md) | The only service allowed to act on the host itself (move files, system actions). Called only internally by the backend. |
 | [shared-lib](shared-lib/README.md) | Shared Python building blocks (config, MQTT base, logging, health schemas). Not a service of its own, but a package. |
 
@@ -28,11 +29,12 @@ implementation.
 
 ## Optional components
 
-Five of these services are optional: `rfid`, `led`, `button`, `display` and
-`media-downloader`. They are Compose profiles (`COMPOSE_PROFILES` in `.env`),
-chosen during the install and changeable afterwards in the web interface under
-*Maintenance → Components*. Each one keeps its own version number and follows
-the box's update channel, exactly like the services that always run.
+Six of these services are optional: `rfid`, `led`, `button`, `display`,
+`media-downloader` and `tts`. They are Compose profiles (`COMPOSE_PROFILES` in
+`.env`), chosen during the install and changeable afterwards in the web
+interface under *Maintenance → Components*. Each one keeps its own version
+number and follows the box's update channel, exactly like the services that
+always run.
 
 The web interface shows them as a catalogue: the components this box does not
 have are listed too, with what they are for, what hardware they need and
@@ -65,7 +67,10 @@ A separate container is worth it when something brings a **heavy or risky
 dependency** that should not sit in the backend image for everyone. The media
 downloader is the model: `yt-dlp` and `ffmpeg` are large, change often and
 touch the open internet, and a box whose owner never imports media should not
-carry them at all. Hardware is the second reason: `rfid`, `led`, `button` and
+carry them at all. The `tts` service is the same case without the internet: a
+Piper binary with a bundled ONNX runtime and a voice model per language is
+about a hundred megabytes that a box which never switches announcements on has
+no reason to carry. Hardware is the second reason: `rfid`, `led`, `button` and
 `display` each own one piece of hardware and are useless — and permanently
 restarting — without it.
 

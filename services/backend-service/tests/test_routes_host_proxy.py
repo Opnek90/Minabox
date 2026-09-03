@@ -386,6 +386,7 @@ async def test_components_without_the_helper_do_not_break_the_page(no_api_key):
         "button",
         "display",
         "media",
+        "voice",
     }
     assert got["unreachable"] is True
 

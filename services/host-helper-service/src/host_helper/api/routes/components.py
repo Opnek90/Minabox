@@ -1,9 +1,9 @@
 """Adding and removing the optional components of a box.
 
-Card reader, LEDs, buttons, display and media import are compose profiles
-(``COMPOSE_PROFILES`` in ``.env``). Until now the only way to change that
-choice after the install was an SSH session and the maintenance menu of
-``install.sh``; this module is what puts it in the WebUI instead.
+Card reader, LEDs, buttons, display, media import and announcements are
+compose profiles (``COMPOSE_PROFILES`` in ``.env``). Until now the only way to
+change that choice after the install was an SSH session and the maintenance
+menu of ``install.sh``; this module is what puts it in the WebUI instead.
 
 Three things have to happen for one changed checkbox, and they are the reason
 this is not simply a write into ``.env``:
@@ -49,14 +49,15 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 
-# Compose profile -> the service behind it. Only "media" carries a different
-# name; everything else is called after its profile.
+# Compose profile -> the service behind it. "media" and "voice" carry a
+# different name; everything else is called after its profile.
 PROFILE_SERVICES: dict[str, str] = {
     "rfid": "rfid",
     "led": "led",
     "button": "button",
     "display": "display",
     "media": "media-downloader",
+    "voice": "tts",
 }
 
 

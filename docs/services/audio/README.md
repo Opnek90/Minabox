@@ -13,7 +13,7 @@ display can follow along.
 | Compose service | `audio` (no profile — always on) |
 | Runtime | Python 3.13, asyncio, FastAPI/uvicorn, libVLC |
 | Speaks | MQTT; REST on `8003` (host `127.0.0.1:8003`) |
-| Needs | MQTT broker, the host's PulseAudio/PipeWire socket, `/mnt/audio` read-only |
+| Needs | MQTT broker, the host's PulseAudio/PipeWire socket, `/mnt/audio` read-only, `/announcements` read-only |
 
 ## 1. Purpose & Responsibility
 
@@ -312,6 +312,7 @@ Error codes actually emitted: `playback_error`, `volume_error`,
 | `audio/volume-up` | `{step?}` (default 5) | raise volume |
 | `audio/volume-down` | `{step?}` (default 5) | lower volume |
 | `audio/mute-toggle` | – | mute / unmute |
+| `audio/announce` | `{source_uri, duck_percent?, volume_percent?}` | duck the music, play one spoken clip over it, put the level back (see 4.4) |
 | `audio/switch-device` | `{sink_name?, alsa_device?, direction?}` | switch output sink |
 | `audio/config/update` | full `audio.json` | validate and write the config file |
 | `audio/config/reload` | – | re-read the file, re-init VLC if the device changed |
@@ -429,6 +430,39 @@ music is playing. Unknown sinks are rejected with HTTP 404, because `paplay`
 reports no error for them — it falls back to the default output silently, which
 in the wizard would mean the user selects output A, hears output B and believes
 A is verified.
+
+### 4.4 Spoken announcements
+
+`audio/announce` plays one short clip — a card name, "I do not know this
+card", a warning before the listening time is over — over whatever is running.
+The backend decides the sentence and has the clip made
+([tts service](../tts/README.md)); `source_uri` is a path into the shared clip
+volume, mounted read-only here at `/announcements`. Nothing is synthesised in
+this service.
+
+**Ducking, not pausing.** A pause would have to be undone at a position, and a
+radio stream has none — it would come back at "now", which for a story is the
+wrong place and for a live stream is not even defined. Turning the music down
+to `duck_percent` of its current level and back up needs no memory of where
+anything was, and it is what a person in the room would do. `duck_percent: 100`
+switches ducking off; with nothing playing there is no level to touch and none
+is written.
+
+**A different media role.** The clip runs through `paplay` as `Notification`,
+not `Music` — the test tone's reasoning about a second client applies
+unchanged, but the role does not. WirePlumber remembers mute *per role*, and
+`Music` is the role this service mutes: on a muted box every announcement would
+be swallowed, including "the sound is off", which is the one sentence that
+exists for exactly that moment. The configured sink is named explicitly on the
+command line, so the different role changes which stream is muted and nothing
+about where the phrase comes out.
+
+**The level always comes back.** Restoring runs in a `finally`, including for a
+clip that failed or timed out: a phrase that does not come out is a missed
+courtesy, while music left at 30 % looks like a broken speaker and becomes a
+support case. While a clip is running the periodic status publish is held off,
+so the ducked level never reaches the WebUI slider as a value somebody set;
+anything that really changes state still publishes.
 
 ## 5. Configuration
 
@@ -563,6 +597,7 @@ PYTHONPATH=$(ls -d services/*/src | tr '\n' ':') .venv/bin/python -m pytest serv
 | `test_seek_position.py` | seeking, and waiting for VLC to confirm the jump |
 | `test_output_device_health.py` | `/health` when the configured sink is gone, and when the lookup itself fails |
 | `test_troubleshoot.py` | the repair chain: idempotence, "only what is demonstrably wrong", the fallback |
+| `test_announce_command.py` | the announcement: ducking, the level always coming back, no overlap, a malformed payload |
 
 The VLC backend itself is only covered where it can run without libVLC.
 
@@ -581,6 +616,7 @@ The VLC backend itself is only covered where it can run without libVLC.
 | I want to … | Start in | Also touch |
 | --- | --- | --- |
 | add an MQTT command | `core/mqtt_handler.py` (routing + payload validation) | a handler in `core/service.py`, the subscription list in `infrastructure/mqtt_client.py`, table 4.2, the backend's publisher |
+| change how an announcement is mixed in | `core/service.py` (`_handle_announce`) | `test_announce_command.py`, section 4.4 — the restore path is the part that must not break |
 | add a status field | `infrastructure/audio_backend.py` (`AudioStatus`) | the publish in `core/service.py`, **the fingerprint** if it should trigger a publish, table 4.1, and every consumer (backend WS, display, LED, WebUI) |
 | change playback behaviour | `infrastructure/vlc_backend.py` | `test_seek_position.py`; the pause/resume workarounds in 3.1 exist for measured reasons |
 | add a REST endpoint | `api/routes.py` + `models/schemas.py` | the backend proxy route if the WebUI needs it, table 4.3 |
@@ -610,6 +646,11 @@ The VLC backend itself is only covered where it can run without libVLC.
   corrupted the VLC pipeline; that is what the lock and the cancel are for.
 - **The test tone plays under the music role, at forced volume.** Any other
   role tests a path that cannot fail the way the music fails.
+- **An announcement plays under the *notification* role, on the named sink.**
+  The music role is the one this service mutes, and WirePlumber remembers mute
+  per role — under `Music` a muted box would swallow "the sound is off".
+- **The ducked volume is always restored, in a `finally`.** Music left quiet by
+  a failed announcement is indistinguishable from a broken speaker.
 
 ## 10. Related Documents
 

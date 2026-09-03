@@ -101,6 +101,7 @@ services:
       - WEB_AUTH_SECRET=${WEB_AUTH_SECRET:-}
       - ALLOWED_AUDIO_PATHS=${ALLOWED_AUDIO_PATHS:-/media,/mnt,/home/pi}
       - MEDIA_DOWNLOADER_URL=http://media-downloader:8007
+      - TTS_SERVICE_URL=http://tts:8008
       - HOST_DIAG_ROOT=/host
       # Where the update check reads the release manifest. Set here so a running
       # container picks up a moved path on a plain `compose up -d`, without
@@ -245,6 +246,14 @@ services:
       - ./services/audio-service/config:/app/config
       - ./services/audio-service/state:/app/state
       - ${AUDIO_FILES_PATH:-./audio}:/mnt/audio:ro
+      # The spoken announcements. Mounted at the same path as in the tts
+      # service, so the clip path in the MQTT command is one this player can
+      # open; read-only, because only the tts service ever writes here. A named
+      # volume rather than a directory under ./data: the clips are a cache, not
+      # data - throwing them away costs the next announcement a second - and a
+      # bind mount that Docker has to create would land on the host as root,
+      # which is exactly the directory the tts service then cannot write to.
+      - announcements:/announcements:ro
       - /run/user/${HOST_UID:-1000}/pulse:/run/user/${HOST_UID:-1000}/pulse:ro
     networks:
       - minabox-network
@@ -538,12 +547,55 @@ services:
       retries: 3
       start_period: 15s
 
+  # =================================
+  # TTS Service (optional: spoken announcements)
+  # =================================
+  tts:
+    profiles: ["voice"]
+    image: ghcr.io/opnek90/minabox-tts:${MINABOX_TTS_TAG:-${MINABOX_IMAGE_TAG:-latest}}
+    build:
+      context: ./services
+      dockerfile: tts-service/Dockerfile
+    container_name: minabox-tts
+    logging: *default-logging
+    restart: unless-stopped
+    ports:
+      # Bound to localhost, like the other internal services: the API is
+      # unauthenticated and synthesising is CPU work on a Raspberry Pi. The
+      # backend reaches it over the compose network (http://tts:8008);
+      # diagnosis with curl on the box stays possible.
+      - "127.0.0.1:8008:8008"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:?LOG_LEVEL must be set in .env}
+      - TTS_CACHE_DIR=/announcements
+    volumes:
+      # Writable here, read-only in the audio service - the same volume at the
+      # same path, so a clip can be named rather than copied.
+      - announcements:/announcements
+    networks:
+      - minabox-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
 networks:
   minabox-network:
     driver: bridge
     name: minabox-network
 
 volumes:
+  # The synthesised phrases. A cache, not data: throwing them away costs the
+  # next announcement a second. Both the tts and the audio image create
+  # /announcements owned by uid 1000, so whichever container mounts the empty
+  # volume first leaves it writable for the tts service.
+  announcements:
+    name: minabox-announcements
   mosquitto_data:
     name: minabox-mosquitto-data
   mosquitto_log:

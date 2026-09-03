@@ -22,6 +22,17 @@ from backend_service.core.analytics_retention import (
 from backend_service.core.analytics_retention import (
     MAX_RETENTION_WEEKS as MAX_ANALYTICS_RETENTION_WEEKS,
 )
+from backend_service.core.announcements import DEFAULTS as announcement_defaults
+from backend_service.core.announcements import (
+    clamp_language as clamp_announcement_language,
+)
+from backend_service.core.announcements import (
+    clamp_percent as clamp_announcement_percent,
+)
+from backend_service.core.announcements import clamp_warning_minutes
+from backend_service.core.announcements import (
+    read_settings as read_announcement_settings,
+)
 from backend_service.core.api_errors import ApiError
 from backend_service.core.capabilities import require_feature
 from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
@@ -138,6 +149,27 @@ def _clamp_retention_weeks(value: Any) -> int:
         return DEFAULT_ANALYTICS_RETENTION_WEEKS
 
 
+def _announcement_settings_read() -> dict:
+    """The announcement settings as the feature itself sees them.
+
+    Read through ``core/announcements.py`` rather than off the raw file, so
+    the form shows exactly the values the box will act on - including its
+    defaults for a setting nobody has touched yet.
+    """
+    settings = read_announcement_settings()
+    return {
+        "announcements_enabled": settings.enabled,
+        "announce_card_name": settings.card_name,
+        "announce_unknown_card": settings.unknown_card,
+        "announce_usage_limit": settings.usage_limit,
+        "announce_mute": settings.mute,
+        "announce_language": settings.language,
+        "announce_volume_percent": settings.volume_percent,
+        "announce_duck_percent": settings.duck_percent,
+        "announce_limit_warning_minutes": settings.limit_warning_minutes,
+    }
+
+
 def _general_settings_read() -> dict:
     """Return current general settings (runtime config + env)."""
     config = get_config()
@@ -164,6 +196,10 @@ def _general_settings_read() -> dict:
     media_import_allowed_domains = sorted(DEFAULT_ALLOWED_DOMAINS)
     online_metadata_lookup_enabled = False
     analytics_retention_weeks = DEFAULT_ANALYTICS_RETENTION_WEEKS
+    # Spoken announcements. Read through the feature's own reader, which
+    # brings its defaults and clamps with it - so the form and the code that
+    # acts on the values cannot drift apart.
+    announcements = _announcement_settings_read()
     if GENERAL_SETTINGS_PATH.exists():
         try:
             data = json.loads(GENERAL_SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -232,6 +268,7 @@ def _general_settings_read() -> dict:
         "media_import_allowed_domains": media_import_allowed_domains,
         "online_metadata_lookup_enabled": online_metadata_lookup_enabled,
         "analytics_retention_weeks": analytics_retention_weeks,
+        **announcements,
     }
 
 
@@ -277,6 +314,16 @@ async def update_general_config(body: dict) -> dict:
         "media_import_allowed_domains",
         "online_metadata_lookup_enabled",
         "analytics_retention_weeks",
+        # Spoken announcements (core/announcements.py).
+        "announcements_enabled",
+        "announce_card_name",
+        "announce_unknown_card",
+        "announce_usage_limit",
+        "announce_mute",
+        "announce_language",
+        "announce_volume_percent",
+        "announce_duck_percent",
+        "announce_limit_warning_minutes",
         # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
         # keys the filter below drops them silently, and the wizard would come
         # back on every visit.
@@ -340,6 +387,28 @@ async def update_general_config(body: dict) -> dict:
     if "online_metadata_lookup_enabled" in data:
         data["online_metadata_lookup_enabled"] = bool(
             data["online_metadata_lookup_enabled"]
+        )
+    for key in (
+        "announcements_enabled",
+        "announce_card_name",
+        "announce_unknown_card",
+        "announce_usage_limit",
+        "announce_mute",
+    ):
+        if key in data:
+            data[key] = bool(data[key])
+    if "announce_language" in data:
+        data["announce_language"] = clamp_announcement_language(
+            data["announce_language"]
+        )
+    for key in ("announce_volume_percent", "announce_duck_percent"):
+        if key in data:
+            data[key] = clamp_announcement_percent(
+                data[key], int(announcement_defaults[key])
+            )
+    if "announce_limit_warning_minutes" in data:
+        data["announce_limit_warning_minutes"] = clamp_warning_minutes(
+            data["announce_limit_warning_minutes"]
         )
     try:
         GENERAL_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)

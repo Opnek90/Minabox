@@ -23,8 +23,9 @@ import { SystemMaintenanceSection } from '@/components/admin/SystemMaintenanceSe
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import { SettingsSection } from '@/components/admin/SettingsSection';
 import {
-  AdvancedSettingsForm, AudioConfigForm, DesignSettingsForm, MediaImportDomainsForm, MediaPathForm,
-  PlaybackSettingsForm, RFIDConfigForm, SleepTimerSettingsForm, UploadLimitForm,
+  AdvancedSettingsForm, AnnouncementSettingsForm, AudioConfigForm, DesignSettingsForm,
+  MediaImportDomainsForm, MediaPathForm, PlaybackSettingsForm, RFIDConfigForm,
+  SleepTimerSettingsForm, UploadLimitForm,
 } from '@/components/admin/ConfigForm';
 import {
   SETTINGS_INDEX, SETTINGS_SECTIONS, sectionDomId,
@@ -47,6 +48,7 @@ const SECTION_CONTENT: Record<string, React.ReactNode> = {
       <BluetoothSection />
     </>
   ),
+  announcements: <AnnouncementSettingsForm />,
   playback: <PlaybackSettingsForm />,
   sleep: <SleepTimerSettingsForm />,
   design: <DesignSettingsForm />,

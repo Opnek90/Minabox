@@ -64,6 +64,7 @@ default for the web interface.
 | Buttons / rotary encoder | on-device controls | GPIO |
 | OLED display | title, clock, volume | SSD1306 on I2C |
 | Media import | pull media from a URL into the library | none |
+| Announcements | say short things out loud instead of only blinking | none |
 
 MQTT, backend, host-helper, audio and the web UI always run and are not
 optional. Only select what you have actually connected — a selected component

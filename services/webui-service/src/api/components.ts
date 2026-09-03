@@ -17,7 +17,7 @@ import type { FeatureKey } from './capabilities';
  */
 
 /** The compose profile, which is what the API speaks in. */
-export type ComponentProfile = 'rfid' | 'led' | 'button' | 'display' | 'media';
+export type ComponentProfile = 'rfid' | 'led' | 'button' | 'display' | 'media' | 'voice';
 
 /** Profile -> feature key of the capabilities endpoint. Only `media` differs. */
 export const PROFILE_FEATURE: Record<ComponentProfile, FeatureKey> = {
@@ -26,6 +26,7 @@ export const PROFILE_FEATURE: Record<ComponentProfile, FeatureKey> = {
   button: 'button',
   display: 'display',
   media: 'media_downloader',
+  voice: 'voice',
 };
 
 /**
