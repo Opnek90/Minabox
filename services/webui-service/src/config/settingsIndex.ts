@@ -162,12 +162,43 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         searchKeys: ['system.usb_devices', 'system.usb_import'],
       },
       {
+        // The switch for looking things up online left this section - it is an
+        // addon and lives in that table now. What stays is the one-off catch-up
+        // for tracks that were imported earlier, and that belongs here rather
+        // than with the addon: it reads the tags out of the files whether the
+        // online lookup is switched on or not.
         key: 'media_metadata',
-        titleKey: 'general.online_metadata_title',
+        titleKey: 'general.metadata_section_title',
         searchKeys: [
-          'general.online_metadata_label',
           'general.metadata_backfill_title',
           'general.metadata_backfill_start',
+        ],
+      },
+    ],
+  },
+  {
+    // Adding and removing what the box can do at all - deliberately its own
+    // group and no longer a block inside "Maintenance", where it sat between
+    // backup and factory reset. Maintenance is "I am repairing something",
+    // addons is "I am extending my box"; the two do not belong to the same
+    // question.
+    key: 'addons',
+    labelKey: 'groups.addons',
+    sections: [
+      {
+        key: 'addons',
+        titleKey: 'addons.title',
+        searchKeys: [
+          'addons.catalogue_title',
+          'addons.category_hardware',
+          'addons.category_software',
+          'system.component_rfid',
+          'system.component_led',
+          'system.component_button',
+          'system.component_display',
+          'system.component_media',
+          'system.component_voice',
+          'system.component_metadata',
         ],
       },
     ],
@@ -233,12 +264,6 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
           'system.update_minabox',
           'system.update_os',
           'system.cleanup',
-          'system.components_title',
-          'system.component_rfid',
-          'system.component_led',
-          'system.component_button',
-          'system.component_display',
-          'system.component_media',
           'system.restart',
           'system.reboot',
           'system.shutdown',

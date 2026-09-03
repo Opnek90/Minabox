@@ -12,19 +12,16 @@ import { SectionTabs } from '@/components/common/SectionTabs';
 import { SETTINGS_GROUP_ICONS } from '@/components/admin/settingsIcons';
 import { SecurityPanel } from '@/components/admin/SecurityPanel';
 import { BluetoothSection } from '@/components/admin/BluetoothSection';
-import { BoardLedsToggle } from '@/components/admin/BoardLedsToggle';
-import { LEDConfigPanel } from '@/components/admin/LEDConfigPanel';
-import { ButtonConfigPanel } from '@/components/admin/ButtonConfigPanel';
-import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
 import { NetworkPanel } from '@/components/admin/NetworkPanel';
 import { UsbImportPanel } from '@/components/admin/UsbImportPanel';
-import { MediaMetadataPanel } from '@/components/admin/MediaMetadataPanel';
 import { SystemMaintenanceSection } from '@/components/admin/SystemMaintenanceSection';
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import { SettingsSection } from '@/components/admin/SettingsSection';
+import { AddonsPanel } from '@/components/admin/addons/AddonsPanel';
+import { ADDON_SETTINGS_CONTENT } from '@/config/addonSettings';
 import {
-  AdvancedSettingsForm, AnnouncementSettingsForm, AudioConfigForm, DesignSettingsForm,
-  MediaImportDomainsForm, MediaPathForm, PlaybackSettingsForm, RFIDConfigForm,
+  AdvancedSettingsForm, AudioConfigForm, DesignSettingsForm,
+  MediaPathForm, PlaybackSettingsForm,
   SleepTimerSettingsForm, UploadLimitForm,
 } from '@/components/admin/ConfigForm';
 import {
@@ -42,31 +39,26 @@ import { useCapabilities } from '@/contexts/CapabilitiesContext';
 import { SetupWizardRestart } from '@/components/admin/SetupWizardRestart';
 
 const SECTION_CONTENT: Record<string, React.ReactNode> = {
+  // The panels that belong to one addon each. They are kept in their own
+  // module because the gear button of an addon row opens the very same panel
+  // in a dialog - one source, two ways in. Only the sections that are in
+  // `settingsIndex` are rendered here, so `media_metadata` (which is only an
+  // addon dialog now) simply never comes up.
+  ...ADDON_SETTINGS_CONTENT,
   audio: (
     <>
       <AudioConfigForm />
       <BluetoothSection />
     </>
   ),
-  announcements: <AnnouncementSettingsForm />,
   playback: <PlaybackSettingsForm />,
   sleep: <SleepTimerSettingsForm />,
   design: <DesignSettingsForm />,
-  rfid: <RFIDConfigForm />,
-  buttons: <ButtonConfigPanel />,
-  leds: (
-    <>
-      <LEDConfigPanel />
-      <BoardLedsToggle />
-    </>
-  ),
-  display: <DisplayConfigPanel />,
+  addons: <AddonsPanel />,
   network: <NetworkPanel />,
   media_path: <MediaPathForm />,
   upload_limit: <UploadLimitForm />,
-  media_import_domains: <MediaImportDomainsForm />,
   usb: <UsbImportPanel />,
-  media_metadata: <MediaMetadataPanel />,
   maintenance: <SystemMaintenanceSection />,
   security: <SecurityPanel />,
   advanced: <AdvancedSettingsForm />,
@@ -146,6 +138,13 @@ const MobileLayout: React.FC<LayoutProps> = ({
           key={group.key}
           expanded={activeGroupKey === group.key}
           onChange={(_, isExpanded) => onActiveGroupChange(isExpanded ? group.key : null)}
+          // A collapsed group is *gone*, not just hidden. Without this every
+          // group renders its panels at once - eleven of them, each with its
+          // own API call, on a phone talking to a Raspberry Pi. It also keeps
+          // a panel from existing twice: the gear button of an addon row opens
+          // the same component in a dialog, and two live copies of one form
+          // would each hold their own idea of the current value.
+          TransitionProps={{ unmountOnExit: true }}
           disableGutters
           sx={{
             '&:before': { display: 'none' },

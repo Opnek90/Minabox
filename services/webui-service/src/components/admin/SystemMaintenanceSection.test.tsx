@@ -33,23 +33,6 @@ vi.mock('@/api/system', () => ({
   },
 }));
 
-// The section also carries the component switches, which read from their own
-// endpoint the moment they render. Unmocked they would go out over axios.
-vi.mock('@/api/components', () => ({
-  PROFILE_FEATURE: {
-    rfid: 'rfid',
-    led: 'led',
-    button: 'button',
-    display: 'display',
-    media: 'media_downloader',
-  },
-  componentsApi: {
-    get: () => Promise.resolve({ components: [], profiles: [], busy: false }),
-    put: vi.fn(),
-    getStatus: vi.fn(),
-  },
-}));
-
 vi.mock('@/api/config', () => ({
   configApi: {
     getGeneral: (...a: unknown[]) => getGeneral(...a),

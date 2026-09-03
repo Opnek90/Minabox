@@ -1,29 +1,25 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, FormControlLabel, LinearProgress, Switch, Typography } from '@mui/material';
+import { Box, LinearProgress, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
-import { useGeneralConfigField } from '@/hooks/useGeneralConfig';
 import { tracksApi } from '@/api/tracks';
 import { translateApiError } from '@/utils/apiError';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import type { MetadataBackfillStatus } from '@/types/api';
-import { HelpLabel } from '@/components/ui/HelpTip';
 
 /**
- * Two things that belong together: whether the box may ask MusicBrainz for
- * artist/album/cover, and a one-off action that fills those fields for tracks
- * that were imported before this feature existed.
+ * The one-off action that fills artist/album/cover for tracks imported before
+ * online metadata was switched on.
+ *
+ * Whether the box may ask MusicBrainz at all used to be a switch right above
+ * this - it is the addon itself now, and lives as a row in the addons table
+ * (`components/admin/addons`). Keeping a second copy of it here would have
+ * meant two switches for one setting on two pages.
  */
 export const MediaMetadataPanel: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const { showError, showSuccess } = useToast();
-
-  const {
-    value: onlineEnabled,
-    setValue: setOnlineEnabled,
-    save: saveOnlineEnabled,
-  } = useGeneralConfigField('online_metadata_lookup_enabled', false);
 
   const [status, setStatus] = useState<MetadataBackfillStatus | null>(null);
   const [starting, setStarting] = useState(false);
@@ -65,16 +61,6 @@ export const MediaMetadataPanel: React.FC = () => {
     }
   }, [status?.running, poll]);
 
-  const handleOnlineToggle = async (checked: boolean) => {
-    setOnlineEnabled(checked);
-    try {
-      await saveOnlineEnabled();
-    } catch (err) {
-      setOnlineEnabled(!checked);
-      showError(translateApiError(t, i18n, err));
-    }
-  };
-
   const handleBackfill = async () => {
     setStarting(true);
     try {
@@ -91,25 +77,6 @@ export const MediaMetadataPanel: React.FC = () => {
 
   return (
     <Box display="flex" flexDirection="column" gap={2}>
-      <SettingsBlock title={t('general.online_metadata_title')}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={onlineEnabled ?? false}
-              onChange={(_, checked) => void handleOnlineToggle(checked)}
-              color="primary"
-            />
-          }
-          label={
-            <HelpLabel
-              text={t('general.online_metadata_label')}
-              help={t('general.online_metadata_hint')}
-            />
-          }
-          sx={{ display: 'block' }}
-        />
-      </SettingsBlock>
-
       <SettingsBlock
         title={t('general.metadata_backfill_title')}
         help={t('general.metadata_backfill_hint')}
