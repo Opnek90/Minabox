@@ -27,19 +27,25 @@ and a section on where to make changes. It is defined in
 [_TEMPLATE.md](_TEMPLATE.md); [rfid](rfid/README.md) is the reference
 implementation.
 
-## Optional components
+## Addons
 
-Six of these services are optional: `rfid`, `led`, `button`, `display`,
+**Addon** is the word on screen, **component** the word in the code. They mean
+the same thing — something the box can be given or have taken away — and the
+split is only which audience is reading: the API route is `/system/components`
+and the Compose profiles keep the names they have always had, while the web
+interface says *Settings → Addons* throughout. Two words for one thing in one
+sentence is what we are avoiding, not two words in two places.
+
+Six services are optional: `rfid`, `led`, `button`, `display`,
 `media-downloader` and `tts`. They are Compose profiles (`COMPOSE_PROFILES` in
-`.env`), chosen during the install and changeable afterwards in the web
-interface under *Maintenance → Components*. Each one keeps its own version
-number and follows the box's update channel, exactly like the services that
-always run.
+`.env`), chosen during the install and changeable afterwards. Each one keeps
+its own version number and follows the box's update channel, exactly like the
+services that always run.
 
-The web interface shows them as a catalogue: the components this box does not
-have are listed too, with what they are for, what hardware they need and
-whether they need the internet — otherwise the only way to find out is this
-documentation, and a component nobody finds might as well not exist. The
+The web interface shows them as a catalogue: the addons this box does not have
+are listed too, with what they are for, what hardware they need and whether
+they need the internet — otherwise the only way to find out is this
+documentation, and an addon nobody finds might as well not exist. The
 descriptions live in
 [`services/backend-service/src/backend_service/resources/components.json`](../../services/backend-service/src/backend_service/resources/components.json),
 in German and English. The backend ships that file inside its image, so the
@@ -47,19 +53,49 @@ catalogue also works on a box that has never reached the internet, and
 publishes a copy in `release/release-manifest.json` so a description can be
 corrected without a new backend image.
 
-Adding a component to the catalogue does not need a web-interface release: the
-name and the description travel with the API answer, so a component the browser
+Adding an addon to the catalogue does not need a web-interface release: the
+name and the description travel with the API answer, so an addon the browser
 build has never heard of still appears under its own name. What it does need is
 a backend that knows the profile (`core/capabilities.py`, plus its entry in
 `components.json`), a host-helper that knows the service
 (`routes/components.py`) and the Compose file on the box — which arrives with
 the `git pull` at the start of every update run. A web-interface release is
-only needed when the component brings settings of its own.
+only needed when the addon brings a settings panel of its own; `settings_section`
+in the catalogue names the panel it wants, and an addon whose panel this build
+does not have shows its description instead of nothing.
 
-Switching a component on pulls its image straight away and starts it; there is
+Switching an addon on pulls its image straight away and starts it; there is
 no waiting for the next update run. The card reader and the display need I2C,
 which only appears as `/dev/i2c-1` after a reboot — the run says so and starts
 the rest.
+
+### Two ways to switch one on
+
+The catalogue carries *how* an addon is installed as a field (`install`), not
+as a boundary:
+
+| `install` | what happens | example |
+| --- | --- | --- |
+| `{"type": "profile"}` | `COMPOSE_PROFILES` is rewritten, containers are recreated, services restart | card reader, announcements |
+| `{"type": "setting", "field": ...}` | one field of `general_settings.json` is written; effective at once | online metadata |
+
+That is deliberate. Whether something needs a container of its own is a
+decision about how *we* build (see below), and for whoever runs the box it is
+not a difference at all: "online metadata" and "media import" are both optional
+functions that talk to the internet, and which of the two happens to need
+`yt-dlp` is nothing anyone should have to know. So the rows look the same, and
+only the confirmation differs — a compose addon collects several switches into
+one run with a restart, a setting addon is written the moment it is flipped,
+because there is no run to collect it into.
+
+A setting addon is only offered when its field is in `WRITABLE_KEYS`
+(`core/general_settings.py`). A switch that can be flipped but never saved is
+worse than an addon that is not there.
+
+The other half of a catalogue entry is `category`: `hardware` when the user has
+to get hold of an accessory, `software` when they do not. That — not the
+container — is what the addons page sorts by, because it is the one property of
+an addon that costs money and a screwdriver.
 
 ### What earns a container of its own
 
@@ -74,14 +110,23 @@ no reason to carry. Hardware is the second reason: `rfid`, `led`, `button` and
 `display` each own one piece of hardware and are useless — and permanently
 restarting — without it.
 
-Pure logic plus a settings form is **not** a component. It belongs in the core,
-behind a switch in the web interface: a container costs memory on a Raspberry
-Pi, a place in the update matrix, its own version number and an MQTT
+Pure logic plus a settings form earns **no** container. It belongs in the core,
+behind a field in `general_settings.json`: a container costs memory on a
+Raspberry Pi, a place in the update matrix, its own version number and an MQTT
 conversation, and none of that is paid for by a feature that is only a few
 hundred lines of Python.
 
-Third-party add-ons are out of scope. Accepting somebody else's container would
+It can still be an addon, though — that is what `install: {"type": "setting"}`
+is for. The two questions are separate: *does this earn a container* is decided
+here, *is this an addon* is decided by whether a whole function is missing
+without it and whether it needs explaining (an accessory, the internet, or data
+leaving the box). Online metadata answers yes to both and has no container.
+Sleep timer, stealth mode and the update check answer no to the first — they
+change how something existing behaves — and stay ordinary settings, or the
+addons page turns into a second settings page.
+
+Third-party addons are out of scope. Accepting somebody else's container would
 need a stable public API with token scopes, MQTT ACLs — the broker currently
 runs with `allow_anonymous true` and no topic restrictions — and a way for an
-add-on to bring its own interface without shipping React. None of that pays off
-while every component comes from this repository.
+addon to bring its own interface without shipping React. None of that pays off
+while every addon comes from this repository.

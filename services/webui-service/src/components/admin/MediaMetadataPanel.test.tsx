@@ -17,23 +17,12 @@ const idle: MetadataBackfillStatus = {
 
 const backfillMetadata = vi.fn().mockResolvedValue(undefined);
 const getBackfillStatus = vi.fn().mockResolvedValue(idle);
-const saveOnline = vi.fn().mockResolvedValue(undefined);
-const setOnline = vi.fn();
 
 vi.mock('@/api/tracks', () => ({
   tracksApi: {
     backfillMetadata: () => backfillMetadata(),
     getBackfillStatus: () => getBackfillStatus(),
   },
-}));
-vi.mock('@/hooks/useGeneralConfig', () => ({
-  useGeneralConfigField: () => ({
-    value: false,
-    setValue: setOnline,
-    save: saveOnline,
-    saving: false,
-    error: null,
-  }),
 }));
 vi.mock('@/contexts/ToastContext', () => ({
   useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
@@ -47,13 +36,22 @@ describe('MediaMetadataPanel', () => {
   beforeEach(() => {
     backfillMetadata.mockClear();
     getBackfillStatus.mockClear();
-    saveOnline.mockClear();
   });
 
-  it('renders the online toggle and reads the current backfill status on mount', async () => {
+  it('reads the current backfill status on mount', async () => {
+    // A run started in another tab (or still going from a previous visit) has
+    // to show up here too.
     render(<MediaMetadataPanel />);
-    expect(screen.getByText('general.online_metadata_label')).toBeInTheDocument();
     await waitFor(() => expect(getBackfillStatus).toHaveBeenCalled());
+  });
+
+  it('does not carry a switch for the addon itself', async () => {
+    // Whether the box may ask MusicBrainz is the addon, and its switch is the
+    // row in the addons table. A second one here would be two switches for one
+    // setting on two pages.
+    render(<MediaMetadataPanel />);
+    await waitFor(() => expect(getBackfillStatus).toHaveBeenCalled());
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
   it('starts the backfill when the button is pressed', async () => {
