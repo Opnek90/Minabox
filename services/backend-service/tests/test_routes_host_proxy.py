@@ -348,6 +348,135 @@ async def test_rollback_without_a_service_is_rejected(api_key):
     assert exc.value.status_code == 400
 
 
+# ── Abhaengigkeiten zwischen Diensten (#194) ─────────────────────────────────
+
+# Two ends of the same question. An update waits when the box is too old for
+# it; a step back is refused when it would make the box too old for something
+# that is already running.
+
+
+def _requiring_history() -> list[dict]:
+    return [
+        {
+            "started_at": "2026-09-01T10:00:00+00:00",
+            "kind": "update",
+            "previous": {"backend": "0.3.0"},
+            "targets": {"backend": "0.4.0"},
+            "schema_version": rh.SCHEMA_VERSION,
+        }
+    ]
+
+
+def test_a_step_back_that_would_strand_another_service_is_blocked():
+    candidates = rh._rollback_candidates(
+        _requiring_history(),
+        {"backend": "0.4.0", "media-downloader": "0.2.2"},
+        {"media-downloader": {"backend": "0.4.0"}},
+    )
+
+    backend = next(c for c in candidates if c["service"] == "backend")
+    assert backend["allowed"] is False
+    assert backend["reason"] == "requires_unmet"
+    # Named, so the tooltip can say who is waiting for what.
+    assert backend["required_by"] == {"service": "media-downloader", "minimum": "0.4.0"}
+
+
+def test_a_step_back_the_requirement_still_covers_stays_open():
+    """0.3.0 is enough for what runs - there is nothing to protect here."""
+    candidates = rh._rollback_candidates(
+        _requiring_history(),
+        {"backend": "0.4.0", "media-downloader": "0.2.2"},
+        {"media-downloader": {"backend": "0.3.0"}},
+    )
+
+    assert candidates[0]["allowed"] is True
+    assert "required_by" not in candidates[0]
+
+
+def test_a_requirement_from_a_service_that_is_gone_blocks_nothing():
+    """Switched-off component: its container is not there to be stranded."""
+    candidates = rh._rollback_candidates(
+        _requiring_history(),
+        {"backend": "0.4.0"},
+        {"media-downloader": {"backend": "0.4.0"}},
+    )
+
+    assert candidates[0]["allowed"] is True
+
+
+def test_the_database_is_named_before_the_requirement():
+    """Both walls at once - the migration is the one worth reading about."""
+    entries = _requiring_history()
+    entries[0]["schema_version"] = rh.SCHEMA_VERSION - 1
+
+    candidates = rh._rollback_candidates(
+        entries,
+        {"backend": "0.4.0", "media-downloader": "0.2.2"},
+        {"media-downloader": {"backend": "0.4.0"}},
+    )
+
+    assert candidates[0]["reason"] == "schema_changed"
+
+
+@pytest.mark.asyncio
+async def test_rollback_refuses_to_strand_a_running_service(api_key, fake_helper, monkeypatch):
+    monkeypatch.setattr(
+        rh.update_check,
+        "declared_requirements",
+        lambda: {"media-downloader": {"backend": "0.4.0"}},
+    )
+    fake_helper(
+        lambda r: httpx.Response(
+            200,
+            json={
+                "entries": _requiring_history(),
+                "running": {"backend": "0.4.0", "media-downloader": "0.2.2"},
+            },
+        )
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await rh.rollback(rh.RollbackBody(services=["backend"]))
+
+    assert exc.value.status_code == 409
+    assert "media-downloader" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_a_targeted_update_takes_the_required_service_along(
+    api_key, fake_helper, monkeypatch
+):
+    """#194: a targeted update that leaves the requirement behind is not targeted."""
+    monkeypatch.setattr(
+        rh.update_check, "companions", lambda targets: {"backend": "0.4.0"}
+    )
+    state = fake_helper(lambda r: httpx.Response(200, json={"ok": True}))
+
+    await rh.update_minabox(rh.UpdateTargetsBody(targets={"media-downloader": "0.2.2"}))
+
+    import json as _json
+
+    body = _json.loads(state["requests"][0].content)
+    assert body["targets"] == {"media-downloader": "0.2.2", "backend": "0.4.0"}
+
+
+@pytest.mark.asyncio
+async def test_an_update_of_everything_needs_no_companions(api_key, fake_helper, monkeypatch):
+    """Without targets every service moves anyway; nothing to add."""
+    called = []
+    monkeypatch.setattr(
+        rh.update_check, "companions", lambda targets: called.append(targets) or {}
+    )
+    state = fake_helper(lambda r: httpx.Response(200, json={"ok": True}))
+
+    await rh.update_minabox(rh.UpdateTargetsBody(targets=None))
+
+    import json as _json
+
+    assert called == []
+    assert _json.loads(state["requests"][0].content)["targets"] is None
+
+
 # ── Optional components ──────────────────────────────────────────────────────
 
 

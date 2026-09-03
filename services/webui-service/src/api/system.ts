@@ -626,6 +626,15 @@ export interface ServiceUpdateInfo {
   pending_publish?: boolean;
   /** The channel the *running* build came from, not the one the box follows. */
   channel?: UpdateChannel;
+  /** Minimum version of other services the *running* build needs. */
+  requires?: Record<string, string>;
+  /** Services that go along in the same run so the new version can run at all. */
+  requires_pull?: Array<{ service: string; version: string }>;
+  /**
+   * Why the update is held back: what it needs and what the box has. Set
+   * instead of `update_available`, never next to it.
+   */
+  requires_unmet?: Array<{ service: string; minimum: string; installed: string }>;
 }
 
 export interface UpdateCheckResponse {
@@ -651,6 +660,8 @@ export interface RollbackCandidate {
   allowed: boolean;
   /** Why not, when `allowed` is false. Translated as system.rollback_reason_<code>. */
   reason: string | null;
+  /** With reason `requires_unmet`: the running service this step back would strand. */
+  required_by?: { service: string; minimum: string };
 }
 
 export interface UpdateHistoryResponse {

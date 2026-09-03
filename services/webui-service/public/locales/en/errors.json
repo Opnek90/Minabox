@@ -95,6 +95,7 @@
   "podcast_not_found": "Podcast not found",
   "rollback_failed": "Step back failed",
   "rollback_no_services": "No service named to step back",
+  "rollback_requires_unmet": "Step back not possible: another service needs a newer version of this one",
   "rollback_schema_changed": "Step back not possible: this update migrated the database",
   "rollback_unavailable": "No earlier version recorded for this service",
   "rfid_config_read_failed": "Could not read RFID configuration",

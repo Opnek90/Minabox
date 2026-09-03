@@ -25,7 +25,9 @@ import { HelpTip } from '@/components/ui/HelpTip';
  *
  * A service whose step back would cross a database migration is shown, but
  * its button is disabled and says why. Hiding it would leave the same question
- * unanswered ("why can I not go back?") one screen further away.
+ * unanswered ("why can I not go back?") one screen further away. The same goes
+ * for a step back that would drop the service below what another running
+ * service needs of it (#194) - that reason names the other service.
  */
 export const RollbackSection: React.FC<{
   candidates: RollbackCandidate[];
@@ -77,7 +79,12 @@ export const RollbackSection: React.FC<{
             title={
               candidate.allowed
                 ? ''
-                : t(`system.rollback_reason_${candidate.reason ?? 'unknown'}`)
+                : t(`system.rollback_reason_${candidate.reason ?? 'unknown'}`, {
+                    // Only "requires_unmet" reads these; the other reasons
+                    // are plain sentences and ignore them.
+                    service: candidate.required_by?.service ?? '',
+                    version: candidate.required_by?.minimum ?? '',
+                  })
             }
           >
             <span>

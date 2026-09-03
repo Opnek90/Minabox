@@ -381,7 +381,7 @@ service that still answers must not talk the entry back up into a milder state.
 Only entries that are **online** are probed, and all of them together.
 
 `core/update_check.py` compares the running versions against
-`release/release-manifest.json`. Two rules shape it:
+`release/release-manifest.json`. Three rules shape it:
 
 - **No network never means "update available".** If the fetch fails, the last
   known state is shown together with the error — never an update nobody could
@@ -390,6 +390,8 @@ Only entries that are **online** are probed, and all of them together.
   the images only when CI finishes. In that window the manifest knows a version
   the registry does not have yet, so every candidate is checked against the
   registry before it is offered.
+- **Never offer a combination nobody built.** A release may say what it needs
+  from the other services; see *Version dependencies* below.
 
 Results are cached for six hours. The background loop polls every 30 minutes,
 but only while the user has the automatic check switched on.
@@ -432,6 +434,31 @@ for; after a switch it counts as a miss rather than naming the wrong target.
 Switching back to stable is enough to be offered finished releases again, and
 the running build keeps showing which channel it came from.
 
+**Version dependencies.** Nine services move on their own, and until now
+nothing said that one version needs another. A release in the manifest may
+carry a `requires` block — `{"backend": ">=0.4.0"}`, the only expression
+allowed being a minimum version. It is written next to the service's `VERSION`
+in `requires.json`, keyed by the version it belongs to, and checked when the
+manifest is built (`scripts/build_manifest.py`), the way the addon catalogue
+already is.
+
+The check settles each requirement after the registry check — a candidate the
+registry does not have yet cannot satisfy anybody's — and there are three
+answers:
+
+- what runs today is already enough: nothing is said;
+- it is not, but the required service is being offered a version that is: it
+  travels along in the same run (`requires_pull` on the entry, expanded into
+  `targets` by `POST /system/update-minabox`, which has always taken several);
+- neither: the candidate is **not** offered, and says which service it is
+  waiting for and from which version (`requires_unmet`). That is the honest
+  answer while the other half is still building, and the shape is the one the
+  rollback lock already had.
+
+A required service this box does not have at all counts as met — there is no
+combination to split — and a requirement written in an expression this build
+cannot read is ignored rather than guessed at.
+
 **The way back.** `GET /system/update-history` reads the runs the host-helper
 recorded and works out, per service, the version it ran before the most recent
 change of it. `POST /system/rollback` puts the named services back on it, along
@@ -447,6 +474,21 @@ the older code would look for its data where the newer version no longer puts
 it. The candidate is still shown, with the reason; hiding it would leave the
 same question unanswered one screen further away. The other services do not
 read the database, so they stay free to move on their own.
+
+The second lock is the same version dependency read from the other end: a step
+back that would drop a service below what another *running* service asks of it
+is refused too (`reason: "requires_unmet"`, with `required_by` naming who is
+waiting). Where an update can usually satisfy a requirement by taking the other
+service along, a step back cannot — going forward to fix a step backwards is
+not a way back — so here the only answer is to refuse and say so. The database
+is named first when both apply: it is the harder wall of the two.
+
+What the running services require is read from the last update check rather
+than fetched again: pressing *step back* must not wait out a network timeout,
+and the maintenance page reads the check before it shows the candidates. On a
+box that has never run one there is no requirement it could know of, and the
+lock does not apply — the same "claim nothing without having looked" that
+governs the rest of this module.
 
 ### 3.8 Diagnosis
 
