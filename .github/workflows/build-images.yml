@@ -33,22 +33,11 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # ── Do the changelog and manifest match? ─────────────────────────────────
-  # Always runs, even when no service is built: a change to the changelog alone
-  # should be checked too. If it fails, nothing is built - a release without
-  # release notes is exactly what should be prevented.
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check changelog and manifest
-        run: python3 scripts/build_manifest.py --check
-
-  # ── Type check, lint, tests, i18n ────────────────────────────────────────
-  # The same workflow every pull request runs. Hangs before build, so a red
-  # run does not push an image to the registry.
+  # ── Changelog, manifest, type check, lint, tests, i18n ───────────────────
+  # The same workflow every pull request runs, which is where the manifest
+  # check now lives too - a release without release notes, or a candidate
+  # nobody promoted, should be answered before the merge and not after it.
+  # Hangs before build, so a red run does not push an image to the registry.
   checks:
     uses: ./.github/workflows/checks.yml
 
@@ -75,7 +64,7 @@ jobs:
 
   # ── Build and push ─────────────────────────────────────────────────────
   build:
-    needs: [validate, checks, changes]
+    needs: [checks, changes]
     if: needs.changes.outputs.any == 'true'
     # A native arm64 runner. Not cosmetic: the led and button services compile
     # lgpio from source and webui builds with npm - under QEMU that takes many

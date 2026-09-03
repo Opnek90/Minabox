@@ -1,6 +1,7 @@
 name: Checks
 
-# Type check, lint, tests and the i18n guards for the WebUI service.
+# Type check, lint, tests and the i18n guards for the WebUI service, plus the
+# release manifest.
 #
 # Why standalone: build-images.yml builds images and only runs after the merge
 # to main. A type error or a broken test could reach the registry unchecked.
@@ -23,6 +24,20 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # The changelog, the manifest and the release candidates nobody promoted.
+  # Cheap enough to run beside the WebUI job rather than after it: a release
+  # commit is exactly the kind of pull request where the answer should be
+  # there before anyone waits for npm.
+  manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Changelog, manifest and open candidates
+        run: python3 scripts/build_manifest.py --check
+
   webui:
     runs-on: ubuntu-latest
     timeout-minutes: 15
