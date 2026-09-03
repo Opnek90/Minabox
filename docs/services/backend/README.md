@@ -459,6 +459,13 @@ A required service this box does not have at all counts as met — there is no
 combination to split — and a requirement written in an expression this build
 cannot read is ignored rather than guessed at.
 
+**The block of the offered version is the one that counts**, not the blocks of
+the releases skipped on the way there (`requirements_of(info, entry["latest"])`).
+A requirement therefore has to be repeated on every release from the one that
+introduced it onward: a box going from 0.5.0 straight to 0.7.0 reads 0.7.0's
+block and nothing else, so a requirement written only against 0.6.0 would never
+be seen by the boxes that need it most.
+
 **The way back.** `GET /system/update-history` reads the runs the host-helper
 recorded and works out, per service, the version it ran before the most recent
 change of it. `POST /system/rollback` puts the named services back on it, along

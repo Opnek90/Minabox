@@ -3,8 +3,23 @@
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
-      "latest": "0.2.4",
+      "latest": "0.3.0",
       "releases": [
+        {
+          "version": "0.3.0",
+          "date": "2026-09-03",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Freigabe von 0.3.0-rc.1, inhaltlich unveraendert: gesprochene Ansagen laufen ueber der Musik, die dafuer kurz leiser wird."
+              ],
+              "en": [
+                "The release of 0.3.0-rc.1, unchanged in substance: spoken announcements play over the music, which ducks under them for a moment."
+              ]
+            }
+          }
+        },
         {
           "version": "0.3.0-rc.1",
           "date": "2026-09-03",
@@ -154,8 +169,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.3.0-rc.1"
+      ]
     },
     "backend": {
       "latest": "0.7.0",
@@ -164,6 +178,10 @@
           "version": "0.7.0",
           "date": "2026-09-03",
           "channel": "stable",
+          "requires": {
+            "audio": ">=0.3.0",
+            "host-helper": ">=0.3.1"
+          },
           "notes": {
             "added": {
               "de": [
@@ -179,6 +197,10 @@
           "version": "0.6.0",
           "date": "2026-09-03",
           "channel": "stable",
+          "requires": {
+            "audio": ">=0.3.0",
+            "host-helper": ">=0.3.1"
+          },
           "notes": {
             "added": {
               "de": [
@@ -1027,8 +1049,23 @@
       ]
     },
     "host-helper": {
-      "latest": "0.3.0",
+      "latest": "0.3.1",
       "releases": [
+        {
+          "version": "0.3.1",
+          "date": "2026-09-03",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Freigabe von 0.3.1-rc.1, inhaltlich unveraendert: die Wahlkomponente \"Ansagen\" laesst sich ueber die Oberflaeche ein- und ausschalten."
+              ],
+              "en": [
+                "The release of 0.3.1-rc.1, unchanged in substance: the optional component \"announcements\" can be switched on and off from the interface."
+              ]
+            }
+          }
+        },
         {
           "version": "0.3.1-rc.1",
           "date": "2026-09-03",
@@ -1266,8 +1303,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.3.1-rc.1"
+      ]
     },
     "led": {
       "latest": "0.2.3",

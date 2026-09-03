@@ -746,6 +746,12 @@ A version without a visible change may stay empty - the interface then says
 
 ## host-helper
 
+### 0.3.1 - 2026-09-03
+
+#### Added
+- The release of 0.3.1-rc.1, unchanged in substance: the optional component
+  "announcements" can be switched on and off from the interface.
+
 ### 0.3.1-rc.1 - 2026-09-03
 
 #### Added
@@ -859,6 +865,12 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## audio
+
+### 0.3.0 - 2026-09-03
+
+#### Added
+- The release of 0.3.0-rc.1, unchanged in substance: spoken announcements play
+  over the music, which ducks under them for a moment.
 
 ### 0.3.0-rc.1 - 2026-09-03
 

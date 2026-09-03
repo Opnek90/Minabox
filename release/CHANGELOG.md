@@ -778,6 +778,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## host-helper
 
+### 0.3.1 - 2026-09-03
+
+#### Neu
+- Freigabe von 0.3.1-rc.1, inhaltlich unveraendert: die Wahlkomponente
+  "Ansagen" laesst sich ueber die Oberflaeche ein- und ausschalten.
+
 ### 0.3.1-rc.1 - 2026-09-03
 
 #### Neu
@@ -898,6 +904,12 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## audio
+
+### 0.3.0 - 2026-09-03
+
+#### Neu
+- Freigabe von 0.3.0-rc.1, inhaltlich unveraendert: gesprochene Ansagen laufen
+  ueber der Musik, die dafuer kurz leiser wird.
 
 ### 0.3.0-rc.1 - 2026-09-03
 
