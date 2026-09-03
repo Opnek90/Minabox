@@ -158,19 +158,21 @@
       "latest_beta": "0.3.0-rc.1"
     },
     "backend": {
-      "latest": "0.5.0",
+      "latest": "0.6.0",
       "releases": [
         {
-          "version": "0.6.0-rc.1",
+          "version": "0.6.0",
           "date": "2026-09-03",
-          "channel": "beta",
+          "channel": "stable",
           "notes": {
             "added": {
               "de": [
-                "Die Box kann sprechen: sie sagt den Namen der aufgelegten Karte, meldet eine Karte, die sie nicht kennt oder nicht abspielen kann, warnt vor dem Ende der Hoerzeit und sagt Bescheid, wenn der Ton ausgeschaltet wurde. Gedacht fuer Kinder, die das Display noch nicht lesen koennen - bisher sahen eine unbekannte Karte, ein erreichtes Zeitlimit und ein stummer Lautsprecher von aussen alle gleich aus. Was gesagt wird, laesst sich einzeln abschalten; ohne die Wahlkomponente \"Ansagen\" bleibt alles wie bisher."
+                "Die Box kann sprechen: sie sagt den Namen der aufgelegten Karte, meldet eine Karte, die sie nicht kennt oder nicht abspielen kann, warnt vor dem Ende der Hoerzeit und sagt Bescheid, wenn der Ton ausgeschaltet wurde. Gedacht fuer Kinder, die das Display noch nicht lesen koennen - bisher sahen eine unbekannte Karte, ein erreichtes Zeitlimit und ein stummer Lautsprecher von aussen alle gleich aus. Was gesagt wird, laesst sich einzeln abschalten; ohne die Wahlkomponente \"Ansagen\" bleibt alles wie bisher.",
+                "Der Addon-Katalog sagt jetzt auch, wie ein Teil eingeschaltet wird: die meisten brauchen einen Neustart von Diensten, \"Online-Metadaten\" wirkt dagegen sofort - und ist jetzt selbst ein eigener Eintrag im Katalog statt eines Schalters unter \"Medien\". Jeder Eintrag zeigt ausserdem an, ob eine neuere Version verfuegbar ist."
               ],
               "en": [
-                "The box can speak: it says the name of the card that was placed, reports a card it does not know or cannot play, warns before the listening time is over, and says so when the sound has been switched off. Meant for children who cannot read the display yet - until now a card the box did not know, an exhausted time limit and a muted speaker all looked the same from the outside. Each kind of announcement can be switched off on its own; without the optional \"Announcements\" component nothing changes."
+                "The box can speak: it says the name of the card that was placed, reports a card it does not know or cannot play, warns before the listening time is over, and says so when the sound has been switched off. Meant for children who cannot read the display yet - until now a card the box did not know, an exhausted time limit and a muted speaker all looked the same from the outside. Each kind of announcement can be switched off on its own; without the optional \"Announcements\" component nothing changes.",
+                "The addon catalogue now also says how a part is switched on: most need a restart of services, \"Online metadata\" instead takes effect at once - and is now its own entry in the catalogue instead of a switch under \"Media\". Every entry also shows whether a newer version is available."
               ]
             }
           }
@@ -764,8 +766,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.6.0-rc.1"
+      ]
     },
     "button": {
       "latest": "0.2.3",
@@ -1608,19 +1609,23 @@
       ]
     },
     "webui": {
-      "latest": "0.5.0",
+      "latest": "0.6.0",
       "releases": [
         {
-          "version": "0.6.0-rc.1",
+          "version": "0.6.0",
           "date": "2026-09-03",
-          "channel": "beta",
+          "channel": "stable",
           "notes": {
             "added": {
               "de": [
-                "Neuer Einstellungsabschnitt \"Ansagen\" unter \"Klang\": Hauptschalter, was angesagt wird, in welcher Sprache, wie laut, wie weit die Musik dabei abgesenkt wird und wie viele Minuten vor dem Ende der Hoerzeit gewarnt wird. Der Abschnitt erscheint, sobald die Wahlkomponente \"Ansagen\" eingeschaltet ist."
+                "Neuer Einstellungsabschnitt \"Ansagen\" unter \"Klang\": Hauptschalter, was angesagt wird, in welcher Sprache, wie laut, wie weit die Musik dabei abgesenkt wird und wie viele Minuten vor dem Ende der Hoerzeit gewarnt wird. Der Abschnitt erscheint, sobald die Wahlkomponente \"Ansagen\" eingeschaltet ist.",
+                "Die Komponenten haben eine eigene Seite bekommen, \"Addons\", als Tabelle statt als Liste von Schaltern: Zubehoer und Funktionen getrennt, mit einem Update-Knopf pro Zeile und einem Zahnrad, das direkt zu den Einstellungen des jeweiligen Addons springt.",
+                "Die Einstellungen sind neu geordnet: statt zehn Reitern nebeneinander eine Seitenleiste mit drei Themen - Hoeren, Die Box, Verwaltung -, auf dem Handy dieselbe Gliederung als aufklappbare Liste. Das Passwort der Weboberflaeche und das Passwort fuer den Fernzugriff (SSH) haben jetzt getrennte Abschnitte, und wie lange die Hoerstatistik aufbewahrt wird, steht jetzt bei der Sicherung statt beim Kind-Dashboard."
               ],
               "en": [
-                "New settings section \"Announcements\" under \"Sound\": the main switch, what is announced, in which language, how loud, how far the music is turned down for it, and how many minutes before the end of the listening time it warns. The section appears once the optional \"Announcements\" component is switched on."
+                "New settings section \"Announcements\" under \"Sound\": the main switch, what is announced, in which language, how loud, how far the music is turned down for it, and how many minutes before the end of the listening time it warns. The section appears once the optional \"Announcements\" component is switched on.",
+                "The components have their own page now, \"Addons\", as a table instead of a list of switches: accessories and functions kept apart, with an update button per row and a gear that jumps straight to that addon's own settings.",
+                "Settings are reorganised: instead of ten tabs in a row, a sidebar with three themes - Listening, The box, Administration -, the same grouping as a collapsible list on the phone. The web interface password and the remote access (SSH) password now have separate sections, and how long the listening statistics are kept now lives under maintenance instead of the child dashboard."
               ]
             }
           }
@@ -2305,8 +2310,7 @@
             }
           }
         }
-      ],
-      "latest_beta": "0.6.0-rc.1"
+      ]
     }
   },
   "components": {

@@ -9,11 +9,11 @@ import {
   FormControlLabel,
   Switch,
   TextField,
+  Typography,
 } from '@mui/material';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/contexts/ToastContext';
-import { AuthSection } from '@/components/admin/AuthSection';
 import { systemApi } from '@/api/system';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { ResponsiveDialog } from '@/components/common/ResponsiveDialog';
@@ -21,7 +21,16 @@ import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { translateApiError } from '@/utils/apiError';
 import { HelpLabel } from '@/components/ui/HelpTip';
 
-export const SecurityPanel: React.FC = () => {
+/**
+ * SSH into the box itself, and the Linux password that goes with it.
+ *
+ * Split out of what used to be one "Passwords & access" section together with
+ * `AuthSection` (the WebUI's own password). Two passwords for two different
+ * things - one gets you into the web interface, this one gets you a shell on
+ * the box - must not sit under one heading as if they were the same value; see
+ * `docs/services/webui/Settings-Structure.md`.
+ */
+export const SshAccessPanel: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
   const { showSuccess, showError } = useToast();
   const [sshStatus, setSshStatus] = useState<{ enabled: boolean; active: boolean } | null>(null);
@@ -77,25 +86,21 @@ export const SecurityPanel: React.FC = () => {
 
   return (
     <Box>
-      <AuthSection />
-
       <SettingsBlock title={t('system.security_title')}>
         {sshStatus != null && (
-          <>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={sshStatus.enabled || sshStatus.active}
-                  onChange={(_, checked) => handleSshToggle(checked)}
-                  color="primary"
-                />
-              }
-              label={
-                <HelpLabel text={t('system.ssh_toggle')} help={t('system.ssh_toggle_hint')} />
-              }
-              sx={{ mt: 1 }}
-            />
-          </>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={sshStatus.enabled || sshStatus.active}
+                onChange={(_, checked) => handleSshToggle(checked)}
+                color="primary"
+              />
+            }
+            label={
+              <HelpLabel text={t('system.ssh_toggle')} help={t('system.ssh_toggle_hint')} />
+            }
+            sx={{ mt: 1 }}
+          />
         )}
         <Box display="flex" flexWrap="wrap" gap={1}>
           <ActionButton
@@ -111,6 +116,12 @@ export const SecurityPanel: React.FC = () => {
       <ResponsiveDialog open={passwordDialogOpen} onClose={() => { setPasswordDialogOpen(false); setPasswordNew(''); setPasswordConfirm(''); }}>
         <DialogTitle>{t('system.password_change')}</DialogTitle>
         <DialogContent>
+          {/* The name it shares with `auth.change_password` next door is where the
+              confusion used to start - this line is the fix, not the section split
+              alone. */}
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            {t('system.ssh_password_hint')}
+          </Typography>
           <TextField autoFocus fullWidth margin="dense" label={t('system.password_user')} value={passwordUser} onChange={(e) => setPasswordUser(e.target.value)} sx={{ mt: 1 }} />
           <TextField fullWidth margin="dense" type="password" label={t('system.password_new')} value={passwordNew} onChange={(e) => setPasswordNew(e.target.value)} />
           <TextField fullWidth margin="dense" type="password" label={t('system.password_confirm')} value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} />

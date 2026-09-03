@@ -22,7 +22,7 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
-### 0.6.0-rc.1 - 2026-09-03
+### 0.6.0 - 2026-09-03
 
 #### Neu
 - Die Box kann sprechen: sie sagt den Namen der aufgelegten Karte, meldet eine
@@ -32,6 +32,11 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
   unbekannte Karte, ein erreichtes Zeitlimit und ein stummer Lautsprecher von
   aussen alle gleich aus. Was gesagt wird, laesst sich einzeln abschalten;
   ohne die Wahlkomponente "Ansagen" bleibt alles wie bisher.
+- Der Addon-Katalog sagt jetzt auch, wie ein Teil eingeschaltet wird: die
+  meisten brauchen einen Neustart von Diensten, "Online-Metadaten" wirkt dagegen
+  sofort - und ist jetzt selbst ein eigener Eintrag im Katalog statt eines
+  Schalters unter "Medien". Jeder Eintrag zeigt ausserdem an, ob eine neuere
+  Version verfuegbar ist.
 
 ### 0.5.0 - 2026-09-02
 
@@ -323,7 +328,7 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## webui
 
-### 0.6.0-rc.1 - 2026-09-03
+### 0.6.0 - 2026-09-03
 
 #### Neu
 - Neuer Einstellungsabschnitt "Ansagen" unter "Klang": Hauptschalter, was
@@ -331,6 +336,16 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
   abgesenkt wird und wie viele Minuten vor dem Ende der Hoerzeit gewarnt wird.
   Der Abschnitt erscheint, sobald die Wahlkomponente "Ansagen" eingeschaltet
   ist.
+- Die Komponenten haben eine eigene Seite bekommen, "Addons", als Tabelle statt
+  als Liste von Schaltern: Zubehoer und Funktionen getrennt, mit einem
+  Update-Knopf pro Zeile und einem Zahnrad, das direkt zu den Einstellungen des
+  jeweiligen Addons springt.
+- Die Einstellungen sind neu geordnet: statt zehn Reitern nebeneinander eine
+  Seitenleiste mit drei Themen - Hoeren, Die Box, Verwaltung -, auf dem Handy
+  dieselbe Gliederung als aufklappbare Liste. Das Passwort der Weboberflaeche
+  und das Passwort fuer den Fernzugriff (SSH) haben jetzt getrennte
+  Abschnitte, und wie lange die Hoerstatistik aufbewahrt wird, steht jetzt bei
+  der Sicherung statt beim Kind-Dashboard.
 
 ### 0.5.0 - 2026-09-02
 

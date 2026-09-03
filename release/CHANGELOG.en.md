@@ -21,7 +21,7 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
-### 0.6.0-rc.1 - 2026-09-03
+### 0.6.0 - 2026-09-03
 
 #### Added
 - The box can speak: it says the name of the card that was placed, reports a
@@ -31,6 +31,10 @@ A version without a visible change may stay empty - the interface then says
   exhausted time limit and a muted speaker all looked the same from the
   outside. Each kind of announcement can be switched off on its own; without
   the optional "Announcements" component nothing changes.
+- The addon catalogue now also says how a part is switched on: most need a
+  restart of services, "Online metadata" instead takes effect at once - and is
+  now its own entry in the catalogue instead of a switch under "Media". Every
+  entry also shows whether a newer version is available.
 
 ### 0.5.0 - 2026-09-02
 
@@ -311,13 +315,22 @@ A version without a visible change may stay empty - the interface then says
 
 ## webui
 
-### 0.6.0-rc.1 - 2026-09-03
+### 0.6.0 - 2026-09-03
 
 #### Added
 - New settings section "Announcements" under "Sound": the main switch, what is
   announced, in which language, how loud, how far the music is turned down for
   it, and how many minutes before the end of the listening time it warns. The
   section appears once the optional "Announcements" component is switched on.
+- The components have their own page now, "Addons", as a table instead of a
+  list of switches: accessories and functions kept apart, with an update
+  button per row and a gear that jumps straight to that addon's own settings.
+- Settings are reorganised: instead of ten tabs in a row, a sidebar with three
+  themes - Listening, The box, Administration -, the same grouping as a
+  collapsible list on the phone. The web interface password and the remote
+  access (SSH) password now have separate sections, and how long the
+  listening statistics are kept now lives under maintenance instead of the
+  child dashboard.
 
 ### 0.5.0 - 2026-09-02
 

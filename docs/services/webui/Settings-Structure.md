@@ -57,7 +57,7 @@ weekly - the default sleep timer length is the model.
 5. **An addon is switched on the addons page and configured where its topic
    is.** The addons table adds, removes and updates. The settings of an addon
    sit in the group of the question they answer (announcements under Sound,
-   import domains under Library), and the addon row links there. The gear
+   import domains under Media), and the addon row links there. The gear
    button is a link, not a second form (rule 1).
 
 6. **Search and deep links are the only second way in.** `searchKeys` on a
@@ -86,7 +86,7 @@ phone) without adding a level to the content.
 | --- | --- | --- |
 | **Playback** | When a card is placed · Falling asleep (default timer length) | form |
 | **Sound** | Speakers & headphones (output, Bluetooth, resume on start) · Announcements | form |
-| **Library** | Music folder · Upload limit · Media import: allowed domains · From USB stick · Cover & metadata (backfill) | form / action |
+| **Media** | Music folder · Upload limit · Media import: allowed domains · From USB stick · Cover & metadata (backfill) | form / action |
 | **Appearance** | Language & colours (logo, language, theme, font size, accent) | form |
 
 ### The box — what is attached and inside
@@ -105,10 +105,11 @@ phone) without adding a level to the content.
 | **Maintenance** | Backup & data (backup, restore, how long listening statistics are kept) · Updates · Restart & reset · Run setup again | action |
 | **System** | Advanced (device id, log level, MQTT) · Status & logs | form / status |
 
-## What moves, and why
+## What moved, and why
 
-Two of these landed already, alongside this document, because they were small
-and the addons page was already being touched:
+Landed across two branches, in this order - the first two alongside the
+addons page, because it was already being touched; the rest as the
+restructuring this document describes:
 
 - **Gear button on an addon row.** Used to open the addon's form in a dialog -
   a second place to edit the same value (rule 1). Now it is a link to the
@@ -119,14 +120,21 @@ and the addons page was already being touched:
   without external LEDs could not turn its own status light off either. It is
   not part of that addon (rule 4), so it now has its own section under
   Devices, shown regardless of which addons are installed.
-
-Still to do, as their own change:
-
-| Setting | Today | Target | Rule |
-| --- | --- | --- | --- |
-| Statistics retention (weeks) | Dashboard → Time & rules | Maintenance → Backup & data | horizon: set once; it is about data, not about the child |
-| Web password + protected areas, SSH switch + Linux password | one section "Passwords & access" with both passwords in a row | two sections: *Web interface*, *Remote access via SSH* | 3, 4 - two passwords for two things must not look like one |
-| Ten tabs across the top | one row of ten | sidebar with the three headings above; accordion with the same headings on a phone | ten peers are a list, not a structure |
+- **Statistics retention (weeks).** Used to sit on the parent dashboard, in
+  the same form as the daily limit and the usage-time rules. It is not a rule
+  for the child, though - it is set once and it is about the box's own data -
+  so it moved to Maintenance, next to the backup it shares a topic with.
+- **Web password + protected areas, SSH switch + Linux password.** Used to
+  share one section, "Passwords & access", with both password forms visible
+  at once - "Passwort ändern" and "System-Passwort ändern" a few lines apart,
+  easy to conflate. Two sections now, *Web interface* and *Remote access
+  (SSH)*, and the SSH password dialog says outright that it is a different
+  password than the one above (rules 3, 4).
+- **Ten tabs across the top.** Replaced by the sidebar (desktop) / headed
+  accordion (phone) described above, grouped under the three headings. Ten
+  peers in a row were a list, not a structure; `SETTINGS_HEADINGS` in
+  `settingsIndex.ts` is the ordering now, and it is enforced by
+  `settingsIndex.test.ts` (every group must point at a real heading).
 
 What deliberately stays where it is:
 
@@ -137,22 +145,25 @@ What deliberately stays where it is:
   addon row links there.
 - **The default sleep-timer length stays under Playback.** Starting a timer is
   the Player's job; how long it runs by default is set once.
-- **USB import stays under Library** although it is an action: the user's
-  question is "how do I get music onto the box", and that is the Library.
+- **USB import stays under Media** although it is an action: the user's
+  question is "how do I get music onto the box", and that is where the rest
+  of the music-collection settings already are.
 - **Running the setup wizard again stays under Maintenance**: it is an action
   on the whole box, next to backup and reset.
 
 ## Guards
 
-Rules that live only in a document erode. Two of them can be checked:
+Rules that live only in a document erode. Two of them are checked on every run:
 
-- **One component, one section.** A test over `SECTION_CONTENT` asserts that no
-  React component type is rendered by more than one section, and that every
-  section in `settingsIndex` has content. This is the test that would have
-  caught the addon dialog.
-- **Every section is searchable.** A test asserts that every section carries at
-  least one `searchKey` and that each key resolves in both locales (the i18n
-  guard already checks the second half).
+- **One component, one section.** `config/sectionContent.test.tsx` asserts
+  that no React component type is rendered by more than one section, and that
+  every section in `settingsIndex` has content. This is the test that would
+  have caught the addon dialog, had it existed at the time.
+- **Every section is searchable, every group has a heading.**
+  `config/settingsIndex.test.ts` asserts that every section carries at least
+  one `searchKey` (each key's translation is checked separately by
+  `npm run check:i18n-calls`) and that every group's `headingKey` names a real
+  heading.
 
 ## Night, as an open question
 
