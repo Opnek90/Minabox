@@ -1,81 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Accordion, AccordionDetails, AccordionSummary,
-  Box, Chip, InputAdornment, List, ListItemButton, TextField, Typography,
+  Box, Chip, InputAdornment, List, ListItem, ListItemButton, ListItemIcon,
+  ListItemText, TextField, Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { PageShell } from '@/components/common/PageShell';
-import { SectionTabs } from '@/components/common/SectionTabs';
 import { SETTINGS_GROUP_ICONS } from '@/components/admin/settingsIcons';
-import { SecurityPanel } from '@/components/admin/SecurityPanel';
-import { BluetoothSection } from '@/components/admin/BluetoothSection';
-import { NetworkPanel } from '@/components/admin/NetworkPanel';
-import { UsbImportPanel } from '@/components/admin/UsbImportPanel';
-import { SystemMaintenanceSection } from '@/components/admin/SystemMaintenanceSection';
-import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import { SettingsSection } from '@/components/admin/SettingsSection';
-import { AddonsPanel } from '@/components/admin/addons/AddonsPanel';
-import { BoardLedsToggle } from '@/components/admin/BoardLedsToggle';
-import { ButtonConfigPanel } from '@/components/admin/ButtonConfigPanel';
-import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
-import { LEDConfigPanel } from '@/components/admin/LEDConfigPanel';
-import { MediaMetadataPanel } from '@/components/admin/MediaMetadataPanel';
+import { SECTION_CONTENT } from '@/config/sectionContent';
 import {
-  AdvancedSettingsForm, AnnouncementSettingsForm, AudioConfigForm, DesignSettingsForm,
-  MediaImportDomainsForm, MediaPathForm, PlaybackSettingsForm, RFIDConfigForm,
-  SleepTimerSettingsForm, UploadLimitForm,
-} from '@/components/admin/ConfigForm';
-import {
-  SETTINGS_INDEX, SETTINGS_SECTIONS, sectionDomId,
-  type SettingsGroupMeta, type SettingsSectionMeta,
+  SETTINGS_HEADINGS, SETTINGS_INDEX, SETTINGS_SECTIONS, sectionDomId,
+  type SettingsGroupMeta, type SettingsHeadingMeta, type SettingsSectionMeta,
 } from '@/config/settingsIndex';
 import { useLayout } from '@/hooks/useLayout';
 import { useCapabilities } from '@/contexts/CapabilitiesContext';
-
-/**
- * One form per section. The split of the groups/sections themselves lives in
- * `@/config/settingsIndex`, so the CommandPalette can search the same structure
- * without knowing the React content.
- */
-import { SetupWizardRestart } from '@/components/admin/SetupWizardRestart';
-
-const SECTION_CONTENT: Record<string, React.ReactNode> = {
-  audio: (
-    <>
-      <AudioConfigForm />
-      <BluetoothSection />
-    </>
-  ),
-  playback: <PlaybackSettingsForm />,
-  sleep: <SleepTimerSettingsForm />,
-  design: <DesignSettingsForm />,
-  addons: <AddonsPanel />,
-  // The addon's own panel - the gear button of its row in `AddonsPanel` links
-  // here (`?section=...`) rather than opening it a second time.
-  rfid: <RFIDConfigForm />,
-  buttons: <ButtonConfigPanel />,
-  // The board's own status LED is not part of the LED addon (external lights
-  // on the GPIO pins) and must not disappear along with it - its own section,
-  // below, carries no `requiresFeature`.
-  leds: <LEDConfigPanel />,
-  board_leds: <BoardLedsToggle />,
-  display: <DisplayConfigPanel />,
-  network: <NetworkPanel />,
-  media_path: <MediaPathForm />,
-  upload_limit: <UploadLimitForm />,
-  media_import_domains: <MediaImportDomainsForm />,
-  usb: <UsbImportPanel />,
-  media_metadata: <MediaMetadataPanel />,
-  maintenance: <SystemMaintenanceSection />,
-  security: <SecurityPanel />,
-  advanced: <AdvancedSettingsForm />,
-  setup_wizard: <SetupWizardRestart />,
-  diagnose: <SystemStatusPanel />,
-  announcements: <AnnouncementSettingsForm />,
-};
 
 /** A section with its anchor id - target for deep links from the CommandPalette. */
 const RenderedSection: React.FC<{ section: SettingsSectionMeta; highlighted?: boolean }> = ({
@@ -100,33 +42,95 @@ const RenderedSection: React.FC<{ section: SettingsSectionMeta; highlighted?: bo
   );
 };
 
-interface LayoutProps {
+/** Groups that share a heading, in `SETTINGS_HEADINGS` order. A purely
+ *  navigational clustering - a group still stands on its own. Headings with
+ *  no visible group (none currently can end up that way, but a section list
+ *  is always filtered by capability) are dropped rather than shown empty. */
+interface HeadingGroup {
+  heading: SettingsHeadingMeta;
   groups: SettingsGroupMeta[];
+}
+
+const groupByHeading = (groups: SettingsGroupMeta[]): HeadingGroup[] =>
+  SETTINGS_HEADINGS.map((heading) => ({
+    heading,
+    groups: groups.filter((group) => group.headingKey === heading.key),
+  })).filter((entry) => entry.groups.length > 0);
+
+interface LayoutProps {
+  headings: HeadingGroup[];
   /** `null` = no group chosen yet: desktop shows the first, mobile all collapsed. */
   activeGroupKey: string | null;
   onActiveGroupChange: (key: string | null) => void;
   highlightedSection: string | null;
 }
 
+/** 220px: the same width as the app's own navigation drawer
+ *  (`Navigation.tsx`) - two nested drawers of different widths would read as
+ *  two different systems rather than one page inside the other. */
+const SIDEBAR_WIDTH = 220;
+
 const DesktopLayout: React.FC<LayoutProps> = ({
-  groups, activeGroupKey, onActiveGroupChange, highlightedSection,
+  headings, activeGroupKey, onActiveGroupChange, highlightedSection,
 }) => {
   const { t } = useTranslation(['admin', 'setup']);
-  const tabIndex = Math.max(0, groups.findIndex((g) => g.key === activeGroupKey));
-  const activeGroup = groups[tabIndex];
+  const allGroups = headings.flatMap((entry) => entry.groups);
+  const activeGroup = allGroups.find((g) => g.key === activeGroupKey) ?? allGroups[0];
+
   return (
-    <>
-      <SectionTabs
-        value={tabIndex}
-        onChange={(v) => onActiveGroupChange(groups[v].key)}
-        ariaLabel={t('title')}
-        sections={groups.map((g) => ({
-          label: t(g.labelKey),
-          icon: SETTINGS_GROUP_ICONS[g.key],
-        }))}
-      />
-      <Box sx={{ pt: 3 }}>
-        {activeGroup.sections.map((section) => (
+    <Box sx={{ display: 'flex', gap: 4, alignItems: 'flex-start', pt: 1 }}>
+      <Box component="nav" aria-label={t('title')} sx={{ width: SIDEBAR_WIDTH, flexShrink: 0 }}>
+        {headings.map(({ heading, groups }) => (
+          <Box key={heading.key} sx={{ mb: 2 }}>
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              sx={{ display: 'block', px: 1.5, mb: 0.5 }}
+            >
+              {t(heading.labelKey)}
+            </Typography>
+            <List disablePadding>
+              {groups.map((group) => {
+                const selected = group.key === activeGroup?.key;
+                return (
+                  <ListItem key={group.key} disablePadding>
+                    <ListItemButton
+                      selected={selected}
+                      onClick={() => onActiveGroupChange(group.key)}
+                      sx={{
+                        borderRadius: 2,
+                        mb: 0.25,
+                        gap: 1.5,
+                        '&.Mui-selected': {
+                          // Same rule as the primary navigation
+                          // (`Navigation.tsx`): white text needs 4.5:1
+                          // (WCAG AA), which only `.dark` clears across every
+                          // accent preset.
+                          backgroundColor: 'primary.dark',
+                          color: 'primary.contrastText',
+                          '&:hover': { filter: 'brightness(0.85)' },
+                          '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
+                        },
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 0, '& svg': { fontSize: 20 } }}>
+                        {SETTINGS_GROUP_ICONS[group.key]}
+                      </ListItemIcon>
+                      <ListItemText
+                        primaryTypographyProps={{ fontSize: 14, fontWeight: selected ? 600 : 400 }}
+                      >
+                        {t(group.labelKey)}
+                      </ListItemText>
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
+            </List>
+          </Box>
+        ))}
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        {activeGroup?.sections.map((section) => (
           <RenderedSection
             key={section.key}
             section={section}
@@ -134,60 +138,71 @@ const DesktopLayout: React.FC<LayoutProps> = ({
           />
         ))}
       </Box>
-    </>
+    </Box>
   );
 };
 
 const MobileLayout: React.FC<LayoutProps> = ({
-  groups, activeGroupKey, onActiveGroupChange, highlightedSection,
+  headings, activeGroupKey, onActiveGroupChange, highlightedSection,
 }) => {
   const { t } = useTranslation(['admin', 'setup']);
   return (
     <Box sx={{ mt: 1 }}>
-      {groups.map((group) => (
-        <Accordion
-          key={group.key}
-          expanded={activeGroupKey === group.key}
-          onChange={(_, isExpanded) => onActiveGroupChange(isExpanded ? group.key : null)}
-          // A collapsed group is *gone*, not just hidden. Without this every
-          // group renders its panels at once - eleven of them, each with its
-          // own API call, on a phone talking to a Raspberry Pi.
-          TransitionProps={{ unmountOnExit: true }}
-          disableGutters
-          sx={{
-            '&:before': { display: 'none' },
-            border: 1, borderColor: 'divider', borderRadius: 1, mb: 1,
-            '&.Mui-expanded': { mb: 1 },
-          }}
-        >
-          <AccordionSummary
-            expandIcon={<ExpandMoreIcon />}
-            sx={{ minHeight: 56, '& .MuiAccordionSummary-content': { my: 1, minWidth: 0 } }}
+      {headings.map(({ heading, groups }) => (
+        <Box key={heading.key} sx={{ mb: 2 }}>
+          <Typography
+            variant="overline"
+            color="text.secondary"
+            sx={{ display: 'block', px: 0.5, mb: 0.5 }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-              <Box sx={{ display: 'flex', color: 'text.secondary', '& svg': { fontSize: 22 } }}>
-                {SETTINGS_GROUP_ICONS[group.key]}
-              </Box>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="subtitle1" fontWeight={600}>{t(group.labelKey)}</Typography>
-                {/* Says what is in the group before expanding it - the section
-                    titles are already translated, no extra text needed. */}
-                <Typography variant="caption" color="text.secondary" display="block" noWrap>
-                  {group.sections.map((section) => t(section.titleKey)).join(' \u00b7 ')}
-                </Typography>
-              </Box>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails sx={{ pt: 1, pb: 2, px: 2 }}>
-            {group.sections.map((section) => (
-              <RenderedSection
-                key={section.key}
-                section={section}
-                highlighted={highlightedSection === section.key}
-              />
-            ))}
-          </AccordionDetails>
-        </Accordion>
+            {t(heading.labelKey)}
+          </Typography>
+          {groups.map((group) => (
+            <Accordion
+              key={group.key}
+              expanded={activeGroupKey === group.key}
+              onChange={(_, isExpanded) => onActiveGroupChange(isExpanded ? group.key : null)}
+              // A collapsed group is *gone*, not just hidden. Without this every
+              // group renders its panels at once - eleven of them, each with its
+              // own API call, on a phone talking to a Raspberry Pi.
+              TransitionProps={{ unmountOnExit: true }}
+              disableGutters
+              sx={{
+                '&:before': { display: 'none' },
+                border: 1, borderColor: 'divider', borderRadius: 1, mb: 1,
+                '&.Mui-expanded': { mb: 1 },
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                sx={{ minHeight: 56, '& .MuiAccordionSummary-content': { my: 1, minWidth: 0 } }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', color: 'text.secondary', '& svg': { fontSize: 22 } }}>
+                    {SETTINGS_GROUP_ICONS[group.key]}
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="subtitle1" fontWeight={600}>{t(group.labelKey)}</Typography>
+                    {/* Says what is in the group before expanding it - the section
+                        titles are already translated, no extra text needed. */}
+                    <Typography variant="caption" color="text.secondary" display="block" noWrap>
+                      {group.sections.map((section) => t(section.titleKey)).join(' \u00b7 ')}
+                    </Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ pt: 1, pb: 2, px: 2 }}>
+                {group.sections.map((section) => (
+                  <RenderedSection
+                    key={section.key}
+                    section={section}
+                    highlighted={highlightedSection === section.key}
+                  />
+                ))}
+              </AccordionDetails>
+            </Accordion>
+          ))}
+        </Box>
       ))}
     </Box>
   );
@@ -325,8 +340,10 @@ export const AdminPage: React.FC = () => {
     setSearchParams(searchParams, { replace: true });
   }, [deepLinkSection, jumpToSection, searchParams, setSearchParams]);
 
+  const headings = useMemo(() => groupByHeading(visibleGroups), [visibleGroups]);
+
   const layoutProps: LayoutProps = {
-    groups: visibleGroups,
+    headings,
     activeGroupKey,
     onActiveGroupChange: setActiveGroupKey,
     highlightedSection,

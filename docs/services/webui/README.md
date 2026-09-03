@@ -273,20 +273,28 @@ pagination. Deleting a media item first asks the backend which cards point at it
 and, if there are any, offers to clear those assignments in the same step —
 deleting only the media leaves a card pointing at a track that no longer exists.
 
-**Dashboard and settings.** The settings page is cut by everyday question
-("Playback", "Sound", "Appearance") rather than by where a value happens to live
-in the backend; everything technical collects under "System". One group is not a
-question but a shop: "Addons" is where an optional component is added, removed,
-updated and configured, in a table with one row per addon (see
-[services/README.md](../README.md#addons)). It used to be a block inside
-"Maintenance", between backup and factory reset — maintenance is "I am
-repairing something", addons is "I am extending my box". The search field
-renders a jump list, not the expanded forms: a two-letter query matches almost
-every section, and mounting eleven panels at once would fire eleven API calls on
-a Raspberry Pi. Sections that hang off an optional component carry
-`requiresFeature` in `settingsIndex.ts` and disappear — along with a group that
-becomes empty — when `GET /system/capabilities` says the component is not
-installed.
+**Dashboard and settings.** The full rule set for what goes where is
+[Settings-Structure.md](Settings-Structure.md) — read it before adding a field,
+a section or a group; this is the short version. The settings page is cut by
+everyday question ("Playback", "Sound", "Appearance") rather than by where a
+value happens to live in the backend, with two further rules that keep it from
+sprawling back into a patchwork: every value has exactly one section that owns
+it (another page may link there, never open a second copy of the same form —
+`sectionContent.test.tsx` checks this), and the ten groups are clustered under
+three headings — Listening, The box, Administration — that are purely
+navigational (`SETTINGS_HEADINGS` in `settingsIndex.ts`; a group still stands
+on its own, `SETTINGS_SECTIONS` stays flat). A desktop sidebar and a phone's
+accordion both render the same heading→group→section structure; only the
+container differs. One group is not a question but a shop: "Addons" is where an
+optional component is added, removed, updated and configured, in a table with
+one row per addon (see [services/README.md](../README.md#addons)); its gear
+button links to the section that owns an addon's settings rather than opening
+it a second time. The search field renders a jump list, not the expanded
+forms: a two-letter query matches almost every section, and mounting eleven
+panels at once would fire eleven API calls on a Raspberry Pi. Sections that
+hang off an optional component carry `requiresFeature` in `settingsIndex.ts`
+and disappear — along with a group that becomes empty — when
+`GET /system/capabilities` says the component is not installed.
 
 ### 4.2 The API layer
 
@@ -493,7 +501,8 @@ cd services/webui-service && npm run lint && npm run test && npm run check:local
 | `components/common/Navigation.test.tsx` | which entries appear for which capabilities |
 | `components/media/MediaFab.test.tsx`, `MediaImportDialog.test.tsx` | the import flow and its confirmation |
 | `components/admin/SystemMaintenanceSection.test.tsx` | the maintenance panel's destructive actions |
-| `components/admin/addons/AddonsPanel.test.tsx` | a flipped switch is a wish, not a restart; an unchanged selection starts nothing; an addon that is a setting is written at once |
+| `components/admin/addons/AddonsPanel.test.tsx` | a flipped switch is a wish, not a restart; an unchanged selection starts nothing; an addon that is a setting is written at once; the gear button links instead of opening a dialog |
+| `config/sectionContent.test.tsx`, `config/settingsIndex.test.ts` | Settings-Structure.md as tests: no component rendered by two sections, every section has content and at least one search key |
 | `hooks/useGeneralConfig.test.tsx` | config loading and its defaults |
 | `i18n/debugMode.test.ts` | the fallback switch-off under `log_level: debug` |
 
@@ -518,7 +527,7 @@ survived as long as it did.
 | I want to … | Start in | Also touch |
 | --- | --- | --- |
 | add a page | `pages/` + a lazy route in `App.tsx` | `Navigation.tsx`, the route table in 4.1, a locale namespace if it needs one |
-| add a settings section | `config/settingsIndex.ts` (data, not JSX) | the panel in `pages/AdminPage.tsx`'s `SECTION_CONTENT`, both locale files, `requiresFeature` if it depends on an optional component |
+| add a settings section | `config/settingsIndex.ts` (data, not JSX) — pick a `headingKey` from `SETTINGS_HEADINGS` | the panel in `config/sectionContent.tsx`'s `SECTION_CONTENT`, both locale files, `requiresFeature` if it depends on an optional component |
 | give an addon its own settings section | a section as above, then its key as `settings_section` in the backend's `components.json` | the gear button of the addon's row finds it on its own (`?section=<key>`) — no second panel to build |
 | call a new backend endpoint | a module under `api/` — **always through `client.ts`** | `types/api.ts` to mirror the backend schema; a `TIMEOUT` entry if it runs long |
 | react to a new WebSocket message | `useWebSocketEvent` in the component | the message list in 3.2; the backend must send it. **Never `window.addEventListener`** |

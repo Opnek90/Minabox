@@ -1,11 +1,19 @@
 /**
  * Structure index of the settings page.
  *
- * Guiding idea of the split: the settings are the *setup* area. Everything
+ * Guiding idea of the split: the settings are the *setup* area - everything
  * parents need day to day (times, limits, analysis) lives in the parent
- * dashboard - not here. The groups are named after everyday questions
- * ("Playback", "Sound", "Appearance"), not after technology; everything
- * technical deliberately collects at the very bottom in "Technical details".
+ * dashboard, not here (see `docs/services/webui/Settings-Structure.md` for the
+ * full rule set - read it before adding a field, a section or a group).
+ *
+ * Groups are named after everyday questions ("Playback", "Sound",
+ * "Appearance"), never after a service or a protocol, and every value has
+ * exactly one section that owns it - another page may link to it, never edit
+ * a second copy of it.
+ *
+ * Three headings order the groups without adding a level to the content: they
+ * are a navigational grouping only (`SETTINGS_HEADINGS`), not a nesting - a
+ * group still stands on its own, and `SETTINGS_SECTIONS` stays flat.
  *
  * Deliberately free of React content: `AdminPage` attaches the forms via
  * `section.key`, the `CommandPalette` uses the same index for the global
@@ -35,8 +43,29 @@ export interface SettingsSectionMeta {
 export interface SettingsGroupMeta {
   key: string;
   labelKey: string;
+  /** Which of the three headings below this group is listed under. */
+  headingKey: string;
   sections: SettingsSectionMeta[];
 }
+
+export interface SettingsHeadingMeta {
+  key: string;
+  labelKey: string;
+}
+
+/**
+ * The three questions the sidebar (desktop) and the accordion (phone) group
+ * the groups by, in this order. Purely a navigational grouping - it decides
+ * where a group is listed, nothing about its content.
+ */
+export const SETTINGS_HEADINGS: SettingsHeadingMeta[] = [
+  // What the child experiences.
+  { key: 'listening', labelKey: 'headings.listening' },
+  // What is attached to the box and what is inside it.
+  { key: 'box', labelKey: 'headings.box' },
+  // What an adult does rarely.
+  { key: 'administration', labelKey: 'headings.administration' },
+];
 
 export const SETTINGS_INDEX: SettingsGroupMeta[] = [
   {
@@ -45,6 +74,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     // a card is placed does not look under the speaker setting.
     key: 'playback',
     labelKey: 'groups.playback',
+    headingKey: 'listening',
     sections: [
       {
         key: 'playback',
@@ -75,6 +105,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
   {
     key: 'sound',
     labelKey: 'groups.sound',
+    headingKey: 'listening',
     sections: [
       {
         key: 'audio',
@@ -113,32 +144,13 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     ],
   },
   {
-    key: 'appearance',
-    labelKey: 'groups.appearance',
-    sections: [
-      {
-        key: 'design',
-        titleKey: 'design.title',
-        searchKeys: [
-          'general.language',
-          'general.appearance',
-          'general.color_mode',
-          'general.theme_light',
-          'general.theme_dark',
-          'general.font_size',
-          'general.accent_color',
-          'general.logo',
-        ],
-      },
-    ],
-  },
-  {
     // Everything around the music collection: where it lives, how much may be
     // uploaded at once, which sources may be imported from and the way via the
     // USB stick. Was added step by step and used to be scattered under
     // "Maintenance", where nobody looks for it.
     key: 'media',
     labelKey: 'groups.media',
+    headingKey: 'listening',
     sections: [
       {
         key: 'media_path',
@@ -177,28 +189,22 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     ],
   },
   {
-    // Adding and removing what the box can do at all - deliberately its own
-    // group and no longer a block inside "Maintenance", where it sat between
-    // backup and factory reset. Maintenance is "I am repairing something",
-    // addons is "I am extending my box"; the two do not belong to the same
-    // question.
-    key: 'addons',
-    labelKey: 'groups.addons',
+    key: 'appearance',
+    labelKey: 'groups.appearance',
+    headingKey: 'listening',
     sections: [
       {
-        key: 'addons',
-        titleKey: 'addons.title',
+        key: 'design',
+        titleKey: 'design.title',
         searchKeys: [
-          'addons.catalogue_title',
-          'addons.category_hardware',
-          'addons.category_software',
-          'system.component_rfid',
-          'system.component_led',
-          'system.component_button',
-          'system.component_display',
-          'system.component_media',
-          'system.component_voice',
-          'system.component_metadata',
+          'general.language',
+          'general.appearance',
+          'general.color_mode',
+          'general.theme_light',
+          'general.theme_dark',
+          'general.font_size',
+          'general.accent_color',
+          'general.logo',
         ],
       },
     ],
@@ -206,6 +212,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
   {
     key: 'devices',
     labelKey: 'groups.devices',
+    headingKey: 'box',
     sections: [
       {
         key: 'rfid',
@@ -235,6 +242,8 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         // The Raspberry Pi's own green/red status LED, not the external
         // lights of the LED addon - it must not vanish along with that addon,
         // so it carries no `requiresFeature` and gets a section of its own.
+        // Also what keeps this group from ever being empty, and the sidebar
+        // entry from ever disappearing entirely.
         key: 'board_leds',
         titleKey: 'system.board_leds_title',
         searchKeys: ['system.stealth_mode'],
@@ -242,8 +251,37 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     ],
   },
   {
+    // Adding and removing what the box can do at all - deliberately its own
+    // group and no longer a block inside "Maintenance", where it sat between
+    // backup and factory reset. Maintenance is "I am repairing something",
+    // addons is "I am extending my box"; the two do not belong to the same
+    // question.
+    key: 'addons',
+    labelKey: 'groups.addons',
+    headingKey: 'box',
+    sections: [
+      {
+        key: 'addons',
+        titleKey: 'addons.title',
+        searchKeys: [
+          'addons.catalogue_title',
+          'addons.category_hardware',
+          'addons.category_software',
+          'system.component_rfid',
+          'system.component_led',
+          'system.component_button',
+          'system.component_display',
+          'system.component_media',
+          'system.component_voice',
+          'system.component_metadata',
+        ],
+      },
+    ],
+  },
+  {
     key: 'network',
     labelKey: 'groups.network',
+    headingKey: 'box',
     sections: [
       {
         key: 'network',
@@ -259,8 +297,35 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     ],
   },
   {
+    key: 'security',
+    labelKey: 'groups.security',
+    headingKey: 'administration',
+    sections: [
+      {
+        // The WebUI's own password and which pages it protects. Two sections
+        // in this group, not one, and this is deliberately the first: two
+        // passwords for two different things - this one gets you into the
+        // web interface, the other gets you a shell on the box - must not
+        // share a heading as if they were the same value.
+        key: 'security',
+        titleKey: 'security.webui_title',
+        searchKeys: [
+          'auth.protected_areas_title',
+          'auth.set_password',
+          'auth.change_password',
+        ],
+      },
+      {
+        key: 'ssh_access',
+        titleKey: 'system.security_title',
+        searchKeys: ['system.ssh_toggle', 'system.password_change'],
+      },
+    ],
+  },
+  {
     key: 'maintenance',
     labelKey: 'groups.maintenance',
+    headingKey: 'administration',
     sections: [
       {
         key: 'maintenance',
@@ -268,6 +333,10 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         searchKeys: [
           'system.backup_title',
           'system.backup_download',
+          // How long the listening statistics are kept - moved here from the
+          // parent dashboard, next to the backup it shares a topic with.
+          'general.analytics_retention',
+          'general.analytics_retention_weeks',
           'system.auto_update_check',
           'system.update_minabox',
           'system.update_os',
@@ -288,24 +357,9 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
     ],
   },
   {
-    key: 'security',
-    labelKey: 'groups.security',
-    sections: [
-      {
-        key: 'security',
-        titleKey: 'security.title',
-        searchKeys: [
-          'system.ssh_toggle',
-          'system.password_change',
-          'auth.protected_areas_title',
-          'auth.set_password',
-        ],
-      },
-    ],
-  },
-  {
     key: 'advanced',
     labelKey: 'groups.advanced',
+    headingKey: 'administration',
     sections: [
       {
         key: 'advanced',

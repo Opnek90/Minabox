@@ -20,6 +20,17 @@ const WEEKDAY_KEYS = [
   'weekday_su',
 ] as const;
 
+/**
+ * Rules for the child: usage times, the daily limit, volume limits, the
+ * evening fade. One form, one save - all of it changes together often enough
+ * that a shared button beats four separate ones.
+ *
+ * Retention (how long the listening statistics are kept) used to be a fifth
+ * section here. It answers a different question - not "what may the child
+ * do" but "how long do we keep data about it" - and moved to
+ * Settings -> Maintenance, next to the backup
+ * (`docs/services/webui/Settings-Structure.md`).
+ */
 export const ChildSettingsForm: React.FC = () => {
   const { t } = useTranslation('admin');
   const { t: tCommon } = useTranslation('common');
@@ -50,7 +61,6 @@ export const ChildSettingsForm: React.FC = () => {
           bedtime_fade_duration_minutes: gen.bedtime_fade_duration_minutes ?? 15,
           bedtime_fade_interval_seconds: gen.bedtime_fade_interval_seconds ?? 30,
           bedtime_fade_step_percent: gen.bedtime_fade_step_percent ?? 2,
-          analytics_retention_weeks: gen.analytics_retention_weeks ?? 52,
         });
         setAudioConfig(audio);
       })
@@ -70,7 +80,6 @@ export const ChildSettingsForm: React.FC = () => {
         bedtime_fade_duration_minutes: general.bedtime_fade_duration_minutes,
         bedtime_fade_interval_seconds: general.bedtime_fade_interval_seconds,
         bedtime_fade_step_percent: general.bedtime_fade_step_percent,
-        analytics_retention_weeks: general.analytics_retention_weeks,
       });
       await configApi.updateAudio({
         min_volume: audioConfig.min_volume,
@@ -185,34 +194,6 @@ export const ChildSettingsForm: React.FC = () => {
             </Box>
           )}
         </Box>
-      </SettingsSection>
-
-      <SettingsSection
-        title={t('general.analytics_retention')}
-        help={t('general.analytics_retention_hint')}
-      >
-        <TextField
-          label={t('general.analytics_retention_weeks')}
-          type="number"
-          value={general.analytics_retention_weeks ?? 52}
-          onChange={(e) =>
-            setGeneral((p) =>
-              p
-                ? {
-                    ...p,
-                    analytics_retention_weeks: Math.max(
-                      0,
-                      Math.min(520, parseInt(e.target.value, 10) || 0)
-                    ),
-                  }
-                : p
-            )
-          }
-          size="small"
-          helperText={t('general.analytics_retention_zero')}
-          inputProps={{ min: 0, max: 520 }}
-          sx={{ maxWidth: 220 }}
-        />
       </SettingsSection>
 
       <SettingsSection title={t('audio.volume_settings')}>

@@ -288,6 +288,11 @@
     "security": "Sicherheit",
     "sound": "Ton"
   },
+  "headings": {
+    "listening": "Hören",
+    "box": "Die Box",
+    "administration": "Verwaltung"
+  },
   "leds": {
     "add_led": "LED hinzufügen",
     "bindings": {
@@ -382,7 +387,7 @@
     "placeholder": "Einstellung suchen…"
   },
   "security": {
-    "title": "Passwörter & Zugriff"
+    "webui_title": "Weboberfläche"
   },
   "stats": {
     "from": "Von",
@@ -635,6 +640,7 @@
         "nothing_found": "Es war nichts zu korrigieren – die Einstellungen waren in Ordnung."
       }
     },
+    "ssh_password_hint": "Das Passwort des Linux-Benutzers auf der Box selbst - ein anderes Passwort als das der Weboberfläche oben.",
     "ssh_toggle": "SSH-Zugang",
     "ssh_toggle_hint": "Für Wartungen wieder aktivierbar.",
     "status_degraded": "Eingeschränkt",

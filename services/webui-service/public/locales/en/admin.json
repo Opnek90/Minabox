@@ -288,6 +288,11 @@
     "security": "Security",
     "sound": "Sound"
   },
+  "headings": {
+    "listening": "Listening",
+    "box": "The box",
+    "administration": "Administration"
+  },
   "leds": {
     "add_led": "Add LED",
     "bindings": {
@@ -382,7 +387,7 @@
     "placeholder": "Search a setting…"
   },
   "security": {
-    "title": "Passwords & Access"
+    "webui_title": "Web interface"
   },
   "stats": {
     "from": "From",
@@ -635,6 +640,7 @@
         "nothing_found": "There was nothing to correct - the settings were fine."
       }
     },
+    "ssh_password_hint": "The password of the Linux user on the box itself - a different password than the web interface one above.",
     "ssh_toggle": "SSH access",
     "ssh_toggle_hint": "You can turn it back on for maintenance.",
     "status_degraded": "Degraded",
