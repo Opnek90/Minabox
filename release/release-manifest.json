@@ -6,6 +6,21 @@
       "latest": "0.2.4",
       "releases": [
         {
+          "version": "0.3.0-rc.1",
+          "date": "2026-09-03",
+          "channel": "beta",
+          "notes": {
+            "added": {
+              "de": [
+                "Spielt gesprochene Ansagen ueber die laufende Musik und senkt sie dafuer kurz ab, statt sie anzuhalten - ein Radiosender laesst sich nicht an einer Stelle fortsetzen. Eine Ansage ist auch dann zu hoeren, wenn der Ton stummgeschaltet ist; genau dafuer gibt es den Satz \"Der Ton ist aus\"."
+              ],
+              "en": [
+                "Plays spoken announcements over the running music, turning it down for a moment rather than pausing it - a radio stream cannot be resumed at a position. An announcement is audible even while the sound is muted, which is exactly what the sentence \"the sound is off\" exists for."
+              ]
+            }
+          }
+        },
+        {
           "version": "0.2.4",
           "date": "2026-08-28",
           "channel": "stable",
@@ -139,11 +154,27 @@
             }
           }
         }
-      ]
+      ],
+      "latest_beta": "0.3.0-rc.1"
     },
     "backend": {
       "latest": "0.5.0",
       "releases": [
+        {
+          "version": "0.6.0-rc.1",
+          "date": "2026-09-03",
+          "channel": "beta",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Box kann sprechen: sie sagt den Namen der aufgelegten Karte, meldet eine Karte, die sie nicht kennt oder nicht abspielen kann, warnt vor dem Ende der Hoerzeit und sagt Bescheid, wenn der Ton ausgeschaltet wurde. Gedacht fuer Kinder, die das Display noch nicht lesen koennen - bisher sahen eine unbekannte Karte, ein erreichtes Zeitlimit und ein stummer Lautsprecher von aussen alle gleich aus. Was gesagt wird, laesst sich einzeln abschalten; ohne die Wahlkomponente \"Ansagen\" bleibt alles wie bisher."
+              ],
+              "en": [
+                "The box can speak: it says the name of the card that was placed, reports a card it does not know or cannot play, warns before the listening time is over, and says so when the sound has been switched off. Meant for children who cannot read the display yet - until now a card the box did not know, an exhausted time limit and a muted speaker all looked the same from the outside. Each kind of announcement can be switched off on its own; without the optional \"Announcements\" component nothing changes."
+              ]
+            }
+          }
+        },
         {
           "version": "0.5.0",
           "date": "2026-09-02",
@@ -733,7 +764,8 @@
             }
           }
         }
-      ]
+      ],
+      "latest_beta": "0.6.0-rc.1"
     },
     "button": {
       "latest": "0.2.3",
@@ -982,6 +1014,21 @@
       "latest": "0.3.0",
       "releases": [
         {
+          "version": "0.3.1-rc.1",
+          "date": "2026-09-03",
+          "channel": "beta",
+          "notes": {
+            "added": {
+              "de": [
+                "Kennt die neue Wahlkomponente \"Ansagen\" und kann sie wie alle anderen ueber die Oberflaeche ein- und ausschalten."
+              ],
+              "en": [
+                "Knows the new optional \"Announcements\" component and can switch it on and off from the interface like all the others."
+              ]
+            }
+          }
+        },
+        {
           "version": "0.3.0",
           "date": "2026-09-02",
           "channel": "stable",
@@ -1203,7 +1250,8 @@
             }
           }
         }
-      ]
+      ],
+      "latest_beta": "0.3.1-rc.1"
     },
     "led": {
       "latest": "0.2.3",
@@ -1539,9 +1587,44 @@
         }
       ]
     },
+    "tts": {
+      "latest": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "date": "2026-09-03",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Neuer Wahlbestandteil: der Dienst, der die Ansagen erzeugt. Er wandelt kurze Saetze auf der Box selbst in Sprache um - ohne Internet, es wird nichts verschickt - und merkt sich das Ergebnis, sodass jeder Satz nur beim ersten Mal berechnet wird und danach sofort da ist."
+              ],
+              "en": [
+                "A new optional component: the service that makes the announcements. It turns short sentences into speech on the box itself - no internet, nothing is sent anywhere - and remembers the result, so a sentence is only computed the first time and is there instantly afterwards."
+              ]
+            }
+          }
+        }
+      ]
+    },
     "webui": {
       "latest": "0.5.0",
       "releases": [
+        {
+          "version": "0.6.0-rc.1",
+          "date": "2026-09-03",
+          "channel": "beta",
+          "notes": {
+            "added": {
+              "de": [
+                "Neuer Einstellungsabschnitt \"Ansagen\" unter \"Klang\": Hauptschalter, was angesagt wird, in welcher Sprache, wie laut, wie weit die Musik dabei abgesenkt wird und wie viele Minuten vor dem Ende der Hoerzeit gewarnt wird. Der Abschnitt erscheint, sobald die Wahlkomponente \"Ansagen\" eingeschaltet ist."
+              ],
+              "en": [
+                "New settings section \"Announcements\" under \"Sound\": the main switch, what is announced, in which language, how loud, how far the music is turned down for it, and how many minutes before the end of the listening time it warns. The section appears once the optional \"Announcements\" component is switched on."
+              ]
+            }
+          }
+        },
         {
           "version": "0.5.0",
           "date": "2026-09-02",
@@ -2222,7 +2305,8 @@
             }
           }
         }
-      ]
+      ],
+      "latest_beta": "0.6.0-rc.1"
     }
   },
   "components": {
@@ -2302,6 +2386,19 @@
       },
       "hardware": null,
       "network": true
+    },
+    "voice": {
+      "service": "tts",
+      "name": {
+        "de": "Ansagen",
+        "en": "Announcements"
+      },
+      "summary": {
+        "de": "Sagt kurze Sätze an: den Namen der aufgelegten Karte, dass eine Karte unbekannt ist, eine Vorwarnung, bevor die Hörzeit zu Ende ist. Für Kinder, die das Display noch nicht lesen können.",
+        "en": "Says short things out loud: the name of the card that was placed, that a card is unknown, a warning before the listening time runs out. For children who cannot read the display yet."
+      },
+      "hardware": null,
+      "network": false
     }
   }
 }

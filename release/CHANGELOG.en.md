@@ -21,6 +21,17 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.6.0-rc.1 - 2026-09-03
+
+#### Added
+- The box can speak: it says the name of the card that was placed, reports a
+  card it does not know or cannot play, warns before the listening time is
+  over, and says so when the sound has been switched off. Meant for children
+  who cannot read the display yet - until now a card the box did not know, an
+  exhausted time limit and a muted speaker all looked the same from the
+  outside. Each kind of announcement can be switched off on its own; without
+  the optional "Announcements" component nothing changes.
+
 ### 0.5.0 - 2026-09-02
 
 #### Added
@@ -299,6 +310,14 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.6.0-rc.1 - 2026-09-03
+
+#### Added
+- New settings section "Announcements" under "Sound": the main switch, what is
+  announced, in which language, how loud, how far the music is turned down for
+  it, and how many minutes before the end of the listening time it warns. The
+  section appears once the optional "Announcements" component is switched on.
 
 ### 0.5.0 - 2026-09-02
 
@@ -686,7 +705,23 @@ A version without a visible change may stay empty - the interface then says
 
 ---
 
+## tts
+
+### 0.1.0 - 2026-09-03
+
+#### Added
+- A new optional component: the service that makes the announcements. It turns
+  short sentences into speech on the box itself - no internet, nothing is sent
+  anywhere - and remembers the result, so a sentence is only computed the first
+  time and is there instantly afterwards.
+
 ## host-helper
+
+### 0.3.1-rc.1 - 2026-09-03
+
+#### Added
+- Knows the new optional "Announcements" component and can switch it on and
+  off from the interface like all the others.
 
 ### 0.3.0 - 2026-09-02
 
@@ -795,6 +830,14 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## audio
+
+### 0.3.0-rc.1 - 2026-09-03
+
+#### Added
+- Plays spoken announcements over the running music, turning it down for a
+  moment rather than pausing it - a radio stream cannot be resumed at a
+  position. An announcement is audible even while the sound is muted, which is
+  exactly what the sentence "the sound is off" exists for.
 
 ### 0.2.4 - 2026-08-28
 
