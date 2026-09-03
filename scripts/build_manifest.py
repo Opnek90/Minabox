@@ -254,6 +254,76 @@ def read_requires(
     return result, problems
 
 
+def base_version(version: str) -> str:
+    """The version without its pre-release marker: 0.3.0-rc.1 -> 0.3.0."""
+    return version.partition("-")[0]
+
+
+def parked_candidates(
+    tree: dict[str, dict[str, dict[str, Any]]], services: set[str]
+) -> list[tuple[str, str, str | None]]:
+    """The services whose VERSION is still a release candidate.
+
+    This comes from an incident. The announcements went out as a beta bundle -
+    backend, audio, webui and host-helper together - and the release that
+    followed promoted only backend and webui. Audio and host-helper kept their
+    candidate, so no stable image of them was ever built: CI takes the tag from
+    the VERSION file, and it still said "-rc.1". A box on the stable channel got
+    the feature in backend and webui, with an audio that could not play an
+    announcement and a host-helper that did not know the profile to switch it
+    on. Nothing said a word.
+
+    Nothing about a candidate is wrong in itself, which is why this is a report
+    and not a verdict: while a beta is being tried out, this is exactly the
+    state the box is meant to be in. What went missing was somebody saying so
+    at the moment the other half of the bundle was promoted - and that moment
+    is a run of this script.
+
+    Deliberately read from the VERSION files rather than from the changelog.
+    Promoting a candidate is sometimes written as a second entry above it and
+    sometimes as a replacement of it, so the changelog does not reliably say
+    which candidates are still open - but the VERSION file always does.
+    """
+    parked: list[tuple[str, str, str | None]] = []
+    for service in sorted(services):
+        version = current_version(service)
+        if channel_of(version) != "beta":
+            continue
+        date = (tree.get(service, {}).get(version) or {}).get("date")
+        parked.append((service, version, date))
+    return parked
+
+
+def check_parked_candidates(
+    tree: dict[str, dict[str, dict[str, Any]]], services: set[str]
+) -> list[str]:
+    """Refuse a candidate the project has already released past.
+
+    One release day of grace: a bundle put out today, and a promotion later the
+    same day, both stay quiet - the candidate is simply in flight. Once another
+    service has published a *finished* release on a later day, the project has
+    moved on and this one was forgotten. That is the point at which it stops
+    being a beta and becomes a version whose image nobody will ever build.
+    """
+    last_stable_day = ""
+    for versions in tree.values():
+        for version, body in versions.items():
+            if channel_of(version) == "stable":
+                last_stable_day = max(last_stable_day, body.get("date") or "")
+
+    problems: list[str] = []
+    for service, version, date in parked_candidates(tree, services):
+        if date and last_stable_day > date:
+            problems.append(
+                f"{service} is still on {version} from {date}, while other "
+                f"services have published finished releases since "
+                f"({last_stable_day}). Promote it, or take it back - a "
+                f"candidate nobody promotes is a version whose image is "
+                f"never built."
+            )
+    return problems
+
+
 def read_components(services: set[str]) -> dict[str, Any]:
     """The component catalogue, checked against the services that exist.
 
@@ -303,7 +373,7 @@ def read_components(services: set[str]) -> dict[str, Any]:
     return components
 
 
-def build() -> dict[str, Any]:
+def build() -> tuple[dict[str, Any], list[tuple[str, str, str | None]]]:
     parsed = {
         lang: parse_changelog(ROOT / filename, categories)
         for lang, (filename, categories) in LANGUAGES.items()
@@ -395,6 +465,10 @@ def build() -> dict[str, Any]:
             entry["latest_beta"] = newest
         manifest_services[service] = entry
 
+    # Last, so a run names the ordinary mistakes first: this one is about an
+    # earlier release, not about the file being edited.
+    problems.extend(check_parked_candidates(parsed["de"], services))
+
     if problems:
         raise ChangelogError("\n".join(f"  - {p}" for p in problems))
 
@@ -403,7 +477,24 @@ def build() -> dict[str, Any]:
         "registry": "ghcr.io/opnek90",
         "services": manifest_services,
         "components": read_components(services),
-    }
+    }, parked_candidates(parsed["de"], services)
+
+
+def report_parked(parked: list[tuple[str, str, str | None]]) -> None:
+    """Name the open candidates, every single run.
+
+    The whole point: whoever promotes half a bundle reads this line while doing
+    it. Printed rather than raised - a candidate in flight is a legitimate
+    state, and a check that cries wolf gets ignored. check_parked_candidates()
+    is what turns it into a refusal once the project has released past it.
+    """
+    if not parked:
+        return
+    print()
+    print("Still on a release candidate - no stable image is being built:")
+    for service, version, date in parked:
+        since = f"  since {date}" if date else ""
+        print(f"  {service:18s} {version}{since}")
 
 
 def main() -> int:
@@ -416,7 +507,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        manifest = build()
+        manifest, parked = build()
     except ChangelogError as exc:
         print(f"Changelog does not match:\n{exc}", file=sys.stderr)
         return 1
@@ -439,6 +530,7 @@ def main() -> int:
             )
             return 1
         print(f"{MANIFEST.name} is up to date.")
+        report_parked(parked)
         return 0
 
     MANIFEST.write_text(text, encoding="utf-8")
@@ -448,6 +540,7 @@ def main() -> int:
     )
     for name, data in manifest["services"].items():
         print(f"  {name:18s} {data['latest']}  ({len(data['releases'])} entries)")
+    report_parked(parked)
     return 0
 
 

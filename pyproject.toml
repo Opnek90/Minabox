@@ -28,6 +28,9 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
-testpaths = ["services"]
+# "tests" holds what belongs to no single service - the release tooling in
+# scripts/. Adding "scripts" itself would make pytest collect test_display.py,
+# which is a hardware helper and not a test.
+testpaths = ["services", "tests"]
 python_files = ["test_*.py"]
 addopts = "-q --strict-markers"
