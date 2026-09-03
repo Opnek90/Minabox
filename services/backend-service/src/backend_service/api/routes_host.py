@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 from backend_service.config import get_config
-from backend_service.core import component_catalog, update_check
+from backend_service.core import capabilities, component_catalog, update_check
 from backend_service.core.api_errors import ApiError
 from backend_service.core.db_manager import SCHEMA_VERSION, get_db
 from backend_service.core.system_alerts import get_all_alerts
@@ -924,11 +924,16 @@ async def put_components(body: ComponentsBody) -> dict:
     Nothing is deleted: a component that is switched off loses its container,
     not its data. Progress comes from /components/status.
     """
+    # Only profiles this image's compose file actually has. The catalogue also
+    # lists addons that are installed by writing a setting - those have no
+    # profile at all - and a caller that sent one of their ids anyway would
+    # have COMPOSE_PROFILES written with a profile that starts nothing.
+    profiles = [p for p in body.profiles if p in capabilities.PROFILE_TO_FEATURE]
     return await _proxy(
         "PUT",
         "/system/components",
         timeout=60.0,
-        json=body.model_dump(),
+        json={"profiles": profiles},
         error_message="Changing the components failed",
         error_code="components_failed",
         log_event="host_helper_put_components_failed",

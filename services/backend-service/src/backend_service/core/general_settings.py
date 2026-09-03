@@ -80,3 +80,56 @@ def invalidate() -> None:
 
 
 __all__ = ["general_settings_path", "invalidate", "read_general_settings"]
+
+
+#: The keys ``PUT /config/general`` accepts. Anything else in a request body is
+#: dropped silently, so a key that is not in here cannot be written at all.
+#:
+#: It lives here rather than in the route because a second caller has to ask
+#: the same question: an addon that is installed by flipping a setting
+#: (``component_catalog.py``) is only offered when its field can actually be
+#: written. Without the check the WebUI would show a switch that springs back.
+WRITABLE_KEYS: frozenset[str] = frozenset(
+    {
+        "minabox_device_id",
+        "log_level",
+        "mqtt_broker",
+        "mqtt_port",
+        "disable_gpio",
+        "sleep_timer_minutes",
+        "bedtime_fade_enabled",
+        "bedtime_fade_duration_minutes",
+        "bedtime_fade_interval_seconds",
+        "bedtime_fade_step_percent",
+        "usage_times_enabled",
+        "daily_limit_enabled",
+        "daily_limit_minutes",
+        "stop_playback_on_tag_remove",
+        "resume_on_tag_rescan",
+        "playback_end_behavior",
+        "playback_loop_guard_minutes",
+        "playlist_shuffle",
+        "allowed_usage_times",
+        "auto_update_check_enabled",
+        "update_channel",
+        "max_upload_size_mb",
+        "media_import_allowed_domains",
+        "online_metadata_lookup_enabled",
+        "analytics_retention_weeks",
+        # Spoken announcements (core/announcements.py).
+        "announcements_enabled",
+        "announce_card_name",
+        "announce_unknown_card",
+        "announce_usage_limit",
+        "announce_mute",
+        "announce_language",
+        "announce_volume_percent",
+        "announce_duck_percent",
+        "announce_limit_warning_minutes",
+        # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
+        # keys the filter below drops them silently, and the wizard would come
+        # back on every visit.
+        "setup_completed",
+        "setup_version",
+    }
+)

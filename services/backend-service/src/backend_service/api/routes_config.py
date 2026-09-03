@@ -36,6 +36,7 @@ from backend_service.core.announcements import (
 from backend_service.core.api_errors import ApiError
 from backend_service.core.capabilities import require_feature
 from backend_service.core.debug_export.runtime_buffers import structlog_ring_processor
+from backend_service.core.general_settings import WRITABLE_KEYS
 from backend_service.core.json_store import write_json_atomic
 from backend_service.core.media_settings import (
     DEFAULT_ALLOWED_DOMAINS,
@@ -298,38 +299,9 @@ def _validate_allowed_usage_times(times: list) -> list[dict]:
 @router.put("/general")
 async def update_general_config(body: dict) -> dict:
     """Update general settings. Persisted to /data/general_settings.json; takes effect after restart."""
-    allowed = {
-        "minabox_device_id", "log_level", "mqtt_broker", "mqtt_port", "disable_gpio", "sleep_timer_minutes",
-        "bedtime_fade_enabled", "bedtime_fade_duration_minutes", "bedtime_fade_interval_seconds", "bedtime_fade_step_percent",
-        "usage_times_enabled", "daily_limit_enabled", "daily_limit_minutes",
-        "stop_playback_on_tag_remove",
-        "resume_on_tag_rescan",
-        "playback_end_behavior",
-        "playback_loop_guard_minutes",
-        "playlist_shuffle",
-        "allowed_usage_times",
-        "auto_update_check_enabled",
-        "update_channel",
-        "max_upload_size_mb",
-        "media_import_allowed_domains",
-        "online_metadata_lookup_enabled",
-        "analytics_retention_weeks",
-        # Spoken announcements (core/announcements.py).
-        "announcements_enabled",
-        "announce_card_name",
-        "announce_unknown_card",
-        "announce_usage_limit",
-        "announce_mute",
-        "announce_language",
-        "announce_volume_percent",
-        "announce_duck_percent",
-        "announce_limit_warning_minutes",
-        # Setup wizard (docs/services/webui/Setup-Wizard.md). Without these
-        # keys the filter below drops them silently, and the wizard would come
-        # back on every visit.
-        "setup_completed",
-        "setup_version",
-    }
+    # The list lives in core/general_settings.py: the component catalogue
+    # asks the same question about the addons it installs by setting a field.
+    allowed = WRITABLE_KEYS
     data = {k: v for k, v in body.items() if k in allowed}
     if "log_level" in data:
         data["log_level"] = str(data["log_level"]).upper()
