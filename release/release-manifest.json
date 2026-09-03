@@ -2312,6 +2312,11 @@
   "components": {
     "rfid": {
       "service": "rfid",
+      "category": "hardware",
+      "install": {
+        "type": "profile"
+      },
+      "settings_section": "rfid",
       "name": {
         "de": "Kartenleser",
         "en": "Card reader"
@@ -2328,6 +2333,11 @@
     },
     "led": {
       "service": "led",
+      "category": "hardware",
+      "install": {
+        "type": "profile"
+      },
+      "settings_section": "leds",
       "name": {
         "de": "LEDs",
         "en": "LEDs"
@@ -2344,6 +2354,11 @@
     },
     "button": {
       "service": "button",
+      "category": "hardware",
+      "install": {
+        "type": "profile"
+      },
+      "settings_section": "buttons",
       "name": {
         "de": "Tasten",
         "en": "Buttons"
@@ -2360,6 +2375,11 @@
     },
     "display": {
       "service": "display",
+      "category": "hardware",
+      "install": {
+        "type": "profile"
+      },
+      "settings_section": "display",
       "name": {
         "de": "Display",
         "en": "Display"
@@ -2376,6 +2396,11 @@
     },
     "media": {
       "service": "media-downloader",
+      "category": "software",
+      "install": {
+        "type": "profile"
+      },
+      "settings_section": "media_import_domains",
       "name": {
         "de": "Medien-Import",
         "en": "Media import"
@@ -2389,6 +2414,11 @@
     },
     "voice": {
       "service": "tts",
+      "category": "software",
+      "install": {
+        "type": "profile"
+      },
+      "settings_section": "announcements",
       "name": {
         "de": "Ansagen",
         "en": "Announcements"
@@ -2399,6 +2429,25 @@
       },
       "hardware": null,
       "network": false
+    },
+    "metadata": {
+      "service": null,
+      "category": "software",
+      "install": {
+        "type": "setting",
+        "field": "online_metadata_lookup_enabled"
+      },
+      "settings_section": "media_metadata",
+      "name": {
+        "de": "Online-Metadaten",
+        "en": "Online metadata"
+      },
+      "summary": {
+        "de": "Schlägt zu importierten Titeln Interpret, Album und Cover bei MusicBrainz nach. Standardmäßig aus, denn dabei werden Titel und Interpret an einen Dritten übermittelt. Ohne das Addon bleibt die Mediathek bei dem, was in den Dateien selbst steht.",
+        "en": "Looks up artist, album and cover art for imported tracks at MusicBrainz. Off by default, because it sends the title and artist to a third party. Without the addon the library sticks to whatever the files themselves carry."
+      },
+      "hardware": null,
+      "network": true
     }
   }
 }

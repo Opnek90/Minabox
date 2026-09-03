@@ -175,6 +175,11 @@ def read_components(services: set[str]) -> dict[str, Any]:
 
     Checked here and not only in the backend: a typo in the service name would
     otherwise reach a box as a component whose version can never be found.
+
+    Not every addon has a service, though: one whose ``install`` says
+    ``{"type": "setting"}`` lives inside the backend image and is switched on
+    by writing a field, not by pulling a container - it has no service to
+    check the name of, on purpose (``core/component_catalog.py``).
     """
     data = json.loads(COMPONENTS.read_text(encoding="utf-8"))
     components = data.get("components")
@@ -185,7 +190,12 @@ def read_components(services: set[str]) -> dict[str, Any]:
     for profile, entry in components.items():
         where = f"{COMPONENTS.name}: {profile}"
         service = entry.get("service")
-        if service not in services:
+        install = entry.get("install")
+        is_setting = isinstance(install, dict) and install.get("type") == "setting"
+        if is_setting:
+            if service is not None:
+                problems.append(f"{where}: a setting addon must not name a service")
+        elif service not in services:
             problems.append(f"{where}: '{service}' is not a service")
         for field in ("name", "summary", "hardware"):
             value = entry.get(field)
