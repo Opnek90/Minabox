@@ -13,6 +13,11 @@ Two rules shape this module:
   commit, the images only once CI is through. In that window it knows a version
   the registry does not have yet, so every candidate is checked against the
   registry before it is offered.
+* **Never offer a combination nobody built.** A release may say what it needs
+  from the other services (``requires`` in the manifest, #194). Where that can
+  be met by an update this box is being offered anyway, the other service goes
+  along in the same run; where it cannot, the candidate is held back and the
+  reason is named - the same shape the rollback lock has always used.
 
 On top of that sits the channel. A box on the stable channel reads the
 manifest's ``latest`` and never sees a release candidate; a box on beta reads
@@ -26,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -56,6 +62,12 @@ FETCH_TIMEOUT = 10.0
 POLL_INTERVAL_SECONDS = 30 * 60
 
 ALERT_UPDATE_AVAILABLE = "update_available"
+
+#: The one expression a requirement may use - mirrors RE_REQUIREMENT in
+#: scripts/build_manifest.py. Anything else is ignored rather than guessed at:
+#: a requirement this build cannot read is one it must not act on, in either
+#: direction.
+RE_MINIMUM = re.compile(r"^>=\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$")
 
 #: The channels a box can follow. "stable" is what an untouched box gets.
 CHANNELS = ("stable", "beta")
@@ -197,6 +209,37 @@ def _channel_target(info: dict[str, Any], channel: str) -> str | None:
     return candidate
 
 
+def _minimum(expression: Any) -> str | None:
+    """The version a requirement asks for at least, or None if unreadable."""
+    match = RE_MINIMUM.match(str(expression or "").strip())
+    return match.group(1) if match else None
+
+
+def requirements_of(info: dict[str, Any], version: str | None) -> dict[str, str]:
+    """What one published version of a service needs from the others.
+
+    ``{"backend": "0.4.0"}`` - the bare minimum version, not the ``>=`` the
+    manifest writes. Callers compare it, they do not print it.
+
+    A version the manifest does not describe - a development build, or one
+    older than the oldest entry - needs nothing as far as this box can tell.
+    Guessing from a neighbouring release would be inventing a statement that
+    nobody made.
+    """
+    for release in info.get("releases") or []:
+        if release.get("version") != version:
+            continue
+        raw = release.get("requires")
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            str(name): found
+            for name, expression in raw.items()
+            if (found := _minimum(expression))
+        }
+    return {}
+
+
 def _build_entries(
     manifest: dict[str, Any], installed: dict[str, str], channel: str = DEFAULT_CHANNEL
 ) -> list[dict[str, Any]]:
@@ -218,6 +261,7 @@ def _build_entries(
                     "update_available": False,
                     "managed": False,
                     "channel": channel_of(running),
+                    "requires": {},
                     "releases": [],
                 }
             )
@@ -246,12 +290,161 @@ def _build_entries(
                 # Which channel the *running* version came from. A box that
                 # switched back to stable still shows its beta build as one.
                 "channel": channel_of(running),
+                # What the *running* build needs from the others - not what
+                # the candidate needs. This is the field the rollback lock
+                # reads: a step back is dangerous when it drops a service
+                # below what something running today asks of it.
+                "requires": requirements_of(info, running),
                 # Every release that was skipped, not just the newest: two
                 # versions behind, and half the information would be lost.
                 "releases": newer,
             }
         )
     return entries
+
+
+def _apply_requirements(
+    manifest: dict[str, Any], entries: list[dict[str, Any]], installed: dict[str, str]
+) -> None:
+    """Settle what a candidate needs from the others - take it along, or wait.
+
+    Runs after the registry check, and it has to: whether a requirement can be
+    met depends on what is really on offer, and a candidate the registry does
+    not have yet cannot carry anyone.
+
+    Three answers per requirement:
+
+    * what runs today is already enough - nothing to say;
+    * it is not enough, but the other service is being offered a version that
+      is: it goes along in the same run (``requires_pull``), because
+      ``POST /system/update`` takes several targets;
+    * neither - the candidate is held back and says why (``requires_unmet``).
+      That is the honest answer for the case the requirement points at
+      something that is not published yet, or at a service this box updates
+      later for a reason of its own.
+
+    A required service the box does not have at all counts as met. There is no
+    combination to split: the requirement is about a container that is not
+    running here, and holding an update back over it would be a refusal
+    nobody could act on.
+
+    Held back once, held back for good within one run: a candidate that drops
+    out lowers what the others may count on, so the rounds repeat until
+    nothing changes. Only blocking ever happens, never unblocking, so it ends.
+    """
+    services = manifest.get("services") or {}
+    by_service = {e["service"]: e for e in entries}
+
+    def planned(name: str) -> str | None:
+        """The version *name* would run once this update run is through."""
+        entry = by_service.get(name)
+        if entry and entry.get("update_available") and entry.get("latest"):
+            return entry["latest"]
+        return installed.get(name)
+
+    for _ in range(len(entries) + 1):
+        blocked_any = False
+        for entry in entries:
+            if not entry.get("update_available"):
+                continue
+
+            info = services.get(entry["service"]) or {}
+            pull: list[dict[str, str]] = []
+            unmet: list[dict[str, str]] = []
+
+            for name, minimum in sorted(
+                requirements_of(info, entry["latest"]).items()
+            ):
+                current = installed.get(name)
+                if current is None or not is_newer(minimum, current):
+                    continue
+                target = planned(name)
+                if target and not is_newer(minimum, target):
+                    pull.append({"service": name, "version": target})
+                else:
+                    unmet.append(
+                        {"service": name, "minimum": minimum, "installed": current}
+                    )
+
+            if unmet:
+                blocked_any = True
+                entry["update_available"] = False
+                entry["requires_unmet"] = unmet
+                entry.pop("requires_pull", None)
+                # Same reasoning as pending_publish: notes about a version
+                # that is not going to arrive read like a promise.
+                entry["releases"] = []
+                logger.info(
+                    "update_requirements_unmet",
+                    service=entry["service"],
+                    version=entry["latest"],
+                    unmet=unmet,
+                )
+            elif pull:
+                entry["requires_pull"] = pull
+            else:
+                entry.pop("requires_pull", None)
+
+        if not blocked_any:
+            break
+
+
+def companions(targets: dict[str, str]) -> dict[str, str]:
+    """The services that have to travel with *targets*, per the last check.
+
+    Read from the remembered answer rather than fetched again: the update
+    button is pressed on a box that has just been told what is on offer, and a
+    second fetch would put the whole network timeout in front of a run the
+    user has already confirmed. Without a cached answer nothing is added -
+    that is the state before the first check, where there is no requirement
+    this box knows of either.
+
+    A service pulled in can bring its own requirement, so the list is walked
+    until it stops growing.
+    """
+    cached = _read_cache() or {}
+    by_service = {
+        e["service"]: e
+        for e in (cached.get("result") or {}).get("services") or []
+        if isinstance(e, dict) and e.get("service")
+    }
+
+    extra: dict[str, str] = {}
+    queue = list(targets)
+    while queue:
+        entry = by_service.get(queue.pop()) or {}
+        for companion in entry.get("requires_pull") or []:
+            name, version = companion.get("service"), companion.get("version")
+            if not name or not version or name in targets or name in extra:
+                continue
+            extra[name] = version
+            queue.append(name)
+    return extra
+
+
+def declared_requirements() -> dict[str, dict[str, str]]:
+    """Per running service, what it needs from the others - per the last check.
+
+    The rollback lock reads this. Stepping one service back below what another
+    running service asks of it splits the box in exactly the way an update is
+    held back for, and it is the same question asked from the other end.
+
+    From the cache, like `companions`: pressing *step back* must not wait out
+    a network timeout. A box that has never run a check knows of no
+    requirement and locks nothing - which is the same "claim nothing without
+    having looked" the module opens with.
+    """
+    cached = _read_cache() or {}
+    result: dict[str, dict[str, str]] = {}
+    for entry in (cached.get("result") or {}).get("services") or []:
+        if not isinstance(entry, dict):
+            continue
+        wanted = entry.get("requires")
+        if isinstance(wanted, dict) and wanted:
+            result[str(entry.get("service"))] = {
+                str(name): str(minimum) for name, minimum in wanted.items()
+            }
+    return result
 
 
 def _cached_services(cached: dict[str, Any]) -> set[str]:
@@ -328,6 +521,7 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
                     "update_available": False,
                     "managed": False,
                     "channel": channel_of(version),
+                    "requires": {},
                     "releases": [],
                 }
                 for name, version in sorted(installed.items())
@@ -366,6 +560,10 @@ async def check(installed: dict[str, str], *, force: bool = False) -> dict[str, 
                             service=entry["service"],
                             version=entry["latest"],
                         )
+
+            # Last, and after the registry: a candidate that is not really
+            # published cannot satisfy anybody's requirement either.
+            _apply_requirements(manifest, entries, installed)
     except Exception as e:
         logger.warning("update_check_failed", error=f"{type(e).__name__}: {e}")
         return _stale(f"{type(e).__name__}: {e}")

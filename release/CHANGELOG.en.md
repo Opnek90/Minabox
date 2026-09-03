@@ -21,6 +21,15 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.7.0 - 2026-09-03
+
+#### Added
+- An update is only offered when the box can actually run the new version.
+  Where a version of one service needs a newer version of another, the other
+  travels along in the same run; where it is not to be had, the update waits
+  and says who for. For the same reason a step back that would strand a
+  running service is refused.
+
 ### 0.6.0 - 2026-09-03
 
 #### Added
@@ -314,6 +323,13 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.7.0 - 2026-09-03
+
+#### Added
+- The version list now says why an update is not offered yet and which service
+  it is waiting for. A blocked step back names the service that would
+  otherwise be stranded.
 
 ### 0.6.0 - 2026-09-03
 

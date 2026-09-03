@@ -95,6 +95,7 @@
   "podcast_not_found": "Podcast nicht gefunden",
   "rollback_failed": "Rückschritt fehlgeschlagen",
   "rollback_no_services": "Kein Dienst zum Zurücksetzen angegeben",
+  "rollback_requires_unmet": "Rückschritt nicht möglich: Ein anderer Dienst braucht eine neuere Version davon",
   "rollback_schema_changed": "Rückschritt nicht möglich: Die Datenbank wurde bei diesem Update umgestellt",
   "rollback_unavailable": "Für diesen Dienst ist keine frühere Version aufgezeichnet",
   "rfid_config_read_failed": "RFID-Konfiguration konnte nicht gelesen werden",

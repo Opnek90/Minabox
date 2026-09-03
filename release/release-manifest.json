@@ -1,5 +1,5 @@
 {
-  "schema": 3,
+  "schema": 4,
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
@@ -158,8 +158,23 @@
       "latest_beta": "0.3.0-rc.1"
     },
     "backend": {
-      "latest": "0.6.0",
+      "latest": "0.7.0",
       "releases": [
+        {
+          "version": "0.7.0",
+          "date": "2026-09-03",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Ein Update wird nur noch angeboten, wenn die Box die neue Fassung auch fahren kann. Braucht eine Version eines Dienstes eine neuere Version eines anderen, faehrt der andere im selben Durchlauf mit; ist er nicht zu haben, wartet das Update und sagt, auf wen. Aus demselben Grund wird ein Rueckschritt gesperrt, der einen laufenden Dienst stehen lassen wuerde."
+              ],
+              "en": [
+                "An update is only offered when the box can actually run the new version. Where a version of one service needs a newer version of another, the other travels along in the same run; where it is not to be had, the update waits and says who for. For the same reason a step back that would strand a running service is refused."
+              ]
+            }
+          }
+        },
         {
           "version": "0.6.0",
           "date": "2026-09-03",
@@ -1609,8 +1624,23 @@
       ]
     },
     "webui": {
-      "latest": "0.6.0",
+      "latest": "0.7.0",
       "releases": [
+        {
+          "version": "0.7.0",
+          "date": "2026-09-03",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Die Versionsliste sagt jetzt, warum ein Update noch nicht angeboten wird und auf welchen Dienst es wartet. Ein gesperrter Rueckschritt nennt den Dienst, der sonst stehen bliebe."
+              ],
+              "en": [
+                "The version list now says why an update is not offered yet and which service it is waiting for. A blocked step back names the service that would otherwise be stranded."
+              ]
+            }
+          }
+        },
         {
           "version": "0.6.0",
           "date": "2026-09-03",

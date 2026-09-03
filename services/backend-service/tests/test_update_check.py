@@ -391,3 +391,184 @@ def test_dropping_a_component_withdraws_its_update(tmp_path) -> None:
     # Without this the box would keep pointing at an update for a component it
     # no longer has.
     assert trimmed["update_available"] is False
+
+
+# ── Abhaengigkeiten zwischen Diensten (#194) ────────────────────────────────
+
+
+def _requiring_manifest() -> dict:
+    """media-downloader 0.2.2 needs backend 0.4.0; the backend is on offer."""
+    return {
+        "schema": 4,
+        "registry": "ghcr.io/opnek90",
+        "services": {
+            "backend": {
+                "latest": "0.4.0",
+                "releases": [
+                    {"version": "0.4.0", "date": "2026-09-01", "notes": {}},
+                    {"version": "0.3.0", "date": "2026-08-30", "notes": {}},
+                ],
+            },
+            "media-downloader": {
+                "latest": "0.2.2",
+                "releases": [
+                    {
+                        "version": "0.2.2",
+                        "date": "2026-09-01",
+                        "requires": {"backend": ">=0.4.0"},
+                        "notes": {},
+                    },
+                    {"version": "0.2.1", "date": "2026-08-30", "notes": {}},
+                ],
+            },
+        },
+    }
+
+
+def _settled(manifest: dict, installed: dict[str, str]) -> dict[str, dict]:
+    entries = uc._build_entries(manifest, installed)
+    uc._apply_requirements(manifest, entries, installed)
+    return {e["service"]: e for e in entries}
+
+
+def test_requirement_met_by_what_runs_says_nothing() -> None:
+    """A box that is already new enough must not be told about a requirement."""
+    entries = _settled(
+        _requiring_manifest(), {"backend": "0.4.0", "media-downloader": "0.2.1"}
+    )
+
+    assert entries["media-downloader"]["update_available"] is True
+    assert "requires_pull" not in entries["media-downloader"]
+    assert "requires_unmet" not in entries["media-downloader"]
+
+
+def test_the_required_service_is_taken_along() -> None:
+    """Both are behind: the backend has to move in the same run."""
+    entries = _settled(
+        _requiring_manifest(), {"backend": "0.3.0", "media-downloader": "0.2.1"}
+    )
+
+    assert entries["media-downloader"]["update_available"] is True
+    assert entries["media-downloader"]["requires_pull"] == [
+        {"service": "backend", "version": "0.4.0"}
+    ]
+
+
+def test_a_requirement_nothing_can_meet_holds_the_update_back() -> None:
+    """No newer backend on offer - so the candidate is not offered either."""
+    manifest = _requiring_manifest()
+    # The backend the box runs is the newest there is; it cannot go higher.
+    manifest["services"]["backend"]["latest"] = "0.3.0"
+    manifest["services"]["backend"]["releases"] = [
+        {"version": "0.3.0", "date": "2026-08-30", "notes": {}}
+    ]
+
+    entries = _settled(manifest, {"backend": "0.3.0", "media-downloader": "0.2.1"})
+
+    assert entries["media-downloader"]["update_available"] is False
+    assert entries["media-downloader"]["requires_unmet"] == [
+        {"service": "backend", "minimum": "0.4.0", "installed": "0.3.0"}
+    ]
+    # Same reasoning as pending_publish: no notes about what is not coming.
+    assert entries["media-downloader"]["releases"] == []
+
+
+def test_a_backend_held_back_by_the_registry_takes_its_dependant_with_it() -> None:
+    """The pull-along only counts while the other update is real."""
+    manifest = _requiring_manifest()
+    installed = {"backend": "0.3.0", "media-downloader": "0.2.1"}
+    entries = uc._build_entries(manifest, installed)
+    by_service = {e["service"]: e for e in entries}
+    # What the registry check does when CI has not pushed the image yet.
+    by_service["backend"]["update_available"] = False
+    by_service["backend"]["pending_publish"] = True
+
+    uc._apply_requirements(manifest, entries, installed)
+
+    assert by_service["media-downloader"]["update_available"] is False
+    assert by_service["media-downloader"]["requires_unmet"][0]["service"] == "backend"
+
+
+def test_a_requirement_on_a_service_the_box_lacks_is_met() -> None:
+    """No container, no combination that could be split."""
+    entries = _settled(_requiring_manifest(), {"media-downloader": "0.2.1"})
+
+    assert entries["media-downloader"]["update_available"] is True
+    assert "requires_unmet" not in entries["media-downloader"]
+
+
+def test_an_unreadable_requirement_is_ignored_not_guessed_at() -> None:
+    """A manifest from a future that writes ranges must not block this box."""
+    manifest = _requiring_manifest()
+    manifest["services"]["media-downloader"]["releases"][0]["requires"] = {
+        "backend": "^0.4.0"
+    }
+
+    entries = _settled(manifest, {"backend": "0.3.0", "media-downloader": "0.2.1"})
+
+    assert entries["media-downloader"]["update_available"] is True
+    assert "requires_unmet" not in entries["media-downloader"]
+
+
+def test_the_running_version_reports_what_it_needs() -> None:
+    """The rollback lock reads this, so it is about the running build."""
+    entries = _settled(
+        _requiring_manifest(), {"backend": "0.4.0", "media-downloader": "0.2.2"}
+    )
+
+    assert entries["media-downloader"]["requires"] == {"backend": "0.4.0"}
+    assert entries["backend"]["requires"] == {}
+
+
+def test_companions_walk_the_chain(tmp_path, monkeypatch) -> None:
+    """A service pulled in brings its own requirement along."""
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    uc._write_cache(
+        {
+            "cached_at": 0,
+            "result": {
+                "services": [
+                    {
+                        "service": "webui",
+                        "requires_pull": [
+                            {"service": "media-downloader", "version": "0.2.2"}
+                        ],
+                    },
+                    {
+                        "service": "media-downloader",
+                        "requires_pull": [{"service": "backend", "version": "0.4.0"}],
+                    },
+                    {"service": "backend"},
+                ]
+            },
+        }
+    )
+
+    assert uc.companions({"webui": "0.6.0"}) == {
+        "media-downloader": "0.2.2",
+        "backend": "0.4.0",
+    }
+
+
+def test_companions_without_a_cached_answer_add_nothing(tmp_path, monkeypatch) -> None:
+    """Before the first check there is no requirement this box knows of."""
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+
+    assert uc.companions({"webui": "0.6.0"}) == {}
+
+
+def test_declared_requirements_reads_the_running_versions(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    uc._write_cache(
+        {
+            "cached_at": 0,
+            "result": {
+                "services": [
+                    {"service": "media-downloader", "requires": {"backend": "0.4.0"}},
+                    {"service": "backend", "requires": {}},
+                ]
+            },
+        }
+    )
+
+    assert uc.declared_requirements() == {"media-downloader": {"backend": "0.4.0"}}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Chip, Typography } from '@mui/material';
+import { Box, Chip, Tooltip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { ServiceUpdateInfo } from '@/api/system';
 
@@ -28,6 +28,25 @@ export const ServiceVersionRow: React.FC<{ service: ServiceUpdateInfo }> = ({ se
         // promise the pull could not keep.
         <Chip size="small" variant="outlined" label={t('system.pending_publish')} />
       )}
+      {service.requires_unmet?.length ? (
+        // Held back because the box would end up on a combination nobody
+        // built. Shown rather than hidden, and with the missing version in
+        // the tooltip: "why is there nothing for this one" is the question
+        // that gets asked either way.
+        <Tooltip
+          title={t('system.requires_unmet_hint', {
+            service: service.requires_unmet[0].service,
+            version: service.requires_unmet[0].minimum,
+          })}
+        >
+          <Chip
+            size="small"
+            color="warning"
+            variant="outlined"
+            label={t('system.requires_unmet', { service: service.requires_unmet[0].service })}
+          />
+        </Tooltip>
+      ) : null}
     </Box>
   );
 };

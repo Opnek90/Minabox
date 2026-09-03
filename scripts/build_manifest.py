@@ -52,7 +52,21 @@ CATEGORY_KEYS = ("added", "improved", "fixed")
 # 3: the "components" block - what an optional component is for, what hardware
 # it needs and whether it needs the network. Older boxes ignore the field;
 # newer ones fall back to the copy in their own image when it is missing.
-SCHEMA_VERSION = 3
+# 4: "requires" per release - what that version needs from the other services.
+# A box that does not read the field behaves as it always did.
+SCHEMA_VERSION = 4
+
+# What a release needs from the other services. One optional file per service,
+# next to its VERSION:
+#
+#     {"0.2.2": {"backend": ">=0.4.0"}}
+#
+# Keyed by version and not by service, because a requirement belongs to the
+# release that introduced it: the manifest carries the older entries too, and
+# they have to keep saying what was true when they were built. Next to VERSION
+# and not in the changelogs, because it is read by machines - a line that has
+# to be kept identical in two languages is a line that will drift.
+REQUIRES_NAME = "requires.json"
 
 RE_SERVICE = re.compile(r"^##\s+(?P<name>[a-z0-9][a-z0-9-]*)\s*$")
 RE_VERSION = re.compile(
@@ -60,6 +74,13 @@ RE_VERSION = re.compile(
 )
 RE_CATEGORY = re.compile(r"^####\s+(?P<name>.+?)\s*$")
 RE_ITEM = re.compile(r"^-\s+(?P<text>.+?)\s*$")
+
+# The only expression a requirement may use: a minimum version. That covers
+# what actually happens - new code needs an interface that exists from a
+# certain version on - and nothing more. An upper bound would be a statement
+# about a release nobody has seen yet, made by whoever happens to be writing
+# the older one.
+RE_REQUIREMENT = re.compile(r"^>=\s*(?P<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$")
 
 
 class ChangelogError(Exception):
@@ -170,6 +191,69 @@ def channel_of(version: str) -> str:
     return "beta" if "-" in version else "stable"
 
 
+def read_requires(
+    service: str, described: set[str], services: set[str]
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Per version of *service*, what it needs from the other services.
+
+    The file is optional - most releases need nothing from anyone - but every
+    key in one that exists is checked. A version no changelog entry describes,
+    or a service name with a typo in it, would otherwise be a requirement that
+    applies to nothing and never says so; the box would go on offering the
+    combination the line was written to prevent.
+
+    Returns the problems instead of raising, so a run names all of them at
+    once, like the changelog checks above.
+    """
+    path = SERVICES_DIR / f"{service}-service" / REQUIRES_NAME
+    if not path.exists():
+        return {}, []
+
+    where = f"{service}-service/{REQUIRES_NAME}"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as e:
+        return {}, [f"{where}: not readable as JSON ({e})"]
+    if not isinstance(data, dict):
+        return {}, [f"{where}: expected an object of version -> requirements"]
+
+    problems: list[str] = []
+    result: dict[str, dict[str, str]] = {}
+    for version, block in data.items():
+        if version not in described:
+            problems.append(
+                f"{where}: {version} is not described in the changelog "
+                f"({', '.join(sorted(described, key=sort_key)) or 'nothing is'})"
+            )
+        if not isinstance(block, dict) or not block:
+            problems.append(
+                f"{where}: {version} needs an object of service -> '>=version'"
+            )
+            continue
+
+        entry: dict[str, str] = {}
+        for other, expression in block.items():
+            if other == service:
+                problems.append(f"{where}: {version} requires itself")
+            elif other not in services:
+                problems.append(
+                    f"{where}: '{other}' is not a service "
+                    f"({', '.join(sorted(services))})"
+                )
+            elif not isinstance(expression, str) or not RE_REQUIREMENT.match(
+                expression
+            ):
+                problems.append(
+                    f"{where}: {version} -> {other}: expected a minimum version "
+                    f"like '>=0.4.0', got {expression!r}"
+                )
+            else:
+                entry[other] = expression
+        if entry:
+            result[version] = entry
+    return result, problems
+
+
 def read_components(services: set[str]) -> dict[str, Any]:
     """The component catalogue, checked against the services that exist.
 
@@ -268,6 +352,9 @@ def build() -> dict[str, Any]:
                     f"but VERSION says {version}"
                 )
 
+        requires, requires_problems = read_requires(service, set(entries), services)
+        problems.extend(requires_problems)
+
         releases = []
         for release_version in sorted(entries, key=sort_key, reverse=True):
             german = entries[release_version]
@@ -280,14 +367,18 @@ def build() -> dict[str, Any]:
                 for key in CATEGORY_KEYS
                 if german.get(key) or english.get(key)
             }
-            releases.append(
-                {
-                    "version": release_version,
-                    "date": german.get("date"),
-                    "channel": channel_of(release_version),
-                    "notes": notes,
-                }
-            )
+            release: dict[str, Any] = {
+                "version": release_version,
+                "date": german.get("date"),
+                "channel": channel_of(release_version),
+            }
+            # Left out where there is nothing to say, which is the normal
+            # case: an empty object in every one of a hundred entries would
+            # make the field look like a formality rather than a statement.
+            if release_version in requires:
+                release["requires"] = requires[release_version]
+            release["notes"] = notes
+            releases.append(release)
 
         # "latest" stays what it always was: the newest *finished* version. A
         # box that knows nothing about channels reads that field and therefore

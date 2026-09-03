@@ -715,9 +715,19 @@ async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
     being recreated underneath it.
 
     With `targets`, exactly the named services go to exactly the named
-    versions.
+    versions - plus whatever those versions need from the other services
+    (#194). A release may say it needs a newer backend; taking that backend
+    along is the difference between a targeted update and a box left on a
+    combination nobody built. Without `targets` everything moves anyway and
+    there is nothing to add.
     """
     payload = body.model_dump() if body else {"targets": None, "backup": True}
+    targets = payload.get("targets")
+    if targets:
+        extra = update_check.companions(targets)
+        if extra:
+            logger.info("update_pulls_along", targets=targets, companions=extra)
+            payload["targets"] = {**targets, **extra}
     # The schema version travels with every run and is filed in the history.
     # It is the only thing that later says whether the way back crosses a
     # migration - see /update-history.
@@ -734,7 +744,34 @@ async def update_minabox(body: UpdateTargetsBody | None = None) -> dict:
     )
 
 
-def _rollback_candidates(entries: list[dict], running: dict[str, str]) -> list[dict]:
+def _left_behind(
+    service: str,
+    target: str,
+    running: dict[str, str],
+    requirements: dict[str, dict[str, str]],
+) -> dict[str, str] | None:
+    """The running service that this step back would drop below its minimum.
+
+    The mirror image of the hold-back in the update check (#194): there a
+    candidate waits because the box is too old for it, here a step back is
+    refused because it would make the box too old for something that is
+    already running. The first one found is named - one reason is enough to
+    say why the button does nothing, and a list of them would only be longer.
+    """
+    for other, wanted in sorted(requirements.items()):
+        if other == service or other not in running:
+            continue
+        minimum = wanted.get(service)
+        if minimum and update_check.is_newer(minimum, target):
+            return {"service": other, "minimum": minimum}
+    return None
+
+
+def _rollback_candidates(
+    entries: list[dict],
+    running: dict[str, str],
+    requirements: dict[str, dict[str, str]] | None = None,
+) -> list[dict]:
     """Per service the version it ran before the most recent change of it.
 
     Walks the history from newest to oldest and stops at the first entry that
@@ -746,6 +783,14 @@ def _rollback_candidates(entries: list[dict], running: dict[str, str]) -> list[d
     database has been migrated, the older code looks for its data where the
     newer version no longer puts it - and reports it as gone. That is not a
     failure the box could recover from on its own, so it never starts.
+
+    The second refusal is the version dependency read backwards (#194): a step
+    back that would drop this service below what another *running* service
+    asks of it. Each service is judged on its own, against what runs today -
+    so stepping two services back together, where the one asking would be
+    stepping back out of its own requirement, is refused as well. The button
+    steps back one service at a time, and the careful answer is the right one
+    for the case where it does not.
     """
     candidates: list[dict] = []
     for service, current in sorted(running.items()):
@@ -762,16 +807,31 @@ def _rollback_candidates(entries: list[dict], running: dict[str, str]) -> list[d
                 and isinstance(recorded, int)
                 and recorded != SCHEMA_VERSION
             )
-            candidates.append(
-                {
-                    "service": service,
-                    "installed": current,
-                    "target": previous,
-                    "recorded_at": entry.get("started_at"),
-                    "allowed": not blocked,
-                    "reason": "schema_changed" if blocked else None,
-                }
+            # Asked second, and only when the first answer was yes: the
+            # database is the harder wall of the two, and naming it is the
+            # more useful sentence.
+            left_behind = (
+                None
+                if blocked
+                else _left_behind(service, previous, running, requirements or {})
             )
+            candidate = {
+                "service": service,
+                "installed": current,
+                "target": previous,
+                "recorded_at": entry.get("started_at"),
+                "allowed": not blocked and left_behind is None,
+                "reason": (
+                    "schema_changed"
+                    if blocked
+                    else "requires_unmet"
+                    if left_behind
+                    else None
+                ),
+            }
+            if left_behind:
+                candidate["required_by"] = left_behind
+            candidates.append(candidate)
             break
     return candidates
 
@@ -795,7 +855,9 @@ async def update_history() -> dict:
     return {
         "entries": entries,
         "schema_version": SCHEMA_VERSION,
-        "candidates": _rollback_candidates(entries, running),
+        "candidates": _rollback_candidates(
+            entries, running, update_check.declared_requirements()
+        ),
     }
 
 
@@ -825,6 +887,17 @@ async def rollback(body: RollbackBody) -> dict:
                 status_code=409,
                 code="rollback_unavailable",
                 detail=f"No earlier version recorded for {name}",
+            )
+        if candidate["reason"] == "requires_unmet":
+            other = candidate.get("required_by") or {}
+            raise ApiError(
+                status_code=409,
+                code="rollback_requires_unmet",
+                detail=(
+                    f"{name} cannot be stepped back: "
+                    f"{other.get('service')} needs at least "
+                    f"{name} {other.get('minimum')}."
+                ),
             )
         if not candidate["allowed"]:
             raise ApiError(

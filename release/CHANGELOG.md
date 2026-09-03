@@ -22,6 +22,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.7.0 - 2026-09-03
+
+#### Neu
+- Ein Update wird nur noch angeboten, wenn die Box die neue Fassung auch
+  fahren kann. Braucht eine Version eines Dienstes eine neuere Version eines
+  anderen, faehrt der andere im selben Durchlauf mit; ist er nicht zu haben,
+  wartet das Update und sagt, auf wen. Aus demselben Grund wird ein
+  Rueckschritt gesperrt, der einen laufenden Dienst stehen lassen wuerde.
+
 ### 0.6.0 - 2026-09-03
 
 #### Neu
@@ -327,6 +336,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.7.0 - 2026-09-03
+
+#### Neu
+- Die Versionsliste sagt jetzt, warum ein Update noch nicht angeboten wird und
+  auf welchen Dienst es wartet. Ein gesperrter Rueckschritt nennt den Dienst,
+  der sonst stehen bliebe.
 
 ### 0.6.0 - 2026-09-03
 
