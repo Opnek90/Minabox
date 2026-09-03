@@ -14,6 +14,7 @@ import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import DownloadIcon from '@mui/icons-material/Download';
 import LinkIcon from '@mui/icons-material/Link';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import MicIcon from '@mui/icons-material/Mic';
 import PodcastsIcon from '@mui/icons-material/Podcasts';
 import StreamIcon from '@mui/icons-material/Stream';
 import { useTranslation } from 'react-i18next';
@@ -31,6 +32,7 @@ interface MediaFabProps {
   onCreatePlaylist: () => void;
   onCreateFolder: () => void;
   onUpload: () => void;
+  onRecord: () => void;
   onRemoteTrack: () => void;
   onImport: () => void;
   onCreateStream: () => void;
@@ -50,6 +52,7 @@ export const MediaFab: React.FC<MediaFabProps> = ({
   onCreatePlaylist,
   onCreateFolder,
   onUpload,
+  onRecord,
   onRemoteTrack,
   onImport,
   onCreateStream,
@@ -96,6 +99,7 @@ export const MediaFab: React.FC<MediaFabProps> = ({
         ? [{ icon: <DownloadIcon fontSize="small" />, name: t('tracks.import_from_url'), onClick: onImport }]
         : []),
       { icon: <CloudUploadIcon fontSize="small" />, name: t('tracks.upload'), onClick: onUpload },
+      { icon: <MicIcon fontSize="small" />, name: t('tracks.record'), onClick: onRecord },
     ],
     streams: [
       { icon: <CreateNewFolderIcon fontSize="small" />, name: t('folders.new'), onClick: onCreateStreamFolder },

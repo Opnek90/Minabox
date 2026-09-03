@@ -28,6 +28,7 @@ import { PodcastList } from '@/components/media/PodcastList';
 import { StreamDialog } from '@/components/media/StreamDialog';
 import { StreamList } from '@/components/media/StreamList';
 import { TrackList } from '@/components/media/TrackList';
+import { RecordDialog } from '@/components/media/RecordDialog';
 import { UploadDialog } from '@/components/media/UploadDialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { PageShell } from '@/components/common/PageShell';
@@ -83,6 +84,7 @@ export const MediaPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
   const [remoteTrackOpen, setRemoteTrackOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const mediaDownloaderInstalled = useFeatureInstalled('media_downloader');
@@ -438,6 +440,7 @@ export const MediaPage: React.FC = () => {
           onCreatePlaylist={() => setPlaylistCreateOpen(true)}
           onCreateFolder={() => createTrackFolderRef.current?.()}
           onUpload={() => setUploadOpen(true)}
+          onRecord={() => setRecordOpen(true)}
           onRemoteTrack={() => setRemoteTrackOpen(true)}
           onImport={() => setImportOpen(true)}
           onCreateStream={() => setStreamOpen(true)}
@@ -514,6 +517,12 @@ export const MediaPage: React.FC = () => {
         onClose={() => setUploadOpen(false)}
         currentFolderId={currentFolderId}
         onSuccess={(track) => { setTracks((prev) => [...prev, track]); setUploadOpen(false); showSuccess(t('tracks.uploaded')); }}
+      />
+      <RecordDialog
+        open={recordOpen}
+        onClose={() => setRecordOpen(false)}
+        currentFolderId={currentFolderId}
+        onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRecordOpen(false); showSuccess(t('tracks.recorded')); }}
       />
       <RemoteTrackDialog open={remoteTrackOpen} onClose={() => setRemoteTrackOpen(false)}
         onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRemoteTrackOpen(false); showSuccess(t('tracks.remote_added')); }} />

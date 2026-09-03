@@ -25,6 +25,7 @@ const renderFab = () =>
       onCreatePlaylist={noop}
       onCreateFolder={noop}
       onUpload={noop}
+      onRecord={noop}
       onRemoteTrack={noop}
       onImport={noop}
       onCreateStream={noop}
@@ -54,5 +55,7 @@ describe('MediaFab - URL import hangs off the media downloader (#132)', () => {
     expect(screen.queryByText('tracks.import_from_url')).not.toBeInTheDocument();
     expect(screen.getByText('tracks.add_remote')).toBeInTheDocument();
     expect(screen.getByText('tracks.upload')).toBeInTheDocument();
+    // Recording needs no add-on either - it is the browser's microphone.
+    expect(screen.getByText('tracks.record')).toBeInTheDocument();
   });
 });

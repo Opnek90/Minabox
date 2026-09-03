@@ -173,7 +173,9 @@
       "file": "Datei",
       "stream": "Stream"
     },
-    "remote_error": "Remote-Track konnte nicht angelegt werden"
+    "remote_error": "Remote-Track konnte nicht angelegt werden",
+    "record": "Nachricht aufnehmen",
+    "recorded": "Nachricht gespeichert"
   },
   "upload": {
     "title": "Track hochladen",
@@ -191,6 +193,29 @@
       "artist_placeholder": "Künstlername",
       "album": "Album",
       "album_placeholder": "Album-Name"
+    }
+  },
+  "record": {
+    "title": "Nachricht aufnehmen",
+    "intro": "Eine persönliche Nachricht – eine Gute-Nacht-Geschichte, ein Gruß zum ersten Kindergartentag. Sie landet als gewöhnlicher Track in der Mediathek und kann danach wie jeder andere einer Karte zugewiesen werden.",
+    "start": "Aufnahme starten",
+    "stop": "Aufnahme beenden",
+    "again": "Neu aufnehmen",
+    "save": "Speichern",
+    "saving": "Wird gespeichert...",
+    "pick_file": "Oder eine vorhandene Sprachnachricht auswählen",
+    "too_short": "Die Aufnahme ist zu kurz.",
+    "insecure_title": "Aufnehmen geht hier nicht",
+    "insecure_body": "Der Browser gibt das Mikrofon nur über eine gesicherte Verbindung (https) frei; die Box läuft im Heimnetz über http. Nimm die Nachricht solange mit der Sprachmemo-App deines Handys auf und wähle die Datei unten aus.",
+    "error_denied": "Der Browser hat den Zugriff auf das Mikrofon abgelehnt. Erlaube ihn in den Seiteneinstellungen und versuche es noch einmal.",
+    "error_no_microphone": "Es wurde kein Mikrofon gefunden.",
+    "error_unsupported": "Dieser Browser kann keine Aufnahmen machen.",
+    "error_failed": "Die Aufnahme ist fehlgeschlagen.",
+    "fields": {
+      "title": "Titel",
+      "title_placeholder": "z. B. Gute Nacht von Oma",
+      "artist": "Von",
+      "artist_placeholder": "Wer spricht?"
     }
   },
   "stream": {

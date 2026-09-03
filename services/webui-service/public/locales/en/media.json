@@ -173,7 +173,9 @@
       "file": "File",
       "stream": "Stream"
     },
-    "remote_error": "Could not create remote track"
+    "remote_error": "Could not create remote track",
+    "record": "Record a message",
+    "recorded": "Message saved"
   },
   "upload": {
     "title": "Upload Track",
@@ -191,6 +193,29 @@
       "artist_placeholder": "Artist name",
       "album": "Album",
       "album_placeholder": "Album name"
+    }
+  },
+  "record": {
+    "title": "Record a message",
+    "intro": "A personal message - a good-night story, a greeting for the first day at kindergarten. It becomes an ordinary track in the library and can then be assigned to a card like any other.",
+    "start": "Start recording",
+    "stop": "Stop recording",
+    "again": "Record again",
+    "save": "Save",
+    "saving": "Saving...",
+    "pick_file": "Or pick a voice message you already have",
+    "too_short": "That recording is too short.",
+    "insecure_title": "Recording is not possible here",
+    "insecure_body": "Browsers only hand out the microphone over a secure connection (https), and the box is reached over http on the home network. Record the message with your phone's voice memo app for now and pick the file below.",
+    "error_denied": "The browser refused access to the microphone. Allow it in the site settings and try again.",
+    "error_no_microphone": "No microphone was found.",
+    "error_unsupported": "This browser cannot record audio.",
+    "error_failed": "The recording failed.",
+    "fields": {
+      "title": "Title",
+      "title_placeholder": "e.g. Good night from grandma",
+      "artist": "From",
+      "artist_placeholder": "Who is speaking?"
     }
   },
   "stream": {
