@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   addonsApi,
   isSettingAddon,
@@ -29,7 +30,6 @@ import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { UpdateProgressDialog } from '@/components/admin/maintenance/UpdateProgressDialog';
 import { useUpdateRun } from '@/components/admin/maintenance/useUpdateRun';
 import { AddonRow } from './AddonRow';
-import { AddonSettingsDialog } from './AddonSettingsDialog';
 import { useAddonsRun } from './useAddonsRun';
 
 /** Accessories first: that is the group that may end in an order and a screwdriver. */
@@ -62,9 +62,16 @@ const CATEGORY_ORDER: AddonCategory[] = ['hardware', 'software'];
  * stay, the backend answers calls into an absent component with a 409, and
  * switching it back on is lossless - which is why there is no warning dialog
  * about data, only about the restart.
+ *
+ * The gear button is a link, not a second form: it jumps to the settings
+ * section the addon owns (`?section=<settings_section>`, the same deep link
+ * the CommandPalette uses), rather than opening the same panel again in a
+ * dialog. One value, one place to edit it - see
+ * `docs/services/webui/Settings-Structure.md`.
  */
 export const AddonsPanel: React.FC = () => {
   const { t, i18n } = useTranslation('admin');
+  const navigate = useNavigate();
   const { showError } = useToast();
   const { isMobile } = useLayout();
   const { refresh: refreshCapabilities } = useCapabilities();
@@ -76,7 +83,6 @@ export const AddonsPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rebootRequired, setRebootRequired] = useState(false);
-  const [settingsFor, setSettingsFor] = useState<AddonEntry | null>(null);
   const [updateFor, setUpdateFor] = useState<AddonEntry | null>(null);
   const attached = useRef(false);
 
@@ -268,7 +274,9 @@ export const AddonsPanel: React.FC = () => {
                     disabled={busy || (unreachable && !isSettingAddon(entry))}
                     compact={isMobile}
                     onSettings={
-                      entry.installed ? () => setSettingsFor(entry) : undefined
+                      entry.installed && entry.settings_section
+                        ? () => navigate(`/admin?section=${entry.settings_section}`)
+                        : undefined
                     }
                     onUpdate={
                       entry.update_available && !unreachable
@@ -345,7 +353,6 @@ export const AddonsPanel: React.FC = () => {
         onConfirm={handleUpdate}
       />
 
-      <AddonSettingsDialog entry={settingsFor} onClose={() => setSettingsFor(null)} />
 
       <UpdateProgressDialog
         open={run.progressOpen}

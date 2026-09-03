@@ -18,10 +18,14 @@ import { SystemMaintenanceSection } from '@/components/admin/SystemMaintenanceSe
 import { SystemStatusPanel } from '@/components/admin/SystemStatus';
 import { SettingsSection } from '@/components/admin/SettingsSection';
 import { AddonsPanel } from '@/components/admin/addons/AddonsPanel';
-import { ADDON_SETTINGS_CONTENT } from '@/config/addonSettings';
+import { BoardLedsToggle } from '@/components/admin/BoardLedsToggle';
+import { ButtonConfigPanel } from '@/components/admin/ButtonConfigPanel';
+import { DisplayConfigPanel } from '@/components/admin/DisplayConfigPanel';
+import { LEDConfigPanel } from '@/components/admin/LEDConfigPanel';
+import { MediaMetadataPanel } from '@/components/admin/MediaMetadataPanel';
 import {
-  AdvancedSettingsForm, AudioConfigForm, DesignSettingsForm,
-  MediaPathForm, PlaybackSettingsForm,
+  AdvancedSettingsForm, AnnouncementSettingsForm, AudioConfigForm, DesignSettingsForm,
+  MediaImportDomainsForm, MediaPathForm, PlaybackSettingsForm, RFIDConfigForm,
   SleepTimerSettingsForm, UploadLimitForm,
 } from '@/components/admin/ConfigForm';
 import {
@@ -39,12 +43,6 @@ import { useCapabilities } from '@/contexts/CapabilitiesContext';
 import { SetupWizardRestart } from '@/components/admin/SetupWizardRestart';
 
 const SECTION_CONTENT: Record<string, React.ReactNode> = {
-  // The panels that belong to one addon each. They are kept in their own
-  // module because the gear button of an addon row opens the very same panel
-  // in a dialog - one source, two ways in. Only the sections that are in
-  // `settingsIndex` are rendered here, so `media_metadata` (which is only an
-  // addon dialog now) simply never comes up.
-  ...ADDON_SETTINGS_CONTENT,
   audio: (
     <>
       <AudioConfigForm />
@@ -55,15 +53,28 @@ const SECTION_CONTENT: Record<string, React.ReactNode> = {
   sleep: <SleepTimerSettingsForm />,
   design: <DesignSettingsForm />,
   addons: <AddonsPanel />,
+  // The addon's own panel - the gear button of its row in `AddonsPanel` links
+  // here (`?section=...`) rather than opening it a second time.
+  rfid: <RFIDConfigForm />,
+  buttons: <ButtonConfigPanel />,
+  // The board's own status LED is not part of the LED addon (external lights
+  // on the GPIO pins) and must not disappear along with it - its own section,
+  // below, carries no `requiresFeature`.
+  leds: <LEDConfigPanel />,
+  board_leds: <BoardLedsToggle />,
+  display: <DisplayConfigPanel />,
   network: <NetworkPanel />,
   media_path: <MediaPathForm />,
   upload_limit: <UploadLimitForm />,
+  media_import_domains: <MediaImportDomainsForm />,
   usb: <UsbImportPanel />,
+  media_metadata: <MediaMetadataPanel />,
   maintenance: <SystemMaintenanceSection />,
   security: <SecurityPanel />,
   advanced: <AdvancedSettingsForm />,
   setup_wizard: <SetupWizardRestart />,
   diagnose: <SystemStatusPanel />,
+  announcements: <AnnouncementSettingsForm />,
 };
 
 /** A section with its anchor id - target for deep links from the CommandPalette. */
@@ -140,10 +151,7 @@ const MobileLayout: React.FC<LayoutProps> = ({
           onChange={(_, isExpanded) => onActiveGroupChange(isExpanded ? group.key : null)}
           // A collapsed group is *gone*, not just hidden. Without this every
           // group renders its panels at once - eleven of them, each with its
-          // own API call, on a phone talking to a Raspberry Pi. It also keeps
-          // a panel from existing twice: the gear button of an addon row opens
-          // the same component in a dialog, and two live copies of one form
-          // would each hold their own idea of the current value.
+          // own API call, on a phone talking to a Raspberry Pi.
           TransitionProps={{ unmountOnExit: true }}
           disableGutters
           sx={{

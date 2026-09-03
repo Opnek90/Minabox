@@ -8,7 +8,6 @@
     "column_addon": "Addon",
     "column_state": "State",
     "column_version": "Version",
-    "no_settings": "This addon has nothing to set here.",
     "settings_action": "Settings for {{name}}",
     "title": "Manage addons",
     "update_action": "Update {{name}}",

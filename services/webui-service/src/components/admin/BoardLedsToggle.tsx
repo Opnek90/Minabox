@@ -7,8 +7,14 @@ import { SettingsBlock } from '@/components/admin/SettingsBlock';
 import { HelpLabel } from '@/components/ui/HelpTip';
 
 /**
- * Turn off the Raspberry Pi's own green/red status LED - it belongs with the
- * lights on the device, not with network or maintenance configuration.
+ * Turn off the Raspberry Pi's own green/red status LED.
+ *
+ * Its own section under "Devices" (`board_leds` in `settingsIndex.ts`),
+ * deliberately not bundled with the LED addon's form: that LED is soldered to
+ * the board and has nothing to do with the external lights the LED addon
+ * drives. Folded into that section it used to disappear along with the addon
+ * when its container was switched off - a box without the LED addon could not
+ * turn its own status light off.
  */
 export const BoardLedsToggle: React.FC = () => {
   const { t } = useTranslation('admin');

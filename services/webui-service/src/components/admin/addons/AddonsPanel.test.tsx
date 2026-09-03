@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import deAdmin from '../../../../public/locales/de/admin.json';
@@ -57,14 +58,6 @@ vi.mock('@/components/admin/maintenance/useUpdateRun', () => ({
     start: (...a: unknown[]) => startUpdate(...a),
     startRollback: vi.fn(),
   }),
-}));
-
-// The dialog mounts the real settings panels, which each fetch their own
-// config. What matters here is that the gear button opens it with the addon
-// it belongs to.
-vi.mock('./AddonSettingsDialog', () => ({
-  AddonSettingsDialog: ({ entry }: { entry: { id: string } | null }) =>
-    entry ? <div data-testid="addon-settings">{entry.id}</div> : null,
 }));
 
 vi.mock('@/contexts/CapabilitiesContext', () => ({
@@ -133,6 +126,21 @@ const commonText = (key: string): string => {
   if (hit === undefined) throw new Error(`missing common locale key: ${key}`);
   return hit;
 };
+
+/** Reports the current URL, so a click that should navigate can be checked
+ * against it - the gear button is a link now, not a dialog trigger. */
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname}{location.search}</div>;
+};
+
+const renderPanel = () =>
+  render(
+    <MemoryRouter initialEntries={['/admin']}>
+      <AddonsPanel />
+      <LocationProbe />
+    </MemoryRouter>,
+  );
 
 /** One compose addon as the backend sends it. */
 const entry = (
@@ -226,7 +234,7 @@ describe('AddonsPanel', () => {
 
   it('leaves the box alone until the change is applied', async () => {
     const user = userEvent.setup();
-    render(<AddonsPanel />);
+    renderPanel();
 
     const apply = await screen.findByRole('button', { name: text('system.components_apply') });
     // Nothing changed yet, so there is nothing to apply.
@@ -259,7 +267,7 @@ describe('AddonsPanel', () => {
     // table come from that same answer - a table left showing the wish would
     // claim the run did something it may not have done.
     const user = userEvent.setup();
-    render(<AddonsPanel />);
+    renderPanel();
 
     const apply = await screen.findByRole('button', { name: text('system.components_apply') });
     await user.click(screen.getByRole('checkbox', { name: text('system.component_led') }));
@@ -289,7 +297,7 @@ describe('AddonsPanel', () => {
       reboot_required: false,
       blocked: [],
     });
-    render(<AddonsPanel />);
+    renderPanel();
 
     await screen.findByRole('dialog');
     await waitFor(() => expect(getStatus).toHaveBeenCalled());
@@ -300,7 +308,7 @@ describe('AddonsPanel', () => {
   it('describes an addon this box does not have', async () => {
     // The catalogue is what makes an addon findable without the
     // documentation: what it does, what it needs, and what would be installed.
-    render(<AddonsPanel />);
+    renderPanel();
 
     expect(await screen.findByText('Was media tut')).toBeInTheDocument();
     // Media import and online metadata: both talk to the internet, and both
@@ -316,7 +324,7 @@ describe('AddonsPanel', () => {
   it('sorts the addons by whether they need an accessory', async () => {
     // The one split that costs money and a screwdriver. Everything with
     // hardware behind it belongs in the first group.
-    render(<AddonsPanel />);
+    renderPanel();
 
     expect(await screen.findByText(text('addons.category_hardware'))).toBeInTheDocument();
     expect(screen.getByText(text('addons.category_software'))).toBeInTheDocument();
@@ -337,7 +345,7 @@ describe('AddonsPanel', () => {
       ],
       profiles: ['rfid'],
     });
-    render(<AddonsPanel />);
+    renderPanel();
 
     expect(await screen.findByRole('checkbox', { name: 'Kamera' })).toBeInTheDocument();
     expect(screen.getByText('Nimmt Bilder auf')).toBeInTheDocument();
@@ -355,7 +363,7 @@ describe('AddonsPanel', () => {
       steps: [],
     });
     const user = userEvent.setup();
-    render(<AddonsPanel />);
+    renderPanel();
 
     const apply = await screen.findByRole('button', { name: text('system.components_apply') });
     const led = screen.getByRole('checkbox', { name: text('system.component_led') });
@@ -371,7 +379,7 @@ describe('AddonsPanel', () => {
     // No containers to recreate, so there is no run to collect it into -
     // waiting for "apply" would be a rule with no reason behind it.
     const user = userEvent.setup();
-    render(<AddonsPanel />);
+    renderPanel();
 
     await user.click(await screen.findByRole('checkbox', { name: 'Online-Metadaten' }));
 
@@ -390,7 +398,7 @@ describe('AddonsPanel', () => {
     // error message.
     setSetting.mockRejectedValue(new Error('nope'));
     const user = userEvent.setup();
-    render(<AddonsPanel />);
+    renderPanel();
 
     const toggle = await screen.findByRole('checkbox', { name: 'Online-Metadaten' });
     await user.click(toggle);
@@ -408,7 +416,7 @@ describe('AddonsPanel', () => {
       ],
     });
     const user = userEvent.setup();
-    render(<AddonsPanel />);
+    renderPanel();
 
     await user.click(
       await screen.findByRole('button', {
@@ -424,9 +432,12 @@ describe('AddonsPanel', () => {
     await waitFor(() => expect(startUpdate).toHaveBeenCalledWith({ rfid: '0.3.0' }));
   });
 
-  it('opens the settings of an addon that is installed', async () => {
+  it('links the gear button to the section the addon owns', async () => {
+    // One value, one place to edit it (docs/services/webui/Settings-Structure.md):
+    // the gear jumps to the settings page's own section instead of opening the
+    // same form a second time.
     const user = userEvent.setup();
-    render(<AddonsPanel />);
+    renderPanel();
 
     await user.click(
       await screen.findByRole('button', {
@@ -434,11 +445,31 @@ describe('AddonsPanel', () => {
       }),
     );
 
-    expect(screen.getByTestId('addon-settings')).toHaveTextContent('rfid');
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin?section=rfid');
     // An addon that is not on the box has nothing to configure yet.
     expect(
       screen.queryByRole('button', {
         name: text('addons.settings_action').replace('{{name}}', text('system.component_led')),
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('has no settings link for an addon this WebUI cannot configure', async () => {
+    // No `settings_section` means nothing to jump to - a gear button that led
+    // nowhere would be worse than no button at all.
+    get.mockResolvedValue({
+      ...BOX,
+      components: [
+        entry('rfid', 'rfid', true, { settings_section: null }),
+        ...BOX.components.slice(1),
+      ],
+    });
+    renderPanel();
+
+    await screen.findByRole('checkbox', { name: text('system.component_rfid') });
+    expect(
+      screen.queryByRole('button', {
+        name: text('addons.settings_action').replace('{{name}}', text('system.component_rfid')),
       }),
     ).not.toBeInTheDocument();
   });

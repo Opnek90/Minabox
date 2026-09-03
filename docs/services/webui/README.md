@@ -518,8 +518,8 @@ survived as long as it did.
 | I want to … | Start in | Also touch |
 | --- | --- | --- |
 | add a page | `pages/` + a lazy route in `App.tsx` | `Navigation.tsx`, the route table in 4.1, a locale namespace if it needs one |
-| add a settings section | `config/settingsIndex.ts` (data, not JSX) | the panel under `components/admin/`, both locale files, `requiresFeature` if it depends on an optional component |
-| give an addon a settings panel | `config/addonSettings.tsx` — the map the settings page *and* the gear button of an addon row both render | `settings_section` in the backend's `components.json`, so the catalogue names the panel |
+| add a settings section | `config/settingsIndex.ts` (data, not JSX) | the panel in `pages/AdminPage.tsx`'s `SECTION_CONTENT`, both locale files, `requiresFeature` if it depends on an optional component |
+| give an addon its own settings section | a section as above, then its key as `settings_section` in the backend's `components.json` | the gear button of the addon's row finds it on its own (`?section=<key>`) — no second panel to build |
 | call a new backend endpoint | a module under `api/` — **always through `client.ts`** | `types/api.ts` to mirror the backend schema; a `TIMEOUT` entry if it runs long |
 | react to a new WebSocket message | `useWebSocketEvent` in the component | the message list in 3.2; the backend must send it. **Never `window.addEventListener`** |
 | add a translated string | both `public/locales/de/` and `en/` | `npm run check:locales && npm run check:i18n-calls` — the guards fail on a missing pair |

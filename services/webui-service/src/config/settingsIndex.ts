@@ -222,7 +222,7 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
       {
         key: 'leds',
         titleKey: 'leds.title',
-        searchKeys: ['leds.title', 'leds.add_led', 'leds.test_led', 'system.stealth_mode'],
+        searchKeys: ['leds.title', 'leds.add_led', 'leds.test_led'],
         requiresFeature: 'led',
       },
       {
@@ -230,6 +230,14 @@ export const SETTINGS_INDEX: SettingsGroupMeta[] = [
         titleKey: 'display.title',
         searchKeys: ['display.title', 'display.enabled', 'display.brightness', 'display.off_at_night'],
         requiresFeature: 'display',
+      },
+      {
+        // The Raspberry Pi's own green/red status LED, not the external
+        // lights of the LED addon - it must not vanish along with that addon,
+        // so it carries no `requiresFeature` and gets a section of its own.
+        key: 'board_leds',
+        titleKey: 'system.board_leds_title',
+        searchKeys: ['system.stealth_mode'],
       },
     ],
   },
