@@ -273,6 +273,13 @@ pagination. Deleting a media item first asks the backend which cards point at it
 and, if there are any, offers to clear those assignments in the same step —
 deleting only the media leaves a card pointing at a track that no longer exists.
 
+The FAB carries the create actions of the tab below it; the overview is the one
+that is not an area but a landing page, so its FAB offers all four areas at once
+(`actionsByTab` in `MediaFab.tsx`) — minus the folder actions, which need the
+tree of a specific tab. For the same reason a track created from the overview
+lands in the root rather than in whatever folder the tracks tab was left in:
+`uploadTargetFolderId` in `MediaPage.tsx`.
+
 **Recording a message.** `RecordDialog` (media FAB, tracks tab) records a
 personal message with the browser microphone and uploads it through the ordinary
 `POST /tracks/upload` — it becomes a `file` track like any other, and the card

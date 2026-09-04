@@ -24,7 +24,7 @@ import { useLayout } from '@/hooks/useLayout';
 import { MINI_PLAYER_HEIGHT } from '@/components/common/MiniPlayer';
 import { MOBILE_BOTTOM_NAV_HEIGHT, SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
 
-/** The MediaPage tabs. The overview has no create actions of its own. */
+/** The MediaPage tabs. */
 export type MediaTab = 'overview' | 'playlists' | 'tracks' | 'streams' | 'podcasts';
 
 interface MediaFabProps {
@@ -88,7 +88,23 @@ export const MediaFab: React.FC<MediaFabProps> = ({
   // The action menu sits directly above the FAB
   const menuBottom = `calc(${fabBottomPx + FAB_SIZE + FAB_GAP}px${safeOffset})`;
 
+  // Order is bottom-up on screen: the last entry sits closest to the FAB, and
+  // therefore closest to the thumb. The most-used action goes last.
   const actionsByTab: Partial<Record<MediaTab, { icon: React.ReactNode; name: string; onClick: () => void }[]>> = {
+    // The overview mixes all four areas, so its FAB creates in all four. Only
+    // the folder actions stay out: a folder belongs to the tree of one tab,
+    // and there is no tree on this page.
+    overview: [
+      { icon: <PodcastsIcon fontSize="small" />, name: t('podcasts.add'), onClick: onCreatePodcast },
+      { icon: <StreamIcon fontSize="small" />, name: t('tracks.add_stream'), onClick: onCreateStream },
+      { icon: <PlaylistAddIcon fontSize="small" />, name: t('playlists.add_playlist'), onClick: onCreatePlaylist },
+      { icon: <LinkIcon fontSize="small" />, name: t('tracks.add_remote'), onClick: onRemoteTrack },
+      ...(mediaDownloaderInstalled
+        ? [{ icon: <DownloadIcon fontSize="small" />, name: t('tracks.import_from_url'), onClick: onImport }]
+        : []),
+      { icon: <CloudUploadIcon fontSize="small" />, name: t('tracks.upload'), onClick: onUpload },
+      { icon: <MicIcon fontSize="small" />, name: t('tracks.record'), onClick: onRecord },
+    ],
     playlists: [
       { icon: <PlaylistAddIcon fontSize="small" />, name: t('playlists.add_playlist'), onClick: onCreatePlaylist },
     ],

@@ -90,6 +90,11 @@ export const MediaPage: React.FC = () => {
   const mediaDownloaderInstalled = useFeatureInstalled('media_downloader');
   const [streamOpen, setStreamOpen] = useState(false);
   const [podcastOpen, setPodcastOpen] = useState(false);
+
+  // Which folder a new track lands in. Only the tracks tab shows a tree, so
+  // only there does "the current folder" mean anything: from the overview the
+  // FAB creates in the root, rather than in a folder the page is not showing.
+  const uploadTargetFolderId = TAB_ORDER[tab] === 'tracks' ? currentFolderId : null;
   const [playlistCreateOpen, setPlaylistCreateOpen] = useState(false);
 
   const createTrackFolderRef = useRef<(() => void) | null>(null);
@@ -434,21 +439,19 @@ export const MediaPage: React.FC = () => {
         />
       </TabPanel>
 
-      {tab > 0 && (
-        <MediaFab
-          tab={TAB_ORDER[tab]}
-          onCreatePlaylist={() => setPlaylistCreateOpen(true)}
-          onCreateFolder={() => createTrackFolderRef.current?.()}
-          onUpload={() => setUploadOpen(true)}
-          onRecord={() => setRecordOpen(true)}
-          onRemoteTrack={() => setRemoteTrackOpen(true)}
-          onImport={() => setImportOpen(true)}
-          onCreateStream={() => setStreamOpen(true)}
-          onCreateStreamFolder={() => createStreamFolderRef.current?.()}
-          onCreatePodcast={() => setPodcastOpen(true)}
-          onCreatePodcastFolder={() => createPodcastFolderRef.current?.()}
-        />
-      )}
+      <MediaFab
+        tab={TAB_ORDER[tab]}
+        onCreatePlaylist={() => setPlaylistCreateOpen(true)}
+        onCreateFolder={() => createTrackFolderRef.current?.()}
+        onUpload={() => setUploadOpen(true)}
+        onRecord={() => setRecordOpen(true)}
+        onRemoteTrack={() => setRemoteTrackOpen(true)}
+        onImport={() => setImportOpen(true)}
+        onCreateStream={() => setStreamOpen(true)}
+        onCreateStreamFolder={() => createStreamFolderRef.current?.()}
+        onCreatePodcast={() => setPodcastOpen(true)}
+        onCreatePodcastFolder={() => createPodcastFolderRef.current?.()}
+      />
 
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
         <DialogTitle>{t('media.delete_confirm_title')}</DialogTitle>
@@ -515,13 +518,13 @@ export const MediaPage: React.FC = () => {
       <UploadDialog
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        currentFolderId={currentFolderId}
+        currentFolderId={uploadTargetFolderId}
         onSuccess={(track) => { setTracks((prev) => [...prev, track]); setUploadOpen(false); showSuccess(t('tracks.uploaded')); }}
       />
       <RecordDialog
         open={recordOpen}
         onClose={() => setRecordOpen(false)}
-        currentFolderId={currentFolderId}
+        currentFolderId={uploadTargetFolderId}
         onSuccess={(track) => { setTracks((prev) => [...prev, track]); setRecordOpen(false); showSuccess(t('tracks.recorded')); }}
       />
       <RemoteTrackDialog open={remoteTrackOpen} onClose={() => setRemoteTrackOpen(false)}
