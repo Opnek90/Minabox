@@ -18,13 +18,14 @@ vi.mock('react-i18next', () => ({
 
 const noop = () => undefined;
 
-const renderFab = () =>
+const renderFab = (tab: 'tracks' | 'overview' = 'tracks') =>
   render(
     <MediaFab
-      tab="tracks"
+      tab={tab}
       onCreatePlaylist={noop}
       onCreateFolder={noop}
       onUpload={noop}
+      onRecord={noop}
       onRemoteTrack={noop}
       onImport={noop}
       onCreateStream={noop}
@@ -54,5 +55,41 @@ describe('MediaFab - URL import hangs off the media downloader (#132)', () => {
     expect(screen.queryByText('tracks.import_from_url')).not.toBeInTheDocument();
     expect(screen.getByText('tracks.add_remote')).toBeInTheDocument();
     expect(screen.getByText('tracks.upload')).toBeInTheDocument();
+    // Recording needs no add-on either - it is the browser's microphone.
+    expect(screen.getByText('tracks.record')).toBeInTheDocument();
+  });
+});
+
+describe('MediaFab - the overview creates in all four areas', () => {
+  beforeEach(() => {
+    mediaDownloaderInstalled = true;
+  });
+
+  it('offers every create action there, and no folder action', async () => {
+    renderFab('overview');
+    await userEvent.click(screen.getByRole('button', { name: 'fab.aria_label' }));
+
+    for (const action of [
+      'playlists.add_playlist',
+      'tracks.upload',
+      'tracks.record',
+      'tracks.import_from_url',
+      'tracks.add_remote',
+      'tracks.add_stream',
+      'podcasts.add',
+    ]) {
+      expect(screen.getByText(action)).toBeInTheDocument();
+    }
+    // A folder belongs to the tree of one tab, and the overview has none.
+    expect(screen.queryByText('folders.new')).not.toBeInTheDocument();
+  });
+
+  it('drops the URL import there too when the media downloader is missing', async () => {
+    mediaDownloaderInstalled = false;
+    renderFab('overview');
+    await userEvent.click(screen.getByRole('button', { name: 'fab.aria_label' }));
+
+    expect(screen.queryByText('tracks.import_from_url')).not.toBeInTheDocument();
+    expect(screen.getByText('tracks.record')).toBeInTheDocument();
   });
 });

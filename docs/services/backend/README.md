@@ -308,6 +308,14 @@ If the file carries none of that **and** `online_metadata_lookup_enabled` is on,
 a fire-and-forget background task asks the online lookup for the rest so the
 upload response stays quick.
 
+The form field `duration_ms` is the one exception to "the file knows best": a
+message recorded in the WebUI arrives in whatever container the browser records
+into, and for Chrome's WebM mutagen has no parser at all — the file would land
+in the library with no duration. The recorder counted the seconds while the
+microphone was open and sends that number along. A duration read from the file
+always wins over it, and a value outside `0 < ms <= MAX_CLIENT_DURATION_MS`
+(24 h) is dropped rather than stored, because it comes from a client.
+
 **Metadata backfill** — `POST /tracks/metadata/backfill` starts one background
 run over every stored file track whose artist, album or cover is still empty:
 it re-reads each file's own tags first, and only falls back to the online

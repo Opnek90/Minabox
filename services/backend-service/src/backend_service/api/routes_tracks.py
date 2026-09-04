@@ -47,6 +47,11 @@ AUDIO_STORAGE_PATH = Path(os.environ.get("AUDIO_STORAGE_PATH", "/mnt/audio/track
 
 MEDIA_DOWNLOADER_URL = os.environ.get("MEDIA_DOWNLOADER_URL", "http://media-downloader:8007")
 
+# Ceiling for a client-supplied duration (see `upload_track`). Nothing a person
+# records or uploads comes near a day; the value only exists so a wrong or
+# malicious form field cannot put an absurd number into the statistics.
+MAX_CLIENT_DURATION_MS = 24 * 60 * 60 * 1000
+
 _PLAYLIST_PARAMS = {"list", "start_radio", "index", "t"}
 
 # In-memory download status store: track_id -> status dict
@@ -732,6 +737,24 @@ def _discard_incomplete_track(db: Session, track_id: int) -> None:
         logger.warning("api_upload_track_cleanup_failed", track_id=track_id, error=str(exc))
 
 
+def _clamped_client_duration(raw: int | None) -> int | None:
+    """A duration the client measured, or None if it is not usable.
+
+    Only the WebUI's voice recorder sends this, and only because its own
+    recording carries no duration anything on the box can read: Chrome and
+    every browser on Android record into WebM, for which mutagen has no parser
+    at all. The recorder counted the seconds while the microphone was open, so
+    that number is the only one there is - but it comes from the client, so it
+    is bounded here.
+    """
+    if raw is None:
+        return None
+    if raw <= 0 or raw > MAX_CLIENT_DURATION_MS:
+        logger.warning("api_upload_track_duration_rejected", duration_ms=raw)
+        return None
+    return raw
+
+
 @router.post("/upload", response_model=TrackResponse, status_code=201)
 async def upload_track(
     file: UploadFile = File(...),
@@ -739,6 +762,7 @@ async def upload_track(
     artist: str = Form(None),
     album: str = Form(None),
     folder_id: int | None = Form(None),
+    duration_ms: int | None = Form(None),
     db: Session = Depends(get_db),
 ) -> TrackResponse:
     logger.info("api_upload_track_started", filename=file.filename, title=title)
@@ -776,8 +800,12 @@ async def upload_track(
             max_audio_upload_bytes(),
         )
 
+        # The file's own tags win: they describe what was actually stored. The
+        # client value is the fallback for a container mutagen cannot read.
         if metadata.get("duration_ms") is not None:
             track.duration_ms = metadata["duration_ms"]
+        else:
+            track.duration_ms = _clamped_client_duration(duration_ms)
         if not artist and metadata.get("artist"):
             track.artist = metadata["artist"]
         if not album and metadata.get("album"):

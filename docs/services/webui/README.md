@@ -273,6 +273,26 @@ pagination. Deleting a media item first asks the backend which cards point at it
 and, if there are any, offers to clear those assignments in the same step —
 deleting only the media leaves a card pointing at a track that no longer exists.
 
+The FAB carries the create actions of the tab below it; the overview is the one
+that is not an area but a landing page, so its FAB offers all four areas at once
+(`actionsByTab` in `MediaFab.tsx`) — minus the folder actions, which need the
+tree of a specific tab. For the same reason a track created from the overview
+lands in the root rather than in whatever folder the tracks tab was left in:
+`uploadTargetFolderId` in `MediaPage.tsx`.
+
+**Recording a message.** `RecordDialog` (media FAB, tracks tab) records a
+personal message with the browser microphone and uploads it through the ordinary
+`POST /tracks/upload` — it becomes a `file` track like any other, and the card
+assignment happens where every other assignment happens. Two browser facts shape
+it, both in `hooks/useAudioRecorder.ts`: the microphone only exists in a secure
+context, so over plain http on the home network `navigator.mediaDevices` is
+simply absent — the dialog says so and offers picking a voice memo recorded with
+the phone instead, rather than showing a dead button. And every browser records
+into its own container (Firefox Ogg/Opus, Safari MP4/AAC, Chrome WebM/Opus), so
+the elapsed time is measured while the microphone is open and uploaded as
+`duration_ms`: for a WebM recording that is the only duration the box will ever
+have. The cap is 15 minutes, enforced by the recorder itself.
+
 **Dashboard and settings.** The full rule set for what goes where is
 [Settings-Structure.md](Settings-Structure.md) — read it before adding a field,
 a section or a group; this is the short version. The settings page is cut by

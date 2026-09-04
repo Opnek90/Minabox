@@ -172,8 +172,27 @@
       ]
     },
     "backend": {
-      "latest": "0.7.0",
+      "latest": "0.8.0",
       "releases": [
+        {
+          "version": "0.8.0",
+          "date": "2026-09-04",
+          "channel": "stable",
+          "requires": {
+            "audio": ">=0.3.0",
+            "host-helper": ">=0.3.1"
+          },
+          "notes": {
+            "added": {
+              "de": [
+                "Eine in der Oberflaeche aufgenommene Nachricht behaelt ihre Laenge. Browser nehmen in Formate auf, aus denen die Box die Dauer nicht auslesen kann; jetzt zaehlt die Oberflaeche beim Aufnehmen mit und gibt die Zeit mit ab."
+              ],
+              "en": [
+                "A message recorded in the interface keeps its length. Browsers record into formats the box cannot read a duration from; the interface now counts the seconds while recording and hands the time over with the file."
+              ]
+            }
+          }
+        },
         {
           "version": "0.7.0",
           "date": "2026-09-03",
@@ -1660,8 +1679,34 @@
       ]
     },
     "webui": {
-      "latest": "0.7.0",
+      "latest": "0.8.0",
       "releases": [
+        {
+          "version": "0.8.0",
+          "date": "2026-09-04",
+          "channel": "stable",
+          "requires": {
+            "backend": ">=0.8.0"
+          },
+          "notes": {
+            "added": {
+              "de": [
+                "Eine persoenliche Nachricht laesst sich jetzt direkt in der Mediathek aufnehmen - eine Gute-Nacht-Geschichte, ein Gruss zum ersten Kindergartentag. Sie wird ein gewoehnlicher Track und kann danach wie jeder andere einer Karte zugewiesen werden; bis zu 15 Minuten. Gibt der Browser das Mikrofon nicht frei, weil die Box ueber eine ungesicherte Verbindung erreicht wird, sagt der Dialog das und nimmt stattdessen eine mit dem Handy aufgenommene Sprachnachricht entgegen."
+              ],
+              "en": [
+                "A personal message can now be recorded right in the media library - a good-night story, a greeting for the first day at kindergarten. It becomes an ordinary track and can then be assigned to a card like any other; up to 15 minutes. Where the browser hands out no microphone because the box is reached over an unsecured connection, the dialog says so and takes a voice message recorded with the phone instead."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Der Plus-Knopf gibt es jetzt auch auf \"Zuletzt\", und dort legt er alles an: Playlist, Track, Nachricht, Stream und Podcast. Bisher musste man dafuer erst in einen Bereich wechseln."
+              ],
+              "en": [
+                "The plus button is now on \"Recent\" as well, and there it creates everything: playlist, track, message, stream and podcast. Until now that meant switching to an area first."
+              ]
+            }
+          }
+        },
         {
           "version": "0.7.0",
           "date": "2026-09-03",

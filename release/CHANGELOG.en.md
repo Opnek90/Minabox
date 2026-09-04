@@ -21,6 +21,13 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 0.8.0 - 2026-09-04
+
+#### Added
+- A message recorded in the interface keeps its length. Browsers record into
+  formats the box cannot read a duration from; the interface now counts the
+  seconds while recording and hands the time over with the file.
+
 ### 0.7.0 - 2026-09-03
 
 #### Added
@@ -323,6 +330,21 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 0.8.0 - 2026-09-04
+
+#### Added
+- A personal message can now be recorded right in the media library - a
+  good-night story, a greeting for the first day at kindergarten. It becomes an
+  ordinary track and can then be assigned to a card like any other; up to 15
+  minutes. Where the browser hands out no microphone because the box is reached
+  over an unsecured connection, the dialog says so and takes a voice message
+  recorded with the phone instead.
+
+#### Improved
+- The plus button is now on "Recent" as well, and there it creates everything:
+  playlist, track, message, stream and podcast. Until now that meant switching
+  to an area first.
 
 ### 0.7.0 - 2026-09-03
 

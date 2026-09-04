@@ -72,7 +72,18 @@ export const tracksApi = {
 
   upload: async (
     file: File,
-    metadata: { title?: string; artist?: string; album?: string; folderId?: number | null },
+    metadata: {
+      title?: string;
+      artist?: string;
+      album?: string;
+      folderId?: number | null;
+      /**
+       * Only the voice recorder sends this, and only because a browser
+       * recording carries no duration the box can read (WebM has no parser
+       * there). The file's own tags always win over it - see the upload route.
+       */
+      durationMs?: number;
+    },
     onProgress?: (percent: number) => void
   ): Promise<Track> => {
     const formData = new FormData();
@@ -81,6 +92,7 @@ export const tracksApi = {
     if (metadata.artist) formData.append('artist', metadata.artist);
     if (metadata.album) formData.append('album', metadata.album);
     if (metadata.folderId != null) formData.append('folder_id', String(metadata.folderId));
+    if (metadata.durationMs != null) formData.append('duration_ms', String(Math.round(metadata.durationMs)));
 
     const response = await apiClient.post<Track>('/tracks/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
