@@ -22,6 +22,13 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 0.8.0 - 2026-09-04
+
+#### Neu
+- Eine in der Oberflaeche aufgenommene Nachricht behaelt ihre Laenge. Browser
+  nehmen in Formate auf, aus denen die Box die Dauer nicht auslesen kann; jetzt
+  zaehlt die Oberflaeche beim Aufnehmen mit und gibt die Zeit mit ab.
+
 ### 0.7.0 - 2026-09-03
 
 #### Neu
@@ -336,6 +343,22 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 0.8.0 - 2026-09-04
+
+#### Neu
+- Eine persoenliche Nachricht laesst sich jetzt direkt in der Mediathek
+  aufnehmen - eine Gute-Nacht-Geschichte, ein Gruss zum ersten
+  Kindergartentag. Sie wird ein gewoehnlicher Track und kann danach wie jeder
+  andere einer Karte zugewiesen werden; bis zu 15 Minuten. Gibt der Browser
+  das Mikrofon nicht frei, weil die Box ueber eine ungesicherte Verbindung
+  erreicht wird, sagt der Dialog das und nimmt stattdessen eine mit dem Handy
+  aufgenommene Sprachnachricht entgegen.
+
+#### Verbessert
+- Der Plus-Knopf gibt es jetzt auch auf "Zuletzt", und dort legt er alles an:
+  Playlist, Track, Nachricht, Stream und Podcast. Bisher musste man dafuer
+  erst in einen Bereich wechseln.
 
 ### 0.7.0 - 2026-09-03
 
