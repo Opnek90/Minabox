@@ -33,20 +33,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const config = await getAuthConfig();
       setAuthEnabled(config.authEnabled);
       setProtectedPaths(config.protectedPaths || []);
+      if (typeof config.authenticated === 'boolean') {
+        setIsAuthenticated(config.authenticated);
+      }
     } finally {
       setConfigLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    getAuthConfig()
-      .then((config) => {
-        setAuthEnabled(config.authEnabled);
-        setProtectedPaths(config.protectedPaths || []);
-        setConfigLoaded(true);
-      })
-      .catch(() => setConfigLoaded(true));
-  }, []);
+    void refreshConfig();
+  }, [refreshConfig]);
 
   useEffect(() => {
     setOnUnauthorized(() => setIsAuthenticated(false));

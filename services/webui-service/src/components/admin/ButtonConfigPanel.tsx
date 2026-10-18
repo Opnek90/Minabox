@@ -86,6 +86,7 @@ export const ButtonConfigPanel: React.FC = () => {
       })
       .catch(() => setError(t('load_error')));
     configApi.getButtonActions().then(setButtonActions).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useWebSocketEvent(

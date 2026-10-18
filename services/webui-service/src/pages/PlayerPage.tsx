@@ -45,6 +45,7 @@ import { VolumeControl } from '@/components/player/VolumeControl';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
+import { useSleepTimer } from '@/hooks/useSleepTimer';
 import { useWebSocket, useWebSocketEvent } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
@@ -105,19 +106,19 @@ const UpNextCollapse: React.FC<{ queue: QueueItem[] }> = ({ queue }) => {
   );
 };
 
-const BUTTON_ACTION_LABELS: Record<string, string> = {
-  play_pause:         '⏯ Play / Pause',
-  next:               '⏭ Next',
-  prev:               '⏮ Previous',
-  volume_up:          '🔊 Volume +',
-  volume_down:        '🔉 Volume –',
-  mute_toggle:        '🔇 Mute',
-  stop:               '⏹ Stop',
-  sleep_timer_toggle: '🌙 Sleep Timer',
-  repeat_cycle:       '🔁 Repeat',
-  shuffle_toggle:     '🔀 Shuffle',
-  next_output_device: '🔊 Next output device',
-};
+const BUTTON_ACTION_KEYS = new Set([
+  'play_pause',
+  'next',
+  'prev',
+  'volume_up',
+  'volume_down',
+  'mute_toggle',
+  'stop',
+  'sleep_timer_toggle',
+  'repeat_cycle',
+  'shuffle_toggle',
+  'next_output_device',
+]);
 
 
 export const PlayerPage: React.FC = () => {
@@ -127,7 +128,9 @@ export const PlayerPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const audioStatus = useAudioStatus();
-  const { sleepTimerStatus, isConnected } = useWebSocket();
+  const sleepTimer = useSleepTimer();
+  const sleepRemainingMs = sleepTimer?.active ? sleepTimer.remaining_ms : null;
+  const { isConnected } = useWebSocket();
   const [error, setError] = useState<string | null>(null);
   
   const [optimisticVolume, setOptimisticVolume] = useState<number | null>(null);
@@ -135,8 +138,6 @@ export const PlayerPage: React.FC = () => {
 
   const [sleepAnchor, setSleepAnchor] = useState<HTMLElement | null>(null);
   const [sleepCustom, setSleepCustom] = useState('');
-  const [sleepRemainingMs, setSleepRemainingMs] = useState<number | null>(null);
-  const sleepDisplayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Overflow menu (kiosk, sleep-timer entry, output device, repeat/shuffle) —
   // keeps the main card to cover + controls + volume
@@ -171,21 +172,9 @@ export const PlayerPage: React.FC = () => {
     staleTime: 10000,
   });
 
-  // Init Sleep Timer countdown from initial fetch or ws
-  useEffect(() => {
-    if (isConnected) {
-      audioApi.getSleepTimer().then((status) => {
-        if (status.active && status.remaining_ms !== null) {
-          startDisplayCountdown(status.remaining_ms);
-        }
-      }).catch(() => null);
-    }
-  }, [isConnected]);
-
   useEffect(() => {
     return () => {
       if (optimisticTimeoutRef.current) clearTimeout(optimisticTimeoutRef.current);
-      if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
       if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
     };
   }, []);
@@ -201,17 +190,6 @@ export const PlayerPage: React.FC = () => {
     }
   }, [audioStatus?.volume, optimisticVolume]);
 
-  // Handle WebSocket updates
-  useEffect(() => {
-    if (sleepTimerStatus) {
-      if (sleepTimerStatus.active && sleepTimerStatus.remaining_ms !== null) {
-        startDisplayCountdown(sleepTimerStatus.remaining_ms);
-      } else {
-        stopDisplayCountdown();
-      }
-    }
-  }, [sleepTimerStatus]);
-
   // Messages that arrive without the player having asked for them: someone
   // pressed a button on the box, or changed repeat/shuffle from the rotary
   // knob or a second browser session.
@@ -224,7 +202,10 @@ export const PlayerPage: React.FC = () => {
     const action = (message.data as { action?: string }).action ?? '';
     // The box sends kebab-case, the label table is keyed snake_case.
     const actionKey = action.replace(/-/g, '_');
-    setButtonFeedback(BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action);
+    const label = BUTTON_ACTION_KEYS.has(actionKey)
+      ? t(`button_actions.${actionKey}`)
+      : action;
+    setButtonFeedback(label);
     if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
     buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
   });
@@ -251,27 +232,6 @@ export const PlayerPage: React.FC = () => {
       queryClient.setQueryData(['audio', 'session'], null);
     }
   }, [audioStatus?.state, audioStatus?.track_id, queryClient]);
-
-  const startDisplayCountdown = (initialMs: number) => {
-    if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
-    const endMs = Date.now() + initialMs;
-    setSleepRemainingMs(initialMs);
-    setSleepAnchor(null);
-    sleepDisplayRef.current = setInterval(() => {
-      const remaining = endMs - Date.now();
-      if (remaining <= 0) {
-        if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
-        setSleepRemainingMs(null);
-      } else {
-        setSleepRemainingMs(remaining);
-      }
-    }, 1000);
-  };
-
-  const stopDisplayCountdown = () => {
-    if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
-    setSleepRemainingMs(null);
-  };
 
   // Mutations
   const playMutation = useMutation({ mutationFn: audioApi.play });

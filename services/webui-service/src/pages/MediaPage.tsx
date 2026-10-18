@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -147,6 +148,17 @@ export const MediaPage: React.FC = () => {
   }, [t]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as MediaTab | null;
+    if (!tabParam) return;
+    const idx = TAB_ORDER.indexOf(tabParam);
+    if (idx >= 0) setTab(idx);
+    const next = new URLSearchParams(searchParams);
+    next.delete('tab');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const handlePlaylistUpdated = (updated: Playlist) => {
     setPlaylists((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));

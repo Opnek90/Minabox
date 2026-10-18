@@ -55,7 +55,7 @@ export const KioskPage: React.FC = () => {
         </Tooltip>
       </Box>
 
-      {/* Album art placeholder */}
+      {/* Album art or placeholder */}
       <Box
         sx={{
           width: { xs: 180, sm: 240 },
@@ -66,9 +66,19 @@ export const KioskPage: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           boxShadow: 8,
+          overflow: 'hidden',
         }}
       >
-        <MusicNoteIcon sx={{ fontSize: 96, color: 'primary.contrastText', opacity: 0.7 }} />
+        {state !== 'stopped' && audioStatus?.track_cover_art_url ? (
+          <Box
+            component="img"
+            src={audioStatus.track_cover_art_url}
+            alt=""
+            sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <MusicNoteIcon sx={{ fontSize: 96, color: 'primary.contrastText', opacity: 0.7 }} />
+        )}
       </Box>
 
       {/* Track info */}

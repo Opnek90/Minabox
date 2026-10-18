@@ -45,11 +45,12 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
     setCountdown(AUTO_CLOSE_SEC);
   }, []);
 
-  // React to rfid_scanned: open the drawer, load the tag (without starting the countdown here)
+  // React to rfid_scanned and tag_not_found: open the drawer, load the tag
   useEffect(() => {
-    if (lastMessage?.type !== 'rfid_scanned') return;
+    if (lastMessage?.type !== 'rfid_scanned' && lastMessage?.type !== 'tag_not_found') return;
     const msg = lastMessage as RFIDScannedMessage;
-    const rawTagId = msg.data.tag_id;
+    const rawTagId = msg.data?.tag_id;
+    if (!rawTagId) return;
     const tagIdStr = String(rawTagId).trim();
     setScannedTagId(tagIdStr);
     setExistingTag(null);
@@ -199,12 +200,22 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
               {existingTag.name ?? existingTag.tag_id}
             </Typography>
           </Box>
-          <Chip
-            label={`${existingTag.content_type === 'playlist' ? '▶ Playlist' : '♪ Track'} #${existingTag.content_id}`}
-            size="small"
-            color="primary"
-            variant="outlined"
-          />
+          {existingTag.content_type && existingTag.content_id != null && (
+            <Chip
+              label={`${
+                existingTag.content_type === 'playlist'
+                  ? t('new_tag_dialog.content_type_playlist')
+                  : existingTag.content_type === 'stream'
+                    ? t('new_tag_dialog.content_type_stream')
+                    : existingTag.content_type === 'podcast'
+                      ? t('new_tag_dialog.content_type_podcast')
+                      : t('new_tag_dialog.content_type_track')
+              } #${existingTag.content_id}`}
+              size="small"
+              color="primary"
+              variant="outlined"
+            />
+          )}
         </Box>
       ) : (
         /* ── Unknown tag ────────────────────────────────────────────── */
@@ -236,10 +247,7 @@ export const RfidScanDrawer: React.FC<RfidScanDrawerProps> = ({ onAssignNew }) =
           <ActionButton
             actionType="secondary"
             startIcon={<EditIcon />}
-            onClick={() => {
-              handleClose();
-              navigate('/rfid');
-            }}
+            onClick={handleAssign}
           >
             {t('edit_tag')}
           </ActionButton>

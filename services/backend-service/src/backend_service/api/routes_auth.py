@@ -123,14 +123,17 @@ def _require_auth(request: Request) -> None:
 
 
 @router.get("/config")
-async def get_auth_config() -> dict:
-    """Return auth config (public). authEnabled and protectedPaths for frontend."""
+async def get_auth_config(request: Request) -> dict:
+    """Return auth config (public). authEnabled, protectedPaths and session state."""
     settings = read_auth_settings()
     auth_enabled = bool((settings.get("web_password_hash") or "").strip())
     protected_areas = settings.get("protected_areas") or []
+    token = _get_cookie_token(request)
+    authenticated = bool(auth_enabled and token and verify_session_token(token))
     return {
         "authEnabled": auth_enabled,
         "protectedPaths": _protected_paths(protected_areas),
+        "authenticated": authenticated,
     }
 
 
@@ -262,4 +265,10 @@ async def update_auth_config(body: ConfigUpdateBody, request: Request) -> dict:
 
     areas = normalize_areas(body.protected_areas)
     write_auth_settings({"web_password_hash": settings.get("web_password_hash") or "", "protected_areas": areas})
-    return {"authEnabled": auth_enabled, "protectedPaths": _protected_paths(areas)}
+    token = _get_cookie_token(request)
+    authenticated = bool(auth_enabled and token and verify_session_token(token))
+    return {
+        "authEnabled": auth_enabled,
+        "protectedPaths": _protected_paths(areas),
+        "authenticated": authenticated,
+    }

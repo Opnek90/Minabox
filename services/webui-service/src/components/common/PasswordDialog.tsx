@@ -11,13 +11,14 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { apiErrorCode, translateApiError } from '@/utils/apiError';
 
 interface PasswordDialogProps {
   open: boolean;
 }
 
 export const PasswordDialog: React.FC<PasswordDialogProps> = ({ open }) => {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
   const navigate = useNavigate();
   const { login } = useAuth();
   const [password, setPassword] = useState('');
@@ -30,8 +31,12 @@ export const PasswordDialog: React.FC<PasswordDialogProps> = ({ open }) => {
     try {
       await login(password.trim());
       setPassword('');
-    } catch {
-      setError(t('auth.wrong_password'));
+    } catch (err) {
+      if (apiErrorCode(err) === 'login_locked_out') {
+        setError(translateApiError(t, i18n, err));
+      } else {
+        setError(t('auth.wrong_password'));
+      }
     }
   };
 

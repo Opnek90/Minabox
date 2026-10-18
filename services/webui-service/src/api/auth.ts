@@ -3,6 +3,7 @@ import apiClient from './client';
 export interface AuthConfig {
   authEnabled: boolean;
   protectedPaths: string[];
+  authenticated?: boolean;
 }
 
 export async function getAuthConfig(): Promise<AuthConfig> {

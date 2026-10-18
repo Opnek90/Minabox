@@ -84,6 +84,7 @@ export const LEDConfigPanel: React.FC = () => {
       .catch(() => setError(t('load_error')));
     configApi.getLedStates().then(setLedStates).catch(() => {});
     configApi.getLedPatterns().then(setLedPatterns).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSave = async () => {

@@ -28,19 +28,18 @@ export const useAudioStatus = (): AudioStatus | null => {
     return extrapolatePosition(cachedAudioStatus.status, cachedAudioStatus.receivedAt);
   });
 
-  const interpolatedRef = useRef<AudioStatus | null>(audioStatus);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Live updates from WebSocket
   useWebSocketEvent('audio_status', (message: AudioStatusMessage) => {
-    const data = message.data;
-    interpolatedRef.current = { ...data };
-    setAudioStatus({ ...data });
+    setAudioStatus({ ...message.data });
   });
+
+  const isPlaying = audioStatus?.state === 'playing';
 
   // Client-side tick: advance position_ms every second while playing
   useEffect(() => {
-    if (!audioStatus || audioStatus.state !== 'playing') {
+    if (!isPlaying) {
       if (tickRef.current) {
         clearInterval(tickRef.current);
         tickRef.current = null;
@@ -57,15 +56,13 @@ export const useAudioStatus = (): AudioStatus | null => {
         const current = prev.position_ms ?? 0;
         const duration = prev.duration_ms ?? Infinity;
         const nextMs = Math.min(current + TICK_MS, duration);
-        const next = { ...prev, position_ms: nextMs };
-        interpolatedRef.current = next;
-        return next;
+        return { ...prev, position_ms: nextMs };
       });
     }, TICK_MS);
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
-  }, [audioStatus?.state]);
+  }, [isPlaying]);
 
   return audioStatus;
 };

@@ -36,6 +36,7 @@ export const DisplayConfigPanel: React.FC = () => {
       .getDisplay()
       .then(setConfig)
       .catch(() => setError(t('load_error')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSave = async () => {

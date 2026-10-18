@@ -36,6 +36,7 @@ export const RFIDConfigForm: React.FC = () => {
       .then((data) => setConfig({ ...DEFAULT_RFID_CONFIG, ...data }))
       .catch(() => setError(t('load_error')))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSave = () =>
