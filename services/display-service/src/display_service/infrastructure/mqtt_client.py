@@ -48,6 +48,8 @@ class MQTTClient(BaseMQTTClient):
             f"{prefix}/rfid/tag-scanned",
             f"{prefix}/rfid/tag-removed",
             f"{prefix}/led/usage-denied",
+            f"{prefix}/led/remote-locked",
+            f"{prefix}/system/hardware-lock",
             f"{prefix}/system/service-error",
             f"{prefix}/display/config/reload",
             f"{prefix}/config/general",

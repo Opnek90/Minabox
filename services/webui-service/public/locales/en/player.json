@@ -64,5 +64,11 @@
     "repeat_cycle": "🔁 Repeat",
     "shuffle_toggle": "🔀 Shuffle",
     "next_output_device": "🔊 Next output device"
+  },
+  "hardware_lock": {
+    "toggle": "Remote control mode (lock box inputs)",
+    "locked_tooltip": "Box inputs locked – tap to unlock",
+    "unlocked_tooltip": "Remote control mode: lock box buttons & figures",
+    "active_badge": "Box locked"
   }
 }

@@ -64,5 +64,11 @@
     "repeat_cycle": "🔁 Wiederholung",
     "shuffle_toggle": "🔀 Zufallswiedergabe",
     "next_output_device": "🔊 Nächstes Ausgabegerät"
+  },
+  "hardware_lock": {
+    "toggle": "Fernsteuerungsmodus (Box-Eingaben sperren)",
+    "locked_tooltip": "Box-Eingaben gesperrt – tippen zum Entsperren",
+    "unlocked_tooltip": "Fernsteuerungsmodus: Box-Tasten & Figuren sperren",
+    "active_badge": "Box gesperrt"
   }
 }

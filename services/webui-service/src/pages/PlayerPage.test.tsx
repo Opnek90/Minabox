@@ -64,6 +64,8 @@ vi.mock('@/api/audio', () => ({
     switchDevice: vi.fn(),
     setRepeatMode: vi.fn(),
     setShuffle: vi.fn(),
+    getHardwareLock: vi.fn(() => Promise.resolve({ locked: false })),
+    setHardwareLock: vi.fn((locked: boolean) => Promise.resolve({ locked })),
   },
 }));
 
@@ -140,5 +142,33 @@ describe('PlayerPage repeat/shuffle visibility', () => {
     });
 
     await waitFor(() => expect(repeatBtn).toHaveAttribute('aria-pressed', 'false'));
+  });
+
+  it('allows toggling remote-control hardware lock with a single tap and reacts to WebSocket updates', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <PlayerPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const lockBtn = screen.getByRole('button', { name: 'hardware_lock.toggle' });
+    expect(lockBtn).toHaveAttribute('aria-pressed', 'false');
+
+    act(() => {
+      wsEventTarget.dispatchEvent(
+        new CustomEvent(WS_EVENT_MESSAGE, {
+          detail: { type: 'hardware_lock', data: { locked: true } },
+        }),
+      );
+    });
+
+    await waitFor(() => expect(lockBtn).toHaveAttribute('aria-pressed', 'true'));
+    expect(screen.getByText('hardware_lock.active_badge')).toBeInTheDocument();
   });
 });

@@ -42,6 +42,11 @@ class ButtonHandler:
         action = action_from_topic.replace("-", "_")
         logger.info("button_action_received", action=action, data=data)
 
+        if getattr(self.dispatcher, "hardware_locked", False):
+            logger.info("button_action_ignored_hardware_locked", action=action)
+            await self.dispatcher.notify_remote_locked(f"button:{action}")
+            return
+
         if action in ("play_pause", "next", "prev"):
             self.dispatcher.playback_intent_active = True
             if self.dispatcher.stream_reconnect_task and not self.dispatcher.stream_reconnect_task.done():

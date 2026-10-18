@@ -240,6 +240,10 @@ class TimerHandler:
         self.dispatcher.playback_intent_active = False
         await self.dispatcher.mqtt_client.publish_audio_command("stop", {})
         await self._restore_volume()
+        if getattr(self.dispatcher, "hardware_locked", False) and hasattr(
+            self.dispatcher, "set_hardware_lock"
+        ):
+            await self.dispatcher.set_hardware_lock(False, reason=reason)
         logger.info("faded_out_and_stopped", reason=reason, faded=enabled)
 
     async def _trigger_daily_limit_fade(self) -> None:
@@ -346,6 +350,10 @@ class TimerHandler:
             self.dispatcher.mark_deliberate_stop()
             self.dispatcher.playback_intent_active = False
             await self.dispatcher.mqtt_client.publish_audio_command("stop", {})
+            if getattr(self.dispatcher, "hardware_locked", False) and hasattr(
+                self.dispatcher, "set_hardware_lock"
+            ):
+                await self.dispatcher.set_hardware_lock(False, reason="sleep_timer")
             logger.info("sleep_timer_fired", minutes=minutes)
         except asyncio.CancelledError:
             logger.info("sleep_timer_cancelled")

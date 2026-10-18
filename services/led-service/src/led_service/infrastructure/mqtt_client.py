@@ -93,6 +93,9 @@ class MQTTClient(BaseMQTTClient):
             f"{prefix}/backend/unreachable",
             # Parental: usage outside allowed times
             f"{prefix}/led/usage-denied",
+            # Remote control hardware lock
+            f"{prefix}/led/remote-locked",
+            f"{prefix}/system/hardware-lock",
             # Config API
             f"{prefix}/led/config/reload",
             f"{prefix}/config/general",
@@ -114,7 +117,11 @@ class MQTTClient(BaseMQTTClient):
 
         device_id = self._config.env.minabox_device_id
         prefix = f"minabox/{device_id}"
-        for topic in (f"{prefix}/rfid/presence", f"{prefix}/audio/status"):
+        for topic in (
+            f"{prefix}/rfid/presence",
+            f"{prefix}/audio/status",
+            f"{prefix}/system/hardware-lock",
+        ):
             await self.resubscribe(topic, qos=1)
 
     async def on_message(self, topic: str, payload: bytes) -> None:

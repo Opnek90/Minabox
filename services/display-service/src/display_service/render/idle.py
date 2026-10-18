@@ -24,8 +24,9 @@ MARK_DRAWERS = {
     "error": marks.error,
     "sleep_timer": marks.sleep_timer,
     "no_internet": marks.no_internet,
+    "locked": marks.locked,
 }
-MARK_ORDER = ("error", "no_internet", "sleep_timer")
+MARK_ORDER = ("error", "no_internet", "locked", "sleep_timer")
 MARK_TOP = 2
 
 

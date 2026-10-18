@@ -25,11 +25,16 @@ class WebSocketManager:
         """Initialize WebSocket manager."""
         self.active_connections: list[WebSocket] = []
         self._last_audio_status_payload: dict[str, Any] | None = None
+        self._last_hardware_lock_payload: dict[str, Any] | None = None
         logger.debug("websocket_manager_initialized")
 
     def set_last_audio_status_payload(self, payload: dict[str, Any]) -> None:
         """Store the last enriched audio_status payload for new-client greeting."""
         self._last_audio_status_payload = payload
+
+    def set_last_hardware_lock_payload(self, payload: dict[str, Any]) -> None:
+        """Store the last hardware_lock payload for new-client greeting."""
+        self._last_hardware_lock_payload = payload
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accept and register new WebSocket connection.
@@ -56,6 +61,16 @@ class WebSocketManager:
                 logger.debug("websocket_initial_audio_status_sent")
             except Exception as e:
                 logger.warning("websocket_initial_audio_status_failed", error=str(e))
+        if self._last_hardware_lock_payload is not None:
+            try:
+                lock_greeting = {
+                    "type": "hardware_lock",
+                    "data": self._last_hardware_lock_payload,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+                await websocket.send_json(lock_greeting)
+            except Exception as e:
+                logger.warning("websocket_initial_hardware_lock_failed", error=str(e))
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove WebSocket connection.

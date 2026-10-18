@@ -391,6 +391,32 @@ async def cancel_sleep_timer() -> dict:
     return {"status": "ok", "active": False}
 
 
+class HardwareLockRequest(BaseModel):
+    locked: bool
+
+
+@router.get("/hardware-lock")
+async def get_hardware_lock() -> dict:
+    """Return current hardware lock (remote control mode) status."""
+    if not _mqtt_handlers:
+        return {"locked": False}
+    return _mqtt_handlers.get_hardware_lock_status()
+
+
+@router.post("/hardware-lock")
+async def set_hardware_lock(command: HardwareLockRequest) -> dict:
+    """Enable or disable the hardware lock (remote control mode)."""
+    if not _mqtt_handlers:
+        raise ApiError(
+            status_code=500,
+            code="mqtt_handlers_not_initialized",
+            detail="Handlers not initialized",
+        )
+    logger.info("api_hardware_lock_set", locked=command.locked)
+    result = await _mqtt_handlers.set_hardware_lock(command.locked, reason="manual")
+    return {"status": "ok", **result}
+
+
 class RepeatModeRequest(BaseModel):
     mode: RepeatMode
 

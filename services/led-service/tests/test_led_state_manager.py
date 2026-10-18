@@ -31,6 +31,7 @@ def states() -> StateManager:
         (f"{PREFIX}/button/raw-event", "button_pressed"),
         (f"{PREFIX}/backend/unreachable", "backend_unreachable"),
         (f"{PREFIX}/led/usage-denied", "usage_denied"),
+        (f"{PREFIX}/led/remote-locked", "remote_locked"),
     ],
 )
 def test_topics_map_to_their_logical_state(
@@ -89,3 +90,22 @@ def test_a_malformed_payload_raises_instead_of_guessing(
 ) -> None:
     with pytest.raises(StateError):
         states.derive_state(topic, b"not json")
+
+
+def test_hardware_lock_suppresses_raw_button_and_rfid_events(
+    states: StateManager,
+) -> None:
+    assert (
+        states.derive_state(
+            f"{PREFIX}/system/hardware-lock", json.dumps({"locked": True}).encode()
+        )
+        is None
+    )
+    assert states.derive_state(f"{PREFIX}/button/raw-event", b"{}") is None
+    assert states.derive_state(f"{PREFIX}/rfid/tag-scanned", b"{}") is None
+    assert states.derive_state(f"{PREFIX}/led/remote-locked", b"{}") == "remote_locked"
+
+    states.derive_state(
+        f"{PREFIX}/system/hardware-lock", json.dumps({"locked": False}).encode()
+    )
+    assert states.derive_state(f"{PREFIX}/button/raw-event", b"{}") == "button_pressed"

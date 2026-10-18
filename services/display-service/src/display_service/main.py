@@ -46,6 +46,7 @@ from .render.network import wander_offset as net_wander_offset
 from .render.playing import PAUSED_SLEEP_PHASE_SECONDS, PlayingView
 from .render.playing import render as render_playing
 from .render.quota_over import render as render_quota_over
+from .render.remote_locked import render as render_remote_locked
 from .render.tag_blocked import render as render_tag_blocked
 from .render.unknown_tag import render as render_unknown_tag
 from .render.volume import VolumeView
@@ -103,6 +104,8 @@ NOTICE_SECONDS = 4.0
 NOTICE_UNKNOWN = "unknown_tag"
 NOTICE_BLOCKED = "tag_blocked"
 NOTICE_QUOTA = "quota_over"
+NOTICE_LOCKED = "remote_locked"
+LOCKED_SHAKE_PHASE_SECONDS = 0.25
 
 # Only the blocked figure has anything to say about itself - it is the one the
 # box actually recognises, and its name is worth putting on the panel.
@@ -110,6 +113,7 @@ _NOTICE_RENDERERS = {
     NOTICE_UNKNOWN: lambda _detail: render_unknown_tag(),
     NOTICE_BLOCKED: render_tag_blocked,
     NOTICE_QUOTA: lambda _detail: render_quota_over(),
+    NOTICE_LOCKED: lambda _detail: render_remote_locked(0),
 }
 
 # Which screen owns the panel, most insistent first. Written down rather than
@@ -254,8 +258,16 @@ class DisplayService:
         if topic.endswith("/led/usage-denied"):
             self._raise_notice(NOTICE_QUOTA)
             return
+        if topic.endswith("/led/remote-locked"):
+            self._raise_notice(NOTICE_LOCKED)
+            return
+        if topic.endswith("/system/hardware-lock"):
+            self.state_manager.update_hardware_lock(payload)
+            self._wake.set()
+            return
         if topic.endswith("/rfid/tag-scanned") or topic.endswith("/rfid/tag-removed"):
-            self._wave_hello()
+            if not self.state_manager.is_hardware_locked():
+                self._wave_hello()
             return
         if topic.endswith("/audio/error") or topic.endswith("/system/service-error"):
             self.state_manager.set_error()
@@ -645,6 +657,8 @@ class DisplayService:
         showing = []
         if self.state_manager.has_error():
             showing.append("error")
+        if self.state_manager.is_hardware_locked():
+            showing.append("locked")
         if self.state_manager.get_sleep_timer()["active"]:
             showing.append("sleep_timer")
         if self.state_manager.get_network().get("mode") == "local_only":
@@ -669,6 +683,8 @@ class DisplayService:
             deadline = self._hud_until
         elif screen == SCREEN_NOTICE:
             deadline = self._notice_until
+            if self._notice and self._notice[0] == NOTICE_LOCKED:
+                timeout = min(timeout, LOCKED_SHAKE_PHASE_SECONDS)
         elif screen == SCREEN_IDLE:
             # Knuffel says when he next wants drawing - a breath, a blink, a
             # step. Between those there is nothing to do and the loop sleeps.
@@ -710,6 +726,9 @@ class DisplayService:
             return f"hud:{visible}", render_volume(view)
         if screen == SCREEN_NOTICE:
             kind, detail = self._notice
+            if kind == NOTICE_LOCKED:
+                phase = int(now / LOCKED_SHAKE_PHASE_SECONDS) % 2
+                return f"notice:{kind}:{phase}", render_remote_locked(phase)
             return f"notice:{kind}:{detail}", _NOTICE_RENDERERS[kind](detail)
         if screen == SCREEN_PLAYING:
             view = self.state_manager.get_playing_view()

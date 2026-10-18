@@ -26,8 +26,11 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
+import { useHardwareLock } from '@/hooks/useHardwareLock';
 import SpeakerIcon from '@mui/icons-material/Speaker';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -129,6 +132,7 @@ export const PlayerPage: React.FC = () => {
   const queryClient = useQueryClient();
   const audioStatus = useAudioStatus();
   const sleepTimer = useSleepTimer();
+  const { locked: hardwareLocked, toggleLocked: toggleHardwareLock, setLocked: setHardwareLocked } = useHardwareLock();
   const sleepRemainingMs = sleepTimer?.active ? sleepTimer.remaining_ms : null;
   const { isConnected } = useWebSocket();
   const [error, setError] = useState<string | null>(null);
@@ -446,6 +450,39 @@ export const PlayerPage: React.FC = () => {
                     </span>
                   </Tooltip>
                 </>
+              )}
+              <Tooltip
+                title={
+                  hardwareLocked
+                    ? t('hardware_lock.locked_tooltip')
+                    : t('hardware_lock.unlocked_tooltip')
+                }
+              >
+                <span>
+                  <ActionButton
+                    actionType="icon"
+                    aria-label={t('hardware_lock.toggle')}
+                    aria-pressed={hardwareLocked}
+                    onClick={toggleHardwareLock}
+                  >
+                    {hardwareLocked ? (
+                      <LockIcon fontSize="small" color="warning" />
+                    ) : (
+                      <LockOpenIcon fontSize="small" color="disabled" />
+                    )}
+                  </ActionButton>
+                </span>
+              </Tooltip>
+              {hardwareLocked && (
+                <Chip
+                  icon={<LockIcon fontSize="small" />}
+                  label={t('hardware_lock.active_badge')}
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                  onDelete={() => setHardwareLocked(false)}
+                  deleteIcon={<CancelIcon />}
+                />
               )}
               {sleepRemainingMs !== null && (
                 <Chip

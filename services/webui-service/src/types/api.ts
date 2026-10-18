@@ -634,6 +634,12 @@ export interface SleepTimerStatus {
   remaining_ms: number | null;
 }
 
+export interface HardwareLockStatus {
+  locked: boolean;
+  reason?: string;
+  timestamp?: string;
+}
+
 export interface ServiceLogsResponse {
   service: string;
   lines: string;
@@ -656,6 +662,8 @@ export type WebSocketMessageType =
   | 'button_action'
   | 'button_raw_event'
   | 'sleep_timer_status'
+  | 'hardware_lock'
+  | 'remote_locked'
   | 'repeat_mode'
   | 'shuffle_mode'
   | 'service_status'

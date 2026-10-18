@@ -66,3 +66,31 @@ def barred(canvas: Any, x: int, y: int, size: int) -> None:
         fill=1,
         width=line,
     )
+
+
+def locked(canvas: Any, x: int, y: int, size: int = SIZE) -> None:
+    """A padlock: the box is being driven from the phone."""
+    shackle_w = max(4, round(size * 0.5))
+    shackle_x0 = x + (size - shackle_w) // 2
+    shackle_x1 = shackle_x0 + shackle_w - 1
+    body_top = y + round(size * 0.42)
+    stroke = max(1, round(size * 0.14))
+    canvas.arc(
+        [shackle_x0, y, shackle_x1, body_top + stroke],
+        start=180,
+        end=360,
+        fill=1,
+        width=stroke,
+    )
+    canvas.line([(shackle_x0, (y + body_top) // 2), (shackle_x0, body_top)], fill=1, width=stroke)
+    canvas.line([(shackle_x1, (y + body_top) // 2), (shackle_x1, body_top)], fill=1, width=stroke)
+    bx0 = x + max(1, round(size * 0.12))
+    bx1 = x + size - 1 - max(1, round(size * 0.12))
+    canvas.rectangle([bx0, body_top, bx1, y + size - 1], fill=1)
+    if size >= 18:
+        # Cut a keyhole into the larger notice-sized lock.
+        kx = (bx0 + bx1) // 2
+        ky = body_top + (y + size - 1 - body_top) // 2
+        kr = max(1, size // 10)
+        canvas.ellipse([kx - kr, ky - kr - 1, kx + kr, ky + kr - 1], fill=0)
+        canvas.line([(kx, ky), (kx, ky + kr + 2)], fill=0, width=max(1, kr))
