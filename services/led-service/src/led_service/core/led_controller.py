@@ -407,6 +407,25 @@ class LEDController:
             persistent=pattern_type in _PERSISTENT_PATTERN_TYPES,
         )
 
+    async def clear_state(self, logical_state: str) -> None:
+        """Turn off the LED if it is currently showing *logical_state* (or bound to it)."""
+        if not self.config.enabled or not self._gpio_available:
+            return
+        if (
+            self._current_logical_state != logical_state
+            and logical_state not in self.config.bindings
+        ):
+            return
+        async with self._lock:
+            await self._cancel_current_pattern()
+            await run_off_pattern(self._led, self.config.id)
+            logger.info(
+                "led_state_cleared",
+                led_id=self.config.id,
+                led_name=self.config.name,
+                cleared_state=logical_state,
+            )
+
     async def _cancel_current_pattern(self) -> None:
         """Cancel the currently running pattern if any.
 
@@ -567,6 +586,15 @@ class LEDManager:
                     "GPIO_GID in .env and the /dev/gpiochip0 device mapping."
                 ),
             )
+
+    async def clear_state(self, logical_state: str) -> None:
+        """Clear *logical_state* on all LEDs and switch those LEDs off."""
+        tasks = [
+            controller.clear_state(logical_state)
+            for controller in self._controllers.values()
+        ]
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def apply_state(self, logical_state: str) -> None:
         """Apply a logical state to all LEDs that have bindings for it.

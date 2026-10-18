@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
+
+HARDWARE_LOCK_IDLE_TIMEOUT_SEC = 15 * 60
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -47,6 +49,8 @@ class MQTTHandlers:
         self.stream_reconnect_task: asyncio.Task | None = None
         self.stream_reconnect_attempts: int = 0
         self.deliberate_stop: bool = False
+        self.hardware_locked: bool = False
+        self.hardware_lock_idle_task: asyncio.Task | None = None
 
         # Initialize sub-handlers
         self.rfid_handler = RFIDHandler(self)
@@ -134,6 +138,88 @@ class MQTTHandlers:
 
     async def cancel_sleep_timer(self) -> None:
         await self.timer_handler.cancel_sleep_timer()
+
+    def get_hardware_lock_status(self) -> dict[str, Any]:
+        return {"locked": self.hardware_locked}
+
+    def cancel_hardware_lock_idle_timer(self) -> None:
+        task = self.hardware_lock_idle_task
+        self.hardware_lock_idle_task = None
+        if task and not task.done():
+            task.cancel()
+
+    def start_hardware_lock_idle_timer(
+        self, timeout_sec: float = HARDWARE_LOCK_IDLE_TIMEOUT_SEC
+    ) -> None:
+        self.cancel_hardware_lock_idle_timer()
+        if not self.hardware_locked or timeout_sec <= 0:
+            return
+        self.hardware_lock_idle_task = asyncio.create_task(
+            self._hardware_lock_idle_coroutine(timeout_sec)
+        )
+
+    async def _hardware_lock_idle_coroutine(self, timeout_sec: float) -> None:
+        try:
+            await asyncio.sleep(timeout_sec)
+            if self.hardware_locked:
+                logger.info("hardware_lock_auto_expired_idle", timeout_sec=timeout_sec)
+                await self.set_hardware_lock(False, reason="idle_timeout")
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self.hardware_lock_idle_task = None
+
+    async def set_hardware_lock(
+        self, locked: bool, reason: str = "manual"
+    ) -> dict[str, Any]:
+        self.hardware_locked = bool(locked)
+        if self.hardware_locked:
+            state = self.audio_status_cache.get("state")
+            if state not in ("playing", "paused") and not self.playback_intent_active:
+                self.start_hardware_lock_idle_timer()
+            else:
+                self.cancel_hardware_lock_idle_timer()
+        else:
+            self.cancel_hardware_lock_idle_timer()
+
+        now_iso = datetime.now(UTC).isoformat()
+        payload = {
+            "locked": self.hardware_locked,
+            "reason": reason,
+            "timestamp": now_iso,
+        }
+        if hasattr(self.mqtt_client, "config") and self.mqtt_client.config is not None:
+            topic = self.mqtt_client.config.get_mqtt_topic("system", "hardware-lock")
+            if hasattr(self.mqtt_client, "publish_state"):
+                await self.mqtt_client.publish_state(topic, payload)
+            else:
+                await self.mqtt_client.publish(topic, payload, qos=1, retain=True)
+
+        if self.websocket_manager:
+            if hasattr(self.websocket_manager, "set_last_hardware_lock_payload"):
+                self.websocket_manager.set_last_hardware_lock_payload(payload)
+            await self.websocket_manager.broadcast(
+                {"type": "hardware_lock", "data": payload}
+            )
+        logger.info("hardware_lock_updated", locked=self.hardware_locked, reason=reason)
+        return {"locked": self.hardware_locked, "reason": reason}
+
+    async def notify_remote_locked(self, source: str) -> None:
+        """Publish remote-locked event to LED/Display services and WebSocket clients."""
+        now_iso = datetime.now(UTC).isoformat()
+        if hasattr(self.mqtt_client, "config") and self.mqtt_client.config is not None:
+            topic = self.mqtt_client.config.get_mqtt_topic("led", "remote-locked")
+            await self.mqtt_client.publish(
+                topic,
+                {"event": "remote_locked", "source": source, "timestamp": now_iso},
+            )
+        if self.websocket_manager:
+            await self.websocket_manager.broadcast(
+                {
+                    "type": "remote_locked",
+                    "data": {"source": source, "timestamp": now_iso},
+                }
+            )
 
     async def publish_play_track(self, track: Any) -> None:
         """Publish a play command for the given track object."""

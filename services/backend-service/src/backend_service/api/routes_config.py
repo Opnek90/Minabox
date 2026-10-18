@@ -90,6 +90,7 @@ _LED_BINDING_STATES: list[str] = [
     "button_pressed",
     "backend_unreachable",
     "usage_denied",
+    "remote_locked",
 ]
 
 # All LED pattern types.

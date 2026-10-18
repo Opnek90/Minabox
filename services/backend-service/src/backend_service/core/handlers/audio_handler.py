@@ -293,6 +293,17 @@ class AudioHandler:
             except (TypeError, ValueError, AttributeError):
                 pass
 
+        if new_state in ("playing", "paused"):
+            if hasattr(self.dispatcher, "cancel_hardware_lock_idle_timer"):
+                self.dispatcher.cancel_hardware_lock_idle_timer()
+        elif (
+            new_state in ("stopped", "error")
+            and getattr(self.dispatcher, "hardware_locked", False)
+            and not self.dispatcher.playback_intent_active
+        ):
+            if hasattr(self.dispatcher, "start_hardware_lock_idle_timer"):
+                self.dispatcher.start_hardware_lock_idle_timer()
+
         if self.dispatcher.websocket_manager:
             self.dispatcher.websocket_manager.set_last_audio_status_payload(payload)
             await self.dispatcher.websocket_manager.broadcast(

@@ -166,6 +166,10 @@ class BackendService:
         )
         logger.debug("config_general_published_retained", topic=topic)
 
+        # Ensure hardware lock starts unlocked on service restart so LED and
+        # display services clear any stale retained lock state.
+        await self._mqtt_handlers.set_hardware_lock(False, reason="startup")
+
         # Start podcast RSS fetch loop (daily)
         self._podcast_fetch_task = asyncio.create_task(run_podcast_fetch_loop(self._db))
 

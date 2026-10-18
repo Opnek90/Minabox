@@ -154,7 +154,13 @@ class LEDService:
             payload: The message payload.
         """
         logical_state = self.state_manager.derive_state(topic, payload)
-        if logical_state:
+        if logical_state == "remote_unlocked":
+            await self.led_manager.clear_state("remote_locked")
+            await self.led_manager.apply_state("system_online")
+            await self.mqtt_client.resubscribe_retained_topics(
+                include_hardware_lock=False
+            )
+        elif logical_state:
             await self.led_manager.apply_state(logical_state)
 
     async def _handle_config_reload(self) -> None:
@@ -164,6 +170,7 @@ class LEDService:
         instead of acknowledging a reload that never happened.
         """
         new_config = self.config_manager.reload_config()
+        self.state_manager.hardware_locked = False
         await self.led_manager.initialize_leds(new_config.leds)
         await self.led_manager.apply_state("system_online")
         logger.debug("config_reload_success")

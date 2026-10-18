@@ -47,3 +47,31 @@ def test_the_map_order_does_not_decide(monkeypatch):
 
     assert auth.area_for_path("/api/v1/audio/restart-service") == "admin"
     assert auth.area_for_path("/api/v1/audio/play") == "player"
+
+
+@pytest.mark.asyncio
+async def test_auth_config_reports_valid_session_cookie(monkeypatch):
+    from starlette.requests import Request
+
+    from backend_service.api import routes_auth
+    from backend_service.core import auth as core_auth
+
+    monkeypatch.setattr(
+        routes_auth,
+        "read_auth_settings",
+        lambda: {"web_password_hash": "hashed", "protected_areas": ["admin"]},
+    )
+    token = core_auth.create_session_token()
+
+    req_without_cookie = Request({"type": "http", "headers": []})
+    res_unauth = await routes_auth.get_auth_config(req_without_cookie)
+    assert res_unauth["authenticated"] is False
+
+    req_with_cookie = Request(
+        {
+            "type": "http",
+            "headers": [(b"cookie", f"{routes_auth.COOKIE_NAME}={token}".encode())],
+        }
+    )
+    res_auth = await routes_auth.get_auth_config(req_with_cookie)
+    assert res_auth["authenticated"] is True

@@ -198,3 +198,85 @@ def test_loop_guard_can_be_switched_off(settings_file, monkeypatch) -> None:
 
     handler = ButtonHandler(FakeDispatcher())
     assert handler._loop_decision(session) == (True, "")
+
+
+@pytest.mark.asyncio
+async def test_volume_actions_forward_to_audio_without_cancelling_reconnect() -> None:
+    published: list[tuple[str, dict]] = []
+
+    class FakeMQTT:
+        async def publish_audio_command(self, action: str, payload: dict) -> None:
+            published.append((action, payload))
+
+    class FakeTask:
+        def __init__(self) -> None:
+            self.cancelled = False
+
+        def done(self) -> bool:
+            return False
+
+        def cancel(self) -> None:
+            self.cancelled = True
+
+    dispatcher = FakeDispatcher()
+    dispatcher.mqtt_client = FakeMQTT()
+    dispatcher.websocket_manager = None
+    dispatcher.playback_intent_active = False
+    dispatcher.stream_reconnect_task = FakeTask()
+    dispatcher.stream_reconnect_attempts = 2
+
+    handler = ButtonHandler(dispatcher)
+    await handler.handle_button_action("minabox/box1/button/volume-up", {"source": "enc1"})
+    await handler.handle_button_action("minabox/box1/button/volume-down", {"source": "enc1"})
+
+    assert published == [("volume-up", {}), ("volume-down", {})]
+    assert dispatcher.playback_intent_active is False
+    assert dispatcher.stream_reconnect_task.cancelled is False
+    assert dispatcher.stream_reconnect_attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_hardware_lock_blocks_buttons_and_rfid_and_emits_remote_locked() -> None:
+    from backend_service.core.mqtt_handlers import MQTTHandlers
+
+    published: list[tuple[str, dict]] = []
+    audio_commands: list[tuple[str, dict]] = []
+
+    class FakeConfig:
+        def get_mqtt_topic(self, domain: str, action: str) -> str:
+            return f"minabox/box1/{domain}/{action}"
+
+    class FakeMQTT:
+        config = FakeConfig()
+
+        async def publish(self, topic: str, payload: dict, **kwargs: object) -> None:
+            published.append((topic, payload))
+
+        async def publish_state(self, topic: str, payload: dict, **kwargs: object) -> None:
+            published.append((topic, payload))
+
+        async def publish_audio_command(self, action: str, payload: dict) -> None:
+            audio_commands.append((action, payload))
+
+    handlers = MQTTHandlers(FakeMQTT(), websocket_manager=None)
+    await handlers.set_hardware_lock(True, reason="manual")
+    assert handlers.hardware_locked is True
+    assert any(t == "minabox/box1/system/hardware-lock" and p["locked"] is True for t, p in published)
+
+    published.clear()
+    await handlers.handle_button_action("minabox/box1/button/play-pause", {"source": "btn1"})
+    await handlers.handle_button_action("minabox/box1/button/volume-up", {"source": "enc1"})
+    await handlers.handle_rfid_tag_scanned("minabox/box1/rfid/tag-scanned", {"tag_id": "04AABB"})
+    await handlers.handle_rfid_tag_removed("minabox/box1/rfid/tag-removed", {"tag_id": "04AABB"})
+
+    assert audio_commands == []
+    remote_locked_events = [p for t, p in published if t == "minabox/box1/led/remote-locked"]
+    assert len(remote_locked_events) == 3
+    assert [e["source"] for e in remote_locked_events] == [
+        "button:play_pause",
+        "button:volume_up",
+        "rfid:04AABB",
+    ]
+
+    await handlers.set_hardware_lock(False, reason="manual")
+    assert handlers.hardware_locked is False

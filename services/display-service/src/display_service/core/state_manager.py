@@ -87,6 +87,7 @@ class StateManager:
             "current_title": "",
         }
         self._error_since: float | None = None
+        self._hardware_locked: bool = False
         self._position_anchor: float = clock()
 
     def update_audio(self, topic: str, payload: bytes) -> None:
@@ -223,3 +224,16 @@ class StateManager:
     def get_session(self) -> dict[str, Any]:
         """Return current session state (repeat_mode, shuffle)."""
         return dict(self._session)
+
+    def update_hardware_lock(self, payload: bytes) -> None:
+        """Update cached hardware lock state from system/hardware-lock."""
+        try:
+            data = json.loads(payload.decode("utf-8"))
+            if isinstance(data, dict):
+                self._hardware_locked = bool(data.get("locked"))
+        except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+            pass
+
+    def is_hardware_locked(self) -> bool:
+        """True while remote-control hardware lock is active."""
+        return self._hardware_locked

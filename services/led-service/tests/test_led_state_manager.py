@@ -31,6 +31,7 @@ def states() -> StateManager:
         (f"{PREFIX}/button/raw-event", "button_pressed"),
         (f"{PREFIX}/backend/unreachable", "backend_unreachable"),
         (f"{PREFIX}/led/usage-denied", "usage_denied"),
+        (f"{PREFIX}/led/remote-locked", "remote_locked"),
     ],
 )
 def test_topics_map_to_their_logical_state(
@@ -89,3 +90,47 @@ def test_a_malformed_payload_raises_instead_of_guessing(
 ) -> None:
     with pytest.raises(StateError):
         states.derive_state(topic, b"not json")
+
+
+def test_hardware_lock_activates_remote_locked_and_suppresses_other_events(
+    states: StateManager,
+) -> None:
+    # Initial unlocked state at startup is a no-op
+    assert (
+        states.derive_state(
+            f"{PREFIX}/system/hardware-lock", json.dumps({"locked": False}).encode()
+        )
+        is None
+    )
+    # Enabling lock immediately triggers remote_locked
+    assert (
+        states.derive_state(
+            f"{PREFIX}/system/hardware-lock", json.dumps({"locked": True}).encode()
+        )
+        == "remote_locked"
+    )
+    # While locked, raw button, rfid scan, rfid presence and audio status are suppressed
+    assert states.derive_state(f"{PREFIX}/button/raw-event", b"{}") is None
+    assert states.derive_state(f"{PREFIX}/rfid/tag-scanned", b"{}") is None
+    assert (
+        states.derive_state(
+            f"{PREFIX}/rfid/presence", json.dumps({"tag_present": True}).encode()
+        )
+        is None
+    )
+    assert (
+        states.derive_state(
+            f"{PREFIX}/audio/status", json.dumps({"state": "playing"}).encode()
+        )
+        is None
+    )
+    assert states.derive_state(f"{PREFIX}/led/remote-locked", b"{}") == "remote_locked"
+
+    # Unlocking emits remote_unlocked so LEDs bound to remote_locked are cleared
+    assert (
+        states.derive_state(
+            f"{PREFIX}/system/hardware-lock", json.dumps({"locked": False}).encode()
+        )
+        == "remote_unlocked"
+    )
+    assert states.derive_state(f"{PREFIX}/button/raw-event", b"{}") == "button_pressed"

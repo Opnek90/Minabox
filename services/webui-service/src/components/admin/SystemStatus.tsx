@@ -88,7 +88,7 @@ export const SystemStatusPanel: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadStatus();

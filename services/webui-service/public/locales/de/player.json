@@ -51,5 +51,24 @@
     "shuffle_off": "Zufallswiedergabe aus",
     "output_device_refresh": "Geräte aktualisieren",
     "up_next_count": "Als Nächstes ({{count}})"
+  },
+  "button_actions": {
+    "play_pause": "⏯ Wiedergabe / Pause",
+    "next": "⏭ Nächster Track",
+    "prev": "⏮ Vorheriger Track",
+    "volume_up": "🔊 Lauter",
+    "volume_down": "🔉 Leiser",
+    "mute_toggle": "🔇 Stumm",
+    "stop": "⏹ Stopp",
+    "sleep_timer_toggle": "🌙 Einschlaf-Timer",
+    "repeat_cycle": "🔁 Wiederholung",
+    "shuffle_toggle": "🔀 Zufallswiedergabe",
+    "next_output_device": "🔊 Nächstes Ausgabegerät"
+  },
+  "hardware_lock": {
+    "toggle": "Fernsteuerungsmodus (Box-Eingaben sperren)",
+    "locked_tooltip": "Box-Eingaben gesperrt – tippen zum Entsperren",
+    "unlocked_tooltip": "Fernsteuerungsmodus: Box-Tasten & Figuren sperren",
+    "active_badge": "Box gesperrt"
   }
 }

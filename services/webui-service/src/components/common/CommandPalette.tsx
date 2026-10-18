@@ -65,27 +65,26 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
-  // Media data (lazy loaded on first open)
+  // Media data (refreshed whenever the palette is opened)
   const [tracks, setTracks] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
-  const [mediaLoaded, setMediaLoaded] = useState(false);
 
   useEffect(() => {
     if (!open) { setQuery(''); return; }
-    if (mediaLoaded) return;
-    // Load media data once
+    let active = true;
     Promise.all([
       tracksApi.getAll(),
       playlistsApi.getAll(),
       streamsApi.getAll(),
       podcastsApi.list(),
-    ]).then(([t, pl, st, po]) => {
-      setTracks(t); setPlaylists(pl); setStreams(st); setPodcasts(po);
-      setMediaLoaded(true);
+    ]).then(([tr, pl, st, po]) => {
+      if (!active) return;
+      setTracks(tr); setPlaylists(pl); setStreams(st); setPodcasts(po);
     }).catch(() => {});
-  }, [open, mediaLoaded]);
+    return () => { active = false; };
+  }, [open]);
 
   // Ctrl+K / Cmd+K global shortcut - toggles the palette
   useEffect(() => {
@@ -168,7 +167,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
       id: `podcast-${p.id}`, group: 'podcasts' as CommandGroup,
       label: p.title,
       icon: <PodcastsIcon fontSize="small" />,
-      run: () => navigate('/media'),
+      run: () => navigate('/media?tab=podcasts'),
     })),
   ], [tracks, playlists, streams, podcasts, navigate, t]);
 

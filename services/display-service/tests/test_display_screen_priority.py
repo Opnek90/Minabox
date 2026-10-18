@@ -24,6 +24,7 @@ from display_service.main import (
     DisplayService,
 )
 from display_service.render.quota_over import render as render_quota
+from display_service.render.remote_locked import render as render_remote_locked
 from display_service.render.tag_blocked import render as render_blocked
 from display_service.render.unknown_tag import render as render_unknown
 
@@ -403,3 +404,43 @@ class TestIdleMarks:
         service.state_manager.set_error()
         service._screen_frame(SCREEN_IDLE, now)
         assert service._idle(now).reserved == strip_width(("error",))
+
+
+REMOTE_LOCKED = "minabox/box1/led/remote-locked"
+HARDWARE_LOCK = "minabox/box1/system/hardware-lock"
+
+
+class TestRemoteLocked:
+    @pytest.mark.asyncio
+    async def test_remote_locked_raises_head_shake_notice_and_animates_phases(
+        self, panel, service: DisplayService, fast_loop
+    ):
+        _configured(service)
+        service._handle_mqtt_message(
+            REMOTE_LOCKED, b'{"event": "remote_locked", "source": "button:next"}'
+        )
+
+        await _run(service)
+
+        phase_frames = {
+            render_remote_locked(0).tobytes(),
+            render_remote_locked(1).tobytes(),
+        }
+        assert len(phase_frames) == 2
+        assert panel.frames[-1].tobytes() in phase_frames
+
+    @pytest.mark.asyncio
+    async def test_hardware_lock_shows_mark_and_suppresses_greeting_wave(
+        self, service: DisplayService
+    ):
+        from display_service.render import knuffel
+
+        service._handle_mqtt_message(HARDWARE_LOCK, b'{"locked": true}')
+        assert "locked" in service._idle_marks()
+
+        service._handle_mqtt_message(SCANNED, b'{"tag_id": "04A1"}')
+        if service._idle_animation is not None:
+            assert service._idle_animation.pose().mood not in knuffel.WAVING
+
+        service._handle_mqtt_message(HARDWARE_LOCK, b'{"locked": false}')
+        assert "locked" not in service._idle_marks()

@@ -32,6 +32,7 @@ from backend_service.models.database import (
     Podcast,
     PodcastEpisode,
     Stream,
+    TagScanEvent,
     Track,
 )
 from backend_service.models.schemas import AudioPlayCommand, AudioVolumeCommand
@@ -134,11 +135,22 @@ async def play_audio(
         stream = db.query(Stream).filter(Stream.id == command.stream_id).first()
         if not stream:
             raise ApiError(status_code=404, code="stream_not_found", detail="Stream not found")
+        now = datetime.now(UTC)
         db.add(
             PlaybackEvent(
-                started_at=datetime.now(UTC),
+                started_at=now,
                 content_type="stream",
                 stream_id=stream.id,
+            )
+        )
+        db.add(
+            TagScanEvent(
+                tag_uid="webui",
+                tag_name="WebUI",
+                media_title=stream.title,
+                media_type="stream",
+                action="play",
+                scanned_at=now,
             )
         )
         db.commit()
@@ -164,12 +176,23 @@ async def play_audio(
         )
         if not episode:
             raise ApiError(status_code=400, code="podcast_no_episodes", detail="Podcast has no episodes")
-        podcast.last_played_at = datetime.now(UTC)
+        now = datetime.now(UTC)
+        podcast.last_played_at = now
         db.add(
             PlaybackEvent(
-                started_at=datetime.now(UTC),
+                started_at=now,
                 content_type="podcast",
                 podcast_id=podcast.id,
+            )
+        )
+        db.add(
+            TagScanEvent(
+                tag_uid="webui",
+                tag_name="WebUI",
+                media_title=podcast.title,
+                media_type="podcast",
+                action="play",
+                scanned_at=now,
             )
         )
         db.commit()
@@ -218,11 +241,22 @@ async def play_audio(
         first_track = session.current_track
         if first_track is None:  # pragma: no cover - tracks was checked above
             raise ApiError(status_code=400, code="playlist_empty", detail="Playlist is empty")
+        now = datetime.now(UTC)
         db.add(
             PlaybackEvent(
-                started_at=datetime.now(UTC),
+                started_at=now,
                 content_type="playlist",
                 playlist_id=playlist.id,
+            )
+        )
+        db.add(
+            TagScanEvent(
+                tag_uid="webui",
+                tag_name="WebUI",
+                media_title=playlist.name,
+                media_type="playlist",
+                action="play",
+                scanned_at=now,
             )
         )
         db.commit()
@@ -235,11 +269,22 @@ async def play_audio(
     if not db_track:
         raise ApiError(status_code=404, code="track_not_found", detail="Track not found")
     session_manager.create_session(tracks=[db_track])
+    now = datetime.now(UTC)
     db.add(
         PlaybackEvent(
-            started_at=datetime.now(UTC),
+            started_at=now,
             content_type="track",
             track_id=db_track.id,
+        )
+    )
+    db.add(
+        TagScanEvent(
+            tag_uid="webui",
+            tag_name="WebUI",
+            media_title=db_track.title,
+            media_type="track",
+            action="play",
+            scanned_at=now,
         )
     )
     db.commit()
@@ -389,6 +434,32 @@ async def cancel_sleep_timer() -> dict:
     logger.info("api_sleep_timer_cancel")
     await _mqtt_handlers.cancel_sleep_timer()
     return {"status": "ok", "active": False}
+
+
+class HardwareLockRequest(BaseModel):
+    locked: bool
+
+
+@router.get("/hardware-lock")
+async def get_hardware_lock() -> dict:
+    """Return current hardware lock (remote control mode) status."""
+    if not _mqtt_handlers:
+        return {"locked": False}
+    return _mqtt_handlers.get_hardware_lock_status()
+
+
+@router.post("/hardware-lock")
+async def set_hardware_lock(command: HardwareLockRequest) -> dict:
+    """Enable or disable the hardware lock (remote control mode)."""
+    if not _mqtt_handlers:
+        raise ApiError(
+            status_code=500,
+            code="mqtt_handlers_not_initialized",
+            detail="Handlers not initialized",
+        )
+    logger.info("api_hardware_lock_set", locked=command.locked)
+    result = await _mqtt_handlers.set_hardware_lock(command.locked, reason="manual")
+    return {"status": "ok", **result}
 
 
 class RepeatModeRequest(BaseModel):

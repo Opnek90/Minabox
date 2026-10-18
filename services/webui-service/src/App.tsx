@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Alert, Box, Button, Snackbar, Toolbar } from '@mui/material';
+import { Alert, Box, Button, Toolbar } from '@mui/material';
 import { Header } from '@/components/common/Header';
 import { SystemAlertBar } from '@/components/common/SystemAlertBar';
 import {
@@ -69,59 +69,6 @@ const AudioConfigSync: React.FC = () => {
   return null;
 };
 
-// ── RFID global notifications ────────────────────────────────────────────────
-const RfidNotifications: React.FC = () => {
-  const { t } = useTranslation('rfid');
-  const navigate = useNavigate();
-  const { lastMessage } = useWebSocket();
-  const [notification, setNotification] = useState<{
-    type: 'success' | 'warning';
-    message: string;
-    actionLabel?: string;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!lastMessage) return;
-    if (lastMessage.type === 'tag_not_found') {
-      setNotification({
-        type: 'warning',
-        message: t('notification.unknown_tag'),
-        actionLabel: t('notification.assign_now'),
-      });
-    }
-  }, [lastMessage, t]);
-
-  return (
-    <Snackbar
-      open={notification !== null}
-      autoHideDuration={4000}
-      onClose={() => setNotification(null)}
-      anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-    >
-      <Alert
-        severity={notification?.type ?? 'info'}
-        onClose={() => setNotification(null)}
-        action={
-          notification?.actionLabel ? (
-            <Button
-              color="inherit"
-              size="small"
-              onClick={() => {
-                setNotification(null);
-                navigate('/rfid');
-              }}
-            >
-              {notification.actionLabel}
-            </Button>
-          ) : undefined
-        }
-      >
-        {notification?.message}
-      </Alert>
-    </Snackbar>
-  );
-};
-
 // ── Main layout ───────────────────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
   // Three levels: phone gets the BottomNav, tablet the icon rail, desktop the
@@ -136,7 +83,6 @@ const MainLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { t: tSetup } = useTranslation('setup');
-  const isKiosk = location.pathname === '/kiosk';
   const isPlayer = location.pathname === '/player' || location.pathname === '/';
   const isSetup = location.pathname === '/setup';
 
@@ -150,19 +96,11 @@ const MainLayout: React.FC = () => {
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   useEffect(() => {
-    if (!needsSetup || setupRedirected || isSetup || isKiosk) return;
+    if (!needsSetup || setupRedirected || isSetup) return;
     sessionStorage.setItem('minabox-setup-seen', '1');
     setSetupRedirected(true);
     navigate('/setup', { replace: true });
-  }, [needsSetup, setupRedirected, isSetup, isKiosk, navigate]);
-
-  if (isKiosk) {
-    return (
-      <Suspense fallback={<LoadingSpinner fullPage />}>
-        <KioskPage />
-      </Suspense>
-    );
-  }
+  }, [needsSetup, setupRedirected, isSetup, navigate]);
 
   // Bottom padding so page content never sits under the fixed-position bars.
   // Mobile always has the BottomNav; MiniPlayer additionally sits above it on
@@ -292,7 +230,6 @@ const MainLayout: React.FC = () => {
         {!isPlayer && <MiniPlayer />}
         {isMobile && <MobileBottomNav />}
         <RfidScanDrawer onAssignNew={(tagId) => setPendingTagId(tagId)} />
-        <RfidNotifications />
         <AudioConfigSync />
 
         {/* Offline overlay – shown after 3s without WebSocket connection */}

@@ -10,8 +10,11 @@ interface ProtectedRouteProps {
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ path, children }) => {
   const { authEnabled, protectedPaths, isAuthenticated, configLoaded } = useAuth();
 
+  if (!configLoaded) {
+    return null;
+  }
+
   const showGate =
-    configLoaded &&
     authEnabled &&
     protectedPaths.includes(path) &&
     !isAuthenticated;

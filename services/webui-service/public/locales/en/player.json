@@ -51,5 +51,24 @@
     "shuffle_off": "Shuffle off",
     "output_device_refresh": "Refresh devices",
     "up_next_count": "Up next ({{count}})"
+  },
+  "button_actions": {
+    "play_pause": "⏯ Play / Pause",
+    "next": "⏭ Next",
+    "prev": "⏮ Previous",
+    "volume_up": "🔊 Volume +",
+    "volume_down": "🔉 Volume –",
+    "mute_toggle": "🔇 Mute",
+    "stop": "⏹ Stop",
+    "sleep_timer_toggle": "🌙 Sleep Timer",
+    "repeat_cycle": "🔁 Repeat",
+    "shuffle_toggle": "🔀 Shuffle",
+    "next_output_device": "🔊 Next output device"
+  },
+  "hardware_lock": {
+    "toggle": "Remote control mode (lock box inputs)",
+    "locked_tooltip": "Box inputs locked – tap to unlock",
+    "unlocked_tooltip": "Remote control mode: lock box buttons & figures",
+    "active_badge": "Box locked"
   }
 }

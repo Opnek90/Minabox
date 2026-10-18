@@ -42,7 +42,8 @@
       "col_time": "Time",
       "col_tag": "Tag",
       "col_media": "Content",
-      "col_action": "Action"
+      "col_action": "Action",
+      "source_webui": "WebUI / Player"
     },
     "minutes_value": "{{value}} min"
   },

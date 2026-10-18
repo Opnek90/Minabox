@@ -23,9 +23,24 @@ WAVE_DOWN = "wave_down"
 HUSHED = "hushed"
 SINGING = "singing"
 BELTING = "belting"
+SHAKE_LEFT = "shake_left"
+SHAKE_RIGHT = "shake_right"
 
-MOODS = (AWAKE, BLINK, ASLEEP, PUZZLED, WAVE_UP, WAVE_DOWN, HUSHED, SINGING, BELTING)
+MOODS = (
+    AWAKE,
+    BLINK,
+    ASLEEP,
+    PUZZLED,
+    WAVE_UP,
+    WAVE_DOWN,
+    HUSHED,
+    SINGING,
+    BELTING,
+    SHAKE_LEFT,
+    SHAKE_RIGHT,
+)
 WAVING = (WAVE_UP, WAVE_DOWN)
+SHAKING = (SHAKE_LEFT, SHAKE_RIGHT)
 
 # Everything below is in fortieths of the sprite's size.
 _GRID = 40.0
@@ -69,13 +84,15 @@ def draw(canvas: Any, x: int, y: int, size: int, mood: str = AWAKE) -> None:
             box(41, 1, 49, 9) if high else box(43, 11, 50, 19), fill=1
         )
 
-    canvas.ellipse(box(4, 0, 15, 13), fill=1)   # left ear
-    canvas.ellipse(box(25, 0, 36, 13), fill=1)  # right ear
+    ear_shift = -1.5 if mood == SHAKE_LEFT else (1.5 if mood == SHAKE_RIGHT else 0.0)
+    canvas.ellipse(box(4 + ear_shift, 0, 15 + ear_shift, 13), fill=1)   # left ear
+    canvas.ellipse(box(25 + ear_shift, 0, 36 + ear_shift, 13), fill=1)  # right ear
     canvas.ellipse(box(2, 8, 38, 36), fill=1)   # body
     canvas.ellipse(box(7, 32, 17, 39), fill=1)  # left foot
     canvas.ellipse(box(23, 32, 33, 39), fill=1)  # right foot
 
-    eyes = (point(12, 19), point(28, 19))
+    face_shift = -4.0 if mood == SHAKE_LEFT else (4.0 if mood == SHAKE_RIGHT else 0.0)
+    eyes = (point(12 + face_shift, 19), point(28 + face_shift, 19))
     radius = max(1, round(3 * unit))
 
     if mood in WAVING:
@@ -152,13 +169,12 @@ def draw(canvas: Any, x: int, y: int, size: int, mood: str = AWAKE) -> None:
         )
         return
 
-    if mood == HUSHED:
+    if mood in (HUSHED, SHAKE_LEFT, SHAKE_RIGHT):
         # Lips pressed shut: a short flat bar where the smile's arc would be.
-        # A raised finger does not survive being cut into a thirty-pixel blob -
-        # it reads as a gap, not a hand - but a sealed mouth does, and against
-        # the "Stumm" underneath it is unambiguous.
-        lx, my = point(13, 27)
-        rx, _ = point(27, 27)
+        # When shaking his head (SHAKE_LEFT / SHAKE_RIGHT), the sealed mouth
+        # shifts with the eyes so the whole face turns left and right.
+        lx, my = point(13 + face_shift, 27)
+        rx, _ = point(27 + face_shift, 27)
         canvas.line([(lx, my), (rx, my)], fill=0, width=max(2, round(3 * unit)))
         return
 

@@ -7,12 +7,15 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
+import { useHardwareLock } from '@/hooks/useHardwareLock';
 import { useSleepTimer } from '@/hooks/useSleepTimer';
 import { audioApi } from '@/api/audio';
 import { MOBILE_BOTTOM_NAV_HEIGHT, SAFE_AREA_BOTTOM } from '@/components/common/Navigation';
@@ -115,6 +118,7 @@ export const MiniPlayer: React.FC = () => {
   const navigate = useNavigate();
   const audioStatus = useAudioStatus();
   const sleepTimer = useSleepTimer();
+  const { locked: hardwareLocked, toggleLocked: toggleHardwareLock } = useHardwareLock();
 
   if (!audioStatus || audioStatus.state === 'stopped') return null;
 
@@ -198,6 +202,27 @@ export const MiniPlayer: React.FC = () => {
 
         {/* Controls */}
         <Box display="flex" alignItems="center" onClick={(e) => e.stopPropagation()}>
+          <Tooltip
+            title={
+              hardwareLocked
+                ? t('hardware_lock.locked_tooltip')
+                : t('hardware_lock.unlocked_tooltip')
+            }
+          >
+            <IconButton
+              size="small"
+              aria-label={t('hardware_lock.toggle')}
+              aria-pressed={hardwareLocked}
+              onClick={toggleHardwareLock}
+              color={hardwareLocked ? 'warning' : 'default'}
+            >
+              {hardwareLocked ? (
+                <LockIcon fontSize="small" />
+              ) : (
+                <LockOpenIcon fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
           <Tooltip
             title={state === 'playing' ? t('controls.pause') : t('controls.play')}
           >

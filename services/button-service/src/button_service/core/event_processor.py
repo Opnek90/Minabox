@@ -158,16 +158,12 @@ async def run_event_processor(
             # Resolve action and publish
             action = _resolve_action(button, event_type_str)
             if action:
-                # Always publish to button topic (for backend / WebUI)
+                # Publish to button topic (handled centrally by backend-service)
                 await mqtt_client.publish_action(
                     action=action,
                     source=event.source_id,
                     event_type=event_type_str,
                 )
-                # Volume commands: also publish directly to audio topic for low latency
-                # (avoids extra hop via backend)
-                if action in ("volume_up", "volume_down"):
-                    await mqtt_client.publish_audio_command(action, {})
                 logger.debug(
                     "action_triggered",
                     action=action,

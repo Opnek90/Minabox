@@ -4,6 +4,7 @@ import type {
   AudioSessionResponse,
   AudioStatus,
   AudioTroubleshootResult,
+  HardwareLockStatus,
   PlayRequest,
   RepeatMode,
   SleepTimerStatus,
@@ -56,6 +57,16 @@ export const audioApi = {
 
   cancelSleepTimer: async (): Promise<void> => {
     await apiClient.delete('/audio/sleep-timer');
+  },
+
+  getHardwareLock: async (): Promise<HardwareLockStatus> => {
+    const response = await apiClient.get<HardwareLockStatus>('/audio/hardware-lock');
+    return response.data;
+  },
+
+  setHardwareLock: async (locked: boolean): Promise<HardwareLockStatus> => {
+    const response = await apiClient.post<HardwareLockStatus>('/audio/hardware-lock', { locked });
+    return response.data;
   },
 
   getSession: async (): Promise<AudioSessionResponse> => {

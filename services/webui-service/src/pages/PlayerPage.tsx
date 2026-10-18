@@ -26,8 +26,11 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
+import { useHardwareLock } from '@/hooks/useHardwareLock';
 import SpeakerIcon from '@mui/icons-material/Speaker';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -45,6 +48,7 @@ import { VolumeControl } from '@/components/player/VolumeControl';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useToast } from '@/contexts/ToastContext';
 import { useAudioStatus } from '@/hooks/useAudioStatus';
+import { useSleepTimer } from '@/hooks/useSleepTimer';
 import { useWebSocket, useWebSocketEvent } from '@/contexts/WebSocketContext';
 import { audioApi } from '@/api/audio';
 import { configApi } from '@/api/config';
@@ -105,19 +109,19 @@ const UpNextCollapse: React.FC<{ queue: QueueItem[] }> = ({ queue }) => {
   );
 };
 
-const BUTTON_ACTION_LABELS: Record<string, string> = {
-  play_pause:         '⏯ Play / Pause',
-  next:               '⏭ Next',
-  prev:               '⏮ Previous',
-  volume_up:          '🔊 Volume +',
-  volume_down:        '🔉 Volume –',
-  mute_toggle:        '🔇 Mute',
-  stop:               '⏹ Stop',
-  sleep_timer_toggle: '🌙 Sleep Timer',
-  repeat_cycle:       '🔁 Repeat',
-  shuffle_toggle:     '🔀 Shuffle',
-  next_output_device: '🔊 Next output device',
-};
+const BUTTON_ACTION_KEYS = new Set([
+  'play_pause',
+  'next',
+  'prev',
+  'volume_up',
+  'volume_down',
+  'mute_toggle',
+  'stop',
+  'sleep_timer_toggle',
+  'repeat_cycle',
+  'shuffle_toggle',
+  'next_output_device',
+]);
 
 
 export const PlayerPage: React.FC = () => {
@@ -127,7 +131,10 @@ export const PlayerPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const audioStatus = useAudioStatus();
-  const { sleepTimerStatus, isConnected } = useWebSocket();
+  const sleepTimer = useSleepTimer();
+  const { locked: hardwareLocked, toggleLocked: toggleHardwareLock, setLocked: setHardwareLocked } = useHardwareLock();
+  const sleepRemainingMs = sleepTimer?.active ? sleepTimer.remaining_ms : null;
+  const { isConnected } = useWebSocket();
   const [error, setError] = useState<string | null>(null);
   
   const [optimisticVolume, setOptimisticVolume] = useState<number | null>(null);
@@ -135,8 +142,6 @@ export const PlayerPage: React.FC = () => {
 
   const [sleepAnchor, setSleepAnchor] = useState<HTMLElement | null>(null);
   const [sleepCustom, setSleepCustom] = useState('');
-  const [sleepRemainingMs, setSleepRemainingMs] = useState<number | null>(null);
-  const sleepDisplayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Overflow menu (kiosk, sleep-timer entry, output device, repeat/shuffle) —
   // keeps the main card to cover + controls + volume
@@ -162,30 +167,24 @@ export const PlayerPage: React.FC = () => {
   
   const outputDevices = outputDevicesData?.devices ?? [];
 
-  // Session query - auto refetch when playing state changes
+  // Session query - auto refetch when playing state or track changes
   const isPlaying = audioStatus?.state === 'playing' || audioStatus?.state === 'paused';
-  const { data: session } = useQuery({
+  const { data: session, refetch: refetchSession } = useQuery({
     queryKey: ['audio', 'session'],
     queryFn: audioApi.getSession,
     enabled: isConnected && isPlaying,
     staleTime: 10000,
   });
 
-  // Init Sleep Timer countdown from initial fetch or ws
   useEffect(() => {
-    if (isConnected) {
-      audioApi.getSleepTimer().then((status) => {
-        if (status.active && status.remaining_ms !== null) {
-          startDisplayCountdown(status.remaining_ms);
-        }
-      }).catch(() => null);
+    if (isConnected && isPlaying) {
+      void refetchSession();
     }
-  }, [isConnected]);
+  }, [isConnected, isPlaying, audioStatus?.track_id, refetchSession]);
 
   useEffect(() => {
     return () => {
       if (optimisticTimeoutRef.current) clearTimeout(optimisticTimeoutRef.current);
-      if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
       if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
     };
   }, []);
@@ -201,17 +200,6 @@ export const PlayerPage: React.FC = () => {
     }
   }, [audioStatus?.volume, optimisticVolume]);
 
-  // Handle WebSocket updates
-  useEffect(() => {
-    if (sleepTimerStatus) {
-      if (sleepTimerStatus.active && sleepTimerStatus.remaining_ms !== null) {
-        startDisplayCountdown(sleepTimerStatus.remaining_ms);
-      } else {
-        stopDisplayCountdown();
-      }
-    }
-  }, [sleepTimerStatus]);
-
   // Messages that arrive without the player having asked for them: someone
   // pressed a button on the box, or changed repeat/shuffle from the rotary
   // knob or a second browser session.
@@ -224,7 +212,10 @@ export const PlayerPage: React.FC = () => {
     const action = (message.data as { action?: string }).action ?? '';
     // The box sends kebab-case, the label table is keyed snake_case.
     const actionKey = action.replace(/-/g, '_');
-    setButtonFeedback(BUTTON_ACTION_LABELS[actionKey] ?? BUTTON_ACTION_LABELS[action] ?? action);
+    const label = BUTTON_ACTION_KEYS.has(actionKey)
+      ? t(`button_actions.${actionKey}`)
+      : action;
+    setButtonFeedback(label);
     if (buttonFeedbackTimeout.current) clearTimeout(buttonFeedbackTimeout.current);
     buttonFeedbackTimeout.current = setTimeout(() => setButtonFeedback(null), 1800);
   });
@@ -232,46 +223,26 @@ export const PlayerPage: React.FC = () => {
   useWebSocketEvent('repeat_mode', (message: WebSocketMessage) => {
     const { repeat_mode } = message.data as { repeat_mode?: RepeatMode };
     if (repeat_mode == null) return;
-    queryClient.setQueryData<AudioSessionResponse | null>(['audio', 'session'], (old) =>
-      old ? { ...old, repeat_mode } : old
+    queryClient.setQueryData<AudioSessionResponse>(['audio', 'session'], (old) =>
+      old ? { ...old, repeat_mode } : { queue: [], repeat_mode, shuffle: false }
     );
   });
 
   useWebSocketEvent('shuffle_mode', (message: WebSocketMessage) => {
     const { shuffle } = message.data as { shuffle?: boolean };
     if (shuffle === undefined) return;
-    queryClient.setQueryData<AudioSessionResponse | null>(['audio', 'session'], (old) =>
-      old ? { ...old, shuffle: Boolean(shuffle) } : old
+    queryClient.setQueryData<AudioSessionResponse>(['audio', 'session'], (old) =>
+      old ? { ...old, shuffle: Boolean(shuffle) } : { queue: [], repeat_mode: 'none', shuffle: Boolean(shuffle) }
     );
   });
 
-  // Clear session cache when stopped
+  // Remove session cache when stopped (removeQueries instead of setQueryData(null)
+  // so staleTime does not suppress the next fetch when playback starts within 10s).
   useEffect(() => {
     if (audioStatus?.state === 'stopped' && !audioStatus?.track_id) {
-      queryClient.setQueryData(['audio', 'session'], null);
+      queryClient.removeQueries({ queryKey: ['audio', 'session'] });
     }
   }, [audioStatus?.state, audioStatus?.track_id, queryClient]);
-
-  const startDisplayCountdown = (initialMs: number) => {
-    if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
-    const endMs = Date.now() + initialMs;
-    setSleepRemainingMs(initialMs);
-    setSleepAnchor(null);
-    sleepDisplayRef.current = setInterval(() => {
-      const remaining = endMs - Date.now();
-      if (remaining <= 0) {
-        if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
-        setSleepRemainingMs(null);
-      } else {
-        setSleepRemainingMs(remaining);
-      }
-    }, 1000);
-  };
-
-  const stopDisplayCountdown = () => {
-    if (sleepDisplayRef.current) clearInterval(sleepDisplayRef.current);
-    setSleepRemainingMs(null);
-  };
 
   // Mutations
   const playMutation = useMutation({ mutationFn: audioApi.play });
@@ -314,8 +285,8 @@ export const PlayerPage: React.FC = () => {
   const repeatMutation = useMutation({
     mutationFn: audioApi.setRepeatMode,
     onSuccess: (_: unknown, mode: RepeatMode) => {
-      queryClient.setQueryData(['audio', 'session'], (old: unknown) => 
-        old && typeof old === 'object' ? { ...(old as Record<string, unknown>), repeat_mode: mode } : old
+      queryClient.setQueryData<AudioSessionResponse>(['audio', 'session'], (old) =>
+        old ? { ...old, repeat_mode: mode } : { queue: [], repeat_mode: mode, shuffle: false }
       );
     }
   });
@@ -323,8 +294,8 @@ export const PlayerPage: React.FC = () => {
   const shuffleMutation = useMutation({
     mutationFn: audioApi.setShuffle,
     onSuccess: (_: unknown, shuffle: boolean) => {
-      queryClient.setQueryData(['audio', 'session'], (old: unknown) => 
-        old && typeof old === 'object' ? { ...(old as Record<string, unknown>), shuffle } : old
+      queryClient.setQueryData<AudioSessionResponse>(['audio', 'session'], (old) =>
+        old ? { ...old, shuffle } : { queue: [], repeat_mode: 'none', shuffle }
       );
     }
   });
@@ -434,11 +405,11 @@ export const PlayerPage: React.FC = () => {
                   der Statuszeile: eingefaerbt heisst an, blass heisst aus, und
                   ein Tippen schaltet um. Deshalb sind sie unten aus dem Menue
                   verschwunden statt doppelt zu existieren. */}
-              {session && (
+              {isPlaying && (
                 <>
                   <Tooltip
                     title={
-                      session.repeat_mode === 'all'
+                      (session?.repeat_mode ?? 'none') === 'all'
                         ? t('player.repeat_all')
                         : t('player.repeat_off')
                     }
@@ -447,36 +418,71 @@ export const PlayerPage: React.FC = () => {
                       <ActionButton
                         actionType="icon"
                         aria-label={t('player.repeat_all')}
-                        aria-pressed={session.repeat_mode === 'all'}
+                        aria-pressed={(session?.repeat_mode ?? 'none') === 'all'}
                         onClick={() =>
-                          repeatMutation.mutate(session.repeat_mode === 'all' ? 'none' : 'all')
+                          repeatMutation.mutate(
+                            (session?.repeat_mode ?? 'none') === 'all' ? 'none' : 'all'
+                          )
                         }
                       >
                         <RepeatIcon
                           fontSize="small"
-                          color={session.repeat_mode === 'all' ? 'primary' : 'disabled'}
+                          color={(session?.repeat_mode ?? 'none') === 'all' ? 'primary' : 'disabled'}
                         />
                       </ActionButton>
                     </span>
                   </Tooltip>
                   <Tooltip
-                    title={session.shuffle ? t('player.shuffle_on') : t('player.shuffle_off')}
+                    title={session?.shuffle ? t('player.shuffle_on') : t('player.shuffle_off')}
                   >
                     <span>
                       <ActionButton
                         actionType="icon"
                         aria-label={t('player.shuffle_on')}
-                        aria-pressed={session.shuffle}
-                        onClick={() => shuffleMutation.mutate(!session.shuffle)}
+                        aria-pressed={Boolean(session?.shuffle)}
+                        onClick={() => shuffleMutation.mutate(!session?.shuffle)}
                       >
                         <ShuffleIcon
                           fontSize="small"
-                          color={session.shuffle ? 'primary' : 'disabled'}
+                          color={session?.shuffle ? 'primary' : 'disabled'}
                         />
                       </ActionButton>
                     </span>
                   </Tooltip>
                 </>
+              )}
+              <Tooltip
+                title={
+                  hardwareLocked
+                    ? t('hardware_lock.locked_tooltip')
+                    : t('hardware_lock.unlocked_tooltip')
+                }
+              >
+                <span>
+                  <ActionButton
+                    actionType="icon"
+                    aria-label={t('hardware_lock.toggle')}
+                    aria-pressed={hardwareLocked}
+                    onClick={toggleHardwareLock}
+                  >
+                    {hardwareLocked ? (
+                      <LockIcon fontSize="small" color="warning" />
+                    ) : (
+                      <LockOpenIcon fontSize="small" color="disabled" />
+                    )}
+                  </ActionButton>
+                </span>
+              </Tooltip>
+              {hardwareLocked && (
+                <Chip
+                  icon={<LockIcon fontSize="small" />}
+                  label={t('hardware_lock.active_badge')}
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                  onDelete={() => setHardwareLocked(false)}
+                  deleteIcon={<CancelIcon />}
+                />
               )}
               {sleepRemainingMs !== null && (
                 <Chip

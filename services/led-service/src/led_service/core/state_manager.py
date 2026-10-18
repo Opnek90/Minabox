@@ -21,6 +21,7 @@ class StateManager:
 
     def __init__(self, device_id: str) -> None:
         self.device_id = device_id
+        self.hardware_locked: bool = False
         self._state_derivation_rules = self._build_derivation_rules()
 
     def _build_derivation_rules(self) -> dict[str, Callable[[bytes], str]]:
@@ -28,8 +29,8 @@ class StateManager:
 
         return {
             f"{prefix}/audio/status": self._derive_audio_state,
-            f"{prefix}/rfid/tag-scanned": lambda _: "rfid_scanned",
-            f"{prefix}/rfid/tag-removed": lambda _: "rfid_removed",
+            f"{prefix}/rfid/tag-scanned": lambda _: None if self.hardware_locked else "rfid_scanned",
+            f"{prefix}/rfid/tag-removed": lambda _: None if self.hardware_locked else "rfid_removed",
             f"{prefix}/rfid/unknown-tag": lambda _: "rfid_unknown_tag",
             # Issue #63: blocked tag fires rfid_tag_blocked so LED bindings can
             # react (e.g. a red blink pattern) without starting playback.
@@ -41,9 +42,11 @@ class StateManager:
             f"{prefix}/system/service-started": lambda _: "system_online",
             f"{prefix}/system/service-error": lambda _: "system_error",
             f"{prefix}/system/booting": lambda _: "system_booting",
-            f"{prefix}/button/raw-event": lambda _: "button_pressed",
+            f"{prefix}/system/hardware-lock": self._derive_hardware_lock_state,
+            f"{prefix}/button/raw-event": lambda _: None if self.hardware_locked else "button_pressed",
             f"{prefix}/backend/unreachable": lambda _: "backend_unreachable",
             f"{prefix}/led/usage-denied": lambda _: "usage_denied",
+            f"{prefix}/led/remote-locked": lambda _: "remote_locked",
         }
 
     def derive_state(self, topic: str, payload: bytes) -> str | None:
@@ -68,11 +71,14 @@ class StateManager:
                 f"Failed to derive state from topic '{topic}': {exc}"
             ) from exc
 
-    def _derive_audio_state(self, payload: bytes) -> str:
+    def _derive_audio_state(self, payload: bytes) -> str | None:
         try:
             data = json.loads(payload.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise StateError(f"Invalid JSON in audio/status payload: {exc}") from exc
+
+        if self.hardware_locked:
+            return None
 
         audio_state = data.get("state")
         if audio_state == "playing":
@@ -104,4 +110,22 @@ class StateManager:
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise StateError(f"Invalid JSON in rfid/presence payload: {exc}") from exc
 
+        if self.hardware_locked:
+            return None
+
         return "rfid_scanned" if data.get("tag_present") else "rfid_removed"
+
+    def _derive_hardware_lock_state(self, payload: bytes) -> str | None:
+        """Track retained hardware lock state and trigger remote_locked / remote_unlocked."""
+        try:
+            data = json.loads(payload.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise StateError(f"Invalid JSON in system/hardware-lock payload: {exc}") from exc
+
+        was_locked = self.hardware_locked
+        self.hardware_locked = bool(data.get("locked"))
+        if self.hardware_locked:
+            return "remote_locked"
+        if was_locked:
+            return "remote_unlocked"
+        return None

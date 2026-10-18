@@ -22,6 +22,16 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## backend
 
+### 1.0.0 - 2026-10-18
+
+#### Neu
+- Fernsteuerungsmodus (Box-Sperre): Tasten, Drehgeber und Figuren an der Box lassen sich aus der Oberflaeche mit einem Fingertipp sperren. Die Sperre endet automatisch nach 15 Minuten Stille oder mit dem Einschlaf-Timer.
+- Neues LED-Ereignis `remote_locked`, wenn an der gesperrten Box eine Taste gedrueckt oder eine Figur aufgelegt wird.
+- Manuell ueber die Oberflaeche oder den Player gestartete Titel, Playlists, Streams und Podcasts erscheinen jetzt ebenfalls im Verlauf des Elterndashboards.
+
+#### Verbessert
+- Lautstaerke-Tasten und Drehgeber laufen jetzt wie alle anderen Tastenbefehle zentral ueber das Backend.
+
 ### 0.8.0 - 2026-09-04
 
 #### Neu
@@ -343,6 +353,15 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## webui
+
+### 1.0.0 - 2026-10-18
+
+#### Neu
+- Fernsteuerungsmodus (Box-Sperre) direkt in der Wiedergabe-Ansicht und im Mini-Player per 1-Tap-Schloss-Symbol schaltbar.
+
+#### Behoben
+- Die Schalter fuer Wiederholung und Zufallswiedergabe erscheinen beim Start eines Titels sofort statt erst nach einem Neuladen.
+- Diverse Korrekturen in Anmeldung, Player, Kartenverwaltung und Medienbibliothek aus dem Code-Review.
 
 ### 0.8.0 - 2026-09-04
 
@@ -737,6 +756,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## media-downloader
 
+### 1.0.0 - 2026-10-18
+
 ### 0.2.2 - 2026-08-31
 
 #### Verbessert
@@ -791,6 +812,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## tts
 
+### 1.0.0 - 2026-10-18
+
 ### 0.1.0 - 2026-09-03
 
 #### Neu
@@ -800,6 +823,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
   Mal berechnet wird und danach sofort da ist.
 
 ## host-helper
+
+### 1.0.0 - 2026-10-18
 
 ### 0.3.1 - 2026-09-03
 
@@ -928,6 +953,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## audio
 
+### 1.0.0 - 2026-10-18
+
 ### 0.3.0 - 2026-09-03
 
 #### Neu
@@ -1009,6 +1036,8 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## rfid
 
+### 1.0.0 - 2026-10-18
+
 ### 0.2.4 - 2026-08-31
 
 #### Verbessert
@@ -1064,6 +1093,11 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## button
 
+### 1.0.0 - 2026-10-18
+
+#### Verbessert
+- Lautstaerke-Aktionen (`volume_up`, `volume_down`) werden zentral ueber das Backend geleitet statt direkt an den Audio-Dienst.
+
 ### 0.2.3 - 2026-08-28
 
 #### Verbessert
@@ -1116,6 +1150,11 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 
 ## led
 
+### 1.0.0 - 2026-10-18
+
+#### Neu
+- Neuer Zustand `remote_locked` fuer gesperrte Eingaben im Fernsteuerungsmodus; direkte Tasten- und Karten-Blinkmuster werden waehrend aktiver Box-Sperre unterdrueckt.
+
 ### 0.2.3 - 2026-08-28
 
 #### Verbessert
@@ -1166,6 +1205,11 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 ---
 
 ## display
+
+### 1.0.0 - 2026-10-18
+
+#### Neu
+- Ist der Fernsteuerungsmodus aktiv, zeigt das Display oben rechts ein kleines Schloss und Knuffel schuettelt bei gesperrten Eingaben den Kopf.
 
 ### 0.3.0 - 2026-09-02
 

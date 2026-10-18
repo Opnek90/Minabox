@@ -92,6 +92,11 @@ class RFIDHandler:
             logger.warning("rfid_tag_scanned_missing_tag_id", data=data)
             return
 
+        if getattr(self.dispatcher, "hardware_locked", False):
+            logger.info("rfid_tag_scan_ignored_hardware_locked", tag_id=tag_id)
+            await self.dispatcher.notify_remote_locked(f"rfid:{tag_id}")
+            return
+
         now_sec = time.time()
 
         if now_sec < self.tag_scan_cooldown_until.get(tag_id, 0):
@@ -434,6 +439,10 @@ class RFIDHandler:
 
     async def handle_rfid_tag_removed(self, topic: str, data: dict[str, Any]) -> None:
         tag_id = data.get("tag_id", "")
+
+        if getattr(self.dispatcher, "hardware_locked", False):
+            logger.info("rfid_tag_removed_ignored_hardware_locked", tag_id=tag_id)
+            return
 
         if self.last_played_tag_id == tag_id:
             self.last_played_tag_id = None

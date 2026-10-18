@@ -43,6 +43,7 @@ export const AudioConfigForm: React.FC = () => {
       .then(setConfig)
       .catch(() => setError(t('load_error')))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

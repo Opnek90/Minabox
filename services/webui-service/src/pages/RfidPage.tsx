@@ -124,12 +124,19 @@ export const RfidPage: React.FC<RfidPageProps> = ({ pendingTagId, onPendingTagHa
   useWebSocketEvent('rfid_scanned_learning', handleRfidLearning);
 
   useEffect(() => {
-    if (!pendingTagId) return;
-    setScannedTagId(pendingTagId);
-    setEditTag(null);
+    if (!pendingTagId || loading) return;
+    const normalized = pendingTagId.trim().toLowerCase();
+    const existing = tags.find((tg) => tg.tag_id.trim().toLowerCase() === normalized) ?? null;
+    if (existing) {
+      setEditTag(existing);
+      setScannedTagId(null);
+    } else {
+      setEditTag(null);
+      setScannedTagId(pendingTagId);
+    }
     setEditDialogOpen(true);
     onPendingTagHandled?.();
-  }, [pendingTagId, onPendingTagHandled]);
+  }, [pendingTagId, loading, tags, onPendingTagHandled]);
 
   const handleLearnModeActivate = async () => {
     setLearnModeLoading(true);
