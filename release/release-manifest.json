@@ -192,11 +192,13 @@
             "added": {
               "de": [
                 "Fernsteuerungsmodus (Box-Sperre): Tasten, Drehgeber und Figuren an der Box lassen sich aus der Oberflaeche mit einem Fingertipp sperren. Die Sperre endet automatisch nach 15 Minuten Stille oder mit dem Einschlaf-Timer.",
-                "Neues LED-Ereignis `remote_locked`, wenn an der gesperrten Box eine Taste gedrueckt oder eine Figur aufgelegt wird."
+                "Neues LED-Ereignis `remote_locked`, wenn an der gesperrten Box eine Taste gedrueckt oder eine Figur aufgelegt wird.",
+                "Manuell ueber die Oberflaeche oder den Player gestartete Titel, Playlists, Streams und Podcasts erscheinen jetzt ebenfalls im Verlauf des Elterndashboards."
               ],
               "en": [
                 "Remote-control mode (hardware lock): buttons, rotary encoders and figures on the box can be locked with a single tap from the interface. The lock clears automatically after 15 minutes of silence or when the sleep timer finishes.",
-                "New `remote_locked` LED event when a button is pressed or a figure is placed on a locked box."
+                "New `remote_locked` LED event when a button is pressed or a figure is placed on a locked box.",
+                "Tracks, playlists, streams and podcasts started manually from the interface or player now also appear in the parent dashboard history."
               ]
             },
             "improved": {

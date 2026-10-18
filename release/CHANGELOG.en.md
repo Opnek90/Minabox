@@ -26,6 +26,7 @@ A version without a visible change may stay empty - the interface then says
 #### Added
 - Remote-control mode (hardware lock): buttons, rotary encoders and figures on the box can be locked with a single tap from the interface. The lock clears automatically after 15 minutes of silence or when the sleep timer finishes.
 - New `remote_locked` LED event when a button is pressed or a figure is placed on a locked box.
+- Tracks, playlists, streams and podcasts started manually from the interface or player now also appear in the parent dashboard history.
 
 #### Improved
 - Volume buttons and rotary encoders now route centrally through the backend like all other button actions.

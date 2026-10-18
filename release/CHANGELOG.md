@@ -27,6 +27,7 @@ Oberflaeche "keine Aenderungsnotizen" statt einer erfundenen Zeile.
 #### Neu
 - Fernsteuerungsmodus (Box-Sperre): Tasten, Drehgeber und Figuren an der Box lassen sich aus der Oberflaeche mit einem Fingertipp sperren. Die Sperre endet automatisch nach 15 Minuten Stille oder mit dem Einschlaf-Timer.
 - Neues LED-Ereignis `remote_locked`, wenn an der gesperrten Box eine Taste gedrueckt oder eine Figur aufgelegt wird.
+- Manuell ueber die Oberflaeche oder den Player gestartete Titel, Playlists, Streams und Podcasts erscheinen jetzt ebenfalls im Verlauf des Elterndashboards.
 
 #### Verbessert
 - Lautstaerke-Tasten und Drehgeber laufen jetzt wie alle anderen Tastenbefehle zentral ueber das Backend.
