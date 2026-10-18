@@ -92,20 +92,45 @@ def test_a_malformed_payload_raises_instead_of_guessing(
         states.derive_state(topic, b"not json")
 
 
-def test_hardware_lock_suppresses_raw_button_and_rfid_events(
+def test_hardware_lock_activates_remote_locked_and_suppresses_other_events(
     states: StateManager,
 ) -> None:
+    # Initial unlocked state at startup is a no-op
+    assert (
+        states.derive_state(
+            f"{PREFIX}/system/hardware-lock", json.dumps({"locked": False}).encode()
+        )
+        is None
+    )
+    # Enabling lock immediately triggers remote_locked
     assert (
         states.derive_state(
             f"{PREFIX}/system/hardware-lock", json.dumps({"locked": True}).encode()
         )
-        is None
+        == "remote_locked"
     )
+    # While locked, raw button, rfid scan, rfid presence and audio status are suppressed
     assert states.derive_state(f"{PREFIX}/button/raw-event", b"{}") is None
     assert states.derive_state(f"{PREFIX}/rfid/tag-scanned", b"{}") is None
+    assert (
+        states.derive_state(
+            f"{PREFIX}/rfid/presence", json.dumps({"tag_present": True}).encode()
+        )
+        is None
+    )
+    assert (
+        states.derive_state(
+            f"{PREFIX}/audio/status", json.dumps({"state": "playing"}).encode()
+        )
+        is None
+    )
     assert states.derive_state(f"{PREFIX}/led/remote-locked", b"{}") == "remote_locked"
 
-    states.derive_state(
-        f"{PREFIX}/system/hardware-lock", json.dumps({"locked": False}).encode()
+    # Unlocking emits remote_unlocked so LEDs bound to remote_locked are cleared
+    assert (
+        states.derive_state(
+            f"{PREFIX}/system/hardware-lock", json.dumps({"locked": False}).encode()
+        )
+        == "remote_unlocked"
     )
     assert states.derive_state(f"{PREFIX}/button/raw-event", b"{}") == "button_pressed"

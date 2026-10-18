@@ -101,7 +101,9 @@ class MQTTClient(BaseMQTTClient):
             f"{prefix}/config/general",
         ]
 
-    async def resubscribe_retained_topics(self) -> None:
+    async def resubscribe_retained_topics(
+        self, *, include_hardware_lock: bool = True
+    ) -> None:
         """Re-subscribe to retained topics to trigger broker re-delivery.
 
         The MQTT broker only delivers a retained message when a client
@@ -117,11 +119,10 @@ class MQTTClient(BaseMQTTClient):
 
         device_id = self._config.env.minabox_device_id
         prefix = f"minabox/{device_id}"
-        for topic in (
-            f"{prefix}/rfid/presence",
-            f"{prefix}/audio/status",
-            f"{prefix}/system/hardware-lock",
-        ):
+        topics = [f"{prefix}/rfid/presence", f"{prefix}/audio/status"]
+        if include_hardware_lock:
+            topics.append(f"{prefix}/system/hardware-lock")
+        for topic in topics:
             await self.resubscribe(topic, qos=1)
 
     async def on_message(self, topic: str, payload: bytes) -> None:

@@ -71,11 +71,14 @@ class StateManager:
                 f"Failed to derive state from topic '{topic}': {exc}"
             ) from exc
 
-    def _derive_audio_state(self, payload: bytes) -> str:
+    def _derive_audio_state(self, payload: bytes) -> str | None:
         try:
             data = json.loads(payload.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise StateError(f"Invalid JSON in audio/status payload: {exc}") from exc
+
+        if self.hardware_locked:
+            return None
 
         audio_state = data.get("state")
         if audio_state == "playing":
@@ -107,14 +110,22 @@ class StateManager:
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise StateError(f"Invalid JSON in rfid/presence payload: {exc}") from exc
 
+        if self.hardware_locked:
+            return None
+
         return "rfid_scanned" if data.get("tag_present") else "rfid_removed"
 
     def _derive_hardware_lock_state(self, payload: bytes) -> str | None:
-        """Track retained hardware lock state to suppress raw input LEDs while locked."""
+        """Track retained hardware lock state and trigger remote_locked / remote_unlocked."""
         try:
             data = json.loads(payload.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise StateError(f"Invalid JSON in system/hardware-lock payload: {exc}") from exc
 
+        was_locked = self.hardware_locked
         self.hardware_locked = bool(data.get("locked"))
+        if self.hardware_locked:
+            return "remote_locked"
+        if was_locked:
+            return "remote_unlocked"
         return None
