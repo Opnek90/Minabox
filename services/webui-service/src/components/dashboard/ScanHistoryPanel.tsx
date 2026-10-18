@@ -147,9 +147,11 @@ export const ScanHistoryPanel: React.FC = () => {
               <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1}>
                 <Box minWidth={0} flex={1}>
                   <Typography variant="body2" fontWeight={600} noWrap>
-                    {ev.tag_name ?? ev.tag_id}
+                    {ev.tag_id === 'webui'
+                      ? t('dashboard.scan_history.source_webui')
+                      : (ev.tag_name ?? ev.tag_id)}
                   </Typography>
-                  {ev.tag_name && (
+                  {ev.tag_name && ev.tag_id !== 'webui' && (
                     <Typography variant="caption" color="text.secondary" display="block" noWrap>
                       {ev.tag_id}
                     </Typography>
@@ -193,8 +195,10 @@ export const ScanHistoryPanel: React.FC = () => {
                     {fmt.format(new Date(ev.scanned_at))}
                   </TableCell>
                   <TableCell>
-                    {ev.tag_name ?? ev.tag_id}
-                    {ev.tag_name && (
+                    {ev.tag_id === 'webui'
+                      ? t('dashboard.scan_history.source_webui')
+                      : (ev.tag_name ?? ev.tag_id)}
+                    {ev.tag_name && ev.tag_id !== 'webui' && (
                       <Typography variant="caption" display="block" color="text.secondary">
                         {ev.tag_id}
                       </Typography>
