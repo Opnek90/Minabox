@@ -3,8 +3,14 @@
   "registry": "ghcr.io/opnek90",
   "services": {
     "audio": {
-      "latest": "0.3.0",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "notes": {}
+        },
         {
           "version": "0.3.0",
           "date": "2026-09-03",
@@ -172,8 +178,37 @@
       ]
     },
     "backend": {
-      "latest": "0.8.0",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "requires": {
+            "audio": ">=1.0.0",
+            "host-helper": ">=1.0.0"
+          },
+          "notes": {
+            "added": {
+              "de": [
+                "Fernsteuerungsmodus (Box-Sperre): Tasten, Drehgeber und Figuren an der Box lassen sich aus der Oberflaeche mit einem Fingertipp sperren. Die Sperre endet automatisch nach 15 Minuten Stille oder mit dem Einschlaf-Timer.",
+                "Neues LED-Ereignis `remote_locked`, wenn an der gesperrten Box eine Taste gedrueckt oder eine Figur aufgelegt wird."
+              ],
+              "en": [
+                "Remote-control mode (hardware lock): buttons, rotary encoders and figures on the box can be locked with a single tap from the interface. The lock clears automatically after 15 minutes of silence or when the sleep timer finishes.",
+                "New `remote_locked` LED event when a button is pressed or a figure is placed on a locked box."
+              ]
+            },
+            "improved": {
+              "de": [
+                "Lautstaerke-Tasten und Drehgeber laufen jetzt wie alle anderen Tastenbefehle zentral ueber das Backend."
+              ],
+              "en": [
+                "Volume buttons and rotary encoders now route centrally through the backend like all other button actions."
+              ]
+            }
+          }
+        },
         {
           "version": "0.8.0",
           "date": "2026-09-04",
@@ -825,8 +860,23 @@
       ]
     },
     "button": {
-      "latest": "0.2.3",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "notes": {
+            "improved": {
+              "de": [
+                "Lautstaerke-Aktionen (`volume_up`, `volume_down`) werden zentral ueber das Backend geleitet statt direkt an den Audio-Dienst."
+              ],
+              "en": [
+                "Volume actions (`volume_up`, `volume_down`) now route centrally through the backend instead of publishing directly to the audio service."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.3",
           "date": "2026-08-28",
@@ -931,8 +981,23 @@
       ]
     },
     "display": {
-      "latest": "0.3.0",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Ist der Fernsteuerungsmodus aktiv, zeigt das Display oben rechts ein kleines Schloss und Knuffel schuettelt bei gesperrten Eingaben den Kopf."
+              ],
+              "en": [
+                "While remote-control mode is active, the idle screen shows a small padlock mark and Knuffel shakes his head when a locked input is used."
+              ]
+            }
+          }
+        },
         {
           "version": "0.3.0",
           "date": "2026-09-02",
@@ -1068,8 +1133,14 @@
       ]
     },
     "host-helper": {
-      "latest": "0.3.1",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "notes": {}
+        },
         {
           "version": "0.3.1",
           "date": "2026-09-03",
@@ -1325,8 +1396,23 @@
       ]
     },
     "led": {
-      "latest": "0.2.3",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "notes": {
+            "added": {
+              "de": [
+                "Neuer Zustand `remote_locked` fuer gesperrte Eingaben im Fernsteuerungsmodus; direkte Tasten- und Karten-Blinkmuster werden waehrend aktiver Box-Sperre unterdrueckt."
+              ],
+              "en": [
+                "New `remote_locked` state for blocked inputs in remote-control mode; raw button and card LED triggers are suppressed while the box is locked."
+              ]
+            }
+          }
+        },
         {
           "version": "0.2.3",
           "date": "2026-08-28",
@@ -1433,8 +1519,14 @@
       ]
     },
     "media-downloader": {
-      "latest": "0.2.2",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "notes": {}
+        },
         {
           "version": "0.2.2",
           "date": "2026-08-31",
@@ -1552,8 +1644,14 @@
       ]
     },
     "rfid": {
-      "latest": "0.2.4",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "notes": {}
+        },
         {
           "version": "0.2.4",
           "date": "2026-08-31",
@@ -1659,8 +1757,14 @@
       ]
     },
     "tts": {
-      "latest": "0.1.0",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "notes": {}
+        },
         {
           "version": "0.1.0",
           "date": "2026-09-03",
@@ -1679,8 +1783,36 @@
       ]
     },
     "webui": {
-      "latest": "0.8.0",
+      "latest": "1.0.0",
       "releases": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-18",
+          "channel": "stable",
+          "requires": {
+            "backend": ">=1.0.0"
+          },
+          "notes": {
+            "added": {
+              "de": [
+                "Fernsteuerungsmodus (Box-Sperre) direkt in der Wiedergabe-Ansicht und im Mini-Player per 1-Tap-Schloss-Symbol schaltbar."
+              ],
+              "en": [
+                "Remote-control mode (box input lock) toggleable with a single tap right from the Player view and the MiniPlayer."
+              ]
+            },
+            "fixed": {
+              "de": [
+                "Die Schalter fuer Wiederholung und Zufallswiedergabe erscheinen beim Start eines Titels sofort statt erst nach einem Neuladen.",
+                "Diverse Korrekturen in Anmeldung, Player, Kartenverwaltung und Medienbibliothek aus dem Code-Review."
+              ],
+              "en": [
+                "Repeat and shuffle toggles appear immediately when playback starts without requiring a page reload.",
+                "Various fixes across authentication, player, card management and media library from the code review."
+              ]
+            }
+          }
+        },
         {
           "version": "0.8.0",
           "date": "2026-09-04",

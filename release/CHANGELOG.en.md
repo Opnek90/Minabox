@@ -21,6 +21,15 @@ A version without a visible change may stay empty - the interface then says
 
 ## backend
 
+### 1.0.0 - 2026-10-18
+
+#### Added
+- Remote-control mode (hardware lock): buttons, rotary encoders and figures on the box can be locked with a single tap from the interface. The lock clears automatically after 15 minutes of silence or when the sleep timer finishes.
+- New `remote_locked` LED event when a button is pressed or a figure is placed on a locked box.
+
+#### Improved
+- Volume buttons and rotary encoders now route centrally through the backend like all other button actions.
+
 ### 0.8.0 - 2026-09-04
 
 #### Added
@@ -330,6 +339,15 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## webui
+
+### 1.0.0 - 2026-10-18
+
+#### Added
+- Remote-control mode (box input lock) toggleable with a single tap right from the Player view and the MiniPlayer.
+
+#### Fixed
+- Repeat and shuffle toggles appear immediately when playback starts without requiring a page reload.
+- Various fixes across authentication, player, card management and media library from the code review.
 
 ### 0.8.0 - 2026-09-04
 
@@ -706,6 +724,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## media-downloader
 
+### 1.0.0 - 2026-10-18
+
 ### 0.2.2 - 2026-08-31
 
 #### Improved
@@ -758,6 +778,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## tts
 
+### 1.0.0 - 2026-10-18
+
 ### 0.1.0 - 2026-09-03
 
 #### Added
@@ -767,6 +789,8 @@ A version without a visible change may stay empty - the interface then says
   time and is there instantly afterwards.
 
 ## host-helper
+
+### 1.0.0 - 2026-10-18
 
 ### 0.3.1 - 2026-09-03
 
@@ -888,6 +912,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## audio
 
+### 1.0.0 - 2026-10-18
+
 ### 0.3.0 - 2026-09-03
 
 #### Added
@@ -967,6 +993,8 @@ A version without a visible change may stay empty - the interface then says
 
 ## rfid
 
+### 1.0.0 - 2026-10-18
+
 ### 0.2.4 - 2026-08-31
 
 #### Improved
@@ -1021,6 +1049,11 @@ A version without a visible change may stay empty - the interface then says
 
 ## button
 
+### 1.0.0 - 2026-10-18
+
+#### Improved
+- Volume actions (`volume_up`, `volume_down`) now route centrally through the backend instead of publishing directly to the audio service.
+
 ### 0.2.3 - 2026-08-28
 
 #### Improved
@@ -1072,6 +1105,11 @@ A version without a visible change may stay empty - the interface then says
 
 ## led
 
+### 1.0.0 - 2026-10-18
+
+#### Added
+- New `remote_locked` state for blocked inputs in remote-control mode; raw button and card LED triggers are suppressed while the box is locked.
+
 ### 0.2.3 - 2026-08-28
 
 #### Improved
@@ -1119,6 +1157,11 @@ A version without a visible change may stay empty - the interface then says
 ---
 
 ## display
+
+### 1.0.0 - 2026-10-18
+
+#### Added
+- While remote-control mode is active, the idle screen shows a small padlock mark and Knuffel shakes his head when a locked input is used.
 
 ### 0.3.0 - 2026-09-02
 
