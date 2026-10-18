@@ -44,9 +44,8 @@ class MQTTClient(BaseMQTTClient):
         self._on_config_reload = on_config_reload_callback
         self._device_id = config.env.minabox_device_id
 
-        # Build topic prefixes via get_mqtt_topic() for consistency (issue #16)
+        # Build topic prefix via get_mqtt_topic() for consistency (issue #16)
         self._topic_prefix = config.get_mqtt_topic("button", "").rstrip("/")
-        self._audio_topic_prefix = config.get_mqtt_topic("audio", "").rstrip("/")
 
         # Registered up front; the base client applies them on every connect.
         for topic in self._build_subscription_topics():
@@ -90,12 +89,6 @@ class MQTTClient(BaseMQTTClient):
             event_type=event_type,
             topic=topic,
         )
-
-    async def publish_audio_command(self, action: str, payload: dict | None = None) -> None:
-        """Publish directly to audio service topic (e.g. volume-up, volume-down)."""
-        topic = f"{self._audio_topic_prefix}/{action.replace('_', '-')}"
-        await self.publish(topic, payload or {}, qos=0, retain=False)
-        logger.debug("audio_command_published", action=action, topic=topic)
 
     async def publish_raw_event(
         self,
